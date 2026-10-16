@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/backend/">
+    <Project Path="backend/TavoloFlow.Api.Tests/TavoloFlow.Api.Tests.csproj" />
+    <Project Path="backend/TavoloFlow.Api/TavoloFlow.Api.csproj" />
+  </Folder>
+</Solution>
