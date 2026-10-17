@@ -1,7 +1,10 @@
 #########################
 # global gitignore file #
 #########################
-
+.env
+.env.*
+!.env.example
+!.env.*.example
 
 
 ######################
@@ -52,11 +55,10 @@ msbuild.log
 msbuild.err
 msbuild.wrn
 
+# ############################
+# frontend: react tech stack #
+##############################
 # Node.js build artifacts
 node_modules/
 package-lock.json
 package.json
-
-# ############################
-# frontend: react tech stack #
-##############################
