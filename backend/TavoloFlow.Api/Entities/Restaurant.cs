@@ -16,7 +16,6 @@ public sealed class Restaurant
     public RestaurantServiceStatus ServiceStatus { get; set; } = RestaurantServiceStatus.Suspended;
     public bool OrderingEnabled { get; set; }
     public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
 
     public ICollection<RestaurantUser> Users { get; } = new List<RestaurantUser>();
     public ICollection<RestaurantTable> Tables { get; } = new List<RestaurantTable>();
