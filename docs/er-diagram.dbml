@@ -1,10 +1,12 @@
 Project TavoloFlow_MVP_V1 {
   database_type: 'PostgreSQL'
   Note: '''
-    TavoloFlow MVP: 9 tables, one menu per restaurant.
-    EF Core Migrations will create the real PostgreSQL schema.
-    Some cross-table business rules and filtered unique indexes
-    must be configured in EF Core and application services.
+    TavoloFlow MVP (simplified): 9 tables, one menu per restaurant.
+    Removed optimistic version columns except session bill_version.
+    No join-code/QR reset in V1; closing a session invalidates guest cookies.
+    EF Core Migrations create the real PostgreSQL schema.
+    Cross-table rules, filtered unique indexes, and transaction locks
+    are configured in EF Core and application services.
   '''
 }
 
@@ -69,7 +71,6 @@ Table restaurant_tables {
   qr_token varchar(128) [not null, unique, note: 'Random fixed QR entrance token, not a join code']
   is_enabled boolean [not null, default: true]
   deleted_at timestamptz
-  table_version int [not null, default: 1]
   created_at timestamptz [not null, default: `now()`]
 
   Indexes {
@@ -77,7 +78,13 @@ Table restaurant_tables {
     restaurant_id
   }
 
-  Note: 'EF Core filtered unique index: (restaurant_id, table_label) WHERE deleted_at IS NULL.'
+  Note: '''
+    EF Core filtered unique index: (restaurant_id, table_label)
+      WHERE deleted_at IS NULL.
+    To replace a QR token, soft-delete the table only when it has no
+    ACTIVE dining session, create a new table, and reprint its QR code.
+    Never delete a table with an ACTIVE dining session.
+  '''
 }
 
 Table menu_categories {
@@ -87,7 +94,6 @@ Table menu_categories {
   name_it varchar(100)
   name_en varchar(100)
   deleted_at timestamptz
-  version int [not null, default: 1]
   created_at timestamptz [not null, default: `now()`]
 
   Indexes {
@@ -98,7 +104,7 @@ Table menu_categories {
     `name_zh IS NOT NULL OR name_it IS NOT NULL OR name_en IS NOT NULL` [name: 'ck_category_has_name']
   }
 
-  Note: 'Require the restaurant default-language name in the service layer. Normalize whitespace-only names to NULL.'
+  Note: 'At least one localized name; normalize whitespace-only names to NULL. Client falls back to another available translation.'
 }
 
 Table menu_items {
@@ -114,9 +120,9 @@ Table menu_items {
   description_en text
   price_cents bigint [not null]
   allergen_codes "text[]" [not null, default: '{}', note: 'Only 14 predefined EU allergen codes, validated by the API']
+  allergen_reviewed boolean [not null, default: false, note: 'true + empty codes = reviewed, no identified declarable allergens']
   is_available boolean [not null, default: true]
   deleted_at timestamptz
-  version int [not null, default: 1]
   created_at timestamptz [not null, default: `now()`]
 
   Indexes {
@@ -131,11 +137,14 @@ Table menu_items {
 
   Note: '''
     No menus or allergens tables in MVP.
-    Require the restaurant default-language name when saving.
+    Require at least one localized name when saving.
     Normalize blank names/codes to NULL.
     EF Core filtered unique index: (restaurant_id, item_code)
       WHERE deleted_at IS NULL AND item_code IS NOT NULL.
-    Empty allergen_codes means not recorded; never claim allergen-free.
+    allergen_reviewed=false means no completed restaurant review.
+    allergen_reviewed=true + empty allergen_codes means reviewed and
+    no identified declarable allergens; do not promise zero cross-contact.
+    Reconfirm review when allergen_codes are edited.
   '''
 }
 
@@ -146,10 +155,8 @@ Table dining_sessions {
   table_id uuid [not null]
   status varchar(10) [not null, default: 'ACTIVE']
   join_code_ciphertext text [note: 'Encrypt reversible 4-character join code; NULL after closing']
-  authorization_version int [not null, default: 1]
-  bill_version int [not null, default: 0]
+  bill_version int [not null, default: 1, note: 'Per-session counter. Increment once per successful new order or cancellation']
   table_label_snapshot varchar(50) [not null]
-  open_request_id uuid [not null, unique]
   opened_by_user_id uuid [not null]
   opened_at timestamptz [not null, default: `now()`]
   closed_at timestamptz
@@ -164,8 +171,7 @@ Table dining_sessions {
 
   Checks {
     `status IN ('ACTIVE', 'CLOSED')` [name: 'ck_session_status']
-    `authorization_version > 0` [name: 'ck_session_auth_version']
-    `bill_version >= 0` [name: 'ck_session_bill_version']
+    `bill_version > 0` [name: 'ck_session_bill_version']
     `close_reason IS NULL OR close_reason IN ('PAID', 'VOIDED', 'EMPTY')` [name: 'ck_session_close_reason']
     `(status = 'ACTIVE' AND closed_at IS NULL AND close_reason IS NULL AND closed_total_cents IS NULL AND join_code_ciphertext IS NOT NULL) OR (status = 'CLOSED' AND closed_at IS NOT NULL AND close_reason IS NOT NULL AND closed_total_cents IS NOT NULL AND join_code_ciphertext IS NULL)` [name: 'ck_session_lifecycle']
     `closed_total_cents IS NULL OR closed_total_cents >= 0` [name: 'ck_session_closed_total']
@@ -173,12 +179,16 @@ Table dining_sessions {
 
   Note: '''
     EF Core filtered unique index: (table_id) WHERE status = 'ACTIVE'.
-    Guest permissions: protected HttpOnly cookie carries session ID and
-    authorization_version; no guest_grants table.
-    Check active session + auth version on every protected guest request.
-    Increment auth version on join-code or QR reset, not per order.
-    bill_version changes on order creation/cancellation, and checkout
-    checks the version and amount inside a transaction.
+    No join-code or QR reset in V1. A protected HttpOnly guest cookie
+    binds restaurant, table, and session; it never stores the join code.
+    Validate cookie and ACTIVE session on every protected guest request.
+    After network failure, open-table UI must query current table state
+    and require fresh staff confirmation, not auto-retry the old POST.
+    bill_version begins at 1 for each new session and increments only
+    when a new order is persisted or an order is actually cancelled.
+    Order creation/cancellation and checkout must lock this session row
+    inside their transactions. Checkout compares expected bill_version
+    and confirmed amount before closing.
   '''
 }
 
@@ -191,7 +201,6 @@ Table orders {
   total_amount_cents bigint [not null]
   order_note text
   default_language_snapshot varchar(2) [not null]
-  version int [not null, default: 1]
   created_at timestamptz [not null, default: `now()`]
   ready_at timestamptz
   cancelled_at timestamptz
@@ -212,10 +221,14 @@ Table orders {
 
   Note: '''
     Each submission or add-on creates one order.
-    Retry with the same client_request_id returns the persisted original
-    order (even if the resent payload differs); no request_fingerprint in MVP.
-    UI must show the persisted order, not claim the resent payload succeeded.
+    Retry with the same client_request_id returns the original order,
+    even if the resent payload differs; it never creates a second one.
+    The UI preserves the original payload
+    while status is unknown and shows the persisted server result.
     Enforce idempotency and amounts with PostgreSQL constraints + transactions.
+    Change NEW -> READY or NEW -> CANCELLED with conditional UPDATE.
+    READY -> CANCELLED is OWNER only; closed sessions cannot change.
+    No order version field is needed.
     Do not allow guest access to orders after the session closes.
   '''
 }
