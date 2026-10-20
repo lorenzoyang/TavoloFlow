@@ -3,8 +3,8 @@
 ## Project Structure & Module Organization
 
 - `TavoloFlow.slnx` groups the backend projects; `global.json` specifies the .NET SDK.
-- `backend/TavoloFlow.Api/` contains the ASP.NET Core 10 controller-based API. Startup lives in `Program.cs`; `Data/` is reserved for persistence code. EF Core and Npgsql dependencies are installed, but database integration is not yet wired up.
-- `backend/TavoloFlow.Api.Tests/` contains API tests.
+- `backend/TavoloFlow.Api/` contains the ASP.NET Core 10 controller-based API. Startup lives in `Program.cs`; `Entities/` contains the nine persistence entities, and `Data/` contains `ApplicationDbContext`, EF Core mappings and migrations, and catalog deletion services. PostgreSQL integration is wired up through EF Core and Npgsql; authentication and the main business endpoints are not yet implemented.
+- `backend/TavoloFlow.Api.Tests/` contains data-layer integration tests using a disposable PostgreSQL container.
 - `frontend/src/` contains the React/TypeScript application, shared UI in `components/ui/`, utilities in `lib/`, and styles in `index.css`. Vite, Tailwind CSS, and shadcn configure the frontend.
 - `docs/` contains product requirements and the DBML schema. Root `compose.yaml` defines local PostgreSQL.
 
@@ -26,7 +26,7 @@ Use four-space indentation in C# and two spaces in TypeScript/TSX. Use PascalCas
 
 ## Testing Guidelines
 
-Backend tests use xUnit and Coverlet. Replace placeholder tests with meaningful assertions; name new classes `<Subject>Tests` and methods `Method_Scenario_ExpectedResult`. Collect coverage with `dotnet test TavoloFlow.slnx --collect:"XPlat Code Coverage"`; no minimum threshold is configured. No frontend test runner exists yet; run build/lint and manually verify affected UI flows.
+Backend tests use xUnit, Coverlet, and Testcontainers.PostgreSql. The existing integration tests require Docker and apply real migrations to a disposable PostgreSQL database, separate from the development database. Write meaningful assertions; name new classes `<Subject>Tests` and methods `Method_Scenario_ExpectedResult`. Collect coverage with `dotnet test TavoloFlow.slnx --collect:"XPlat Code Coverage"`; no minimum threshold is configured. No frontend test runner exists yet; run build/lint and manually verify affected UI flows.
 
 ## Commit & Pull Request Guidelines
 
