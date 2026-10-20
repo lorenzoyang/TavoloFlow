@@ -8,8 +8,10 @@ Project TavoloFlow_MVP_V1 {
     Cross-table rules, filtered unique indexes, and transaction locks
     are configured in EF Core and application services.
     Permanent restaurant deletion cascades to all restaurant-owned data,
-    including historical and soft-deleted records. Internal references
-    use NO ACTION; platform users are independent.
+    including historical records. Session-to-order and order-to-line
+    references cascade; other internal references use NO ACTION.
+    Catalog deletion operations detach nullable historical links first.
+    Platform users are independent.
   '''
 }
 
@@ -78,21 +80,20 @@ Table restaurant_tables {
   table_label varchar(50) [not null]
   qr_token varchar(128) [not null, unique, note: 'Random fixed QR entrance token, not a join code']
   is_enabled boolean [not null, default: true]
-  deleted_at timestamptz
-  created_at timestamptz [not null, default: `now()`]
 
   Indexes {
     (id, restaurant_id) [unique, name: 'uq_tables_id_tenant']
     restaurant_id
+    (restaurant_id, table_label) [unique, name: 'uq_tables_label']
   }
 
   Note: '''
-    EF Core filtered unique index: (restaurant_id, table_label)
-      WHERE deleted_at IS NULL.
-    To replace a QR token, soft-delete the table only when it has no
-    ACTIVE dining session, create a new table, and reprint its QR code.
-    Ordinary table maintenance must not delete a table with an ACTIVE
-    dining session. Permanent restaurant deletion removes all its data.
+    Labels are unique per restaurant until physical deletion.
+    CatalogDeletionService locks the table, rejects ACTIVE sessions,
+    clears closed sessions' table_id links, and deletes the table atomically.
+    Historical table-label snapshots and restaurant ownership are retained.
+    To replace a QR token, delete the inactive table, create a new table,
+    and reprint its QR code. Permanent restaurant deletion removes all its data.
   '''
 }
 
@@ -102,8 +103,6 @@ Table menu_categories {
   name_zh varchar(100)
   name_it varchar(100)
   name_en varchar(100)
-  deleted_at timestamptz
-  created_at timestamptz [not null, default: `now()`]
 
   Indexes {
     (id, restaurant_id) [unique, name: 'uq_categories_id_tenant']
@@ -113,7 +112,7 @@ Table menu_categories {
     `concat(name_zh, name_it, name_en) ~ '[^[:space:]]'` [name: 'ck_category_has_name']
   }
 
-  Note: 'At least one localized name; normalize whitespace-only names to NULL. Client falls back to another available translation.'
+  Note: 'At least one localized name; normalize whitespace-only names to NULL. Client falls back to another available translation. Delete only after all items are removed or moved.'
 }
 
 Table menu_items {
@@ -131,8 +130,6 @@ Table menu_items {
   allergen_codes "text[]" [not null, default: '{}', note: 'Only 14 predefined EU allergen codes, validated by the API']
   allergen_reviewed boolean [not null, default: false, note: 'true + empty codes = reviewed, no identified declarable allergens']
   is_available boolean [not null, default: true]
-  deleted_at timestamptz
-  created_at timestamptz [not null, default: `now()`]
 
   Indexes {
     (id, restaurant_id) [unique, name: 'uq_menu_items_id_tenant']
@@ -148,8 +145,10 @@ Table menu_items {
     No menus or allergens tables in MVP.
     Require at least one localized name when saving.
     Normalize blank names/codes to NULL.
-    EF Core filtered unique index: (restaurant_id, item_code)
-      WHERE deleted_at IS NULL AND item_code IS NOT NULL.
+    EF Core filtered unique index uq_menu_items_code: (restaurant_id, item_code)
+      WHERE item_code IS NOT NULL.
+    CatalogDeletionService clears order_items.menu_item_id before deleting
+    the item, retaining snapshots and restaurant ownership in one transaction.
     allergen_reviewed=false means no completed restaurant review.
     allergen_reviewed=true + empty allergen_codes means reviewed and
     no identified declarable allergens; do not promise zero cross-contact.
@@ -161,7 +160,7 @@ Table menu_items {
 Table dining_sessions {
   id uuid [pk]
   restaurant_id uuid [not null]
-  table_id uuid [not null]
+  table_id uuid [note: 'Nullable for retained closed history after table deletion']
   status varchar(10) [not null, default: 'ACTIVE']
   join_code_ciphertext text [note: 'Encrypt reversible 4-character join code; NULL after closing']
   bill_version int [not null, default: 1, note: 'Per-session counter. Increment once per successful new order or cancellation']
@@ -179,6 +178,7 @@ Table dining_sessions {
   Checks {
     `status IN ('ACTIVE', 'CLOSED')` [name: 'ck_session_status']
     `bill_version > 0` [name: 'ck_session_bill_version']
+    `status <> 'ACTIVE' OR table_id IS NOT NULL` [name: 'ck_session_active_table']
     `close_reason IS NULL OR close_reason IN ('PAID', 'VOIDED', 'EMPTY')` [name: 'ck_session_close_reason']
     `(status = 'ACTIVE' AND closed_at IS NULL AND close_reason IS NULL AND closed_total_cents IS NULL AND join_code_ciphertext IS NOT NULL) OR (status = 'CLOSED' AND closed_at IS NOT NULL AND close_reason IS NOT NULL AND closed_total_cents IS NOT NULL AND join_code_ciphertext IS NULL)` [name: 'ck_session_lifecycle']
     `closed_total_cents IS NULL OR closed_total_cents >= 0` [name: 'ck_session_closed_total']
@@ -213,7 +213,6 @@ Table orders {
   created_at timestamptz [not null, default: `now()`]
   ready_at timestamptz
   cancelled_at timestamptz
-  cancelled_by_user_id uuid
   cancel_reason text
 
   Indexes {
@@ -226,7 +225,7 @@ Table orders {
     `status IN ('NEW', 'READY', 'CANCELLED')` [name: 'ck_order_status']
     `total_amount_cents >= 0` [name: 'ck_order_amount']
     `default_language_snapshot IN ('zh', 'it', 'en')` [name: 'ck_order_language']
-    `(status = 'NEW' AND ready_at IS NULL AND cancelled_at IS NULL AND cancelled_by_user_id IS NULL AND cancel_reason IS NULL) OR (status = 'READY' AND ready_at IS NOT NULL AND cancelled_at IS NULL AND cancelled_by_user_id IS NULL AND cancel_reason IS NULL) OR (status = 'CANCELLED' AND cancelled_at IS NOT NULL AND cancelled_by_user_id IS NOT NULL AND cancel_reason IS NOT NULL AND cancel_reason ~ '[^[:space:]]')` [name: 'ck_order_lifecycle']
+    `(status = 'NEW' AND ready_at IS NULL AND cancelled_at IS NULL AND cancel_reason IS NULL) OR (status = 'READY' AND ready_at IS NOT NULL AND cancelled_at IS NULL AND cancel_reason IS NULL) OR (status = 'CANCELLED' AND cancelled_at IS NOT NULL AND cancel_reason IS NOT NULL AND cancel_reason ~ '[^[:space:]]')` [name: 'ck_order_lifecycle']
     `(ready_at IS NULL OR ready_at >= created_at) AND (cancelled_at IS NULL OR cancelled_at >= created_at) AND (ready_at IS NULL OR cancelled_at IS NULL OR cancelled_at >= ready_at)` [name: 'ck_order_transition_times']
   }
 
@@ -248,7 +247,7 @@ Table order_items {
   id uuid [pk]
   restaurant_id uuid [not null]
   order_id uuid [not null]
-  menu_item_id uuid [not null]
+  menu_item_id uuid [note: 'Nullable after menu item deletion; snapshots remain']
   item_code_snapshot varchar(40)
   name_zh_snapshot varchar(150)
   name_it_snapshot varchar(150)
@@ -280,13 +279,12 @@ Ref: dining_sessions.restaurant_id > restaurants.id [delete: cascade]
 Ref: orders.restaurant_id > restaurants.id [delete: cascade]
 Ref: order_items.restaurant_id > restaurants.id [delete: cascade]
 
-// Internal references protect history when individual records are deleted.
+// Nullable historical links are explicitly detached by catalog deletion operations.
 // Composite FKs keep related records in the same restaurant.
 Ref: menu_items.(category_id, restaurant_id) > menu_categories.(id, restaurant_id) [delete: no action]
 Ref: dining_sessions.(table_id, restaurant_id) > restaurant_tables.(id, restaurant_id) [delete: no action]
-Ref: orders.(dining_session_id, restaurant_id) > dining_sessions.(id, restaurant_id) [delete: no action]
-Ref: orders.(cancelled_by_user_id, restaurant_id) > restaurant_users.(id, restaurant_id) [delete: no action]
-Ref: order_items.(order_id, restaurant_id) > orders.(id, restaurant_id) [delete: no action]
+Ref: orders.(dining_session_id, restaurant_id) > dining_sessions.(id, restaurant_id) [delete: cascade]
+Ref: order_items.(order_id, restaurant_id) > orders.(id, restaurant_id) [delete: cascade]
 Ref: order_items.(menu_item_id, restaurant_id) > menu_items.(id, restaurant_id) [delete: no action]
 
 TableGroup platform_and_accounts {

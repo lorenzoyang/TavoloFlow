@@ -23,10 +23,6 @@ internal sealed class MenuCategoryConfiguration : IEntityTypeConfiguration<MenuC
         builder.Property(category => category.NameIt).HasColumnName("name_it").HasMaxLength(100);
         builder.Property(category => category.NameEn).HasColumnName("name_en").HasMaxLength(100);
 
-        builder.Property(category => category.DeletedAt).HasColumnName("deleted_at").HasColumnType("timestamptz");
-
-        builder.Property(category => category.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz").HasDefaultValueSql("now()");
-        
         builder.HasOne(category => category.Restaurant).WithMany(restaurant => restaurant.MenuCategories)
             .HasForeignKey(category => category.RestaurantId).OnDelete(DeleteBehavior.Cascade);
     }

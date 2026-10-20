@@ -14,9 +14,9 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
             table.HasCheckConstraint("ck_order_amount", "total_amount_cents >= 0");
             table.HasCheckConstraint("ck_order_language", "default_language_snapshot IN ('zh', 'it', 'en')");
             table.HasCheckConstraint("ck_order_lifecycle",
-                "(status = 'NEW' AND ready_at IS NULL AND cancelled_at IS NULL AND cancelled_by_user_id IS NULL AND cancel_reason IS NULL) OR " +
-                "(status = 'READY' AND ready_at IS NOT NULL AND cancelled_at IS NULL AND cancelled_by_user_id IS NULL AND cancel_reason IS NULL) OR " +
-                "(status = 'CANCELLED' AND cancelled_at IS NOT NULL AND cancelled_by_user_id IS NOT NULL AND cancel_reason IS NOT NULL AND cancel_reason ~ '[^[:space:]]')");
+                "(status = 'NEW' AND ready_at IS NULL AND cancelled_at IS NULL AND cancel_reason IS NULL) OR " +
+                "(status = 'READY' AND ready_at IS NOT NULL AND cancelled_at IS NULL AND cancel_reason IS NULL) OR " +
+                "(status = 'CANCELLED' AND cancelled_at IS NOT NULL AND cancel_reason IS NOT NULL AND cancel_reason ~ '[^[:space:]]')");
             table.HasCheckConstraint("ck_order_transition_times",
                 "(ready_at IS NULL OR ready_at >= created_at) AND " +
                 "(cancelled_at IS NULL OR cancelled_at >= created_at) AND " +
@@ -51,8 +51,6 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
 
         builder.Property(order => order.CancelledAt).HasColumnName("cancelled_at").HasColumnType("timestamptz");
 
-        builder.Property(order => order.CancelledByUserId).HasColumnName("cancelled_by_user_id");
-
         builder.Property(order => order.CancelReason).HasColumnName("cancel_reason").HasColumnType("text");
 
         builder.HasIndex(order => new { order.DiningSessionId, order.ClientRequestId }).IsUnique()
@@ -65,10 +63,6 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
 
         builder.HasOne(order => order.DiningSession).WithMany(session => session.Orders)
             .HasForeignKey(order => new { order.DiningSessionId, order.RestaurantId })
-            .HasPrincipalKey(session => new { session.Id, session.RestaurantId }).OnDelete(DeleteBehavior.ClientNoAction);
-            
-        builder.HasOne(order => order.CancelledByUser).WithMany()
-            .HasForeignKey(order => new { order.CancelledByUserId, order.RestaurantId })
-            .HasPrincipalKey(user => new { user.Id, user.RestaurantId }).OnDelete(DeleteBehavior.ClientNoAction);
+            .HasPrincipalKey(session => new { session.Id, session.RestaurantId }).OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -20,11 +20,9 @@ public sealed class Order
     public DateTime CreatedAt { get; set; }
     public DateTime? ReadyAt { get; set; }
     public DateTime? CancelledAt { get; set; }
-    public Guid? CancelledByUserId { get; set; }
     public string? CancelReason { get; set; }
 
     public Restaurant Restaurant { get; set; } = null!;
     public DiningSession DiningSession { get; set; } = null!;
-    public RestaurantUser? CancelledByUser { get; set; }
     public ICollection<OrderItem> Items { get; } = new List<OrderItem>();
 }

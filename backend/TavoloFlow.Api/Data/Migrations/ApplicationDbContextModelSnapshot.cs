@@ -68,7 +68,7 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasDefaultValue("ACTIVE")
                         .HasColumnName("status");
 
-                    b.Property<Guid>("TableId")
+                    b.Property<Guid?>("TableId")
                         .HasColumnType("uuid")
                         .HasColumnName("table_id");
 
@@ -96,6 +96,8 @@ namespace TavoloFlow.Api.Data.Migrations
 
                     b.ToTable("dining_sessions", null, t =>
                         {
+                            t.HasCheckConstraint("ck_session_active_table", "status <> 'ACTIVE' OR table_id IS NOT NULL");
+
                             t.HasCheckConstraint("ck_session_bill_version", "bill_version > 0");
 
                             t.HasCheckConstraint("ck_session_close_reason", "close_reason IS NULL OR close_reason IN ('PAID', 'VOIDED', 'EMPTY')");
@@ -116,16 +118,6 @@ namespace TavoloFlow.Api.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamptz")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamptz")
-                        .HasColumnName("deleted_at");
 
                     b.Property<string>("NameEn")
                         .HasMaxLength(100)
@@ -180,16 +172,6 @@ namespace TavoloFlow.Api.Data.Migrations
                     b.Property<Guid>("CategoryId")
                         .HasColumnType("uuid")
                         .HasColumnName("category_id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamptz")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamptz")
-                        .HasColumnName("deleted_at");
 
                     b.Property<string>("DescriptionEn")
                         .HasColumnType("text")
@@ -247,8 +229,8 @@ namespace TavoloFlow.Api.Data.Migrations
 
                     b.HasIndex("RestaurantId", "ItemCode")
                         .IsUnique()
-                        .HasDatabaseName("uq_menu_items_active_code")
-                        .HasFilter("deleted_at IS NULL AND item_code IS NOT NULL");
+                        .HasDatabaseName("uq_menu_items_code")
+                        .HasFilter("item_code IS NOT NULL");
 
                     b.ToTable("menu_items", null, t =>
                         {
@@ -272,10 +254,6 @@ namespace TavoloFlow.Api.Data.Migrations
                     b.Property<DateTime?>("CancelledAt")
                         .HasColumnType("timestamptz")
                         .HasColumnName("cancelled_at");
-
-                    b.Property<Guid?>("CancelledByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("cancelled_by_user_id");
 
                     b.Property<Guid>("ClientRequestId")
                         .HasColumnType("uuid")
@@ -325,8 +303,6 @@ namespace TavoloFlow.Api.Data.Migrations
                     b.HasAlternateKey("Id", "RestaurantId")
                         .HasName("uq_orders_id_tenant");
 
-                    b.HasIndex("CancelledByUserId", "RestaurantId");
-
                     b.HasIndex("DiningSessionId", "ClientRequestId")
                         .IsUnique()
                         .HasDatabaseName("uq_order_one_per_request");
@@ -341,7 +317,7 @@ namespace TavoloFlow.Api.Data.Migrations
 
                             t.HasCheckConstraint("ck_order_language", "default_language_snapshot IN ('zh', 'it', 'en')");
 
-                            t.HasCheckConstraint("ck_order_lifecycle", "(status = 'NEW' AND ready_at IS NULL AND cancelled_at IS NULL AND cancelled_by_user_id IS NULL AND cancel_reason IS NULL) OR (status = 'READY' AND ready_at IS NOT NULL AND cancelled_at IS NULL AND cancelled_by_user_id IS NULL AND cancel_reason IS NULL) OR (status = 'CANCELLED' AND cancelled_at IS NOT NULL AND cancelled_by_user_id IS NOT NULL AND cancel_reason IS NOT NULL AND cancel_reason ~ '[^[:space:]]')");
+                            t.HasCheckConstraint("ck_order_lifecycle", "(status = 'NEW' AND ready_at IS NULL AND cancelled_at IS NULL AND cancel_reason IS NULL) OR (status = 'READY' AND ready_at IS NOT NULL AND cancelled_at IS NULL AND cancel_reason IS NULL) OR (status = 'CANCELLED' AND cancelled_at IS NOT NULL AND cancel_reason IS NOT NULL AND cancel_reason ~ '[^[:space:]]')");
 
                             t.HasCheckConstraint("ck_order_status", "status IN ('NEW', 'READY', 'CANCELLED')");
 
@@ -367,7 +343,7 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("character varying(40)")
                         .HasColumnName("item_code_snapshot");
 
-                    b.Property<Guid>("MenuItemId")
+                    b.Property<Guid?>("MenuItemId")
                         .HasColumnType("uuid")
                         .HasColumnName("menu_item_id");
 
@@ -539,16 +515,6 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamptz")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamptz")
-                        .HasColumnName("deleted_at");
-
                     b.Property<bool>("IsEnabled")
                         .HasColumnType("boolean")
                         .HasDefaultValue(true)
@@ -582,8 +548,7 @@ namespace TavoloFlow.Api.Data.Migrations
 
                     b.HasIndex("RestaurantId", "TableLabel")
                         .IsUnique()
-                        .HasDatabaseName("uq_tables_active_label")
-                        .HasFilter("deleted_at IS NULL");
+                        .HasDatabaseName("uq_tables_label");
 
                     b.ToTable("restaurant_tables", (string)null);
                 });
@@ -672,8 +637,7 @@ namespace TavoloFlow.Api.Data.Migrations
                         .WithMany("DiningSessions")
                         .HasForeignKey("TableId", "RestaurantId")
                         .HasPrincipalKey("Id", "RestaurantId")
-                        .OnDelete(DeleteBehavior.ClientNoAction)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.ClientNoAction);
 
                     b.Navigation("Restaurant");
 
@@ -719,20 +683,12 @@ namespace TavoloFlow.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("TavoloFlow.Api.Entities.RestaurantUser", "CancelledByUser")
-                        .WithMany()
-                        .HasForeignKey("CancelledByUserId", "RestaurantId")
-                        .HasPrincipalKey("Id", "RestaurantId")
-                        .OnDelete(DeleteBehavior.ClientNoAction);
-
                     b.HasOne("TavoloFlow.Api.Entities.DiningSession", "DiningSession")
                         .WithMany("Orders")
                         .HasForeignKey("DiningSessionId", "RestaurantId")
                         .HasPrincipalKey("Id", "RestaurantId")
-                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("CancelledByUser");
 
                     b.Navigation("DiningSession");
 
@@ -751,14 +707,13 @@ namespace TavoloFlow.Api.Data.Migrations
                         .WithMany()
                         .HasForeignKey("MenuItemId", "RestaurantId")
                         .HasPrincipalKey("Id", "RestaurantId")
-                        .OnDelete(DeleteBehavior.ClientNoAction)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.ClientNoAction);
 
                     b.HasOne("TavoloFlow.Api.Entities.Order", "Order")
                         .WithMany("Items")
                         .HasForeignKey("OrderId", "RestaurantId")
                         .HasPrincipalKey("Id", "RestaurantId")
-                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("MenuItem");

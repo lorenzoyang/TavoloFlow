@@ -133,8 +133,10 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
         Assert.Equal(1, user.CredentialVersion);
         Assert.False(user.IsActive);
         Assert.False(user.MustChangePassword);
+        Assert.NotNull(saved.DiningSession.Table);
         Assert.False(saved.DiningSession.Table.IsEnabled);
         var line = Assert.Single(saved.Items);
+        Assert.NotNull(line.MenuItem);
         Assert.Equal(new[] { "GLUTEN", "SOY" }, line.AllergenCodesSnapshot);
         Assert.Equal(line.AllergenCodesSnapshot, line.MenuItem.AllergenCodes);
         Assert.False(line.MenuItem.IsAvailable);
@@ -148,7 +150,6 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
     [InlineData("menu_category")]
     [InlineData("session_table")]
     [InlineData("order_session")]
-    [InlineData("order_canceller")]
     [InlineData("line_order")]
     [InlineData("line_menu_item")]
     public async Task Update_CrossRestaurantReference_RejectsForeignKey(string relationship)
@@ -173,7 +174,6 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
             "menu_category" => $"UPDATE menu_items SET category_id = {second.CategoryId} WHERE id = {first.MenuItemId}",
             "session_table" => $"UPDATE dining_sessions SET table_id = {second.TableId} WHERE id = {first.SessionId}",
             "order_session" => $"UPDATE orders SET dining_session_id = {second.SessionId} WHERE id = {firstOrder.Id}",
-            "order_canceller" => $"UPDATE orders SET status = 'CANCELLED', cancelled_at = now(), cancelled_by_user_id = {second.UserId}, cancel_reason = 'Test cancellation' WHERE id = {firstOrder.Id}",
             "line_order" => $"UPDATE order_items SET order_id = {secondOrder.Id} WHERE id = {line.Id}",
             "line_menu_item" => $"UPDATE order_items SET menu_item_id = {second.MenuItemId} WHERE id = {line.Id}",
             _ => throw new ArgumentOutOfRangeException(nameof(relationship))
@@ -231,7 +231,7 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task SaveChanges_DuplicateLiveLabelOrCode_AllowsReuseOnlyAfterSoftDelete(bool tableLabel)
+    public async Task SaveChanges_DuplicateLabelOrCode_AllowsReuseOnlyAfterDeletion(bool tableLabel)
     {
         var visit = await SeedVisitAsync();
         await using var context = database.CreateContext();
@@ -239,22 +239,19 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
             ? new RestaurantTable { RestaurantId = visit.RestaurantId, TableLabel = "1", QrToken = Guid.NewGuid().ToString("N") }
             : new MenuItem { RestaurantId = visit.RestaurantId, CategoryId = visit.CategoryId, ItemCode = "D1", NameEn = "New dish", PriceCents = 1500 };
         context.Add(replacement);
-        Assert.False(await TrySaveUniqueAsync(context, tableLabel ? "uq_tables_active_label" : "uq_menu_items_active_code"));
+        Assert.False(await TrySaveUniqueAsync(context, tableLabel ? "uq_tables_label" : "uq_menu_items_code"));
         context.ChangeTracker.Clear();
 
         if (tableLabel)
         {
-            // The application must close the session before soft-deleting a table.
             await CloseSessionAsync(visit);
-            await context.RestaurantTables.Where(table => table.Id == visit.TableId)
-                .ExecuteUpdateAsync(update => update.SetProperty(table => table.DeletedAt, DateTime.UtcNow));
-        }
-        else
-        {
-            await context.MenuItems.Where(item => item.Id == visit.MenuItemId)
-                .ExecuteUpdateAsync(update => update.SetProperty(item => item.DeletedAt, DateTime.UtcNow));
         }
 
+        var service = new CatalogDeletionService(context);
+        var result = tableLabel
+            ? await service.DeleteRestaurantTableAsync(visit.RestaurantId, visit.TableId)
+            : await service.DeleteMenuItemAsync(visit.RestaurantId, visit.MenuItemId);
+        Assert.Equal(CatalogDeletionResult.Deleted, result);
         context.Add(replacement);
         await context.SaveChangesAsync();
     }
@@ -303,6 +300,7 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
     [InlineData("mixed_case_username", "ck_restaurant_user_username")]
     [InlineData("closed_without_reason", "ck_session_lifecycle")]
     [InlineData("closed_before_open", "ck_session_close_time")]
+    [InlineData("active_without_table", "ck_session_active_table")]
     [InlineData("ready_without_timestamp", "ck_order_lifecycle")]
     [InlineData("cancelled_without_reason", "ck_order_lifecycle")]
     [InlineData("cancelled_with_blank_reason", "ck_order_lifecycle")]
@@ -324,9 +322,10 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
             "mixed_case_username" => $"UPDATE restaurant_users SET username = 'MixedCase' WHERE id = {visit.UserId}",
             "closed_without_reason" => $"UPDATE dining_sessions SET status = 'CLOSED', closed_at = now(), closed_total_cents = 0, join_code_ciphertext = NULL WHERE id = {visit.SessionId}",
             "closed_before_open" => $"UPDATE dining_sessions SET status = 'CLOSED', closed_at = opened_at - interval '1 second', close_reason = 'EMPTY', closed_total_cents = 0, join_code_ciphertext = NULL WHERE id = {visit.SessionId}",
+            "active_without_table" => $"UPDATE dining_sessions SET table_id = NULL WHERE id = {visit.SessionId}",
             "ready_without_timestamp" => $"UPDATE orders SET status = 'READY' WHERE id = {order.Id}",
-            "cancelled_without_reason" => $"UPDATE orders SET status = 'CANCELLED', cancelled_at = now(), cancelled_by_user_id = {visit.UserId} WHERE id = {order.Id}",
-            "cancelled_with_blank_reason" => $"UPDATE orders SET status = 'CANCELLED', cancelled_at = now(), cancelled_by_user_id = {visit.UserId}, cancel_reason = E' \\t' WHERE id = {order.Id}",
+            "cancelled_without_reason" => $"UPDATE orders SET status = 'CANCELLED', cancelled_at = now() WHERE id = {order.Id}",
+            "cancelled_with_blank_reason" => $"UPDATE orders SET status = 'CANCELLED', cancelled_at = now(), cancel_reason = E' \\t' WHERE id = {order.Id}",
             "ready_before_creation" => $"UPDATE orders SET status = 'READY', ready_at = created_at - interval '1 second' WHERE id = {order.Id}",
             _ => throw new ArgumentOutOfRangeException(nameof(scenario))
         };
@@ -336,7 +335,7 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
     }
 
     [Fact]
-    public async Task Query_SoftDeletedMenuAndTable_PreservesHistoryAndRestrictsPhysicalDeletion()
+    public async Task DeleteCatalog_ReferencedRows_PreservesHistoryAndTenantOwnership()
     {
         var visit = await SeedVisitAsync();
         Guid orderId;
@@ -354,17 +353,31 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
         menuItem.NameEn = "Renamed dish";
         menuItem.PriceCents = 9999;
         menuItem.AllergenCodes = [];
-        menuItem.DeletedAt = DateTime.UtcNow;
-        var category = await edit.MenuCategories.SingleAsync(category => category.Id == visit.CategoryId);
-        category.DeletedAt = DateTime.UtcNow;
         var table = await edit.RestaurantTables.SingleAsync(table => table.Id == visit.TableId);
         table.TableLabel = "Renamed table";
-        table.DeletedAt = DateTime.UtcNow;
         await edit.SaveChangesAsync();
+
+        await using (var direct = database.CreateContext())
+        {
+            var menuError = await Assert.ThrowsAsync<PostgresException>(() => direct.MenuItems.Where(item => item.Id == visit.MenuItemId).ExecuteDeleteAsync());
+            var tableError = await Assert.ThrowsAsync<PostgresException>(() => direct.RestaurantTables.Where(table => table.Id == visit.TableId).ExecuteDeleteAsync());
+            var categoryError = await Assert.ThrowsAsync<PostgresException>(() => direct.MenuCategories.Where(category => category.Id == visit.CategoryId).ExecuteDeleteAsync());
+            Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, menuError.SqlState);
+            Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, tableError.SqlState);
+            Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, categoryError.SqlState);
+        }
+
+        await using (var deletion = database.CreateContext())
+        {
+            var service = new CatalogDeletionService(deletion);
+            Assert.Equal(CatalogDeletionResult.Deleted, await service.DeleteMenuItemAsync(visit.RestaurantId, visit.MenuItemId));
+            Assert.Equal(CatalogDeletionResult.Deleted, await service.DeleteRestaurantTableAsync(visit.RestaurantId, visit.TableId));
+            Assert.Equal(1, await deletion.MenuCategories.Where(category => category.Id == visit.CategoryId).ExecuteDeleteAsync());
+        }
 
         await using var read = database.CreateContext();
         var historical = await read.Orders.AsNoTracking()
-            .Include(order => order.Items).ThenInclude(item => item.MenuItem).ThenInclude(item => item.Category)
+            .Include(order => order.Items).ThenInclude(item => item.MenuItem)
             .Include(order => order.DiningSession).ThenInclude(session => session.Table)
             .SingleAsync(order => order.Id == orderId);
         var savedLine = Assert.Single(historical.Items);
@@ -375,17 +388,23 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
         Assert.Equal(DiningSessionStatus.Closed, historical.DiningSession.Status);
         Assert.Equal(SessionCloseReason.Paid, historical.DiningSession.CloseReason);
         Assert.Null(historical.DiningSession.JoinCodeCiphertext);
-
-        var menuError = await Assert.ThrowsAsync<PostgresException>(() => read.MenuItems.Where(item => item.Id == visit.MenuItemId).ExecuteDeleteAsync());
-        var tableError = await Assert.ThrowsAsync<PostgresException>(() => read.RestaurantTables.Where(table => table.Id == visit.TableId).ExecuteDeleteAsync());
-        Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, menuError.SqlState);
-        Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, tableError.SqlState);
+        Assert.Null(historical.DiningSession.TableId);
+        Assert.Null(historical.DiningSession.Table);
+        Assert.Null(savedLine.MenuItemId);
+        Assert.Null(savedLine.MenuItem);
+        Assert.Equal(visit.RestaurantId, historical.DiningSession.RestaurantId);
+        Assert.Equal(visit.RestaurantId, historical.RestaurantId);
+        Assert.Equal(visit.RestaurantId, savedLine.RestaurantId);
+        Assert.Equal(2400, historical.TotalAmountCents);
+        Assert.Equal(2400, historical.DiningSession.ClosedTotalCents);
+        Assert.False(await read.MenuItems.AnyAsync(item => item.Id == visit.MenuItemId));
+        Assert.False(await read.RestaurantTables.AnyAsync(table => table.Id == visit.TableId));
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ExecuteDelete_Restaurant_RemovesOnlyItsData(bool archived)
+    public async Task ExecuteDelete_Restaurant_RemovesOnlyItsData(bool closed)
     {
         var deleted = await SeedVisitAsync();
         var preserved = await SeedVisitAsync();
@@ -414,17 +433,9 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
             platformUserId = platformUser.Id;
         }
 
-        if (archived)
+        if (closed)
         {
             await CloseSessionAsync(deleted);
-            await using var archive = database.CreateContext();
-            var now = DateTime.UtcNow;
-            await archive.RestaurantTables.Where(table => table.Id == deleted.TableId)
-                .ExecuteUpdateAsync(update => update.SetProperty(table => table.DeletedAt, now));
-            await archive.MenuCategories.Where(category => category.Id == deleted.CategoryId)
-                .ExecuteUpdateAsync(update => update.SetProperty(category => category.DeletedAt, now));
-            await archive.MenuItems.Where(item => item.Id == deleted.MenuItemId)
-                .ExecuteUpdateAsync(update => update.SetProperty(item => item.DeletedAt, now));
         }
 
         // Only the restaurant DELETE is sent; PostgreSQL must remove the entire graph.
@@ -438,31 +449,21 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
     }
 
     [Fact]
-    public async Task SaveChanges_ReferencedStaffDeletion_PreservesCancellationActor()
+    public async Task DeleteRestaurantTable_ActiveSession_RejectsWithoutDetachingHistory()
     {
         var visit = await SeedVisitAsync();
-        await using var context = database.CreateContext();
-        var staff = new RestaurantUser
+        await CloseSessionAsync(visit);
+        await using (var setup = database.CreateContext())
         {
-            RestaurantId = visit.RestaurantId,
-            Username = Guid.NewGuid().ToString("N"),
-            PasswordHash = "test-only-hash",
-            Role = RestaurantUserRole.Staff
-        };
-        var order = NewOrder(visit);
-        context.AddRange(staff, order);
-        await context.SaveChangesAsync();
-        order.Status = OrderStatus.Cancelled;
-        order.CancelledAt = DateTime.UtcNow;
-        order.CancelledByUser = staff;
-        order.CancelReason = "Guest changed their order";
-        await context.SaveChangesAsync();
+            setup.Add(NewSession(visit));
+            await setup.SaveChangesAsync();
+        }
 
-        context.Remove(staff);
-        var error = await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
-        Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, Assert.IsType<PostgresException>(error.InnerException).SqlState);
-        Assert.Equal(staff.Id, order.CancelledByUserId);
-        Assert.Equal(visit.RestaurantId, order.RestaurantId);
+        await using var context = database.CreateContext();
+        var result = await new CatalogDeletionService(context).DeleteRestaurantTableAsync(visit.RestaurantId, visit.TableId);
+        Assert.Equal(CatalogDeletionResult.TableHasActiveSession, result);
+        Assert.True(await context.RestaurantTables.AnyAsync(table => table.Id == visit.TableId));
+        Assert.Equal(2, await context.DiningSessions.CountAsync(session => session.TableId == visit.TableId));
     }
 
     [Theory]
@@ -484,19 +485,208 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
 
         order.Status = OrderStatus.Cancelled;
         order.CancelledAt = DateTime.UtcNow;
-        order.CancelledByUserId = visit.UserId;
         order.CancelReason = "Guest changed their order";
         await context.SaveChangesAsync();
         await context.Entry(order).ReloadAsync();
         Assert.Equal(OrderStatus.Cancelled, order.Status);
         Assert.Equal(wasReady, order.ReadyAt.HasValue);
         Assert.NotNull(order.CancelledAt);
-        Assert.Equal(visit.UserId, order.CancelledByUserId);
+    }
+
+    [Fact]
+    public async Task Migrate_SimplifyCatalog_PreservesExistingRecordsAndSnapshots()
+    {
+        const string previousMigration = "20261019200450_RemoveDiningSessionActors";
+        await using var context = await database.CreateIsolatedContextAsync();
+        var migrator = context.GetService<IMigrator>();
+        await migrator.MigrateAsync(previousMigration);
+        var visit = await SeedVisitAsync(context);
+        var closed = NewSession(visit);
+        closed.Status = DiningSessionStatus.Closed;
+        closed.OpenedAt = DateTime.UtcNow.AddMinutes(-5);
+        closed.ClosedAt = DateTime.UtcNow;
+        closed.CloseReason = SessionCloseReason.Voided;
+        closed.ClosedTotalCents = 0;
+        closed.JoinCodeCiphertext = null;
+        context.Add(closed);
+        var order = NewOrder(visit);
+        order.DiningSessionId = closed.Id;
+        context.AddRange(order, NewOrderItem(visit, order));
+        await context.SaveChangesAsync();
+        // Old deletion markers and cancellation attribution are intentionally removed by this upgrade.
+        await context.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE orders SET status = 'CANCELLED', cancelled_at = now(),
+                cancelled_by_user_id = {visit.UserId}, cancel_reason = 'Guest changed their order'
+                WHERE id = {order.Id};
+            UPDATE menu_items SET deleted_at = now() WHERE id = {visit.MenuItemId};
+            UPDATE menu_categories SET deleted_at = now() WHERE id = {visit.CategoryId};
+            UPDATE restaurant_tables SET deleted_at = now() WHERE id = {visit.TableId};
+            """);
+        context.ChangeTracker.Clear();
+        var before = await context.Orders.AsNoTracking().SingleAsync(saved => saved.Id == order.Id);
+        await migrator.MigrateAsync();
+
+        var after = await context.Orders.AsNoTracking().Include(saved => saved.Items)
+            .Include(saved => saved.DiningSession).SingleAsync(saved => saved.Id == order.Id);
+        Assert.Equal(before.RestaurantId, after.RestaurantId);
+        Assert.Equal(before.DiningSessionId, after.DiningSessionId);
+        Assert.Equal(before.TotalAmountCents, after.TotalAmountCents);
+        Assert.Equal(before.CreatedAt, after.CreatedAt);
+        Assert.Equal(before.CancelledAt, after.CancelledAt);
+        Assert.Equal(before.CancelReason, after.CancelReason);
+        Assert.Equal(OrderStatus.Cancelled, after.Status);
+        Assert.Equal(visit.TableId, after.DiningSession.TableId);
+        Assert.Equal(DiningSessionStatus.Closed, after.DiningSession.Status);
+        var line = Assert.Single(after.Items);
+        Assert.Equal(visit.MenuItemId, line.MenuItemId);
+        Assert.Equal(visit.RestaurantId, line.RestaurantId);
+        Assert.Equal("Dumplings", line.NameEnSnapshot);
+        Assert.Equal(1200, line.UnitPriceCents);
+        Assert.Equal(new[] { "GLUTEN", "SOY" }, line.AllergenCodesSnapshot);
+        Assert.True(await context.DiningSessions.AnyAsync(session => session.Id == visit.SessionId && session.Status == DiningSessionStatus.Active));
+        Assert.True(await context.MenuItems.AnyAsync(item => item.Id == visit.MenuItemId && item.ItemCode == "D1" && item.PriceCents == 1200));
+        Assert.True(await context.MenuCategories.AnyAsync(category => category.Id == visit.CategoryId));
+
+        var removedColumns = await context.Database.SqlQueryRaw<string>("""
+            SELECT table_name || '.' || column_name AS "Value" FROM information_schema.columns
+            WHERE table_schema = 'public' AND (
+                (table_name IN ('menu_categories', 'menu_items', 'restaurant_tables')
+                    AND column_name IN ('created_at', 'deleted_at'))
+                OR (table_name = 'orders' AND column_name = 'cancelled_by_user_id'))
+            """).ToListAsync();
+        Assert.Empty(removedColumns);
+        Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+        await Assert.ThrowsAsync<NotSupportedException>(() => migrator.MigrateAsync(previousMigration));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Migrate_DuplicateCatalogIdentifiers_FailsBeforeRemovingColumns(bool tableLabel)
+    {
+        const string previousMigration = "20261019200450_RemoveDiningSessionActors";
+        await using var context = await database.CreateIsolatedContextAsync();
+        var migrator = context.GetService<IMigrator>();
+        await migrator.MigrateAsync(previousMigration);
+        var visit = await SeedVisitAsync(context);
+        if (tableLabel)
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO restaurant_tables (id, restaurant_id, table_label, qr_token, deleted_at)
+                VALUES ({Guid.NewGuid()}, {visit.RestaurantId}, '1', {Guid.NewGuid().ToString("N")}, now())
+                """);
+        }
+        else
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO menu_items (id, restaurant_id, category_id, item_code, name_en, price_cents, deleted_at)
+                VALUES ({Guid.NewGuid()}, {visit.RestaurantId}, {visit.CategoryId}, 'D1', 'Archived dish', 1500, now())
+                """);
+        }
+
+        var error = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync());
+        Assert.Equal(PostgresErrorCodes.UniqueViolation, error.SqlState);
+        Assert.Contains(tableLabel ? "duplicate restaurant table labels" : "duplicate menu item codes", error.MessageText);
+        Assert.Contains("including soft-deleted rows", error.Hint);
+        Assert.Equal(previousMigration, (await context.Database.GetAppliedMigrationsAsync()).Last());
+        Assert.True(await context.Database.SqlQueryRaw<bool>("""
+            SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'restaurant_tables' AND column_name = 'created_at') AS "Value"
+            """).SingleAsync());
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    public async Task Delete_SessionOrOrder_CascadesOnlyItsDescendants(bool sessionRoot, bool tracked)
+    {
+        var visit = await SeedVisitAsync();
+        var other = await SeedVisitAsync();
+        var first = NewOrder(visit);
+        var sibling = NewOrder(visit);
+        var preserved = NewOrder(other);
+        await using (var setup = database.CreateContext())
+        {
+            setup.AddRange(first, NewOrderItem(visit, first), sibling, NewOrderItem(visit, sibling),
+                preserved, NewOrderItem(other, preserved));
+            await setup.SaveChangesAsync();
+        }
+
+        await using (var deletion = database.CreateContext())
+        {
+            if (tracked)
+            {
+                if (sessionRoot)
+                {
+                    deletion.Remove(await deletion.DiningSessions.Include(session => session.Orders).ThenInclude(order => order.Items)
+                        .SingleAsync(session => session.Id == visit.SessionId));
+                }
+                else
+                {
+                    deletion.Remove(await deletion.Orders.Include(order => order.Items).SingleAsync(order => order.Id == first.Id));
+                }
+
+                await deletion.SaveChangesAsync();
+            }
+            else if (sessionRoot)
+            {
+                Assert.Equal(1, await deletion.DiningSessions.Where(session => session.Id == visit.SessionId).ExecuteDeleteAsync());
+            }
+            else
+            {
+                Assert.Equal(1, await deletion.Orders.Where(order => order.Id == first.Id).ExecuteDeleteAsync());
+            }
+        }
+
+        await using var read = database.CreateContext();
+        Assert.False(await read.Orders.AnyAsync(order => order.Id == first.Id));
+        Assert.False(await read.OrderItems.AnyAsync(line => line.OrderId == first.Id));
+        Assert.Equal(!sessionRoot, await read.DiningSessions.AnyAsync(session => session.Id == visit.SessionId));
+        Assert.Equal(!sessionRoot, await read.Orders.AnyAsync(order => order.Id == sibling.Id));
+        Assert.Equal(sessionRoot ? 0 : 1, await read.OrderItems.CountAsync(line => line.OrderId == sibling.Id));
+        Assert.True(await read.MenuItems.AnyAsync(item => item.Id == visit.MenuItemId));
+        Assert.True(await read.RestaurantTables.AnyAsync(table => table.Id == visit.TableId));
+        Assert.True(await read.Orders.AnyAsync(order => order.Id == preserved.Id));
+        Assert.Single(await read.OrderItems.Where(line => line.OrderId == preserved.Id).ToListAsync());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DeleteCatalog_MissingOrWrongRestaurant_ReturnsNotFoundWithoutChanges(bool table)
+    {
+        var visit = await SeedVisitAsync();
+        var other = await SeedVisitAsync();
+        await using var context = database.CreateContext();
+        var order = NewOrder(visit);
+        context.AddRange(order, NewOrderItem(visit, order));
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var service = new CatalogDeletionService(context);
+        var wrongTenant = table
+            ? await service.DeleteRestaurantTableAsync(other.RestaurantId, visit.TableId)
+            : await service.DeleteMenuItemAsync(other.RestaurantId, visit.MenuItemId);
+        var absent = table
+            ? await service.DeleteRestaurantTableAsync(visit.RestaurantId, Guid.NewGuid())
+            : await service.DeleteMenuItemAsync(visit.RestaurantId, Guid.NewGuid());
+        Assert.Equal(CatalogDeletionResult.NotFound, wrongTenant);
+        Assert.Equal(CatalogDeletionResult.NotFound, absent);
+        Assert.True(await context.MenuItems.AnyAsync(item => item.Id == visit.MenuItemId));
+        Assert.True(await context.RestaurantTables.AnyAsync(saved => saved.Id == visit.TableId));
+        Assert.True(await context.OrderItems.AnyAsync(line => line.OrderId == order.Id && line.MenuItemId == visit.MenuItemId));
+        Assert.True(await context.DiningSessions.AnyAsync(session => session.Id == visit.SessionId && session.TableId == visit.TableId));
     }
 
     private async Task<VisitData> SeedVisitAsync(bool useFalseFlags = false)
     {
         await using var context = database.CreateContext();
+        return await SeedVisitAsync(context, useFalseFlags);
+    }
+
+    private static async Task<VisitData> SeedVisitAsync(ApplicationDbContext context, bool useFalseFlags = false)
+    {
         var restaurant = new Restaurant { Name = "Test restaurant", DefaultLanguage = "it", ServiceStatus = RestaurantServiceStatus.Active };
         var user = new RestaurantUser
         {

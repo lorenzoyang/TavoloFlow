@@ -16,8 +16,6 @@ public sealed class MenuItem
     public string[] AllergenCodes { get; set; } = [];
     public bool AllergenReviewed { get; set; }
     public bool IsAvailable { get; set; } = true;
-    public DateTime? DeletedAt { get; set; }
-    public DateTime CreatedAt { get; set; }
 
     public Restaurant Restaurant { get; set; } = null!;
     public MenuCategory Category { get; set; } = null!;

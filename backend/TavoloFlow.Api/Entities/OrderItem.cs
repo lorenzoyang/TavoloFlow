@@ -5,7 +5,7 @@ public sealed class OrderItem
     public Guid Id { get; set; }
     public Guid RestaurantId { get; set; }
     public Guid OrderId { get; set; }
-    public Guid MenuItemId { get; set; }
+    public Guid? MenuItemId { get; set; }
     public string? ItemCodeSnapshot { get; set; }
     public string? NameZhSnapshot { get; set; }
     public string? NameItSnapshot { get; set; }
@@ -17,5 +17,5 @@ public sealed class OrderItem
 
     public Restaurant Restaurant { get; set; } = null!;
     public Order Order { get; set; } = null!;
-    public MenuItem MenuItem { get; set; } = null!;
+    public MenuItem? MenuItem { get; set; }
 }

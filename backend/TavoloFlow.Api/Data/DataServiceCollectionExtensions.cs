@@ -10,11 +10,12 @@ public static class DataServiceCollectionExtensions
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             throw new InvalidOperationException(
-                "Configure ConnectionStrings:DefaultConnection using user secrets or " +
-                "the ConnectionStrings__DefaultConnection environment variable.");
+                "Configure ConnectionStrings:Default using user secrets or " +
+                "the ConnectionStrings__Default environment variable.");
         }
 
         services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddScoped<CatalogDeletionService>();
         return services;
     }
 }

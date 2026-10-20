@@ -47,7 +47,7 @@ internal sealed class OrderItemConfiguration : IEntityTypeConfiguration<OrderIte
 
         builder.HasOne(item => item.Order).WithMany(order => order.Items)
             .HasForeignKey(item => new { item.OrderId, item.RestaurantId })
-            .HasPrincipalKey(order => new { order.Id, order.RestaurantId }).OnDelete(DeleteBehavior.ClientNoAction);
+            .HasPrincipalKey(order => new { order.Id, order.RestaurantId }).OnDelete(DeleteBehavior.Cascade);
             
         builder.HasOne(item => item.MenuItem).WithMany()
             .HasForeignKey(item => new { item.MenuItemId, item.RestaurantId })

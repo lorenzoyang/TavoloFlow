@@ -17,7 +17,7 @@ public sealed class DiningSession
 {
     public Guid Id { get; set; }
     public Guid RestaurantId { get; set; }
-    public Guid TableId { get; set; }
+    public Guid? TableId { get; set; }
     public DiningSessionStatus Status { get; set; } = DiningSessionStatus.Active;
     public string? JoinCodeCiphertext { get; set; }
     public int BillVersion { get; set; } = 1;
@@ -28,6 +28,6 @@ public sealed class DiningSession
     public long? ClosedTotalCents { get; set; }
 
     public Restaurant Restaurant { get; set; } = null!;
-    public RestaurantTable Table { get; set; } = null!;
+    public RestaurantTable? Table { get; set; }
     public ICollection<Order> Orders { get; } = new List<Order>();
 }

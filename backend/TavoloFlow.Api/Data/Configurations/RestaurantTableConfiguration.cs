@@ -24,16 +24,12 @@ internal sealed class RestaurantTableConfiguration : IEntityTypeConfiguration<Re
 
         builder.Property(table => table.IsEnabled).HasColumnName("is_enabled").HasDefaultValue(true).ValueGeneratedNever();
 
-        builder.Property(table => table.DeletedAt).HasColumnName("deleted_at").HasColumnType("timestamptz");
-
-        builder.Property(table => table.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz").HasDefaultValueSql("now()");
-
         builder.HasIndex(table => table.QrToken).IsUnique();
 
         builder.HasIndex(table => table.RestaurantId);
 
         builder.HasIndex(table => new { table.RestaurantId, table.TableLabel }).IsUnique()
-            .HasFilter("deleted_at IS NULL").HasDatabaseName("uq_tables_active_label");
+            .HasDatabaseName("uq_tables_label");
             
         builder.HasOne(table => table.Restaurant).WithMany(restaurant => restaurant.Tables)
             .HasForeignKey(table => table.RestaurantId).OnDelete(DeleteBehavior.Cascade);

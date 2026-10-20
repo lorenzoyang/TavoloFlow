@@ -12,6 +12,7 @@ internal sealed class DiningSessionConfiguration : IEntityTypeConfiguration<Dini
         {
             table.HasCheckConstraint("ck_session_status", "status IN ('ACTIVE', 'CLOSED')");
             table.HasCheckConstraint("ck_session_bill_version", "bill_version > 0");
+            table.HasCheckConstraint("ck_session_active_table", "status <> 'ACTIVE' OR table_id IS NOT NULL");
             table.HasCheckConstraint("ck_session_close_reason", "close_reason IS NULL OR close_reason IN ('PAID', 'VOIDED', 'EMPTY')");
 
             table.HasCheckConstraint("ck_session_lifecycle",

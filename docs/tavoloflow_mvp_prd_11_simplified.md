@@ -37,7 +37,7 @@
 | `orders.version` | **删除** | 按 `status` 条件更新，失败时提示已被其他操作改变 |
 | 顾客单独授权表/设备会话表 | **本版不新增** | 使用受保护 Cookie + Session 当前状态；不提供逐设备撤销 UI |
 
-**不再开发的重置接口**：`rotate-qr`、`rotate-join-code`。替换固定二维码的 V1 操作为：空桌时软删除原桌位 → 新建桌位 → 打印新码；正在用餐时不能采用此替代方法。
+**不再开发的重置接口**：`rotate-qr`、`rotate-join-code`。替换固定二维码的 V1 操作为：空桌时删除原桌位 → 新建桌位 → 打印新码；正在用餐时不能采用此替代方法。
 
 ---
 
@@ -86,14 +86,14 @@
 | `platform_users` | 平台账号 |
 | `restaurants` | 餐厅、服务状态、全店接单开关、默认语言 |
 | `restaurant_users` | 店铺 OWNER/STAFF 账号、角色、凭证版本 |
-| `restaurant_tables` | 物理桌位、固定二维码 `qr_token`、启停、软删除 |
+| `restaurant_tables` | 物理桌位、固定二维码 `qr_token`、启停、删除 |
 | `menu_categories` | 分类及 zh/it/en 名称 |
 | `menu_items` | 菜品、多语言、价格、供应状态、过敏原和审核标记 |
 | `dining_sessions` | 每次入桌、加密入桌码、当前状态、`bill_version` 和关桌结果 |
 | `orders` | 每次正式提交的订单、`client_request_id`、状态、总金额及取消信息 |
 | `order_items` | 菜品名称/编号/单价/过敏原快照、数量和备注 |
 
-主键使用 UUID；金额统一存**欧分整数**；数据库时间用 UTC `timestamptz`，界面按 `Europe/Rome` 展示；一套 PostgreSQL 支持多家餐厅。订单必须保存快照，菜单以后改价、改名或软删除不追溯改变历史订单。
+主键使用 UUID；金额统一存**欧分整数**；数据库时间用 UTC `timestamptz`，界面按 `Europe/Rome` 展示；一套 PostgreSQL 支持多家餐厅。订单必须保存快照，菜单以后改价、改名或删除不追溯改变历史订单。删除菜品时先在同一事务内清空订单明细的 `menu_item_id`，保留名称、价格、过敏原快照和 `restaurant_id`；分类必须先移走或删除其菜品才可删除。分类、菜品和桌位不保存创建时间或删除标记。订单取消保留时间和原因，不保存取消账号。
 
 ### 2.2 状态枚举
 
@@ -167,7 +167,7 @@ flowchart LR
 
 **菜单展示**
 
-- 菜单为“分类 → 菜品”，按创建时间、ID 稳定排序；zh/it/en 三种语言至少填写一种名称，缺少当前语言时逐项回退到默认语言或已有名称。
+- 菜单为“分类 → 菜品”，按 ID 稳定排序；zh/it/en 三种语言至少填写一种名称，缺少当前语言时逐项回退到默认语言或已有名称。
 - `restaurants.default_language` 在当前 DBML 中为 **NOT NULL**；空菜单时也使用预设默认语言。店铺可见语言根据公开菜单实际提供的名称推导；菜单移除造成默认语言失效时，后端应调整到尚可用语言（空菜单则保留预设语言）。
 - `item_code` 可空；价格以欧分保存；售罄仍可展示但不能加入可提交订单。
 - OWNER 可以编辑分类/菜品，**后写入覆盖先写入**；不校验菜单 `version`。STAFF 只允许切换 `is_available`，后端必须执行**字段级更新**，不能用旧 DTO 覆盖菜名、价格、过敏原。
@@ -266,8 +266,8 @@ flowchart TD
 
 - 新建桌位生成永久随机 `qr_token`（全局唯一），下载/再次打印得到同一 `/q/{token}` 入口。
 - 修改桌位标签不修改二维码 URL；停用桌位阻止新订单，不自动关闭活动账单。
-- 删除桌位采用软删除，**必须无 ACTIVE Session**；老二维码立即失效，历史订单保留。
-- 若空桌二维码需要换码：**软删除旧桌 → 新建同名桌（新 ID、新 Token）→ 重新打印张贴**；不提供重置按钮，不允许活动桌直接删除换码。
+- 删除桌位采用事务内物理删除，**必须无 ACTIVE Session**；先清空 CLOSED Session 的 `table_id`，保留桌号快照与餐厅归属。老二维码立即失效，历史订单保留。
+- 若空桌二维码需要换码：**删除旧桌 → 新建同名桌（新 ID、新 Token）→ 重新打印张贴**；不提供重置按钮，不允许活动桌直接删除换码。
 - 删除桌位与开桌也必须由后端通过事务/锁和唯一约束排除竞态，而不只依据管理界面是否显示“空桌”。
 
 ### 3.9 后台登录与账号重置
@@ -289,7 +289,7 @@ flowchart TD
 | `/staff/kitchen` | `NEW` 订单、标记 READY、合法取消、同步状态 | 10 秒轮询，增量提醒与分页 |
 | `/staff/orders` | OWNER 账单、确认收款/关桌 | 读最新账单，POST 带版本和金额，409 再确认 |
 | `/staff/menu` | OWNER 菜单分类/菜品/过敏原；STAFF 售罄可另在厨房页操作 | 最后写入覆盖，字段级 PATCH |
-| `/staff/tables` | OWNER 桌位、二维码下载、软删除后重建 | 不展示码重置功能 |
+| `/staff/tables` | OWNER 桌位、二维码下载、删除后重建 | 不展示码重置功能 |
 | `/staff/history` | OWNER 已关闭账单只读查询 | 按本店、时间/桌号分页 |
 | `/staff/settings` | 店铺基础设置、OWNER 重置 STAFF 密码 | 无逐设备撤销会话页 |
 | `/platform/login`、`/platform/restaurants` | 平台登录、建店、状态与账号维护 | 业务和店铺认证分离 |
@@ -339,8 +339,8 @@ flowchart TD
 | PATCH | `/api/staff/menu-items/{id}/availability` | `isAvailable` **明确目标值**，仅改这个字段 |
 | PATCH | `/api/staff/accepting-orders` | `enabled` 明确目标值 |
 | POST | `/api/owner/sessions/{id}/checkout` | `expectedBillVersion + confirmedTotalCents`，核账并原子 `PAID` 清桌 |
-| CRUD | `/api/owner/menu/categories`、`/api/owner/menu/items` | 三语、审核、价格、软删除；无菜单版本字段 |
-| CRUD | `/api/owner/tables` | 创建、编辑、软删除、二维码下载；**无 rotate** |
+| CRUD | `/api/owner/menu/categories`、`/api/owner/menu/items` | 三语、审核、价格、删除；无菜单版本字段 |
+| CRUD | `/api/owner/tables` | 创建、编辑、删除、二维码下载；**无 rotate** |
 | GET | `/api/owner/history` | 已关闭账单只读分页 |
 | GET/PATCH | `/api/owner/settings` | 店铺基础设置 |
 | POST | `/api/owner/staff/reset-password` | 重置 STAFF 密码、统一失效旧票据 |
@@ -431,7 +431,7 @@ WHERE status = 'ACTIVE';
 ```
 
 4. 订单幂等：`UNIQUE(dining_session_id, client_request_id)`。
-5. 软删除桌位标签 `(restaurant_id, table_label)`、非空菜品编号 `(restaurant_id, item_code)` 的**部分唯一索引**。
+5. 桌位标签 `(restaurant_id, table_label)` 唯一；非空菜品编号 `(restaurant_id, item_code)` 使用 `WHERE item_code IS NOT NULL` 的部分唯一索引。物理删除后可复用标签/编号。
 6. 现有 DBML 中的同租户复合外键、非空、数量与金额范围、状态枚举约束。
 
 DBML 注释本身不会生成所有 PostgreSQL 部分索引；使用 **EF Core Migrations** 明确创建，并用真实 PostgreSQL 测试验证。
@@ -523,8 +523,8 @@ DBML 注释本身不会生成所有 PostgreSQL 部分索引；使用 **EF Core M
 | AC-22 | STAFF 请求 PAID 结账 | 权限失败，不得绕过前端菜单隐藏调用 |
 | AC-23 | 从未有订单的 Session 执行 EMPTY | 版本/金额/状态核对后可关闭；仍保留历史 |
 | AC-24 | 所有订单已取消的 Session 执行 VOIDED | 校验零账单、无 NEW、确认离桌后可关闭 |
-| AC-25 | ACTIVE 桌位申请软删除或换码 | 失败；不能直接重置二维码 |
-| AC-26 | 空桌软删除并新建同名桌 | 新 ID/二维码，旧入口失效，历史关联保留 |
+| AC-25 | ACTIVE 桌位申请删除或换码 | 失败；不能直接重置二维码 |
+| AC-26 | 空桌删除并新建同名桌 | 新 ID/二维码，旧入口失效，历史快照保留，旧 Session 的 table_id 置空 |
 | AC-27 | 修改/重置 STAFF 密码后重用旧 Cookie | 旧 Cookie 被拒绝，`credential_version` 校验生效 |
 | AC-28 | 关桌后旧顾客刷新或恢复联网 | 受保护订单/码不可读，页面清理旧数据并展示结束状态 |
 | AC-29 | 厨房断网超过 30 秒，之后恢复 | 显示同步过期，恢复后重新拉取，不把旧单连续当新单报警 |
@@ -540,7 +540,7 @@ DBML 注释本身不会生成所有 PostgreSQL 部分索引；使用 **EF Core M
 
 1. **基础工程与数据库**：项目结构、EF Core Migrations、9 表实体映射、必要索引与复合外键、简单种子数据、测试环境。
 2. **账户与多租户**：平台/店铺登录、角色授权、首次改密、`credential_version`、创建餐厅。
-3. **菜单与桌位**：三语菜单、价格/审核验证、供应状态、固定二维码、软删除。
+3. **菜单与桌位**：三语菜单、价格/审核验证、供应状态、固定二维码、删除。
 4. **开桌与顾客授权**：Session、加密码、Cookie、开桌未知结果恢复。
 5. **购物车和下单**：最新价确认、`client_request_id`、历史快照、原请求恢复。
 6. **厨房与取消**：轮询、READY/取消条件更新、版本递增。

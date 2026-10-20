@@ -20,13 +20,13 @@ Compose's `.env` configures the database container only. Configure the API
 separately, using the same database name, username, and password:
 
 ```bash
-dotnet user-secrets set 'ConnectionStrings:DefaultConnection' 'Host=localhost;Port=5432;Database=tavoloflow_dev;Username=tavoloflow;Password=YOUR_LOCAL_PASSWORD' --project backend/TavoloFlow.Api
+dotnet user-secrets set 'ConnectionStrings:Default' 'Host=localhost;Port=5432;Database=tavoloflow_dev;Username=tavoloflow;Password=YOUR_LOCAL_PASSWORD' --project backend/TavoloFlow.Api
 ```
 
 Alternatively, supply the standard ASP.NET Core environment variable:
 
 ```bash
-export ConnectionStrings__DefaultConnection='Host=localhost;Port=5432;Database=tavoloflow_dev;Username=tavoloflow;Password=YOUR_LOCAL_PASSWORD'
+export ConnectionStrings__Default='Host=localhost;Port=5432;Database=tavoloflow_dev;Username=tavoloflow;Password=YOUR_LOCAL_PASSWORD'
 ```
 
 Keep real credentials in user secrets, ignored environment files, or deployment
@@ -59,16 +59,18 @@ generating SQL do not require a running database.
   on insert, including `false` and zero-valued enum members.
 - Timestamps use UTC `DateTime` and PostgreSQL `timestamptz`. Creation/opening
   timestamps use database `now()` defaults. Do not supply local or unspecified
-  `DateTime` values.
+  `DateTime` values. Categories, menu items, and tables have no creation timestamps
+  or soft-delete markers. Menu queries use ID ordering for a stable order.
 - Composite alternate keys and foreign keys enforce same-restaurant
-  relationships, including the optional order cancellation actor. The seven direct
-  restaurant ownership relationships use `ON DELETE CASCADE`. Internal composite
-  references use database `NO ACTION` and EF `ClientNoAction`, preserving
-  referenced history when individual records are deleted and preventing EF
-  from clearing tracked actor foreign keys.
-- Partial unique indexes enforce one active session per table, reusable table
-  labels after soft deletion, and reusable non-null menu-item codes after soft
-  deletion. Order request IDs are unique within each session. QR tokens and
+  relationships. Restaurant ownership, session-to-order, and order-to-line
+  relationships use `ON DELETE CASCADE`. The remaining composite references use
+  database `NO ACTION` and EF `ClientNoAction`. `DiningSession.TableId`/`Table`
+  and `OrderItem.MenuItemId`/`MenuItem` are nullable historical links;
+  `RestaurantId` is always required.
+- A partial unique index enforces one active session per table. Labels are unique
+  per restaurant (`uq_tables_label`); non-null item codes are unique per restaurant
+  (`uq_menu_items_code`). These values can be reused after physical deletion.
+  Order request IDs are unique within each session. QR tokens and
   usernames are globally unique within their respective tables; each restaurant
   has at most one account of each role.
 - Row-local checks enforce language/status values, money and quantity bounds,
@@ -78,12 +80,14 @@ generating SQL do not require a running database.
 - Session lifecycle checks require a ciphertext while active and closing time,
   reason, and total when closed. Closing clears the ciphertext. Opening and closing
   account IDs are not stored; request authorization still checks the caller's role.
+  An active session must reference a table; closed history may have a null table ID.
   Orders require metadata consistent with `NEW`, `READY`, or `CANCELLED`;
-  cancellation from `READY` retains `ready_at`. Transition timestamps cannot
+  cancellation stores its time and nonblank reason without account attribution,
+  and cancellation from `READY` retains `ready_at`. Transition timestamps cannot
   precede creation/opening or appear in reverse order.
 
 The DBML includes the current fields, relationships, and strengthened checks.
-`er-diagram.png` is an older export that still shows dining-session actor fields;
+`er-diagram.png` is an older export that still shows removed catalog/actor fields;
 use the DBML until the image is re-exported. EF migrations define the deployed schema.
 
 ## Application responsibilities
@@ -91,27 +95,38 @@ use the DBML until the image is re-exported. EF migrations define the deployed s
 `ApplicationDbContext` is scoped and can be injected directly into future
 application services. There is no generic repository or unit-of-work wrapper.
 
-Composite foreign keys prevent inconsistent relationships. They do **not**
-authorize access or filter reads. There are deliberately no global tenant or
-soft-delete filters: authenticated queries must include the trusted
-`RestaurantId`; live menu/table queries must explicitly exclude `DeletedAt`
-records and apply the relevant availability conditions. Historical queries use
-stored snapshots and may include soft-deleted related records without losing
-rows through filtered required navigation joins.
+Composite foreign keys prevent inconsistent relationships. Authenticated queries
+must still include the trusted `RestaurantId` and apply availability conditions.
+Historical displays use snapshots and support null table/menu-item navigations.
+Snapshots and closed history are not protected against direct updates; application
+services must enforce their immutability and authorization.
 
-Deleting a table, category, or menu item means setting `DeletedAt` in an
-application operation. There is no automatic conversion of `Remove` into soft
-deletion. Business operations must coordinate with active sessions and menu
-state; foreign keys alone do not enforce those rules. Snapshots and closed
-history are preserved by schema relationships while the restaurant exists, but
-are not automatically protected against direct updates. Later application
-services must enforce their immutability.
+### Catalog deletion
+
+`CatalogDeletionService` is registered as scoped by `AddDataLayer`. Its
+`DeleteMenuItemAsync(restaurantId, menuItemId, cancellationToken)` and
+`DeleteRestaurantTableAsync(restaurantId, tableId, cancellationToken)` methods
+return `CatalogDeletionResult.Deleted`, `NotFound`, or `TableHasActiveSession`.
+IDs belonging to a different restaurant return `NotFound`.
+
+Each operation owns a transaction and locks the restaurant-scoped target row
+with `FOR UPDATE`. Item deletion clears matching order-line `MenuItemId` values
+and deletes the item. Table deletion rejects an active session; otherwise it
+clears matching closed sessions' `TableId` values and deletes the table. The
+operations retain every snapshot, amount, and `RestaurantId`. Direct deletes of
+referenced catalog rows remain blocked by foreign keys. Category deletion requires
+removing or moving all its items first.
+
+Use a fresh DI scope/context for each deletion operation and do not wrap it in
+another transaction. These operations execute immediately, without `SaveChanges`;
+their bulk statements do not update tracked objects. Opening a table and creating
+orders must coordinate using the same table/menu row locks to avoid deletion races.
 
 ### Permanent restaurant deletion
 
 Permanently deleting a restaurant removes its OWNER/STAFF accounts, tables,
 categories, menu items, dining sessions, orders, and order items. This includes
-active sessions, closed bills, snapshots, and soft-deleted records. Other
+active sessions, closed bills, and snapshots. Other
 restaurants and platform accounts remain independent. Use `SUSPENDED` for a
 temporary service interruption that should preserve data.
 
@@ -131,19 +146,18 @@ can make EF issue separate child deletes before the restaurant DELETE, which
 can fail against internal references. `ExecuteDeleteAsync` also bypasses the
 change tracker, so do not keep using tracked restaurant data after deletion.
 
-Internal `NO ACTION` constraints allow the statement's restaurant cascades to
-complete while still rejecting individual deletes that leave dangling
-references. For example, deleting a staff account referenced as an order's
-cancellation actor fails without clearing that actor. Ordinary menu/table soft
-deletion remains unchanged. Platform-admin authorization belongs in the future
-application operation; cascade configuration does not grant permission.
+Internal `NO ACTION` constraints still reject catalog deletes that leave dangling
+references. Deleting a dining session permanently removes its orders and their
+lines; deleting an order removes its lines. These cascades work without loading
+dependents. Application authorization and retention policies must govern these
+permanent operations.
 
 `CascadeRestaurantDeletion` is a forward migration that replaces foreign-key
 delete actions without deleting or rewriting existing restaurant records.
 
 Future operations must implement these transaction boundaries:
 
-- Opening and soft-deleting a table acquire the same table row lock and check its
+- Opening and deleting a table acquire the same table row lock and check its
   current state inside the transaction. The active-session unique index is the
   final safeguard against duplicate opening.
 - Creating an order, cancelling it, and closing its bill acquire the same dining
@@ -168,8 +182,18 @@ application work. This layer stores hashes/ciphertext supplied by those services
 `RemoveDiningSessionActors` removes only session opening/closing account IDs and
 their foreign keys/indexes, and updates the session lifecycle check. It preserves
 session rows and their remaining data. The two earlier migrations are retained.
-This migration cannot be downgraded because the removed attribution cannot be
+That migration cannot be downgraded because the removed attribution cannot be
 reconstructed; recovering the old schema and attribution requires a database backup.
+
+`SimplifyCatalogAndCascadeOrders` retains all three earlier migrations. It drops
+the six catalog timestamp/deletion columns and order cancellation-account column,
+makes historical links nullable, and adds the new checks, indexes, and cascades.
+All rows and remaining values are preserved, including rows previously marked
+as deleted. Their old deletion state is deliberately discarded; review such rows
+before deployment. Duplicate table labels or non-null item codes, including old
+soft-deleted rows, stop the migration before destructive changes. Resolve conflicts
+explicitly and retry; the migration does not purge or rename records. This upgrade
+is also forward-only because removed metadata and detached links cannot be recovered.
 
 Keep generated migrations and their model snapshot in source control. To add a
 schema change and check for an uncommitted model difference:
@@ -197,8 +221,9 @@ dotnet test TavoloFlow.slnx
 ```
 
 Tests cover schema creation/model alignment, graph persistence and explicit
-defaults, all six remaining composite tenant relationships, critical
+defaults, all five remaining composite tenant relationships, critical
 uniqueness/concurrent insert cases, lifecycle checks, snapshot/history
-preservation, complete restaurant deletion with tenant/platform isolation, and
-an upgrade from the previous schema containing active and closed sessions.
-Transactional workflow tests belong with those future workflows.
+preservation, catalog deletion conflicts and tenant isolation, session/order
+cascades with loaded and unloaded dependents, complete restaurant deletion,
+and upgrade/preflight checks. Ordering and checkout workflow tests belong with
+those future workflows.

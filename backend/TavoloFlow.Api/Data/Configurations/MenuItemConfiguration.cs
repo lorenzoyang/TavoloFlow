@@ -43,14 +43,10 @@ internal sealed class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
 
         builder.Property(item => item.IsAvailable).HasColumnName("is_available").HasDefaultValue(true).ValueGeneratedNever();
 
-        builder.Property(item => item.DeletedAt).HasColumnName("deleted_at").HasColumnType("timestamptz");
-
-        builder.Property(item => item.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz").HasDefaultValueSql("now()");
-
         builder.HasIndex(item => new { item.RestaurantId, item.CategoryId });
 
         builder.HasIndex(item => new { item.RestaurantId, item.ItemCode }).IsUnique()
-            .HasFilter("deleted_at IS NULL AND item_code IS NOT NULL").HasDatabaseName("uq_menu_items_active_code");
+            .HasFilter("item_code IS NOT NULL").HasDatabaseName("uq_menu_items_code");
 
         builder.HasOne(item => item.Restaurant).WithMany(restaurant => restaurant.MenuItems)
             .HasForeignKey(item => item.RestaurantId).OnDelete(DeleteBehavior.Cascade);
