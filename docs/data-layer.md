@@ -3,7 +3,8 @@
 The nine entity classes live in `backend/TavoloFlow.Api/Entities`. Individual
 Fluent API configurations, `ApplicationDbContext`, and EF migrations live in
 `backend/TavoloFlow.Api/Data`. A fresh database contains no accounts or sample
-records.
+records. Development account initialization is an explicit application command;
+see [Store accounts](store-accounts.md).
 
 ## Local setup
 
@@ -32,8 +33,10 @@ export ConnectionStrings__Default='Host=localhost;Port=5432;Database=tavoloflow_
 Keep real credentials in user secrets, ignored environment files, or deployment
 secret configuration. No connection string is committed. Startup fails with a
 configuration message when the connection string is missing. The API does not
-load `.env` files, seed accounts, connect to the database during registration, or
-apply migrations at startup.
+load `.env` files, seed accounts during normal startup, connect to the database
+during registration, or apply migrations at startup. The Development-only
+`--seed-dev-accounts` command writes its restaurant and accounts in one transaction
+and then exits; migrations must already be applied.
 
 Apply pending migrations explicitly, then start the API:
 
@@ -173,9 +176,13 @@ Future operations must implement these transaction boundaries:
   confirmed amount and expected bill version before closing. `BillVersion` is a
   business counter, not an EF optimistic-concurrency token.
 
-Authentication, password hashing, join-code encryption, credential invalidation,
-allergen code/review validation, and these business transactions are subsequent
-application work. This layer stores hashes/ciphertext supplied by those services.
+Store authentication, password hashing, first-password-change enforcement and
+credential invalidation are implemented in `Accounts/`, using the existing schema.
+Password changes atomically update the hash, clear the first-change flag and
+increment the credential version with a conditional database update.
+Join-code encryption, allergen code/review validation, and ordering/checkout
+transactions remain subsequent application work. This layer stores
+hashes/ciphertext supplied by those services.
 
 ## Migrations and validation
 

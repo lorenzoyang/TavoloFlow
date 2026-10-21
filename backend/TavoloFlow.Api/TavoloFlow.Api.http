@@ -1,6 +1,15 @@
 @TavoloFlow.Api_HostAddress = http://localhost:5093
 
-GET {{TavoloFlow.Api_HostAddress}}/weatherforecast/
+GET {{TavoloFlow.Api_HostAddress}}/api/auth/csrf
 Accept: application/json
 
 ###
+
+# After logging in with the browser or a cookie-aware HTTP client.
+GET {{TavoloFlow.Api_HostAddress}}/api/auth/me
+Accept: application/json
+
+###
+
+# See docs/store-accounts.md for cookie and X-CSRF-TOKEN handling.
+# Keep actual login credentials out of this file.

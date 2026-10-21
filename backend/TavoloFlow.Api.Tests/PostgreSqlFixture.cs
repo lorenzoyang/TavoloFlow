@@ -10,6 +10,7 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
     private readonly PostgreSqlContainer container = new PostgreSqlBuilder("postgres:18-alpine").Build();
 
     public bool InitiallyEmpty { get; private set; }
+    public string ConnectionString => container.GetConnectionString();
 
     public ApplicationDbContext CreateContext() => new(
         new DbContextOptionsBuilder<ApplicationDbContext>()

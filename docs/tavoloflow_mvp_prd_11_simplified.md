@@ -276,6 +276,11 @@ flowchart TD
 - `credential_version` 仅用于**账号凭据统一失效**：改密、后台重置密码或禁用账号后，旧认证票据下一次请求必须失效；验证依赖后端最新账号状态/版本。
 - 同一共享 STAFF 账号可以多设备登录。各设备退出只删除**当前浏览器 Cookie**，没有服务器持久化的设备会话列表，也不提供“只踢掉另一台设备”操作；重置密码可让全部旧票据失效。
 - 密码按成熟的 PasswordHasher 存储，生产账号不写入源码；首次登录强制修改临时密码。
+- 店铺登录票据最长有效 **16 小时**，不做闲置续期，不提供“记住我”；浏览器使用会话 Cookie。此约定替代原 PRD 的“闲置 2 小时”规则。
+- 首次及主动改密后，当前浏览器签发新的 16 小时票据并继续登录，其他设备的旧票据失效。新密码须为 12–128 个字符，与当前密码不同；密码不做首尾空白裁剪。
+- 首次改密前只允许查询自身身份、取得 CSRF token、改密和退出；业务访问由服务端返回 `403 PASSWORD_CHANGE_REQUIRED`。
+
+**当前实现状态**：店铺账号初始化、登录/退出、身份查询、首次及主动改密、角色策略和凭据版本校验已实现，页面先用中文。初始化只允许在 Development 显式执行，不随普通启动运行；平台账号、老板重置 STAFF 密码及顾客授权仍待后续开发。运行与验收见 [店铺账号模块说明](store-accounts.md)。
 
 ---
 
@@ -326,6 +331,8 @@ flowchart TD
 | POST | `/api/public/orders` | `sessionId + clientRequestId + items + note + 客户端已确认价格信息`；服务端核价和幂等 |
 | GET | `/api/public/sessions/{id}/orders/by-request/{requestId}` | 本轮活动且授权有效时核对原提交结果 |
 | POST | `/api/auth/login` / `/api/auth/logout` | 店铺后台登录/本设备退出 |
+| GET | `/api/auth/csrf` | 获取与当前身份匹配的请求 token，写请求通过 `X-CSRF-TOKEN` 提交 |
+| GET | `/api/auth/me` | 查询当前店铺账号、角色、餐厅及首次改密标记 |
 | POST | `/api/auth/change-password` | 修改密码、更新 `credential_version` |
 | GET | `/api/staff/tables` | 本店桌位与当前 ACTIVE Session 概要 |
 | POST | `/api/staff/tables/{tableId}/open` | 明确开桌；**不要求 openRequestId / tableVersion** |
