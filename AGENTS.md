@@ -5,7 +5,7 @@
 - `TavoloFlow.slnx` groups the backend projects; `global.json` specifies the .NET SDK.
 - `backend/TavoloFlow.Api/` contains the ASP.NET Core 10 controller-based API. Startup lives in `Program.cs`; `Entities/` contains the nine persistence entities, and `Data/` contains `ApplicationDbContext`, EF Core mappings and migrations, and catalog deletion services. `Accounts/` implements development account initialization, store authentication and authorization; `Controllers/AuthController.cs` exposes the account endpoints. Ordering workflows are not yet implemented.
 - `backend/TavoloFlow.Api.Tests/` contains data-layer and account integration tests using disposable PostgreSQL containers and `WebApplicationFactory`.
-- `frontend/src/` contains the React/TypeScript application, account pages and API/query logic in `features/accounts/`, code-based TanStack routes in `router.tsx`, shared UI in `components/ui/`, utilities in `lib/`, and styles in `index.css`. Vite, Tailwind CSS, and shadcn configure the frontend.
+- `frontend/src/` contains the React/TypeScript application. `routes/` defines TanStack file-based routes; `router.tsx` creates the router from the generated `routeTree.gen.ts`. Account pages, shared account components, and API/query logic live in `features/accounts/`; shared shadcn UI lives in `components/ui/`, utilities in `lib/`, and theme variables in `index.css`.
 - `docs/` contains product requirements and the DBML schema. Root `compose.yaml` defines local PostgreSQL.
 
 ## Build, Test, and Development Commands
@@ -22,9 +22,13 @@ Run backend and infrastructure commands from the repository root:
 
 From `frontend/`, run `npm install` to install dependencies, `npm run dev` for development, `npm run build` for TypeScript checking and production output, `npm run lint` for Oxlint, and `npm run preview` to preview the build.
 
+The build runs `vite build && tsc -b`: Vite generates the route tree before TypeScript checks route types. Commit `src/routeTree.gen.ts` with route changes; never edit it manually. It is excluded from lint. The TanStack Router Vite plugin must precede the React plugin and enables automatic route code splitting.
+
 ## Coding Style & Naming Conventions
 
 Use four-space indentation in C# and two spaces in TypeScript/TSX. Use PascalCase for C# types/methods and React components; use camelCase for JavaScript functions and variables. Prefer file-scoped C# namespaces and preserve nullable annotations. Use `@/` imports for frontend source paths. Match surrounding quote and semicolon conventions; no shared formatter is configured. Oxlint checks React hooks and TypeScript rules.
+
+Keep route files thin: URL/search configuration belongs in `routes/`, while forms and account state belong in `features/accounts/`. `AuthBoundary` observes the shared identity query; do not duplicate authentication requests in route loaders. The store layout sets available width, and pages choose their own card width. Add UI components using the existing shadcn configuration (Base UI, `base-nova`, `neutral`); use semantic theme colors and preserve labels, focus styles, and at least 44px account form controls. Navigation uses TanStack `Link` with `buttonVariants` from `components/ui/button-variants.ts`; keep style utilities separate from component exports for Fast Refresh. The `Route` export lint exception applies only to route files.
 
 ## Testing Guidelines
 

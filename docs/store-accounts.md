@@ -19,8 +19,10 @@
 | `backend/TavoloFlow.Api/Accounts/AccountService.cs` | 密码校验、带版本条件的原子更新 |
 | `backend/TavoloFlow.Api/Accounts/StoreAuthentication.cs` | Cookie 内容、每次请求核对数据库、当前账号 |
 | `backend/TavoloFlow.Api/Accounts/AccountSecurity.cs` | 首次改密权限策略和 CSRF 验证 |
-| `frontend/src/features/accounts/` | 文案、请求、查询缓存、表单和状态反馈 |
-| `frontend/src/router.tsx` | 三个页面的路由 |
+| `frontend/src/routes/` | 文件名与 URL、父布局、搜索参数 |
+| `frontend/src/router.tsx` | 使用自动生成的路由树创建 Router |
+| `frontend/src/features/accounts/` | 独立页面、身份边界、文案、请求和查询缓存 |
+| `frontend/src/components/ui/` | 按现有 shadcn 配置生成的基础组件 |
 
 ## 2. 本地运行
 
@@ -159,7 +161,75 @@ Data Protection 应用名固定为 `TavoloFlow`。开发使用框架的用户密
 `X-Forwarded-For` / `X-Forwarded-Proto`；Caddy 不在本机回环地址时，
 应显式配置可信代理地址，不能信任任意转发头。
 
-## 5. 验证与学习实验
+## 5. 前端结构与请求链路
+
+### 第一步：通过路由文件找到页面
+
+路由使用 TanStack 文件式约定，入口位于 `frontend/src/routes/`：
+
+| 文件 | 职责 |
+| --- | --- |
+| `__root.tsx` | 根出口和页面不存在提示，不绑定店铺卡片布局 |
+| `index.tsx` | `/` 跳转 `/staff` |
+| `staff.tsx` | 店铺父路由，通过 `StaffLayout` 提供品牌、背景和宽内容区域 |
+| `staff.index.tsx` | `/staff` 账号页，校验 `passwordChanged` 搜索参数 |
+| `staff.login.tsx` | `/staff/login` 登录页 |
+| `staff.change-password.tsx` | `/staff/change-password` 首次或主动改密 |
+
+文件名中的点表示父子关系，`index` 表示父路径的首页。`/staff` 的父布局和账号首页
+分开，因此以后增加菜单页面时，可以共享店铺布局，而不必继承账号页面的卡片。
+路由内部的首页标识为 `/staff/`，公开链接仍使用 `/staff`；Router 配置不保留尾部斜线。
+
+Vite 插件在开发和构建时生成 `frontend/src/routeTree.gen.ts`，并自动按路由拆分代码。
+这个文件需要随路由改动提交，但不能手工修改，也不参与 lint。插件放在 React 插件前。
+`npm run build` 先执行 `vite build` 生成路由，再执行 `tsc -b` 检查类型，
+因此首次构建不依赖之前启动过开发服务器；任一步失败，整个构建都失败。
+
+### 第二步：跟踪页面中的身份与请求
+
+三个页面分别放在 `LoginPage.tsx`、`ChangePasswordPage.tsx` 和 `AccountPage.tsx`。
+路由只连接页面和 URL，身份仍由共享的 `AuthBoundary` 判断：
+
+```mermaid
+flowchart TD
+    R[路由文件] --> P[账号页面]
+    P --> B[AuthBoundary]
+    B --> Q[accountQuery / GET /api/auth/me]
+    Q --> L[未登录：登录页]
+    Q --> C[首次改密：改密页]
+    Q --> A[有效身份：显示当前页面]
+    P --> F[提交表单]
+    F --> API[api.ts：获取 CSRF token 后发送 POST]
+    API --> S[acceptAccount：替换身份并清理私有缓存]
+    S --> B
+```
+
+`queries.ts` 管理共享身份查询、缓存清理及 mutation 设置；`api.ts` 管理请求、CSRF
+和错误转换。路由没有额外的身份 loader，也没有另一份登录状态。
+账号查询的网络错误显示重试，不当作退出。首次离线加载身份时显示连接提示；
+已有身份而查询暂停时保留页面，让用户仍能看到退出或改密的“结果待确认”。
+
+登录、改密、退出继续使用 `retry: false` 和 `networkMode: "always"`，断网不会排队
+等联网后自动重发。身份变化后查询缓存仍按原有方式取消和清理。
+
+### 第三步：理解页面与基础组件的分工
+
+- `AccountLayout.tsx` 提供店铺布局和账号卡片。登录、改密卡片最大宽度为 `max-w-md`，
+  账号卡片为 `max-w-2xl`；未来业务页面可以选择自己的宽度。
+- `PasswordInput.tsx` 组合 Input、Field 和 Button，负责密码显示、自动填充属性、
+  标签、说明与字段错误的关联，不保存密码到浏览器存储。
+- `AccountFeedback.tsx` 提供请求错误和核对身份入口；`LogoutButton.tsx` 封装退出反馈。
+- 基础 UI 使用现有 `base-nova / neutral` 配置生成的 Card、Input、Field、Alert、Badge
+  和 Button；Field 所需的 Label、Separator 也由 CLI 一并添加。配色使用主题变量，
+  默认浅色，不另建页面专用配色。
+- 所有账号表单输入框、操作按钮和密码切换按钮至少 44px 高。字段错误用 FieldError，
+  请求错误用 Alert，加载和成功结果提供状态播报。密码不一致时聚焦确认输入框。
+- 页面导航保留 Link 的链接语义，通过 `button-variants.ts` 共用按钮样式。
+  样式工具与组件导出分离，避免 Fast Refresh 警告；`Route` 导出例外只作用于路由目录。
+
+本次没有更换后端接口、16 小时登录规则或 CSRF 流程，也没有新增表单库、侧栏和业务菜单。
+
+## 6. 验证与学习实验
 
 ```bash
 dotnet test TavoloFlow.slnx
@@ -193,6 +263,21 @@ npm run lint
 - 验证过程中发现并关闭 TanStack Query 默认的离线 mutation 暂停/恢复行为；
   账号写操作使用 `networkMode: "always"` 和 `retry: false`，断网立即显示反馈，不在联网后自动重放。
 - 临时数据库和开发服务器在验收后清理；用户开发数据库及账号未被初始化或修改。
+
+2026-10-21 前端改造验收：
+
+- 文件式路由与 shadcn 组件改造完成；删除预生成路由文件后执行 `npm run build`，
+  路由自动重建且 TypeScript 检查通过。`npm run lint` 无错误、无警告。
+- Chromium 在隔离 PostgreSQL 上完成 OWNER / STAFF 登录、首次与主动改密、刷新、
+  双会话旧凭据失效、退出隔离和缺失 CSRF token 检查；改密响应丢失时没有自动重试。
+- 补充验证 `/` 跳转、三个地址直接访问与刷新、前进后退、`passwordChanged` 参数和
+  未知路径；身份加载时没有展示私有内容，身份查询失败可重试。
+- 360px 手机布局没有横向溢出，控件高度至少 44px；键盘切换焦点、密码显示、自动填充、
+  字段错误关联与聚焦均通过检查。浏览器没有运行时异常。
+- 登录、改密和退出的断网反馈通过，恢复联网不自动重发 POST。验收发现并修复了
+  已有身份查询暂停时遮挡操作结果提示的问题。
+- 五张截图为本次统一主题后的界面。临时容器与服务器已清理，开发数据库未被修改。
+  本次未修改后端源码，未重复运行后端测试套件；上方 65 项记录属于前一阶段。
 
 页面截图：[桌面登录](screenshots/store-login-desktop.png)、
 [手机登录](screenshots/store-login-mobile.png)、
