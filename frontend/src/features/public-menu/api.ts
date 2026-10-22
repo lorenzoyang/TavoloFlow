@@ -12,6 +12,7 @@ export type PublicMenu = {
 
 export const publicMenuQuery = (token: string) => queryOptions({
   queryKey: ["public", "qr", token] as const,
+  refetchInterval: 30_000,
   queryFn: async ({ signal }): Promise<PublicMenu | null> => {
     try {
       return await publicRequest<PublicMenu>(`/api/public/qr/${encodeURIComponent(token)}/bootstrap`, { signal });

@@ -32,18 +32,23 @@ export function setAuthFailureHandler(handler: typeof onAuthFailure) {
 }
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  return sendRequest<T>(path, init, true);
+  return sendRequest<T>(path, init, "store");
 }
 
 // Public browsing never sends store credentials or changes the signed-in staff identity.
 export async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  return sendRequest<T>(path, init, false);
+  return sendRequest<T>(path, init, "public");
 }
 
-async function sendRequest<T>(path: string, init: RequestInit | undefined, storeIdentity: boolean): Promise<T> {
+export async function guestRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  return sendRequest<T>(path, init, "guest");
+}
+
+async function sendRequest<T>(path: string, init: RequestInit | undefined, identity: "store" | "public" | "guest"): Promise<T> {
+  const storeIdentity = identity === "store";
   const response = await fetch(path, {
     ...init,
-    credentials: storeIdentity ? "same-origin" : "omit",
+    credentials: identity === "public" ? "omit" : "same-origin",
     cache: "no-store",
   });
   if (!response.ok) {
@@ -80,11 +85,22 @@ export async function write<T>(
   path: string,
   method: "POST" | "PUT" | "PATCH" | "DELETE",
   body?: unknown,
+  signal?: AbortSignal,
 ): Promise<T> {
   // Fetch for every mutation so other tabs changing identity cannot leave a cached anonymous token behind.
-  const token = await refreshCsrf();
+  const { token } = await request<{ token: string }>("/api/auth/csrf", { signal });
   return request<T>(path, {
     method,
+    headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token },
+    body: JSON.stringify(body),
+    signal,
+  });
+}
+
+export async function guestWrite<T>(path: string, body: unknown, signal: AbortSignal): Promise<T> {
+  const { token } = await guestRequest<{ token: string }>("/api/public/csrf", { signal });
+  return guestRequest<T>(path, {
+    method: "POST", signal,
     headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token },
     body: JSON.stringify(body),
   });

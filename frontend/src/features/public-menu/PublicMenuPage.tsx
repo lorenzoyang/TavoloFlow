@@ -10,6 +10,8 @@ import { priceText, type MenuItem } from "@/features/menu/api";
 import { publicMenuQuery, type PublicMenu } from "./api";
 import { readLanguage, saveLanguage, selectedLanguage } from "./language";
 import { allergenNames, languageLabels, messages } from "./messages";
+import { GuestPanel } from "@/features/guests/GuestPanel";
+import { useGuestVisit } from "@/features/guests/useGuestVisit";
 
 function Languages({ language, select }: { language: Language; select: (value: Language) => void }) {
   return <div role="group" aria-label={messages[language].languages} className="flex flex-wrap gap-2">
@@ -43,13 +45,14 @@ function Dish({ item, language, defaultLanguage }: { item: MenuItem; language: L
   </CardContent></Card>;
 }
 
-function MenuContent({ data, error, refreshing, refresh, rememberLanguage }: {
-  data: PublicMenu; error: boolean; refreshing: boolean; refresh: () => void; rememberLanguage: (language: Language) => void;
+function MenuContent({ token, data, confirmedAt, error, refreshing, refresh, rememberLanguage }: {
+  token: string; data: PublicMenu; confirmedAt: number; error: boolean; refreshing: boolean; refresh: () => void; rememberLanguage: (language: Language) => void;
 }) {
   const [preference, setPreference] = useState<Language | null>(() => {
     try { return readLanguage(data.restaurant.id, window.localStorage); } catch { return null; }
   });
   const language = selectedLanguage(preference, data.restaurant.defaultLanguage);
+  const guest = useGuestVisit(token, data, confirmedAt, error);
   // Keep error/invalid-QR messages in the viewer's language after the menu disappears.
   useEffect(() => { rememberLanguage(language); }, [language, rememberLanguage]);
   const m = messages[language];
@@ -73,6 +76,8 @@ function MenuContent({ data, error, refreshing, refresh, rememberLanguage }: {
       </div>
       <Languages language={language} select={selectLanguage} />
     </header>
+    <GuestPanel guest={guest} language={language} />
+    {!guest.visit.ended && <>
     <Alert><AlertDescription className="space-y-2">
       {serviceNotice && <p>{serviceNotice}</p>}
       {serviceNotice !== m.unopened && <p>{m.order}</p>}
@@ -100,6 +105,7 @@ function MenuContent({ data, error, refreshing, refresh, rememberLanguage }: {
       })}
     </>}
     <footer className="border-t pt-5 text-xs leading-6 text-muted-foreground">{m.allergyHint}</footer>
+    </>}
   </main>;
 }
 
@@ -108,7 +114,8 @@ export function PublicMenuPage({ token }: { token: string }) {
   const [language, setLanguage] = useState<Language>("it");
   const m = messages[language];
   return <div className="min-h-svh bg-muted/30 text-foreground">
-    {query.data ? <MenuContent key={query.data.restaurant.id} data={query.data} error={query.isError || query.fetchStatus === "paused"}
+    {query.data ? <MenuContent key={query.data.restaurant.id} token={token} data={query.data}
+      confirmedAt={query.isFetchedAfterMount && !query.isError ? query.dataUpdatedAt : 0} error={query.isError || query.fetchStatus === "paused"}
       refreshing={query.isFetching} refresh={() => void query.refetch()} rememberLanguage={setLanguage} />
       : <main lang={language} className="mx-auto max-w-lg space-y-6 px-4 py-12">
         <h1 className="text-2xl font-semibold">TavoloFlow · {m.menu}</h1>

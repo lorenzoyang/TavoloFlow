@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Data;
+using TavoloFlow.Api.Guests;
 
 namespace TavoloFlow.Api.Tests;
 
@@ -36,6 +37,8 @@ public sealed class AccountTestHost(PostgreSqlFixture database, bool lowLimits =
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(Clock);
             services.Configure<CookieAuthenticationOptions>(StoreAuthentication.Scheme,
+                options => options.TimeProvider = Clock);
+            services.Configure<CookieAuthenticationOptions>(GuestAuthentication.Scheme,
                 options => options.TimeProvider = Clock);
             services.Configure<AccountRateLimitOptions>(options =>
             {

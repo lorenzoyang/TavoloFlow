@@ -99,6 +99,7 @@ function TablesContent({ account }: { account: CurrentAccount }) {
       {errorMessage(mutation.error, "操作结果待确认，请重新读取桌位列表并核对，再决定是否操作。")}
     </AlertDescription></Alert>}
     <div className="flex flex-wrap gap-3">
+      <Link to="/staff/floor" className={buttonVariants({ variant: "outline", className: "h-11" })}>开桌工作台</Link>
       {owner && <Button className="h-11" disabled={busy || !!editor} onClick={() => open({ kind: "create" })}><Plus />添加桌位</Button>}
       <Button className="h-11" variant="outline" disabled={query.isFetching || busy} onClick={() => void query.refetch()}><RefreshCw />重新读取桌位</Button>
     </div>

@@ -148,6 +148,8 @@ flowchart LR
 
 **明确接受的 MVP 取舍**：由于删除 `open_request_id` 和 `table_version`，旧请求可能延迟到达，也不保证开桌响应丢失后的操作级精确去重。员工通过查看当前桌位、重新确认来处理；**不能把这种前端流程当作严格防止所有延迟旧请求的证明**。若试运营频繁出现误开桌，再考虑使用客户端预生成 Session ID 或真正的幂等键。
 
+**当前实现状态（第四阶段）**：`/staff/floor` 已提供 OWNER/STAFF 开桌、活动用餐详情、主动查看入桌码和 EMPTY 空桌关闭；从账号页及桌位管理页可进入。开桌未知结果按餐厅、账号和桌位在标签页保存标识，恢复连接或刷新后仅 GET 核对，空桌必须再次人工确认才重新发送 POST。接口、锁顺序与学习练习见 [开桌与顾客授权](dining-guest-access.md)。
+
 ### 3.3 顾客二维码、入桌码与 Cookie（不存入桌码在 Cookie）
 
 1. 固定二维码 URL 形如 `/q/{qr_token}`；此 Token 识别桌位和餐厅，**本身不是下单授权**。
@@ -162,6 +164,10 @@ flowchart LR
 **多标签页限制**：单浏览器共享同一用途的 Cookie。若同一浏览器先后验证不同桌/不同 Session，新的顾客授权可能替换旧的授权；MVP 不保证一台浏览器同时维持多桌的独立顾客授权。前端遇到目标 Session 与当前授权不一致时要求重新验证，不能自动切换目标 Session 后提交旧购物车。
 
 **安全**：Cookie 使用 `Secure`、`HttpOnly`、适当的 `SameSite`、绝对过期时间（建议不超过 12 小时）；对带 Cookie 的写接口实施 CSRF 防护；保护/加密密钥由服务端持久且安全管理。短码须限流，不能依赖四位字符本身的强度。
+
+**当前实现状态（第四阶段）**：顾客使用独立 `Guest` 认证方案、`TavoloFlow.Guest` Cookie（Path=`/api/public`、12 小时固定票据、不滑动续期）及 `/api/public/csrf`；店铺身份不参与顾客认证。`/q/{token}` 已支持三语验证、先看菜单、刷新恢复、主动查看/复制码、跨标签页授权替换和关桌结束提示。授权及入口约 30 秒核对一次，恢复前台/联网立即核对；结束后须主动重新浏览，不能自动加入新一轮。入桌码不进入本地持久存储。
+
+**状态开关约定**：暂停接单不阻止开桌、入桌验证或读码；服务停用/桌位停用阻止新开桌、顾客验证和顾客读码，但不关闭已有 Session，仍允许状态查询、员工读码及空桌关闭。公开菜单继续可读。
 
 ### 3.4 菜单、过敏原、多语言和购物车
 
@@ -264,6 +270,8 @@ flowchart TD
 - `PAID`：存在有效应收且由 OWNER 确认线下收款才可关闭；STAFF 不能调用。
 - 当前 9 表 DBML 只有 `close_reason` 枚举、`closed_at` 和 `closed_total_cents` 等关闭结果字段，不保存开桌/关桌账号归属，**没有自由文本清桌备注列**；所以 MVP 不承诺持久保存 EMPTY/VOIDED 的文字原因。如果以后强制要求文字理由，应先增设相应字段或审计表。
 
+**当前实现状态（第四阶段）**：已实现 EMPTY 关闭，须读取最新 Session 摘要、确认版本/零金额/已离桌，并在 Session 行锁内验证从未产生任何订单。成功清空码密文，保留历史且不递增版本；同一确认重复请求已 EMPTY 关闭的相同 Session 返回原结果。含取消订单的用餐也不能走 EMPTY；PAID、VOIDED、完整账单和历史页面仍在后续阶段实现。
+
 ### 3.8 桌位与二维码
 
 - 新建桌位生成永久随机 `qr_token`（全局唯一），下载/再次打印得到同一 `/q/{token}` 入口。
@@ -272,7 +280,7 @@ flowchart TD
 - 若空桌二维码需要换码：**删除旧桌 → 新建同名桌（新 ID、新 Token）→ 重新打印张贴**；不提供重置按钮，不允许活动桌直接删除换码。
 - 删除桌位与开桌也必须由后端通过事务/锁和唯一约束排除竞态，而不只依据管理界面是否显示“空桌”。
 
-**当前实现状态**：`/staff/tables` 已提供 OWNER 创建、改名、启停、删除、二维码预览、PNG 下载及链接复制，STAFF 只读。桌号去除首尾空白后为 1–50 字符，同店唯一且区分大小写；改名与启停独立更新字段并保持二维码不变。匿名 bootstrap 在同一个 Repeatable Read 快照内返回餐厅、桌位、活动 Session ID（可空）和公开菜单；不返回入桌码、订单或账号信息，不创建 Session。餐厅暂停服务、暂停接单或桌位停用时仍可浏览；界面按餐厅服务暂停、桌位停用、暂停接单、尚未开桌的顺序展示当前主要提示。无效/已删除二维码返回 `404 QR_NOT_FOUND`，页面清除旧菜单；网络失败保留已有内容并提示更新失败。第三阶段的“顾客语言选项始终为中意英”替代原始 PRD 仅展示已有翻译语言的规则。开桌与顾客授权仍在后续阶段实现。
+**当前实现状态**：`/staff/tables` 已提供 OWNER 创建、改名、启停、删除、二维码预览、PNG 下载及链接复制，STAFF 只读。桌号去除首尾空白后为 1–50 字符，同店唯一且区分大小写；改名与启停独立更新字段并保持二维码不变。匿名 bootstrap 在同一个 Repeatable Read 快照内返回餐厅、桌位、活动 Session ID（可空）和公开菜单；不返回入桌码、订单或账号信息，不创建 Session。餐厅暂停服务、暂停接单或桌位停用时仍可浏览；界面按餐厅服务暂停、桌位停用、暂停接单、尚未开桌的顺序展示当前主要提示。无效/已删除二维码返回 `404 QR_NOT_FOUND`，页面清除旧菜单；网络失败保留已有内容并提示更新失败。第三阶段的“顾客语言选项始终为中意英”替代原始 PRD 仅展示已有翻译语言的规则。开桌、顾客授权与 EMPTY 空桌关闭已在第四阶段实现，入口为 `/staff/floor` 与原 `/q/{token}`。
 
 ### 3.9 后台登录与账号重置
 
@@ -328,9 +336,10 @@ flowchart TD
 | 方法 | 建议路径 | 核心输入/输出 |
 |---|---|---|
 | GET | `/api/public/qr/{token}/bootstrap` | **已实现**：匿名读取餐厅、桌位、可空活动 Session ID、菜单和语言；**不返回 join code** |
-| POST | `/api/public/qr/{token}/join` | 输入 `sessionId + joinCode`；验证并写入顾客授权 Cookie |
-| GET | `/api/public/sessions/{id}/access` | 验证当前 Cookie、Session ACTIVE，返回最小访问状态 |
-| GET | `/api/public/sessions/{id}/join-code` | 当前有效顾客授权才允许读取码，`no-store` |
+| GET | `/api/public/csrf` | **已实现**：获取与当前顾客身份匹配的 CSRF token，未验证也可调用 |
+| POST | `/api/public/qr/{token}/join` | **已实现**：输入 `sessionId + joinCode`；验证并写入独立顾客 Cookie |
+| GET | `/api/public/sessions/{id}/access` | **已实现**：验证当前顾客 Cookie、绑定归属和 Session ACTIVE，返回最小访问状态 |
+| GET | `/api/public/sessions/{id}/join-code` | **已实现**：当前有效顾客授权及可用入口才允许读取码，`no-store` |
 | GET | `/api/public/sessions/{id}/orders` | 当前有效顾客看本轮整桌订单；分页、`no-store` |
 | POST | `/api/public/orders` | `sessionId + clientRequestId + items + note + 客户端已确认价格信息`；服务端核价和幂等 |
 | GET | `/api/public/sessions/{id}/orders/by-request/{requestId}` | 本轮活动且授权有效时核对原提交结果 |
@@ -339,10 +348,12 @@ flowchart TD
 | GET | `/api/auth/me` | 查询当前店铺账号、角色、餐厅及首次改密标记 |
 | POST | `/api/auth/change-password` | 修改密码、更新 `credential_version` |
 | GET | `/api/staff/tables` | **已实现**：本店桌位、二维码相对路径与可空活动 Session ID |
-| POST | `/api/staff/tables/{tableId}/open` | 明确开桌；**不要求 openRequestId / tableVersion** |
-| GET | `/api/staff/sessions/{id}/join-code` | 员工主动查看本轮码 |
+| GET | `/api/staff/floor` | **已实现**：餐厅服务/接单状态、桌位及活动用餐摘要，无码值 |
+| POST | `/api/staff/tables/{tableId}/open` | **已实现**：明确开桌；不要求 openRequestId / tableVersion |
+| GET | `/api/staff/sessions/{id}` | **已实现**：用餐状态、时间、桌号快照、版本、订单数量与金额，用于核对原操作 |
+| GET | `/api/staff/sessions/{id}/join-code` | **已实现**：员工主动查看活动用餐的码 |
 | GET | `/api/staff/sessions/{id}/bill` | 返回金额、明细、`billVersion`、`newOrderCount` |
-| POST | `/api/staff/sessions/{id}/close-empty` | `expectedBillVersion + confirmedTotalCents=0 + 确认离桌` |
+| POST | `/api/staff/sessions/{id}/close-empty` | **已实现**：`expectedBillVersion + confirmedTotalCents=0 + guestsLeftConfirmed=true`；必须从未产生订单 |
 | POST | `/api/staff/sessions/{id}/close-void` | 同上，另判断存在订单但全部取消 |
 | GET | `/api/staff/orders` | 厨房列表、状态筛选与分页 |
 | POST | `/api/staff/orders/{id}/ready` | 条件 `NEW → READY` |

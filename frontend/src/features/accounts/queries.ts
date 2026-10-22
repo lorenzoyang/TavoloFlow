@@ -36,7 +36,9 @@ export async function replaceAccount(account: CurrentAccount | null) {
   await queryClient.cancelQueries({ queryKey: accountKey });
   // Keep the observed identity query, replacing its value; remove all other private cached data.
   await clearPrivateQueries();
-  queryClient.getMutationCache().clear();
+  for (const mutation of queryClient.getMutationCache().getAll()) {
+    if (mutation.options.meta?.identityScope !== "guest") queryClient.getMutationCache().remove(mutation);
+  }
   queryClient.setQueryData(accountKey, account);
 }
 
