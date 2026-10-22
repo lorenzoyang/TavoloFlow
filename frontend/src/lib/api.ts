@@ -32,9 +32,18 @@ export function setAuthFailureHandler(handler: typeof onAuthFailure) {
 }
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  return sendRequest<T>(path, init, true);
+}
+
+// Public browsing never sends store credentials or changes the signed-in staff identity.
+export async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  return sendRequest<T>(path, init, false);
+}
+
+async function sendRequest<T>(path: string, init: RequestInit | undefined, storeIdentity: boolean): Promise<T> {
   const response = await fetch(path, {
     ...init,
-    credentials: "same-origin",
+    credentials: storeIdentity ? "same-origin" : "omit",
     cache: "no-store",
   });
   if (!response.ok) {
@@ -46,13 +55,13 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
     );
     // /me maps 401 to an anonymous identity; a wrong password on /login must not invalidate another account.
     if (
-      (response.status === 401 &&
+      storeIdentity && ((response.status === 401 &&
         path !== "/api/auth/login" &&
         path !== "/api/auth/me") ||
-      error.code === "CREDENTIALS_CHANGED"
+      error.code === "CREDENTIALS_CHANGED")
     ) {
       await onAuthFailure("signed-out");
-    } else if (error.code === "PASSWORD_CHANGE_REQUIRED") {
+    } else if (storeIdentity && error.code === "PASSWORD_CHANGE_REQUIRED") {
       await onAuthFailure("password-required");
     }
     throw error;

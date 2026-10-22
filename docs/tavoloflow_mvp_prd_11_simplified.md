@@ -179,7 +179,7 @@ flowchart LR
 - 审核后有过敏原则 `allergen_reviewed=true` 且数组列出标准代码（限定使用约定的 EU 14 类代码）。
 - 添加或变更过敏原时，编辑 UI 必须让 OWNER **重新明确确认已审核**；后端校验输入代码和审核确认。V1 **不提供独立菜单草稿/发布**，新建及编辑菜品均须确认已审核，包括售罄菜品；售罄不作为未审核草稿。既有未审核数据可查看或设为售罄，恢复供应前须由 OWNER 编辑并完成审核；失败时保留旧记录，不做半成品更新。
 
-**当前实现状态**：店铺菜单管理已实现分类/菜品增删改、三语内容、整数欧分、过敏原审核、供应状态及稳定默认语言偏好设置；OWNER 与 STAFF 共用 `/staff/menu`，STAFF 仅可读取和切换供应状态。没有新增表或迁移。公开顾客菜单与购物车尚未实现，运行、接口和验收见 [菜单管理模块说明](menu-management.md)。
+**当前实现状态**：店铺菜单管理已实现分类/菜品增删改、三语内容、整数欧分、过敏原审核、供应状态及稳定默认语言偏好设置；OWNER 与 STAFF 共用 `/staff/menu`，STAFF 仅可读取和切换供应状态。公开顾客菜单 `/q/{token}` 已支持匿名只读浏览，界面始终提供中、意、英三种语言；首次使用餐厅默认语言，之后按餐厅保存顾客在本浏览器的明确选择。`availableLanguages` 作为内容统计，不限制界面语言选项；不依据浏览器语言覆盖餐厅默认值。缺少翻译继续按上述规则回退，描述跟随最终名称语言。没有新增表或迁移。购物车、开桌、入桌授权与下单尚未实现。运行、接口和验收见 [菜单管理模块说明](menu-management.md) 与 [桌位与公开菜单](tables-public-menu.md)。
 
 **本地购物车**
 
@@ -272,6 +272,8 @@ flowchart TD
 - 若空桌二维码需要换码：**删除旧桌 → 新建同名桌（新 ID、新 Token）→ 重新打印张贴**；不提供重置按钮，不允许活动桌直接删除换码。
 - 删除桌位与开桌也必须由后端通过事务/锁和唯一约束排除竞态，而不只依据管理界面是否显示“空桌”。
 
+**当前实现状态**：`/staff/tables` 已提供 OWNER 创建、改名、启停、删除、二维码预览、PNG 下载及链接复制，STAFF 只读。桌号去除首尾空白后为 1–50 字符，同店唯一且区分大小写；改名与启停独立更新字段并保持二维码不变。匿名 bootstrap 在同一个 Repeatable Read 快照内返回餐厅、桌位、活动 Session ID（可空）和公开菜单；不返回入桌码、订单或账号信息，不创建 Session。餐厅暂停服务、暂停接单或桌位停用时仍可浏览；界面按餐厅服务暂停、桌位停用、暂停接单、尚未开桌的顺序展示当前主要提示。无效/已删除二维码返回 `404 QR_NOT_FOUND`，页面清除旧菜单；网络失败保留已有内容并提示更新失败。第三阶段的“顾客语言选项始终为中意英”替代原始 PRD 仅展示已有翻译语言的规则。开桌与顾客授权仍在后续阶段实现。
+
 ### 3.9 后台登录与账号重置
 
 - 店铺和平台使用独立身份认证方案与 Cookie；后台身份包含账号、角色和餐厅归属；平台管理员的默认权限不包括店铺顾客账单内容。
@@ -325,7 +327,7 @@ flowchart TD
 
 | 方法 | 建议路径 | 核心输入/输出 |
 |---|---|---|
-| GET | `/api/public/qr/{token}/bootstrap` | 公开餐厅、桌位、当前 Session ID/状态、菜单和语言；**不返回 join code** |
+| GET | `/api/public/qr/{token}/bootstrap` | **已实现**：匿名读取餐厅、桌位、可空活动 Session ID、菜单和语言；**不返回 join code** |
 | POST | `/api/public/qr/{token}/join` | 输入 `sessionId + joinCode`；验证并写入顾客授权 Cookie |
 | GET | `/api/public/sessions/{id}/access` | 验证当前 Cookie、Session ACTIVE，返回最小访问状态 |
 | GET | `/api/public/sessions/{id}/join-code` | 当前有效顾客授权才允许读取码，`no-store` |
@@ -336,7 +338,7 @@ flowchart TD
 | GET | `/api/auth/csrf` | 获取与当前身份匹配的请求 token，写请求通过 `X-CSRF-TOKEN` 提交 |
 | GET | `/api/auth/me` | 查询当前店铺账号、角色、餐厅及首次改密标记 |
 | POST | `/api/auth/change-password` | 修改密码、更新 `credential_version` |
-| GET | `/api/staff/tables` | 本店桌位与当前 ACTIVE Session 概要 |
+| GET | `/api/staff/tables` | **已实现**：本店桌位、二维码相对路径与可空活动 Session ID |
 | POST | `/api/staff/tables/{tableId}/open` | 明确开桌；**不要求 openRequestId / tableVersion** |
 | GET | `/api/staff/sessions/{id}/join-code` | 员工主动查看本轮码 |
 | GET | `/api/staff/sessions/{id}/bill` | 返回金额、明细、`billVersion`、`newOrderCount` |
@@ -351,7 +353,7 @@ flowchart TD
 | GET | `/api/staff/menu` | **已实现**：本店分类、菜品、默认/可用语言及过敏原选项 |
 | POST / PUT / DELETE | `/api/owner/menu/categories`、`/api/owner/menu/items` | **已实现**：三语、审核、价格、删除；PUT/DELETE 使用 `/{id}`，无菜单版本字段；菜品内容 DTO 不含供应状态 |
 | PATCH | `/api/owner/menu/default-language` | **已实现**：OWNER 从 zh/it/en 设置稳定偏好，空菜单也允许；返回 `{ defaultLanguage }` |
-| CRUD | `/api/owner/tables` | 创建、编辑、删除、二维码下载；**无 rotate** |
+| POST/DELETE/PATCH | `/api/owner/tables`、`/{id}`、`/{id}/label`、`/{id}/enabled` | **已实现**：创建、删除、独立改名与启停；二维码由前端本地生成 PNG，**无 rotate** |
 | GET | `/api/owner/history` | 已关闭账单只读分页 |
 | GET/PATCH | `/api/owner/settings` | 店铺基础设置 |
 | POST | `/api/owner/staff/reset-password` | 重置 STAFF 密码、统一失效旧票据 |

@@ -1,4 +1,5 @@
 import { QueryClient, queryOptions } from "@tanstack/react-query";
+import { isPrivateQuery } from "@/lib/query-scope";
 import { getCurrentAccount, refreshCsrf, setAuthFailureHandler, type CurrentAccount } from "./api";
 
 export const accountKey = ["auth", "me"] as const;
@@ -23,8 +24,7 @@ export const accountQuery = queryOptions({
 });
 
 const privateQueries = {
-  predicate: (query: { queryKey: readonly unknown[] }) =>
-    !(query.queryKey[0] === "auth" && query.queryKey[1] === "me"),
+  predicate: isPrivateQuery,
 };
 
 async function clearPrivateQueries() {
@@ -33,7 +33,7 @@ async function clearPrivateQueries() {
 }
 
 export async function replaceAccount(account: CurrentAccount | null) {
-  await queryClient.cancelQueries();
+  await queryClient.cancelQueries({ queryKey: accountKey });
   // Keep the observed identity query, replacing its value; remove all other private cached data.
   await clearPrivateQueries();
   queryClient.getMutationCache().clear();

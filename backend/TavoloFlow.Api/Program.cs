@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Menus;
+using TavoloFlow.Api.Tables;
 
 var seedAccounts = args.Contains("--seed-dev-accounts", StringComparer.Ordinal);
 var builder = WebApplication.CreateBuilder(args.Where(arg => arg != "--seed-dev-accounts").ToArray());
@@ -11,6 +12,8 @@ builder.Services.AddControllers(options => options.Filters.Add<CsrfValidationFil
 builder.Services.AddDataLayer(builder.Configuration);
 builder.Services.AddStoreAccounts(builder.Configuration, builder.Environment);
 builder.Services.AddScoped<MenuService>();
+builder.Services.AddScoped<TableService>();
+builder.Services.AddScoped<PublicMenuService>();
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto);
 builder.Services.AddOpenApi();

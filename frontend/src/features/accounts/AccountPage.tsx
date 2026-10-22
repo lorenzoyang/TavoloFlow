@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Check, CircleCheck, KeyRound, Utensils } from "lucide-react";
+import { Check, CircleCheck, KeyRound, QrCode, Utensils } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -36,6 +36,9 @@ function AccountDetails({ account, passwordChanged }: { account: CurrentAccount;
         </dl>
         <Link to="/staff/menu" className={buttonVariants({ className: "h-11 w-full" })}>
           <Utensils aria-hidden="true" />{m.menu}
+        </Link>
+        <Link to="/staff/tables" className={buttonVariants({ variant: "outline", className: "h-11 w-full" })}>
+          <QrCode aria-hidden="true" />桌位管理
         </Link>
         <div className="grid gap-3 sm:grid-cols-2">
           <Link to="/staff/change-password" className={buttonVariants({ className: "h-11 w-full" })}>

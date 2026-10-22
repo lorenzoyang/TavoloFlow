@@ -11,10 +11,12 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as StaffRouteImport } from './routes/staff'
+import { Route as QTokenRouteImport } from './routes/q.$token'
 import { Route as StaffIndexRouteImport } from './routes/staff.index'
 import { Route as StaffChangePasswordRouteImport } from './routes/staff.change-password'
 import { Route as StaffLoginRouteImport } from './routes/staff.login'
 import { Route as StaffMenuRouteImport } from './routes/staff.menu'
+import { Route as StaffTablesRouteImport } from './routes/staff.tables'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -24,6 +26,11 @@ const IndexRoute = IndexRouteImport.update({
 const StaffRoute = StaffRouteImport.update({
   id: '/staff',
   path: '/staff',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QTokenRoute = QTokenRouteImport.update({
+  id: '/q/$token',
+  path: '/q/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StaffIndexRoute = StaffIndexRouteImport.update({
@@ -46,29 +53,40 @@ const StaffMenuRoute = StaffMenuRouteImport.update({
   path: '/menu',
   getParentRoute: () => StaffRoute,
 } as any)
+const StaffTablesRoute = StaffTablesRouteImport.update({
+  id: '/tables',
+  path: '/tables',
+  getParentRoute: () => StaffRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/staff': typeof StaffRouteWithChildren
+  '/q/$token': typeof QTokenRoute
   '/staff/change-password': typeof StaffChangePasswordRoute
   '/staff/login': typeof StaffLoginRoute
   '/staff/menu': typeof StaffMenuRoute
+  '/staff/tables': typeof StaffTablesRoute
   '/staff/': typeof StaffIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/q/$token': typeof QTokenRoute
   '/staff/change-password': typeof StaffChangePasswordRoute
   '/staff/login': typeof StaffLoginRoute
   '/staff/menu': typeof StaffMenuRoute
+  '/staff/tables': typeof StaffTablesRoute
   '/staff': typeof StaffIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/staff': typeof StaffRouteWithChildren
+  '/q/$token': typeof QTokenRoute
   '/staff/change-password': typeof StaffChangePasswordRoute
   '/staff/login': typeof StaffLoginRoute
   '/staff/menu': typeof StaffMenuRoute
+  '/staff/tables': typeof StaffTablesRoute
   '/staff/': typeof StaffIndexRoute
 }
 export interface FileRouteTypes {
@@ -76,25 +94,37 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/staff'
+    | '/q/$token'
     | '/staff/change-password'
     | '/staff/login'
     | '/staff/menu'
+    | '/staff/tables'
     | '/staff/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/staff/change-password' | '/staff/login' | '/staff/menu' | '/staff'
+  to:
+    | '/'
+    | '/q/$token'
+    | '/staff/change-password'
+    | '/staff/login'
+    | '/staff/menu'
+    | '/staff/tables'
+    | '/staff'
   id:
     | '__root__'
     | '/'
     | '/staff'
+    | '/q/$token'
     | '/staff/change-password'
     | '/staff/login'
     | '/staff/menu'
+    | '/staff/tables'
     | '/staff/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   StaffRoute: typeof StaffRouteWithChildren
+  QTokenRoute: typeof QTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -111,6 +141,13 @@ declare module '@tanstack/react-router' {
       path: '/staff'
       fullPath: '/staff'
       preLoaderRoute: typeof StaffRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/q/$token': {
+      id: '/q/$token'
+      path: '/q/$token'
+      fullPath: '/q/$token'
+      preLoaderRoute: typeof QTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/staff/': {
@@ -141,6 +178,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StaffMenuRouteImport
       parentRoute: typeof StaffRoute
     }
+    '/staff/tables': {
+      id: '/staff/tables'
+      path: '/tables'
+      fullPath: '/staff/tables'
+      preLoaderRoute: typeof StaffTablesRouteImport
+      parentRoute: typeof StaffRoute
+    }
   }
 }
 
@@ -148,6 +192,7 @@ interface StaffRouteChildren {
   StaffChangePasswordRoute: typeof StaffChangePasswordRoute
   StaffLoginRoute: typeof StaffLoginRoute
   StaffMenuRoute: typeof StaffMenuRoute
+  StaffTablesRoute: typeof StaffTablesRoute
   StaffIndexRoute: typeof StaffIndexRoute
 }
 
@@ -155,6 +200,7 @@ const StaffRouteChildren: StaffRouteChildren = {
   StaffChangePasswordRoute: StaffChangePasswordRoute,
   StaffLoginRoute: StaffLoginRoute,
   StaffMenuRoute: StaffMenuRoute,
+  StaffTablesRoute: StaffTablesRoute,
   StaffIndexRoute: StaffIndexRoute,
 }
 
@@ -163,6 +209,7 @@ const StaffRouteWithChildren = StaffRoute._addFileChildren(StaffRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   StaffRoute: StaffRouteWithChildren,
+  QTokenRoute: QTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

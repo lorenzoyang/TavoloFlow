@@ -16,19 +16,9 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
         await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
         var defaultLanguage = await context.Restaurants.Where(x => x.Id == restaurantId)
             .Select(x => x.DefaultLanguage).SingleAsync(ct);
-        var categories = await context.MenuCategories.AsNoTracking().Where(x => x.RestaurantId == restaurantId)
-            .OrderBy(x => x.Id).ToArrayAsync(ct);
-        var items = await context.MenuItems.AsNoTracking().Where(x => x.RestaurantId == restaurantId)
-            .OrderBy(x => x.CategoryId).ThenBy(x => x.Id).ToArrayAsync(ct);
+        var menu = await MenuReader.ReadAsync(context, restaurantId, defaultLanguage, ct);
         await transaction.CommitAsync(ct);
-        // Translation coverage describes the content; it never changes the restaurant's preference.
-        var names = categories.Select(x => new { x.NameZh, x.NameIt, x.NameEn })
-            .Concat(items.Select(x => new { x.NameZh, x.NameIt, x.NameEn })).ToArray();
-        var present = new[] { names.Any(x => !string.IsNullOrWhiteSpace(x.NameZh)),
-            names.Any(x => !string.IsNullOrWhiteSpace(x.NameIt)), names.Any(x => !string.IsNullOrWhiteSpace(x.NameEn)) };
-        var availableLanguages = Languages.Where((_, index) => present[index]).ToArray();
-        return new(restaurantId, defaultLanguage, availableLanguages,
-            categories.Select(CategoryResponse.From).ToArray(), items.Select(MenuItemResponse.From).ToArray(), MenuAllergens.Options);
+        return menu;
     }
 
     public Task<CategoryResponse> SaveCategoryAsync(Guid restaurantId, Guid? id, CategoryInput input, CancellationToken ct)
