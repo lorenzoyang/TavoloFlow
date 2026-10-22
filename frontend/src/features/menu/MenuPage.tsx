@@ -13,13 +13,13 @@ import type { CurrentAccount } from "@/features/accounts/api";
 import { ApiError, errorMessage, write } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
-  displayName,
   menuQuery,
   priceText,
   type Category,
   type Menu,
   type MenuItem,
 } from "./api";
+import { displayName } from "./language";
 import { CategoryForm, ItemForm } from "./MenuForms";
 import { languages, messages as m } from "./messages";
 
@@ -63,21 +63,13 @@ function MenuContent({ account }: { account: CurrentAccount }) {
     onSuccess: async () => {
       if (!sameAccount()) return;
       setEditor(null);
-      const before = query.data?.defaultLanguage;
       try {
         // A read started before the write must not become the post-save refresh.
         await queryClient.cancelQueries({ queryKey: options.queryKey });
         if (!sameAccount()) return;
-        const updated = await queryClient.fetchQuery(options);
+        await queryClient.fetchQuery(options);
         if (!sameAccount()) return;
-        const language = languages.find(
-          (value) => value.code === updated.defaultLanguage,
-        )!.label;
-        setNotice(
-          before !== updated.defaultLanguage
-            ? `${m.saved} ${m.languageChanged}${language}。`
-            : m.saved,
-        );
+        setNotice(m.saved);
       } catch {
         if (sameAccount()) setNotice(m.refreshFailed);
       }
@@ -212,7 +204,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
           <Card>
             <CardContent className="pt-6">
               <DefaultLanguage
-                key={menu.defaultLanguage + menu.availableLanguages.join()}
+                key={menu.defaultLanguage}
                 menu={menu}
                 owner={owner}
                 busy={busy || editing}
@@ -317,7 +309,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                   onClick={() => setCategoryId(category.id)}
                   aria-pressed={selected?.id === category.id}
                 >
-                  {displayName(category, menu.defaultLanguage).text} (
+                  {displayName(category, menu.defaultLanguage, "zh").text} (
                   {
                     menu.items.filter((item) => item.categoryId === category.id)
                       .length
@@ -330,14 +322,14 @@ function MenuContent({ account }: { account: CurrentAccount }) {
               className="min-w-0 space-y-4"
               aria-label={
                 selected
-                  ? displayName(selected, menu.defaultLanguage).text
+                  ? displayName(selected, menu.defaultLanguage, "zh").text
                   : m.all
               }
             >
               {selected && (
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h2 className="wrap-break-word text-lg font-semibold">
-                    {displayName(selected, menu.defaultLanguage).text}
+                    {displayName(selected, menu.defaultLanguage, "zh").text}
                   </h2>
                   {owner && (
                     <div className="flex gap-2">
@@ -360,7 +352,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                             kind: "delete",
                             resource: "categories",
                             id: selected.id,
-                            name: displayName(selected, menu.defaultLanguage)
+                            name: displayName(selected, menu.defaultLanguage, "zh")
                               .text,
                           })
                         }
@@ -384,7 +376,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                 </Card>
               )}
               {items.map((item) => {
-                const name = displayName(item, menu.defaultLanguage);
+                const name = displayName(item, menu.defaultLanguage, "zh");
                 const description = {
                   zh: item.descriptionZh,
                   it: item.descriptionIt,
@@ -402,6 +394,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                                   (category) => category.id === item.categoryId,
                                 )!,
                                 menu.defaultLanguage,
+                                "zh",
                               ).text
                             }
                             {item.itemCode ? ` · ${item.itemCode}` : ""}
@@ -537,34 +530,28 @@ function DefaultLanguage({
           {m.defaultLanguage}
         </label>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          {menu.availableLanguages.length ? m.defaultHint : m.emptyLanguage}
+          {m.defaultHint}
         </p>
       </div>
       <select
         id="defaultLanguage"
         name="defaultLanguage"
         defaultValue={menu.defaultLanguage}
-        disabled={!owner || busy || !menu.availableLanguages.length}
+        disabled={!owner || busy}
         className="h-11 rounded-lg border border-input bg-background px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
       >
-        {languages
-          .filter((language) =>
-            !menu.availableLanguages.length
-              ? language.code === menu.defaultLanguage
-              : menu.availableLanguages.includes(language.code),
-          )
-          .map((language) => (
-            <option value={language.code} key={language.code}>
-              {language.label}
-            </option>
-          ))}
+        {languages.map((language) => (
+          <option value={language.code} key={language.code}>
+            {language.label}
+          </option>
+        ))}
       </select>
       {owner && (
         <Button
           type="submit"
           className="h-11"
           variant="outline"
-          disabled={busy || !menu.availableLanguages.length}
+          disabled={busy}
         >
           {m.setDefault}
         </Button>

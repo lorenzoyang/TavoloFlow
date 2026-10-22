@@ -14,9 +14,13 @@ public sealed class CatalogDeletionService(ApplicationDbContext context)
         Guid menuItemId,
         CancellationToken cancellationToken = default)
     {
-        // a menu edit also updates language metadata. Join its transaction without committing it here.
-        await using var transaction = context.Database.CurrentTransaction is null
-            ? await context.Database.BeginTransactionAsync(cancellationToken) : null;
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+
+        // Match menu writers' lock order so deletion cannot race a content edit or category change.
+        var restaurant = await context.Restaurants.FromSqlInterpolated($"""
+            SELECT * FROM restaurants WHERE id = {restaurantId} FOR UPDATE
+            """).AsNoTracking().SingleOrDefaultAsync(cancellationToken);
+        if (restaurant is null) return CatalogDeletionResult.NotFound;
 
         // the row lock also prevents new FK references while we detach existing lines.
         var item = await context.MenuItems.FromSqlInterpolated($"""
@@ -38,7 +42,7 @@ public sealed class CatalogDeletionService(ApplicationDbContext context)
             .Where(menuItem => menuItem.RestaurantId == restaurantId && menuItem.Id == menuItemId)
             .ExecuteDeleteAsync(cancellationToken);
 
-        if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return CatalogDeletionResult.Deleted;
     }

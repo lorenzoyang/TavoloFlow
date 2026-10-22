@@ -1,7 +1,10 @@
+using System.Data.Common;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Entities;
@@ -30,15 +33,16 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
         var category = await CreateCategoryAsync(client, new("  主食  ", "  ", null));
         Assert.Equal("主食", category.NameZh);
         Assert.Null(category.NameIt);
-        Assert.Equal("zh", (await ReadAsync(client)).DefaultLanguage);
+        Assert.Equal("it", (await ReadAsync(client)).DefaultLanguage);
         var updated = await SendAsync(client, HttpMethod.Put, $"{Categories}/{category.Id}", new CategoryInput(null, null, "Rice"));
         Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
-        Assert.Equal("en", (await ReadAsync(client)).DefaultLanguage);
+        Assert.Equal("it", (await ReadAsync(client)).DefaultLanguage);
         Assert.Equal(HttpStatusCode.NoContent, (await SendAsync(client, HttpMethod.Delete, $"{Categories}/{category.Id}")).StatusCode);
         var after = await ReadAsync(client);
         Assert.Empty(after.Categories);
-        Assert.Equal("en", after.DefaultLanguage);
-        await AssertErrorAsync(await SendAsync(client, HttpMethod.Patch, DefaultLanguage, new { defaultLanguage = "zh" }), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
+        Assert.Equal("it", after.DefaultLanguage);
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(client, HttpMethod.Patch, DefaultLanguage, new { defaultLanguage = "zh" })).StatusCode);
+        Assert.Equal("zh", (await ReadAsync(client)).DefaultLanguage);
     }
 
     [Fact]
@@ -146,7 +150,7 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
         Assert.Equal(item.NameZh, saved.NameZh);
         Assert.Equal(item.PriceCents, saved.PriceCents);
         Assert.Equal(item.AllergenCodes, saved.AllergenCodes);
-        Assert.Equal("zh", menu.DefaultLanguage);
+        Assert.Equal("it", menu.DefaultLanguage);
     }
 
     [Theory]
@@ -210,26 +214,66 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
     }
 
     [Fact]
-    public async Task Languages_ContentChangesAndSoldOutItems_AdjustsAndRetainsDefaults()
+    public async Task Languages_ContentChangesAndSoldOutItems_NeverChangePreference()
     {
         using var host = new AccountTestHost(database);
         using var client = await LoginAsync(host, await SeedAsync());
         var category = await CreateCategoryAsync(client, new(null, "Piatti", "Dishes"));
-        var input = ValidItem(category.Id);
+        var input = ValidItem(category.Id) with { NameIt = "Riso" };
         var item = await CreateItemAsync(client, input);
         Assert.Equal("it", (await ReadAsync(client)).DefaultLanguage);
-        Assert.Equal(HttpStatusCode.OK, (await SendAsync(client, HttpMethod.Patch, DefaultLanguage, new { defaultLanguage = "zh" })).StatusCode);
-        await SendAsync(client, HttpMethod.Patch, Availability(item.Id), new { isAvailable = false });
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(client, HttpMethod.Patch, Availability(item.Id), new { isAvailable = false })).StatusCode);
         Assert.Equal(new[] { "zh", "it", "en" }, (await ReadAsync(client)).AvailableLanguages);
-        await SendAsync(client, HttpMethod.Put, $"{Items}/{item.Id}", input with { NameZh = null, NameEn = "Rice" });
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(client, HttpMethod.Put, $"{Categories}/{category.Id}", new CategoryInput(null, null, "Dishes"))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(client, HttpMethod.Put, $"{Items}/{item.Id}", input with { NameIt = null })).StatusCode);
+        var withoutItalian = await ReadAsync(client);
+        Assert.Equal("it", withoutItalian.DefaultLanguage);
+        Assert.Equal(new[] { "zh", "en" }, withoutItalian.AvailableLanguages);
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(client, HttpMethod.Put, $"{Items}/{item.Id}", input)).StatusCode);
+        Assert.Contains("it", (await ReadAsync(client)).AvailableLanguages);
         Assert.Equal("it", (await ReadAsync(client)).DefaultLanguage);
-        await SendAsync(client, HttpMethod.Put, $"{Categories}/{category.Id}", new CategoryInput(null, null, "Dishes"));
-        Assert.Equal("en", (await ReadAsync(client)).DefaultLanguage);
-        await AssertErrorAsync(await SendAsync(client, HttpMethod.Patch, DefaultLanguage, new { defaultLanguage = "it" }), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
-        await SendAsync(client, HttpMethod.Delete, $"{Items}/{item.Id}");
-        await SendAsync(client, HttpMethod.Delete, $"{Categories}/{category.Id}");
-        Assert.Equal("en", (await ReadAsync(client)).DefaultLanguage);
+        Assert.Equal(HttpStatusCode.NoContent, (await SendAsync(client, HttpMethod.Delete, $"{Items}/{item.Id}")).StatusCode);
+        Assert.Equal("it", (await ReadAsync(client)).DefaultLanguage);
+        Assert.Equal(new[] { "en" }, (await ReadAsync(client)).AvailableLanguages);
+        Assert.Equal(HttpStatusCode.NoContent, (await SendAsync(client, HttpMethod.Delete, $"{Categories}/{category.Id}")).StatusCode);
+        Assert.Equal("it", (await ReadAsync(client)).DefaultLanguage);
         Assert.Empty((await ReadAsync(client)).AvailableLanguages);
+        await CreateCategoryAsync(client, new(null, "Piatti", null));
+        Assert.Equal("it", (await ReadAsync(client)).DefaultLanguage);
+        Assert.Equal(new[] { "it" }, (await ReadAsync(client)).AvailableLanguages);
+    }
+
+    [Fact]
+    public async Task DefaultLanguage_EmptyOrUntranslatedMenu_AcceptsAnySupportedPreference()
+    {
+        using var host = new AccountTestHost(database);
+        using var client = await LoginAsync(host, await SeedAsync());
+        foreach (var language in new[] { "zh", "it", "en" })
+        {
+            var response = await SendAsync(client, HttpMethod.Patch, DefaultLanguage, new { defaultLanguage = language });
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Single(body.EnumerateObject());
+            Assert.Equal(language, body.GetProperty("defaultLanguage").GetString());
+            var empty = await ReadAsync(client);
+            Assert.Equal(language, empty.DefaultLanguage);
+            Assert.Empty(empty.AvailableLanguages);
+        }
+        await CreateCategoryAsync(client); // Only Chinese content, yet English remains the preference.
+        Assert.Equal("en", (await ReadAsync(client)).DefaultLanguage);
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(client, HttpMethod.Patch, DefaultLanguage, new { defaultLanguage = "it" })).StatusCode);
+        Assert.Equal(new[] { "zh" }, (await ReadAsync(client)).AvailableLanguages);
+        foreach (var invalid in new string?[] { "fr", "IT", " it ", "", null })
+        {
+            var response = await SendAsync(client, HttpMethod.Patch, DefaultLanguage, new { defaultLanguage = invalid });
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var error = (await response.Content.ReadFromJsonAsync<ApiError>())!;
+            Assert.Equal("VALIDATION_FAILED", error.Code);
+            Assert.NotEmpty(error.Errors!["defaultLanguage"]);
+            Assert.Equal("it", (await ReadAsync(client)).DefaultLanguage);
+        }
+        await AssertErrorAsync(await SendAsync(client, HttpMethod.Patch, DefaultLanguage, new { defaultLanguage = "en" }, csrf: false),
+            HttpStatusCode.BadRequest, "CSRF_VALIDATION_FAILED");
     }
 
     [Fact]
@@ -252,7 +296,7 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
             SendAsync(otherOwner, HttpMethod.Put, $"{Categories}/{category.Id}", new CategoryInput(null, null, "Dishes")));
         Assert.All(results, response => Assert.Equal(HttpStatusCode.OK, response.StatusCode));
         var menu = await ReadAsync(first);
-        Assert.Contains(menu.DefaultLanguage, menu.AvailableLanguages);
+        Assert.Equal("it", menu.DefaultLanguage);
         Assert.Equal(new[] { "it", "en" }, menu.AvailableLanguages);
         Assert.False(Assert.Single(menu.Items).IsAvailable);
         Assert.Equal(2345, menu.Items[0].PriceCents);
@@ -260,7 +304,7 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
     }
 
     [Fact]
-    public async Task DeleteItem_WithHistoricalOrder_PreservesSnapshotsAndUpdatesLanguage()
+    public async Task DeleteItem_WithHistoricalOrder_PreservesSnapshotsAndPreference()
     {
         var user = await SeedAsync();
         using var host = new AccountTestHost(database);
@@ -295,7 +339,7 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
         Assert.Equal(1250, saved.UnitPriceCents);
         Assert.Equal(2500, saved.Order.TotalAmountCents);
         Assert.Equal(user.RestaurantId, saved.RestaurantId);
-        Assert.Equal("it", (await ReadAsync(client)).DefaultLanguage);
+        Assert.Equal("zh", (await ReadAsync(client)).DefaultLanguage);
     }
 
     [Fact]
@@ -325,22 +369,104 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
     }
 
     [Fact]
-    public async Task DeleteItem_OuterTransactionRollback_DoesNotCommitDeletion()
+    public async Task DeleteItem_FailureAfterDetachingHistory_RollsBackItemAndReference()
     {
         var user = await SeedAsync();
         using var host = new AccountTestHost(database);
         using var client = await LoginAsync(host, user);
         var category = await CreateCategoryAsync(client);
         var item = await CreateItemAsync(client, ValidItem(category.Id));
-        await using (var context = database.CreateContext())
+        Guid lineId;
+        await using (var seed = database.CreateContext())
         {
-            await using var transaction = await context.Database.BeginTransactionAsync();
-            Assert.Equal(CatalogDeletionResult.Deleted,
-                await new CatalogDeletionService(context).DeleteMenuItemAsync(user.RestaurantId, item.Id));
-            Assert.False(await context.MenuItems.AnyAsync(value => value.Id == item.Id));
-            await transaction.RollbackAsync();
+            var session = new DiningSession
+            {
+                RestaurantId = user.RestaurantId, Status = DiningSessionStatus.Closed, TableLabelSnapshot = "1",
+                OpenedAt = DateTime.UtcNow.AddHours(-1), ClosedAt = DateTime.UtcNow,
+                CloseReason = SessionCloseReason.Paid, ClosedTotalCents = 1250
+            };
+            var order = new Order { RestaurantId = user.RestaurantId, DiningSession = session,
+                ClientRequestId = Guid.NewGuid(), DefaultLanguageSnapshot = "it", TotalAmountCents = 1250 };
+            var line = new OrderItem { RestaurantId = user.RestaurantId, Order = order, MenuItemId = item.Id,
+                NameZhSnapshot = item.NameZh, AllergenCodesSnapshot = item.AllergenCodes, UnitPriceCents = 1250, Quantity = 1 };
+            seed.OrderItems.Add(line);
+            await seed.SaveChangesAsync();
+            lineId = line.Id;
         }
+        var failure = new FailMenuDeleteInterceptor();
+        await using (var context = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql(database.ConnectionString).AddInterceptors(failure).Options))
+            await Assert.ThrowsAsync<InjectedDeleteException>(() =>
+                new CatalogDeletionService(context).DeleteMenuItemAsync(user.RestaurantId, item.Id));
+        Assert.True(failure.DetachmentCompleted);
         Assert.Equal(item.Id, Assert.Single((await ReadAsync(client)).Items).Id);
+        await using var read = database.CreateContext();
+        var saved = await read.OrderItems.Include(value => value.Order).SingleAsync(value => value.Id == lineId);
+        Assert.Equal(item.Id, saved.MenuItemId);
+        Assert.Equal(item.NameZh, saved.NameZhSnapshot);
+        Assert.Equal(item.AllergenCodes, saved.AllergenCodesSnapshot);
+        Assert.Equal(1250, saved.Order.TotalAmountCents);
+    }
+
+    [Fact]
+    public async Task DeleteItem_ConcurrentEdit_ReturnsSuccessOrNotFoundWithoutLosingHistoryRules()
+    {
+        var user = await SeedAsync();
+        using var host = new AccountTestHost(database);
+        using var first = await LoginAsync(host, user);
+        using var second = await LoginAsync(host, user);
+        var category = await CreateCategoryAsync(first);
+        var item = await CreateItemAsync(first, ValidItem(category.Id));
+        var results = await Task.WhenAll(
+            SendAsync(first, HttpMethod.Delete, $"{Items}/{item.Id}"),
+            SendAsync(second, HttpMethod.Put, $"{Items}/{item.Id}", ValidItem(category.Id) with { NameIt = "Riso", PriceCents = 2345 }));
+        Assert.Equal(HttpStatusCode.NoContent, results[0].StatusCode);
+        if (results[1].StatusCode != HttpStatusCode.OK)
+            await AssertErrorAsync(results[1], HttpStatusCode.NotFound, "MENU_RESOURCE_NOT_FOUND");
+        Assert.Empty((await ReadAsync(first)).Items);
+        Assert.Equal("it", (await ReadAsync(first)).DefaultLanguage);
+    }
+
+    [Fact]
+    public async Task DefaultLanguage_ConcurrentContentWrite_PreservesExplicitChoice()
+    {
+        var user = await SeedAsync();
+        using var host = new AccountTestHost(database);
+        using var first = await LoginAsync(host, user);
+        using var second = await LoginAsync(host, user);
+        var category = await CreateCategoryAsync(first);
+        var results = await Task.WhenAll(
+            SendAsync(first, HttpMethod.Patch, DefaultLanguage, new { defaultLanguage = "en" }),
+            SendAsync(second, HttpMethod.Put, $"{Categories}/{category.Id}", new CategoryInput("新名称", null, null)));
+        Assert.All(results, response => Assert.Equal(HttpStatusCode.OK, response.StatusCode));
+        var menu = await ReadAsync(first);
+        Assert.Equal("en", menu.DefaultLanguage);
+        Assert.Equal(new[] { "zh" }, menu.AvailableLanguages);
+        Assert.Equal("新名称", Assert.Single(menu.Categories).NameZh);
+    }
+
+    private sealed class InjectedDeleteException : Exception { }
+
+    // Test-only fault injection: the UPDATE really ran inside the service's own transaction.
+    private sealed class FailMenuDeleteInterceptor : DbCommandInterceptor
+    {
+        public bool DetachmentCompleted { get; private set; }
+
+        public override ValueTask<int> NonQueryExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+            int result, CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.StartsWith("UPDATE", StringComparison.OrdinalIgnoreCase) &&
+                command.CommandText.Contains("order_items") && result == 1) DetachmentCompleted = true;
+            return ValueTask.FromResult(result);
+        }
+
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(DbCommand command, CommandEventData eventData,
+            InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.StartsWith("DELETE", StringComparison.OrdinalIgnoreCase) &&
+                command.CommandText.Contains("menu_items")) throw new InjectedDeleteException();
+            return ValueTask.FromResult(result);
+        }
     }
 
     private async Task<RestaurantUser> SeedAsync(RestaurantUserRole role = RestaurantUserRole.Owner, Guid? restaurantId = null, bool mustChange = false)

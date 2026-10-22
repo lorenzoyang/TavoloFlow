@@ -17,7 +17,7 @@ public sealed record MenuItemInput(
 public sealed record AvailabilityInput([Required] bool? IsAvailable);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record DefaultLanguageInput([Required] string DefaultLanguage);
+public sealed record DefaultLanguageInput(string? DefaultLanguage);
 
 public sealed record CategoryResponse(Guid Id, string? NameZh, string? NameIt, string? NameEn)
 {
@@ -35,7 +35,7 @@ public sealed record MenuItemResponse(
         item.PriceCents, item.AllergenCodes, item.AllergenReviewed, item.IsAvailable);
 }
 
-public sealed record MenuLanguages(string DefaultLanguage, string[] AvailableLanguages);
+public sealed record DefaultLanguageResponse(string DefaultLanguage);
 public sealed record AllergenOption(string Code, string Label, string Description);
 public sealed record MenuResponse(
     Guid RestaurantId, string DefaultLanguage, string[] AvailableLanguages,

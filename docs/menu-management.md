@@ -26,13 +26,13 @@ sequenceDiagram
     Note over C: Cookie、首次改密、OWNER、CSRF 校验
     C->>S: 使用 CurrentAccount 的 RestaurantId
     S->>D: 开事务、锁餐厅行、保存分类
-    S->>D: 汇总可用语言、修正默认语言、提交
+    S->>D: 提交内容事务（不改变默认语言）
     C-->>P: 201 + 分类 DTO
     P->>C: 重新 GET /api/staff/menu
 ```
 
 建议先在界面创建一个只有意大利语名称的分类，再补中文名称。观察请求体、响应和
-默认语言，理解“界面中文”和“菜单内容语言”是两件事。
+默认语言保持不变，理解“界面中文”和“菜单内容语言”是两件事。
 
 ### 第二阶段：菜品内容与审核
 
@@ -42,11 +42,11 @@ sequenceDiagram
 | --- | --- |
 | `MenuContracts.cs` | 输入/输出 DTO，以及后端提供的 14 类过敏原选项 |
 | `MenuValidation.cs` | 空白归一化、字段校验、业务错误及 Controller 错误转换 |
-| `MenuService.cs` | 餐厅隔离、查询、内容写入、删除及语言事务 |
+| `MenuService.cs` | 餐厅隔离、一致快照查询、内容事务及独立语言设置 |
 
 `MenuForms.tsx` 保存当前表单草稿；服务器刷新不会重新填充已打开的表单。
-`features/menu/api.ts` 定义响应类型、查询键、名称回退与金额转换；`messages.ts`
-集中存放菜单界面文案。关闭表单会放弃未保存输入，不持久化草稿。
+`features/menu/api.ts` 定义响应类型、查询键与金额转换；`language.ts` 提供纯名称回退函数，
+返回实际名称和语言，供界面选择同语言描述；`messages.ts` 集中存放菜单界面文案。关闭表单会放弃未保存输入，不持久化草稿。
 
 练习：创建 `12,50` 欧元的菜品，查看网络请求中的 `priceCents: 1250`。
 价格按十进制数字转换为整数欧分，不使用 `parseFloat(value) * 100`。
@@ -57,13 +57,24 @@ sequenceDiagram
 老板编辑菜品的 DTO 不包含 `isAvailable`。员工和老板都使用专门的 PATCH 接口，
 提交明确目标值。重复提交 `false` 仍然是售罄，不会反向切换。
 
-菜单写事务先锁餐厅行，然后修改内容，最后维护默认语言。这样并发编辑不同条目时，
-也不会各自用过期菜单计算默认语言。当前 MVP 将同一餐厅的菜单写入串行处理，
-没有菜单版本列，也没有版本冲突弹窗。只改变供应状态的请求使用字段级 SQL 更新。
+菜单内容写事务先锁餐厅行，然后修改内容并提交。当前 MVP 继续将同一餐厅的菜单内容
+写入串行处理，保护分类删除与菜品创建、编辑与删除等竞争；没有新增版本列。
+只改变供应状态的请求使用字段级 SQL 更新，默认语言不参与这些写入。
 
-可用语言由现存分类及菜品名称汇总，包含空分类和售罄菜品，不从描述推导。
-仍有效的默认值保留；失效时按中文、意大利语、英语选择；完全空菜单保留当前值。
-读取菜单使用 Repeatable Read 事务，让分类、菜品和语言元数据来自同一快照。
+默认语言是 OWNER 的稳定显示偏好，只能主动设置为 `zh`、`it`、`en` 之一。
+即使菜单为空或没有对应翻译，下拉框仍提供全部三种语言；STAFF 只读。
+删除最后一份翻译、移除翻译、清空菜单或售罄都不改变该设置，补回翻译后自然优先使用。
+`availableLanguages` 仅统计现存分类及菜品名称，包含空分类和售罄菜品，不从描述推导，
+不限制默认语言。读取使用 Repeatable Read 事务，再从已经加载的名称计算统计，避免重复查询。
+
+通用名称回退为 **默认语言 → 意大利语 → 中文 → 英语**，去重并跳过空名称。
+调用方主动选择语言时将它放在最前；当前后台显式传入中文，所以先显示中文，
+没有中文才进入通用顺序。描述跟随实际名称语言，该语言没有描述就省略。
+
+这次简化前，默认语言是由菜单内容派生的值，删除菜品还要同时修正餐厅设置，
+因此删除服务需要加入外层事务。现在偏好与内容独立，`WriteAsync` 不再查询或修正语言，
+设置接口只需校验合法代码并执行单字段更新；删除服务也可以独立拥有事务。
+保留餐厅锁是为了内容并发安全，并不意味着还要维护自动语言切换。已有设置原样保留，无需迁移。
 
 使用两个浏览器会话学习：员工设为售罄，老板修改价格，刷新后确认新价格和售罄同时保留。
 
@@ -94,7 +105,7 @@ sequenceDiagram
 | `PUT /api/owner/menu/items/{id}` | OWNER | 200：编辑后的菜品，保留供应状态 |
 | `DELETE /api/owner/menu/items/{id}` | OWNER | 204 |
 | `PATCH /api/staff/menu-items/{id}/availability` | OWNER / STAFF | 200：更新后的菜品 |
-| `PATCH /api/owner/menu/default-language` | OWNER | 200：默认及可用语言 |
+| `PATCH /api/owner/menu/default-language` | OWNER | 200：`{ "defaultLanguage": "it" }` |
 
 菜单响应包含 `restaurantId`、`defaultLanguage`、`availableLanguages`、`categories`、
 `items`、`allergens`。分类按 ID、菜品按分类 ID 和自身 ID 稳定排序。
@@ -119,7 +130,9 @@ sequenceDiagram
 ```
 
 此示例仅说明请求结构，实际配料及过敏原必须由餐厅核对。
-供应输入为 `{ "isAvailable": false }`；默认语言输入为 `{ "defaultLanguage": "it" }`。
+供应输入为 `{ "isAvailable": false }`；默认语言输入及成功响应均为 `{ "defaultLanguage": "it" }`。
+默认语言响应不再含 `availableLanguages`；完整菜单 GET 仍包含该只读统计。非法语言返回
+`400 VALIDATION_FAILED`，`errors.defaultLanguage` 提供字段提示，权限与 CSRF 校验不变。
 菜单请求 DTO 拒绝未定义字段，不能通过供应接口夹带价格或名称。
 
 ## 3. 数据规则与失败行为
@@ -132,9 +145,10 @@ sequenceDiagram
 - 每次菜品内容保存都必须 `allergenReviewed=true`，包括售罄菜品。未知代码被拒绝，
   重复代码归并为固定顺序；空数组表示审核后未识别出需声明的过敏原，不保证不存在交叉接触。
 - 旧的未审核数据仍可查看或设为售罄；恢复供应前必须由 OWNER 编辑并完成审核。
-- 名称显示按中文、餐厅默认语言、已有语言回退。描述只显示最终名称所用语言，不跨语言拼接。
+- 后台名称按中文、餐厅默认语言、意大利语、英语去重回退；通用顺序见第三阶段。描述不跨语言拼接。
 - 分类只能为空时删除。菜品删除复用 `CatalogDeletionService`，先清空订单明细的可空菜品引用，
-  保留名称、价格、编号、过敏原快照及餐厅归属。删除与默认语言调整在同一事务内提交。
+  保留名称、价格、编号、过敏原快照及餐厅归属。删除服务自行开启事务，先锁餐厅再锁菜品，
+  原子提交引用清空与删除；`MenuService` 不再包一层事务。两种删除服务都不应被外层事务包装。
 
 错误统一为 `code`、`message`、`requestId`，字段校验附 `errors`：
 
@@ -157,7 +171,7 @@ sequenceDiagram
 先按 [店铺账号说明](store-accounts.md) 配置数据库、执行迁移及显式初始化开发账号。
 启动后端 HTTP profile 和前端 Vite，访问 `http://localhost:5173`。本阶段无需新增配置或迁移。
 
-2026-10-21 验证结果：
+2026-10-21 原菜单模块验收（本次语言简化前）：
 
 - `dotnet test TavoloFlow.slnx --no-restore --verbosity minimal`：88 项通过，其中 23 项菜单测试。
   使用一次性 PostgreSQL 容器，覆盖真实登录/CSRF、权限、两店隔离、校验、历史快照、事务回滚、
@@ -169,6 +183,23 @@ sequenceDiagram
 - 360px 手机页面和菜品表单无横向溢出；后台身份查询 503 后表单保留、重试恢复，
   退出后切换 STAFF 及另一标签页退出导致的菜单 401 均正确清理界面；浏览器没有未处理 JavaScript 异常。
 
-截图：[老板桌面](screenshots/menu-owner-desktop.png)、[员工桌面](screenshots/menu-staff-desktop.png)、
-[菜品编辑](screenshots/menu-item-editor.png)、[手机页面](screenshots/menu-owner-mobile.png)。
+2026-10-22 稳定语言偏好改动验收：
+
+- `dotnet test TavoloFlow.slnx --no-restore --verbosity minimal`：91 项全部通过，其中 26 项菜单测试。
+  首次运行发现 Docker Desktop 未启动，启动后在一次性 PostgreSQL 容器中完成验收。
+- 测试覆盖删除最后一份翻译、移除/补回翻译、清空菜单时保留设置，空菜单及缺少翻译时选择
+  三种合法语言、非法值字段错误、设置接口仅返回 `defaultLanguage`，以及权限与 CSRF 限制。
+- 删除原子性测试在历史引用已清空之后、删除 SQL 执行之前注入异常，确认菜品和历史引用一起回滚。
+  分类删除与菜品创建、菜品编辑与删除、老板编辑与员工售罄、显式语言设置与内容写入的并发回归通过。
+- 前端 `npm run build`、`npm run lint` 通过。Node 24 原生测试命令
+  `node --test tests/menu-language.test.ts`（在 `frontend/` 执行）5 项通过，没有引入测试框架。
+  覆盖通用顺序、重复语言、单一名称、空白翻译、补回默认语言及后台显式中文选择。
+- Chromium 两个独立会话验证了空菜单设置、刷新保留、翻译增删、中文优先、名称语言对应描述
+  （没有同语言描述时省略）、STAFF 设置只读与 API 拒绝越权、售罄不改变偏好。
+- 表单在刷新及模拟写请求断网后保留草稿，失败写入没有自动重试。360px 页面与表单无横向溢出，
+  浏览器没有未处理 JavaScript 异常。
+
+本次截图：[老板桌面](screenshots/menu-owner-desktop.png)、[员工桌面](screenshots/menu-staff-desktop.png)、
+[菜品编辑](screenshots/menu-item-editor.png)、[手机页面](screenshots/menu-owner-mobile.png)、
+[空菜单设置](screenshots/menu-empty-language.png)。
 浏览器验收同样使用临时独立数据库，未写入本地开发数据库；截图不包含密码或凭据。

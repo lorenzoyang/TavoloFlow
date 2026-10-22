@@ -54,9 +54,7 @@ export const messages = {
   markSoldOut: "设为售罄",
   restore: "恢复供应",
   defaultLanguage: "菜单默认语言",
-  defaultHint: "用于顾客菜单的默认显示，与后台界面语言分开。",
-  emptyLanguage: "添加名称后即可设置默认语言。",
+  defaultHint: "设置菜单的首选语言，缺少翻译时逐条回退。菜单增删不会改变此设置；后台仍优先显示中文。",
   setDefault: "保存默认语言",
-  languageChanged: "菜单默认语言已调整为",
   fieldError: "请检查以下字段",
 } as const;

@@ -112,17 +112,17 @@ services must enforce their immutability and authorization.
 return `CatalogDeletionResult.Deleted`, `NotFound`, or `TableHasActiveSession`.
 IDs belonging to a different restaurant return `NotFound`.
 
-Each operation locks the restaurant-scoped target row
-with `FOR UPDATE`. Item deletion clears matching order-line `MenuItemId` values
+Item deletion locks the restaurant first, then its menu item with `FOR UPDATE`.
+Table deletion locks the restaurant-scoped table row. Item deletion clears matching order-line `MenuItemId` values
 and deletes the item. Table deletion rejects an active session; otherwise it
 clears matching closed sessions' `TableId` values and deletes the table. The
 operations retain every snapshot, amount, and `RestaurantId`. Direct deletes of
 referenced catalog rows remain blocked by foreign keys. Category deletion requires
 removing or moving all its items first.
 
-Use a fresh DI scope/context for each deletion operation. Item deletion joins an
-existing EF transaction without committing it, or owns one when called independently.
-Table deletion still owns its transaction and must not be wrapped in another one.
+Use a fresh DI scope/context for each deletion operation. Both methods always own
+their transactions and must not be wrapped in another one. Item-link detachment
+and deletion commit atomically; a failure after detachment rolls both changes back.
 These operations execute immediately, without `SaveChanges`;
 their bulk statements do not update tracked objects. Opening a table and creating
 orders must coordinate using the same table/menu row locks to avoid deletion races.
@@ -130,16 +130,20 @@ orders must coordinate using the same table/menu row locks to avoid deletion rac
 ### Menu transactions and language metadata
 
 `MenuService` implements restaurant-scoped category/item CRUD, availability and
-default-language updates without a migration. Each write starts a transaction and
-locks the restaurant row first. This serializes menu writers for a restaurant,
-including category deletion versus item creation/movement. It then modifies the
-content, recalculates available languages from category/item names and repairs an
-invalid default before committing. An empty menu retains its current default.
-Future workflows taking both restaurant and menu locks must keep that lock order.
+default-language updates without a migration. Content and availability writes start
+a transaction and lock the restaurant row first. This serializes menu writers for
+a restaurant, including category deletion versus item creation/movement. Item deletion
+calls `CatalogDeletionService` directly; its own transaction takes locks in the same
+restaurant → item order. Future workflows taking both locks must keep that order.
 
-Item deletion participates in this transaction, so historical-link detachment,
-physical deletion and language repair either all commit or all roll back. Reads
-use Repeatable Read to return content and language metadata from one snapshot.
+Default language is a stable OWNER preference. Its endpoint accepts `zh`, `it`, or
+`en`, including on empty menus or when the chosen translation is absent, and uses a
+single field update. Content and availability writes never update it. Existing values
+are retained; there is no migration or historical backfill. Reads use Repeatable Read
+to return content and settings from one snapshot. `availableLanguages` is a read-only
+summary of the already loaded category/item names, including sold-out items; it does
+not constrain the default or trigger extra queries.
+
 The availability endpoint executes a field-only update; content editing never
 accepts or assigns availability. Menu edits use last-write-wins semantics.
 

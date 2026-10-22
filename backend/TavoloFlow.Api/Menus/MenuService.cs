@@ -14,13 +14,20 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
     {
         // All queries see the same committed menu, even when another request edits it.
         await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
-        var language = await ReadLanguagesAsync(restaurantId, ct);
+        var defaultLanguage = await context.Restaurants.Where(x => x.Id == restaurantId)
+            .Select(x => x.DefaultLanguage).SingleAsync(ct);
         var categories = await context.MenuCategories.AsNoTracking().Where(x => x.RestaurantId == restaurantId)
             .OrderBy(x => x.Id).ToArrayAsync(ct);
         var items = await context.MenuItems.AsNoTracking().Where(x => x.RestaurantId == restaurantId)
             .OrderBy(x => x.CategoryId).ThenBy(x => x.Id).ToArrayAsync(ct);
         await transaction.CommitAsync(ct);
-        return new(restaurantId, language.DefaultLanguage, language.AvailableLanguages,
+        // Translation coverage describes the content; it never changes the restaurant's preference.
+        var names = categories.Select(x => new { x.NameZh, x.NameIt, x.NameEn })
+            .Concat(items.Select(x => new { x.NameZh, x.NameIt, x.NameEn })).ToArray();
+        var present = new[] { names.Any(x => !string.IsNullOrWhiteSpace(x.NameZh)),
+            names.Any(x => !string.IsNullOrWhiteSpace(x.NameIt)), names.Any(x => !string.IsNullOrWhiteSpace(x.NameEn)) };
+        var availableLanguages = Languages.Where((_, index) => present[index]).ToArray();
+        return new(restaurantId, defaultLanguage, availableLanguages,
             categories.Select(CategoryResponse.From).ToArray(), items.Select(MenuItemResponse.From).ToArray(), MenuAllergens.Options);
     }
 
@@ -79,12 +86,11 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
         }, ct);
     }
 
-    public Task<bool> DeleteItemAsync(Guid restaurantId, Guid id, CancellationToken ct) => WriteAsync(restaurantId, async () =>
+    public async Task DeleteItemAsync(Guid restaurantId, Guid id, CancellationToken ct)
     {
         if (await deletion.DeleteMenuItemAsync(restaurantId, id, ct) == CatalogDeletionResult.NotFound)
             throw MenuException.NotFound();
-        return true;
-    }, ct);
+    }
 
     public Task<MenuItemResponse> SetAvailabilityAsync(Guid restaurantId, Guid id, bool available, CancellationToken ct) =>
         WriteAsync(restaurantId, async () =>
@@ -99,17 +105,16 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
             return MenuItemResponse.From(item);
         }, ct);
 
-    public Task<MenuLanguages> SetDefaultLanguageAsync(Guid restaurantId, string language, CancellationToken ct) =>
-        WriteAsync(restaurantId, async () =>
-        {
-            var current = await ReadLanguagesAsync(restaurantId, ct);
-            if (!current.AvailableLanguages.Contains(language))
-                throw new MenuException(400, "VALIDATION_FAILED", "请选择菜单中已有的语言。",
-                    new Dictionary<string, string[]> { ["defaultLanguage"] = ["默认语言必须属于可用语言。"] });
-            await context.Restaurants.Where(x => x.Id == restaurantId)
-                .ExecuteUpdateAsync(update => update.SetProperty(x => x.DefaultLanguage, language), ct);
-            return current with { DefaultLanguage = language };
-        }, ct);
+    public async Task<DefaultLanguageResponse> SetDefaultLanguageAsync(Guid restaurantId, string? language, CancellationToken ct)
+    {
+        if (language is null || !Languages.Contains(language))
+            throw new MenuException(400, "VALIDATION_FAILED", "请选择中文、意大利语或英语。",
+                new Dictionary<string, string[]> { ["defaultLanguage"] = ["语言代码必须为 zh、it 或 en。"] });
+        var updated = await context.Restaurants.Where(x => x.Id == restaurantId)
+            .ExecuteUpdateAsync(update => update.SetProperty(x => x.DefaultLanguage, language), ct);
+        if (updated == 0) throw MenuException.NotFound();
+        return new(language);
+    }
 
     private async Task<T> WriteAsync<T>(Guid restaurantId, Func<Task<T>> operation, CancellationToken ct)
     {
@@ -122,12 +127,6 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
         try
         {
             var result = await operation();
-            var language = await ReadLanguagesAsync(restaurantId, ct);
-            if (language.AvailableLanguages.Length > 0 && !language.AvailableLanguages.Contains(language.DefaultLanguage))
-            {
-                await context.Restaurants.Where(x => x.Id == restaurantId)
-                    .ExecuteUpdateAsync(update => update.SetProperty(x => x.DefaultLanguage, language.AvailableLanguages[0]), ct);
-            }
             await transaction.CommitAsync(ct);
             return result;
         }
@@ -137,18 +136,5 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
             throw new MenuException(409, "ITEM_CODE_CONFLICT", "该菜品编号已被本店其他菜品使用。",
                 new Dictionary<string, string[]> { ["itemCode"] = ["请使用不同编号，或留空。"] });
         }
-    }
-
-    private async Task<MenuLanguages> ReadLanguagesAsync(Guid restaurantId, CancellationToken ct)
-    {
-        var defaultLanguage = await context.Restaurants.Where(x => x.Id == restaurantId).Select(x => x.DefaultLanguage)
-            .SingleAsync(ct);
-        var names = await context.MenuCategories.Where(x => x.RestaurantId == restaurantId)
-            .Select(x => new { x.NameZh, x.NameIt, x.NameEn })
-            .Concat(context.MenuItems.Where(x => x.RestaurantId == restaurantId).Select(x => new { x.NameZh, x.NameIt, x.NameEn }))
-            .ToArrayAsync(ct);
-        var present = new[] { names.Any(x => !string.IsNullOrWhiteSpace(x.NameZh)),
-            names.Any(x => !string.IsNullOrWhiteSpace(x.NameIt)), names.Any(x => !string.IsNullOrWhiteSpace(x.NameEn)) };
-        return new(defaultLanguage, Languages.Where((_, index) => present[index]).ToArray());
     }
 }

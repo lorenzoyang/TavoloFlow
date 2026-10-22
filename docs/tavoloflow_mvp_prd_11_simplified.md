@@ -167,8 +167,8 @@ flowchart LR
 
 **菜单展示**
 
-- 菜单为“分类 → 菜品”，按 ID 稳定排序；zh/it/en 三种语言至少填写一种名称，缺少当前语言时逐项回退到默认语言或已有名称。
-- `restaurants.default_language` 在当前 DBML 中为 **NOT NULL**；空菜单时也使用预设默认语言。店铺可见语言根据公开菜单实际提供的名称推导；菜单移除造成默认语言失效时，后端应调整到尚可用语言（完全空菜单保留当前默认语言；初始值来自建店预设）。
+- 菜单为“分类 → 菜品”，按 ID 稳定排序；zh/it/en 三种语言至少填写一种名称。通用名称回退为“默认语言 → 意大利语 → 中文 → 英语”，去重并跳过空名称；调用方主动选择语言时将该语言放在最前。管理后台显式选择中文，界面文案继续使用中文。描述只跟随最终名称语言，没有对应描述则省略。
+- `restaurants.default_language` 在当前 DBML 中为 **NOT NULL**；初始值来自建店预设，此后是仅由 OWNER 主动修改的稳定显示偏好。允许选择 zh/it/en 任一种，菜单为空或没有对应翻译也可设置。菜单增删改、售罄均不改变该值，补回对应翻译后自然优先使用。`availableLanguages` 仅统计现存分类/菜品名称（含售罄菜品），不限制默认语言；保留历史设置，不回填、不增加迁移。
 - `item_code` 可空；价格以欧分保存；售罄仍可展示但不能加入可提交订单。
 - OWNER 可以编辑分类/菜品，**后写入覆盖先写入**；不校验菜单 `version`。STAFF 只允许切换 `is_available`，后端必须执行**字段级更新**，不能用旧 DTO 覆盖菜名、价格、过敏原。
 
@@ -179,7 +179,7 @@ flowchart LR
 - 审核后有过敏原则 `allergen_reviewed=true` 且数组列出标准代码（限定使用约定的 EU 14 类代码）。
 - 添加或变更过敏原时，编辑 UI 必须让 OWNER **重新明确确认已审核**；后端校验输入代码和审核确认。V1 **不提供独立菜单草稿/发布**，新建及编辑菜品均须确认已审核，包括售罄菜品；售罄不作为未审核草稿。既有未审核数据可查看或设为售罄，恢复供应前须由 OWNER 编辑并完成审核；失败时保留旧记录，不做半成品更新。
 
-**当前实现状态**：店铺菜单管理已实现分类/菜品增删改、三语内容、整数欧分、过敏原审核、供应状态及默认语言设置/自动调整；OWNER 与 STAFF 共用 `/staff/menu`，STAFF 仅可读取和切换供应状态。没有新增表或迁移。公开顾客菜单与购物车尚未实现，运行、接口和验收见 [菜单管理模块说明](menu-management.md)。
+**当前实现状态**：店铺菜单管理已实现分类/菜品增删改、三语内容、整数欧分、过敏原审核、供应状态及稳定默认语言偏好设置；OWNER 与 STAFF 共用 `/staff/menu`，STAFF 仅可读取和切换供应状态。没有新增表或迁移。公开顾客菜单与购物车尚未实现，运行、接口和验收见 [菜单管理模块说明](menu-management.md)。
 
 **本地购物车**
 
@@ -350,7 +350,7 @@ flowchart TD
 | POST | `/api/owner/sessions/{id}/checkout` | `expectedBillVersion + confirmedTotalCents`，核账并原子 `PAID` 清桌 |
 | GET | `/api/staff/menu` | **已实现**：本店分类、菜品、默认/可用语言及过敏原选项 |
 | POST / PUT / DELETE | `/api/owner/menu/categories`、`/api/owner/menu/items` | **已实现**：三语、审核、价格、删除；PUT/DELETE 使用 `/{id}`，无菜单版本字段；菜品内容 DTO 不含供应状态 |
-| PATCH | `/api/owner/menu/default-language` | **已实现**：OWNER 从可用语言选择 `defaultLanguage` |
+| PATCH | `/api/owner/menu/default-language` | **已实现**：OWNER 从 zh/it/en 设置稳定偏好，空菜单也允许；返回 `{ defaultLanguage }` |
 | CRUD | `/api/owner/tables` | 创建、编辑、删除、二维码下载；**无 rotate** |
 | GET | `/api/owner/history` | 已关闭账单只读分页 |
 | GET/PATCH | `/api/owner/settings` | 店铺基础设置 |
@@ -586,7 +586,7 @@ DBML 注释本身不会生成所有 PostgreSQL 部分索引；使用 **EF Core M
 - `dining_sessions` 没有自由文本清桌理由字段，因此不能承诺 EMPTY/VOIDED 的文字备注历史。
 - `restaurant_users` 没有独立设备会话表，因此不能承诺“后台删除某台设备的登录会话”。
 - 没有 `audit_events`，因此不能承诺面向老板的完整审计搜索页。
-- `restaurants.default_language` 是不可空，空菜单只能保留预设值，不能像原 PRD 那样保存 NULL 默认语言。
+- `restaurants.default_language` 是不可空，空菜单也可由 OWNER 在 zh/it/en 中主动设置，菜单内容变动不修改该偏好，不能像原 PRD 那样保存 NULL 默认语言。
 - 本文件将最终 DBML 中的订单重试语义定为“**同一幂等键绝不创建第二单，优先返回已存在的原订单**”；客户端必须持久保存原意图，避免修改载荷后误把恢复结果当成新订单。
 
 ---

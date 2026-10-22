@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldLabel, FieldDescription, FieldError, FieldSet } from "@/components/ui/field";
 import { ApiError } from "@/lib/api";
-import { displayName, parsePrice, priceText, type Category, type Menu, type MenuItem, type Names } from "./api";
+import { parsePrice, priceText, type Category, type Menu, type MenuItem, type Names } from "./api";
+import { displayName } from "./language";
 import { languages, messages as m } from "./messages";
 
 type FormProps = { busy: boolean; error: unknown; cancel: () => void; save: (body: unknown) => void; feedback: ReactNode };
@@ -96,7 +97,7 @@ export function ItemForm({ initial, menu, categoryId, busy, error, cancel, save,
         <Field><FieldLabel htmlFor="categoryId">{m.category}</FieldLabel>
           <select id="categoryId" name="categoryId" defaultValue={initial?.categoryId ?? categoryId} required
             className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring">
-            {menu.categories.map(category => <option key={category.id} value={category.id}>{displayName(category, menu.defaultLanguage).text}</option>)}
+            {menu.categories.map(category => <option key={category.id} value={category.id}>{displayName(category, menu.defaultLanguage, "zh").text}</option>)}
           </select>
         </Field>
         <Field><FieldLabel htmlFor="itemCode">{m.itemCode}</FieldLabel>
