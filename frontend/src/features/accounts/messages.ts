@@ -10,6 +10,7 @@ export const messages = {
   loginFootnote: "请使用管理员提供的老板或员工账号。",
   sessionNote: "登录最长有效 16 小时。请在共用设备上及时退出。",
   accountTitle: "店铺账号",
+  menu: "菜单管理",
   accountDescription: "查看当前账号，管理你的登录与密码。",
   restaurant: "所属餐厅",
   role: "账号角色",

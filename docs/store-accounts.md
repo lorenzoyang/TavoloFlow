@@ -175,9 +175,10 @@ Data Protection 应用名固定为 `TavoloFlow`。开发使用框架的用户密
 | `staff.index.tsx` | `/staff` 账号页，校验 `passwordChanged` 搜索参数 |
 | `staff.login.tsx` | `/staff/login` 登录页 |
 | `staff.change-password.tsx` | `/staff/change-password` 首次或主动改密 |
+| `staff.menu.tsx` | `/staff/menu` 菜单管理，共用店铺布局与身份边界 |
 
 文件名中的点表示父子关系，`index` 表示父路径的首页。`/staff` 的父布局和账号首页
-分开，因此以后增加菜单页面时，可以共享店铺布局，而不必继承账号页面的卡片。
+分开，菜单页面共享店铺布局，而不继承账号页面的卡片宽度。
 路由内部的首页标识为 `/staff/`，公开链接仍使用 `/staff`；Router 配置不保留尾部斜线。
 
 Vite 插件在开发和构建时生成 `frontend/src/routeTree.gen.ts`，并自动按路由拆分代码。
@@ -199,15 +200,18 @@ flowchart TD
     Q --> C[首次改密：改密页]
     Q --> A[有效身份：显示当前页面]
     P --> F[提交表单]
-    F --> API[api.ts：获取 CSRF token 后发送 POST]
+    F --> API[features/accounts/api.ts → lib/api.ts：CSRF 后发送 POST]
     API --> S[acceptAccount：替换身份并清理私有缓存]
     S --> B
 ```
 
-`queries.ts` 管理共享身份查询、缓存清理及 mutation 设置；`api.ts` 管理请求、CSRF
-和错误转换。路由没有额外的身份 loader，也没有另一份登录状态。
+`features/accounts/queries.ts` 管理共享身份查询、缓存清理及 mutation 设置；
+`features/accounts/api.ts` 保留账号 DTO 和账号接口函数，通用请求、CSRF、认证失败回调
+及错误转换已提取到 `frontend/src/lib/api.ts`，供菜单复用。通用错误保留 `errors` 和
+`requestId`；通用文案位于 `lib/api-messages.ts`。路由没有额外的身份 loader，也没有另一份登录状态。
 账号查询的网络错误显示重试，不当作退出。首次离线加载身份时显示连接提示；
-已有身份而查询暂停时保留页面，让用户仍能看到退出或改密的“结果待确认”。
+已有身份而查询暂停或后台身份查询网络失败时保留页面及表单，失败时提供重试；
+实际 401 仍清理私有查询并返回登录页。
 
 登录、改密、退出继续使用 `retry: false` 和 `networkMode: "always"`，断网不会排队
 等联网后自动重发。身份变化后查询缓存仍按原有方式取消和清理。
@@ -284,3 +288,9 @@ npm run lint
 [手机首次改密](screenshots/store-first-password-mobile.png)、
 [桌面账号](screenshots/store-account-desktop.png)、
 [手机账号](screenshots/store-account-mobile.png)。
+
+## 7. 菜单阶段的衔接
+
+账号页现已增加菜单入口。菜单查询按餐厅和账号隔离，复用现有退出及切换账号的缓存清理。
+后台身份刷新失败不会卸载正在编辑的菜单表单，认证失效仍会清理数据。登录有效期、
+改密及 CSRF 规则保持不变；最新菜单验收与说明见 [菜单管理模块](menu-management.md)。

@@ -53,7 +53,7 @@ generating SQL do not require a running database.
 
 - Entities are mutable sealed classes with reference identity, nullable
   annotations, explicit foreign keys, and initialized navigation collections.
-  They are persistence objects; future controllers should use separate DTOs.
+  They are persistence objects; account and menu controllers use separate DTOs.
 - UUID primary keys use Npgsql's client-side UUIDv7 generation. Monetary amounts
   are `long` integer cents. Allergen lists map directly to PostgreSQL `text[]`.
 - Status and role enums map to the DBML's uppercase strings in `varchar` columns.
@@ -112,7 +112,7 @@ services must enforce their immutability and authorization.
 return `CatalogDeletionResult.Deleted`, `NotFound`, or `TableHasActiveSession`.
 IDs belonging to a different restaurant return `NotFound`.
 
-Each operation owns a transaction and locks the restaurant-scoped target row
+Each operation locks the restaurant-scoped target row
 with `FOR UPDATE`. Item deletion clears matching order-line `MenuItemId` values
 and deletes the item. Table deletion rejects an active session; otherwise it
 clears matching closed sessions' `TableId` values and deletes the table. The
@@ -120,10 +120,33 @@ operations retain every snapshot, amount, and `RestaurantId`. Direct deletes of
 referenced catalog rows remain blocked by foreign keys. Category deletion requires
 removing or moving all its items first.
 
-Use a fresh DI scope/context for each deletion operation and do not wrap it in
-another transaction. These operations execute immediately, without `SaveChanges`;
+Use a fresh DI scope/context for each deletion operation. Item deletion joins an
+existing EF transaction without committing it, or owns one when called independently.
+Table deletion still owns its transaction and must not be wrapped in another one.
+These operations execute immediately, without `SaveChanges`;
 their bulk statements do not update tracked objects. Opening a table and creating
 orders must coordinate using the same table/menu row locks to avoid deletion races.
+
+### Menu transactions and language metadata
+
+`MenuService` implements restaurant-scoped category/item CRUD, availability and
+default-language updates without a migration. Each write starts a transaction and
+locks the restaurant row first. This serializes menu writers for a restaurant,
+including category deletion versus item creation/movement. It then modifies the
+content, recalculates available languages from category/item names and repairs an
+invalid default before committing. An empty menu retains its current default.
+Future workflows taking both restaurant and menu locks must keep that lock order.
+
+Item deletion participates in this transaction, so historical-link detachment,
+physical deletion and language repair either all commit or all roll back. Reads
+use Repeatable Read to return content and language metadata from one snapshot.
+The availability endpoint executes a field-only update; content editing never
+accepts or assigns availability. Menu edits use last-write-wins semantics.
+
+The API additionally validates name lengths, same-language descriptions, required
+allergen review and the 14 supported codes. Positive integer prices are capped at
+9,007,199,254,740,991 cents for safe JSON number transport to JavaScript; the database
+remains `bigint`. See [Menu management](menu-management.md).
 
 ### Permanent restaurant deletion
 
@@ -180,8 +203,8 @@ Store authentication, password hashing, first-password-change enforcement and
 credential invalidation are implemented in `Accounts/`, using the existing schema.
 Password changes atomically update the hash, clear the first-change flag and
 increment the credential version with a conditional database update.
-Join-code encryption, allergen code/review validation, and ordering/checkout
-transactions remain subsequent application work. This layer stores
+Menu allergen code/review validation is implemented in `Menus/`. Join-code
+encryption and ordering/checkout transactions remain subsequent application work. This layer stores
 hashes/ciphertext supplied by those services.
 
 ## Migrations and validation

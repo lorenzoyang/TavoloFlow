@@ -1,0 +1,91 @@
+import { messages } from "./api-messages";
+
+type ErrorBody = {
+  code?: string;
+  message?: string;
+  requestId?: string;
+  errors?: Record<string, string[]>;
+};
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: string;
+  readonly retryAfter: number | null;
+  readonly errors: Record<string, string[]>;
+  readonly requestId?: string;
+
+  constructor(status: number, body: ErrorBody, retryAfter: string | null) {
+    super(body.message ?? messages.genericError);
+    this.status = status;
+    this.errors = body.errors ?? {};
+    this.requestId = body.requestId;
+    this.code = body.code ?? "UNKNOWN_ERROR";
+    this.retryAfter = retryAfter ? Number(retryAfter) : null;
+  }
+}
+
+type AuthFailure = "signed-out" | "password-required";
+let onAuthFailure: (reason: AuthFailure) => Promise<void> = async () => {};
+
+export function setAuthFailureHandler(handler: typeof onAuthFailure) {
+  onAuthFailure = handler;
+}
+
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, {
+    ...init,
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const body: ErrorBody = await response.json().catch(() => ({}));
+    const error = new ApiError(
+      response.status,
+      body,
+      response.headers.get("Retry-After"),
+    );
+    // /me maps 401 to an anonymous identity; a wrong password on /login must not invalidate another account.
+    if (
+      (response.status === 401 &&
+        path !== "/api/auth/login" &&
+        path !== "/api/auth/me") ||
+      error.code === "CREDENTIALS_CHANGED"
+    ) {
+      await onAuthFailure("signed-out");
+    } else if (error.code === "PASSWORD_CHANGE_REQUIRED") {
+      await onAuthFailure("password-required");
+    }
+    throw error;
+  }
+  return response.status === 204
+    ? (undefined as T)
+    : (response.json() as Promise<T>);
+}
+
+export async function refreshCsrf(): Promise<string> {
+  const response = await request<{ token: string }>("/api/auth/csrf");
+  return response.token;
+}
+
+export async function write<T>(
+  path: string,
+  method: "POST" | "PUT" | "PATCH" | "DELETE",
+  body?: unknown,
+): Promise<T> {
+  // Fetch for every mutation so other tabs changing identity cannot leave a cached anonymous token behind.
+  const token = await refreshCsrf();
+  return request<T>(path, {
+    method,
+    headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token },
+    body: JSON.stringify(body),
+  });
+}
+
+export function errorMessage(
+  error: unknown,
+  unknownResult: string = messages.connectionError,
+): string {
+  if (!(error instanceof ApiError) || error.status >= 500) return unknownResult;
+  if (error.code === "CSRF_VALIDATION_FAILED") return messages.csrfExpired;
+  return error.message;
+}

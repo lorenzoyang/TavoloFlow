@@ -14,6 +14,7 @@ import { Route as StaffRouteImport } from './routes/staff'
 import { Route as StaffIndexRouteImport } from './routes/staff.index'
 import { Route as StaffChangePasswordRouteImport } from './routes/staff.change-password'
 import { Route as StaffLoginRouteImport } from './routes/staff.login'
+import { Route as StaffMenuRouteImport } from './routes/staff.menu'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -40,18 +41,25 @@ const StaffLoginRoute = StaffLoginRouteImport.update({
   path: '/login',
   getParentRoute: () => StaffRoute,
 } as any)
+const StaffMenuRoute = StaffMenuRouteImport.update({
+  id: '/menu',
+  path: '/menu',
+  getParentRoute: () => StaffRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/staff': typeof StaffRouteWithChildren
   '/staff/change-password': typeof StaffChangePasswordRoute
   '/staff/login': typeof StaffLoginRoute
+  '/staff/menu': typeof StaffMenuRoute
   '/staff/': typeof StaffIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/staff/change-password': typeof StaffChangePasswordRoute
   '/staff/login': typeof StaffLoginRoute
+  '/staff/menu': typeof StaffMenuRoute
   '/staff': typeof StaffIndexRoute
 }
 export interface FileRoutesById {
@@ -60,20 +68,27 @@ export interface FileRoutesById {
   '/staff': typeof StaffRouteWithChildren
   '/staff/change-password': typeof StaffChangePasswordRoute
   '/staff/login': typeof StaffLoginRoute
+  '/staff/menu': typeof StaffMenuRoute
   '/staff/': typeof StaffIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/staff' | '/staff/change-password' | '/staff/login' | '/staff/'
+    | '/'
+    | '/staff'
+    | '/staff/change-password'
+    | '/staff/login'
+    | '/staff/menu'
+    | '/staff/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/staff/change-password' | '/staff/login' | '/staff'
+  to: '/' | '/staff/change-password' | '/staff/login' | '/staff/menu' | '/staff'
   id:
     | '__root__'
     | '/'
     | '/staff'
     | '/staff/change-password'
     | '/staff/login'
+    | '/staff/menu'
     | '/staff/'
   fileRoutesById: FileRoutesById
 }
@@ -119,18 +134,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StaffLoginRouteImport
       parentRoute: typeof StaffRoute
     }
+    '/staff/menu': {
+      id: '/staff/menu'
+      path: '/menu'
+      fullPath: '/staff/menu'
+      preLoaderRoute: typeof StaffMenuRouteImport
+      parentRoute: typeof StaffRoute
+    }
   }
 }
 
 interface StaffRouteChildren {
   StaffChangePasswordRoute: typeof StaffChangePasswordRoute
   StaffLoginRoute: typeof StaffLoginRoute
+  StaffMenuRoute: typeof StaffMenuRoute
   StaffIndexRoute: typeof StaffIndexRoute
 }
 
 const StaffRouteChildren: StaffRouteChildren = {
   StaffChangePasswordRoute: StaffChangePasswordRoute,
   StaffLoginRoute: StaffLoginRoute,
+  StaffMenuRoute: StaffMenuRoute,
   StaffIndexRoute: StaffIndexRoute,
 }
 

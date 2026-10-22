@@ -1,7 +1,7 @@
 # TavoloFlow — MVP 产品需求文档（精简版 V1）
 
 > **文档定位**：第一版可实际开发、测试并在单店试运营的产品与前后端协作约定。  
-> **日期**：2026-10-19  
+> **日期**：2026-10-21<br>
 > **依据**：原《TavoloFlow — 餐厅二维码点单系统项目需求文档》、`TavoloFlow_ER_Simplified_V1.dbml`，以及本轮对数据库简化、断网、账单、Cookie 与并发控制的讨论。  
 > **优先级**：本文件描述精简版 MVP 的目标。与旧 PRD 冲突时，以本文件和最终 DBML 为准；最终 DBML 定义数据字段，本文定义行为与前后端契约。具体 API 路径是**建议实现接口**，代码实施时可以做等价调整，但不能改变行为规则。
 
@@ -168,7 +168,7 @@ flowchart LR
 **菜单展示**
 
 - 菜单为“分类 → 菜品”，按 ID 稳定排序；zh/it/en 三种语言至少填写一种名称，缺少当前语言时逐项回退到默认语言或已有名称。
-- `restaurants.default_language` 在当前 DBML 中为 **NOT NULL**；空菜单时也使用预设默认语言。店铺可见语言根据公开菜单实际提供的名称推导；菜单移除造成默认语言失效时，后端应调整到尚可用语言（空菜单则保留预设语言）。
+- `restaurants.default_language` 在当前 DBML 中为 **NOT NULL**；空菜单时也使用预设默认语言。店铺可见语言根据公开菜单实际提供的名称推导；菜单移除造成默认语言失效时，后端应调整到尚可用语言（完全空菜单保留当前默认语言；初始值来自建店预设）。
 - `item_code` 可空；价格以欧分保存；售罄仍可展示但不能加入可提交订单。
 - OWNER 可以编辑分类/菜品，**后写入覆盖先写入**；不校验菜单 `version`。STAFF 只允许切换 `is_available`，后端必须执行**字段级更新**，不能用旧 DTO 覆盖菜名、价格、过敏原。
 
@@ -177,7 +177,9 @@ flowchart LR
 - `allergen_codes=[]` 且 `allergen_reviewed=false` = **未完成审核**；不能显示“无过敏原”。
 - `allergen_codes=[]` 且 `allergen_reviewed=true` = **已审核，没有识别出需声明的过敏原**；不代表不存在交叉接触风险。
 - 审核后有过敏原则 `allergen_reviewed=true` 且数组列出标准代码（限定使用约定的 EU 14 类代码）。
-- 添加或变更过敏原时，编辑 UI 必须让 OWNER **重新明确确认已审核**；后端校验输入代码和审核确认。V1 **不提供独立菜单草稿/发布**，未确认审核的菜品不得通过可售的保存/更新流程；失败时保留旧记录，不做半成品更新。
+- 添加或变更过敏原时，编辑 UI 必须让 OWNER **重新明确确认已审核**；后端校验输入代码和审核确认。V1 **不提供独立菜单草稿/发布**，新建及编辑菜品均须确认已审核，包括售罄菜品；售罄不作为未审核草稿。既有未审核数据可查看或设为售罄，恢复供应前须由 OWNER 编辑并完成审核；失败时保留旧记录，不做半成品更新。
+
+**当前实现状态**：店铺菜单管理已实现分类/菜品增删改、三语内容、整数欧分、过敏原审核、供应状态及默认语言设置/自动调整；OWNER 与 STAFF 共用 `/staff/menu`，STAFF 仅可读取和切换供应状态。没有新增表或迁移。公开顾客菜单与购物车尚未实现，运行、接口和验收见 [菜单管理模块说明](menu-management.md)。
 
 **本地购物车**
 
@@ -293,7 +295,7 @@ flowchart TD
 | `/staff/floor` | 桌位列表、开桌/开桌未知结果核对、查看入桌码、有限零账单清桌 | 开桌失败不得自动 POST 重试 |
 | `/staff/kitchen` | `NEW` 订单、标记 READY、合法取消、同步状态 | 10 秒轮询，增量提醒与分页 |
 | `/staff/orders` | OWNER 账单、确认收款/关桌 | 读最新账单，POST 带版本和金额，409 再确认 |
-| `/staff/menu` | OWNER 菜单分类/菜品/过敏原；STAFF 售罄可另在厨房页操作 | 最后写入覆盖，字段级 PATCH |
+| `/staff/menu` | **已实现**：OWNER 菜单分类/菜品/过敏原/默认语言；STAFF 查看及切换售罄 | 最后写入覆盖，字段级 PATCH |
 | `/staff/tables` | OWNER 桌位、二维码下载、删除后重建 | 不展示码重置功能 |
 | `/staff/history` | OWNER 已关闭账单只读查询 | 按本店、时间/桌号分页 |
 | `/staff/settings` | 店铺基础设置、OWNER 重置 STAFF 密码 | 无逐设备撤销会话页 |
@@ -346,7 +348,9 @@ flowchart TD
 | PATCH | `/api/staff/menu-items/{id}/availability` | `isAvailable` **明确目标值**，仅改这个字段 |
 | PATCH | `/api/staff/accepting-orders` | `enabled` 明确目标值 |
 | POST | `/api/owner/sessions/{id}/checkout` | `expectedBillVersion + confirmedTotalCents`，核账并原子 `PAID` 清桌 |
-| CRUD | `/api/owner/menu/categories`、`/api/owner/menu/items` | 三语、审核、价格、删除；无菜单版本字段 |
+| GET | `/api/staff/menu` | **已实现**：本店分类、菜品、默认/可用语言及过敏原选项 |
+| POST / PUT / DELETE | `/api/owner/menu/categories`、`/api/owner/menu/items` | **已实现**：三语、审核、价格、删除；PUT/DELETE 使用 `/{id}`，无菜单版本字段；菜品内容 DTO 不含供应状态 |
+| PATCH | `/api/owner/menu/default-language` | **已实现**：OWNER 从可用语言选择 `defaultLanguage` |
 | CRUD | `/api/owner/tables` | 创建、编辑、删除、二维码下载；**无 rotate** |
 | GET | `/api/owner/history` | 已关闭账单只读分页 |
 | GET/PATCH | `/api/owner/settings` | 店铺基础设置 |
@@ -520,7 +524,7 @@ DBML 注释本身不会生成所有 PostgreSQL 部分索引；使用 **EF Core M
 | AC-12 | 在顾客确认后变更价格/售罄 | 不能按过期信息静默保存订单，前端要求重新确认 |
 | AC-13 | 两个 OWNER 设备先后保存菜单 | 后保存可覆盖先保存；无菜单版本字段要求 |
 | AC-14 | STAFF 切换售罄同时 OWNER 改价 | 供应状态 PATCH 不覆盖名称/价格等无关字段 |
-| AC-15 | 保存 `allergen_reviewed=false` 且 codes 为空 | 不能对顾客显示“无过敏原”；需要审核确认才能保存可售编辑 |
+| AC-15 | 保存 `allergen_reviewed=false` 且 codes 为空 | 不能对顾客显示“无过敏原”；新建/编辑均需审核确认，包括售罄菜品 |
 | AC-16 | 两厨房设备同时 `NEW → READY` | 只有一次实际状态转换，重复操作不会产生新状态 |
 | AC-17 | 员工取消与 READY 操作竞争 | 只有满足当时状态/角色的操作成功；终态不会被无条件覆盖 |
 | AC-18 | 创建订单成功/取消订单成功 | 对应 Session 版本每次 +1；READY、重复请求不增加 |

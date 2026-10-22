@@ -16,7 +16,7 @@ type AuthBoundaryProps =
 // Observe the identity cache so login, logout and rejected credentials update every page.
 export function AuthBoundary(props: AuthBoundaryProps) {
   const query = useQuery(accountQuery);
-  if (query.isError || (query.isPending && query.fetchStatus === "paused")) {
+  if ((query.isError && !query.data) || (query.isPending && query.fetchStatus === "paused")) {
     return (
       <CardContent className="space-y-4">
         <ErrorNotice message={m.connectionError} />
@@ -45,5 +45,13 @@ export function AuthBoundary(props: AuthBoundaryProps) {
     return account ? <Navigate to="/staff" replace /> : props.children();
   }
   if (!account) return <Navigate to="/staff/login" replace />;
-  return props.children(account);
+  // A failed background identity refresh must not unmount an in-progress menu form.
+  // A real 401 still produces null above, clears private queries and redirects.
+  return <>
+    {query.isError && <div className="mb-5 space-y-3">
+      <ErrorNotice message={m.connectionError} />
+      <Button className="h-11" disabled={query.isFetching} onClick={() => void query.refetch()}>{m.retry}</Button>
+    </div>}
+    {props.children(account)}
+  </>;
 }
