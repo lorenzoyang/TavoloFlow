@@ -1,4 +1,5 @@
 import { messages } from "./api-messages";
+import type { BillSummary } from "@/features/billing/state";
 
 type ErrorBody = {
   code?: string;
@@ -6,6 +7,7 @@ type ErrorBody = {
   requestId?: string;
   errors?: Record<string, string[]>;
   changes?: { menuItemId: string; reason: string; currentUnitPriceCents: number | null; isAvailable: boolean | null }[];
+  currentBill?: BillSummary;
 };
 
 export class ApiError extends Error {
@@ -15,6 +17,7 @@ export class ApiError extends Error {
   readonly errors: Record<string, string[]>;
   readonly requestId?: string;
   readonly changes: NonNullable<ErrorBody["changes"]>;
+  readonly currentBill?: BillSummary;
 
   constructor(status: number, body: ErrorBody, retryAfter: string | null) {
     super(body.message ?? messages.genericError);
@@ -22,6 +25,7 @@ export class ApiError extends Error {
     this.errors = body.errors ?? {};
     this.requestId = body.requestId;
     this.changes = body.changes ?? [];
+    this.currentBill = body.currentBill;
     this.code = body.code ?? "UNKNOWN_ERROR";
     this.retryAfter = retryAfter ? Number(retryAfter) : null;
   }

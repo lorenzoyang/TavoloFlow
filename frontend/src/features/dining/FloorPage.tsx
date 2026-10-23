@@ -10,21 +10,22 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
+import { ActiveBillPanel } from "@/features/billing/BillViews";
 import { ApiError, errorMessage, request, write } from "@/lib/api";
 import { floorQuery, sessionQuery, sessionKey, type Floor, type FloorTable, type DiningSession, type CodeResult, type OpenResult } from "./api";
 import { parsePendingAction, pendingDiningKey, recoveredOpen, type PendingDiningAction } from "./state";
 
-function FloorContent({ account }: { account: CurrentAccount }) {
+type FloorProps = { sessionId?: string; select: (id: string) => void };
+function FloorContent({ account, sessionId = "", select: setSelected }: FloorProps & { account: CurrentAccount }) {
   const client = useQueryClient();
   const floor = useQuery(floorQuery(account));
-  const [selected, setSelected] = useState("");
+  const selected = sessionId;
   const session = useQuery(sessionQuery(account, selected));
   const key = pendingDiningKey(account.restaurantId, account.userId);
   const [pending, setPending] = useState<PendingDiningAction | null>(() => {
     try { return parsePendingAction(sessionStorage.getItem(key)); } catch { return null; }
   });
-  const [confirmation, setConfirmation] = useState<{ kind: "open"; table: FloorTable } | { kind: "close"; session: DiningSession } | null>(null);
-  const [left, setLeft] = useState(false);
+  const [confirmation, setConfirmation] = useState<{ kind: "open"; table: FloorTable } | null>(null);
   const [code, setCode] = useState<CodeResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -86,7 +87,7 @@ function FloorContent({ account }: { account: CurrentAccount }) {
       remember(null);
     } catch (e) { if (mounted.current) setError(errorMessage(e, "暂时无法核对，请恢复连接后重新读取。")); }
     finally { operation.current = null; if (mounted.current) setBusy(false); }
-  }, [pending, client, account, remember]);
+  }, [pending, client, account, remember, setSelected]);
 
   useEffect(() => {
     // Schedule restoration after mount so StrictMode's setup/cleanup probe cannot abort the only recovery.
@@ -98,32 +99,23 @@ function FloorContent({ account }: { account: CurrentAccount }) {
 
   async function submit() {
     if (!confirmation || operation.current || pending) return;
-    const action: PendingDiningAction = confirmation.kind === "open" ? { kind: "open", tableId: confirmation.table.id }
-      : { kind: "close", tableId: confirmation.session.tableId!, sessionId: confirmation.session.id };
+    const action: PendingDiningAction = { kind: "open", tableId: confirmation.table.id };
     const controller = new AbortController(); operation.current = controller;
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]);
     remember(action); setBusy(true); setError(""); setNotice(""); setCode(null);
     try {
-      if (confirmation.kind === "open") {
-        const result = await write<OpenResult>(`/api/staff/tables/${action.tableId}/open`, "POST", {}, signal);
-        if (!mounted.current) return;
-        setSelected(result.session.id); client.setQueryData(sessionKey(account, result.session.id), result.session);
-        if (document.visibilityState === "visible" && navigator.onLine) setCode({ sessionId: result.session.id, joinCode: result.joinCode });
-        setNotice("开桌成功，请将本轮入桌码告知顾客。");
-      } else {
-        const result = await write<DiningSession>(`/api/staff/sessions/${action.sessionId}/close-empty`, "POST", {
-          expectedBillVersion: confirmation.session.billVersion, confirmedTotalCents: 0, guestsLeftConfirmed: left,
-        }, signal);
-        if (!mounted.current) return;
-        client.setQueryData(sessionKey(account, result.id), result); setNotice("空桌已关闭，本轮顾客授权已失效。");
-      }
+      const result = await write<OpenResult>(`/api/staff/tables/${action.tableId}/open`, "POST", {}, signal);
+      if (!mounted.current) return;
+      setSelected(result.session.id); client.setQueryData(sessionKey(account, result.session.id), result.session);
+      if (document.visibilityState === "visible" && navigator.onLine) setCode({ sessionId: result.session.id, joinCode: result.joinCode });
+      setNotice("开桌成功，请将本轮入桌码告知顾客。");
       remember(null); void refresh();
     } catch (e) {
       if (!mounted.current) return;
       if (e instanceof ApiError && e.status < 500) remember(null);
-      setError(errorMessage(e, action.kind === "open" ? "开桌结果待确认。请重新读取状态；系统不会自动重发开桌。" : "关闭结果待确认。请核对原用餐状态。"));
+      setError(errorMessage(e, "开桌结果待确认。请重新读取状态；系统不会自动重发开桌。"));
       if (e instanceof ApiError && e.status === 409) void refresh();
-    } finally { operation.current = null; if (mounted.current) { setBusy(false); setConfirmation(null); setLeft(false); } }
+    } finally { operation.current = null; if (mounted.current) { setBusy(false); setConfirmation(null); } }
   }
 
   async function setAccepting() {
@@ -155,20 +147,6 @@ function FloorContent({ account }: { account: CurrentAccount }) {
     finally { operation.current = null; if (mounted.current) setBusy(false); }
   }
 
-  async function prepareClose() {
-    if (operation.current) return;
-    setBusy(true); setError(""); setCode(null);
-    const controller = new AbortController(); operation.current = controller;
-    try {
-      const data = await request<DiningSession>(`/api/staff/sessions/${selected}`, { signal: controller.signal });
-      if (!mounted.current) return;
-      client.setQueryData(sessionKey(account, selected), data);
-      if (data.status === "ACTIVE" && data.orderCount === 0) { setLeft(false); setConfirmation({ kind: "close", session: data }); }
-      else setError("当前状态不允许关闭空桌，请重新核对。");
-    } catch (e) { if (mounted.current) setError(errorMessage(e)); }
-    finally { operation.current = null; if (mounted.current) setBusy(false); }
-  }
-
   return <div className="space-y-6">
     <header className="flex flex-wrap items-start justify-between gap-4"><div>
       <p className="mb-1 text-sm text-muted-foreground">{account.restaurantName}</p><h1 className="text-2xl font-semibold">开桌工作台</h1>
@@ -181,26 +159,26 @@ function FloorContent({ account }: { account: CurrentAccount }) {
       <Button className="h-11" disabled={busy} onClick={() => void recover()}>核对操作结果</Button></AlertDescription></Alert>}
     <div className="flex flex-wrap gap-3"><Button variant="outline" className="h-11" disabled={busy || floor.isFetching} onClick={() => void refresh()}><RefreshCw />重新读取状态</Button>
       <Link to="/staff/tables" className={buttonVariants({ variant: "outline", className: "h-11" })}>桌位管理</Link>
-      <Link to="/staff/kitchen" className={buttonVariants({ variant: "outline", className: "h-11" })}>厨房工作台</Link></div>
+      <Link to="/staff/kitchen" className={buttonVariants({ variant: "outline", className: "h-11" })}>厨房工作台</Link>
+      {account.role === "OWNER" && <Link to="/staff/orders" search={{ sessionId: selected || undefined }} className={buttonVariants({ variant: "outline", className: "h-11" })}>结账工作台</Link>}</div>
     {floor.data && <Card><CardContent className="flex flex-wrap items-center justify-between gap-4 pt-6"><div>
       <h2 className="font-semibold">扫码接单：{floor.data.orderingEnabled ? "已开启" : "已暂停"}</h2>
       <p className="mt-1 text-sm text-muted-foreground">暂停不结束用餐，已提交的订单仍可核对。</p></div>
       <Button className="min-h-11" variant={floor.data.orderingEnabled ? "outline" : "default"} disabled={busy || !!pending || !!confirmation || floor.isError || floor.fetchStatus === "paused"}
         onClick={() => void setAccepting()}>{floor.data.orderingEnabled ? "暂停接单" : "开始接单"}</Button></CardContent></Card>}
-    {confirmation && <Card><CardContent className="space-y-4 pt-6"><h2 className="text-lg font-semibold">{confirmation.kind === "open" ? "确认开桌" : "确认关闭空桌"} · {confirmation.kind === "open" ? confirmation.table.tableLabel : confirmation.session.tableLabel}</h2>
-      {confirmation.kind === "close" && <><p>本轮从未产生订单，应收 € 0.00。</p><label className="flex min-h-11 items-center gap-3"><input type="checkbox" checked={left} disabled={busy} onChange={e => setLeft(e.target.checked)} className="size-5 accent-primary" />已核对桌号，确认顾客已离桌</label></>}
-      <div className="flex gap-3"><Button className="h-11" disabled={busy || !!pending || (confirmation.kind === "close" && !left)} onClick={() => void submit()}>确认{confirmation.kind === "open" ? "开桌" : "关闭空桌"}</Button>
+    {confirmation && <Card><CardContent className="space-y-4 pt-6"><h2 className="text-lg font-semibold">确认开桌 · {confirmation.table.tableLabel}</h2>
+      <div className="flex gap-3"><Button className="h-11" disabled={busy || !!pending} onClick={() => void submit()}>确认开桌</Button>
         <Button variant="outline" className="h-11" disabled={busy} onClick={() => setConfirmation(null)}>取消</Button></div></CardContent></Card>}
     {selected && session.data && <Card><CardContent className="space-y-4 pt-6">
       <h2 className="text-xl font-semibold">本轮用餐 · {session.data.tableLabel}</h2>
       <p className="text-sm text-muted-foreground">开桌时间：{date(session.data.openedAt)}</p>
       <Badge variant="secondary">{session.data.status === "ACTIVE" ? "用餐中" : "本轮已结束"}</Badge>
       {session.data.status === "ACTIVE" && <><p>已提交订单：{session.data.orderCount} 笔</p><div className="flex flex-wrap gap-3">
-        <Button className="h-11" variant="outline" disabled={busy || !!pending} onClick={() => void viewCode()}>查看入桌码</Button>
-        <Button className="h-11" variant="outline" disabled={busy || !!pending || session.data.orderCount > 0} onClick={() => void prepareClose()}>关闭空桌</Button></div></>}
+        <Button className="h-11" variant="outline" disabled={busy || !!pending} onClick={() => void viewCode()}>查看入桌码</Button></div></>}
       {code?.sessionId === selected && session.data.status === "ACTIVE" && <div className="space-y-2"><label htmlFor="staff-join-code" className="text-sm font-medium">本轮入桌码 · 仅告知本桌顾客</label>
         <Input id="staff-join-code" readOnly value={code.joinCode} className="h-14 max-w-xs text-center text-2xl tracking-widest" onFocus={e => e.target.select()} /></div>}
     </CardContent></Card>}
+    {selected && <ActiveBillPanel key={`${account.restaurantId}:${account.userId}:${selected}`} account={account} sessionId={selected} />}
     {floor.isPending && <p role="status">正在读取桌位…</p>}
     {floor.data?.tables.length === 0 && <p>还没有桌位，请先到桌位管理添加。</p>}
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{floor.data?.tables.map(table => <Card key={table.id}><CardContent className="space-y-4 pt-6">
@@ -214,6 +192,6 @@ function FloorContent({ account }: { account: CurrentAccount }) {
   </div>;
 }
 
-export function FloorPage() {
-  return <AuthBoundary mode="account">{account => <FloorContent key={`${account.restaurantId}:${account.userId}`} account={account} />}</AuthBoundary>;
+export function FloorPage(props: FloorProps) {
+  return <AuthBoundary mode="account">{account => <FloorContent key={`${account.restaurantId}:${account.userId}`} account={account} {...props} />}</AuthBoundary>;
 }

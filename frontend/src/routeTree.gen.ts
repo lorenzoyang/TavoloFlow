@@ -15,9 +15,11 @@ import { Route as QTokenRouteImport } from './routes/q.$token'
 import { Route as StaffIndexRouteImport } from './routes/staff.index'
 import { Route as StaffChangePasswordRouteImport } from './routes/staff.change-password'
 import { Route as StaffFloorRouteImport } from './routes/staff.floor'
+import { Route as StaffHistoryRouteImport } from './routes/staff.history'
 import { Route as StaffKitchenRouteImport } from './routes/staff.kitchen'
 import { Route as StaffLoginRouteImport } from './routes/staff.login'
 import { Route as StaffMenuRouteImport } from './routes/staff.menu'
+import { Route as StaffOrdersRouteImport } from './routes/staff.orders'
 import { Route as StaffTablesRouteImport } from './routes/staff.tables'
 
 const IndexRoute = IndexRouteImport.update({
@@ -50,6 +52,11 @@ const StaffFloorRoute = StaffFloorRouteImport.update({
   path: '/floor',
   getParentRoute: () => StaffRoute,
 } as any)
+const StaffHistoryRoute = StaffHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => StaffRoute,
+} as any)
 const StaffKitchenRoute = StaffKitchenRouteImport.update({
   id: '/kitchen',
   path: '/kitchen',
@@ -65,6 +72,11 @@ const StaffMenuRoute = StaffMenuRouteImport.update({
   path: '/menu',
   getParentRoute: () => StaffRoute,
 } as any)
+const StaffOrdersRoute = StaffOrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => StaffRoute,
+} as any)
 const StaffTablesRoute = StaffTablesRouteImport.update({
   id: '/tables',
   path: '/tables',
@@ -77,9 +89,11 @@ export interface FileRoutesByFullPath {
   '/q/$token': typeof QTokenRoute
   '/staff/change-password': typeof StaffChangePasswordRoute
   '/staff/floor': typeof StaffFloorRoute
+  '/staff/history': typeof StaffHistoryRoute
   '/staff/kitchen': typeof StaffKitchenRoute
   '/staff/login': typeof StaffLoginRoute
   '/staff/menu': typeof StaffMenuRoute
+  '/staff/orders': typeof StaffOrdersRoute
   '/staff/tables': typeof StaffTablesRoute
   '/staff/': typeof StaffIndexRoute
 }
@@ -88,9 +102,11 @@ export interface FileRoutesByTo {
   '/q/$token': typeof QTokenRoute
   '/staff/change-password': typeof StaffChangePasswordRoute
   '/staff/floor': typeof StaffFloorRoute
+  '/staff/history': typeof StaffHistoryRoute
   '/staff/kitchen': typeof StaffKitchenRoute
   '/staff/login': typeof StaffLoginRoute
   '/staff/menu': typeof StaffMenuRoute
+  '/staff/orders': typeof StaffOrdersRoute
   '/staff/tables': typeof StaffTablesRoute
   '/staff': typeof StaffIndexRoute
 }
@@ -101,9 +117,11 @@ export interface FileRoutesById {
   '/q/$token': typeof QTokenRoute
   '/staff/change-password': typeof StaffChangePasswordRoute
   '/staff/floor': typeof StaffFloorRoute
+  '/staff/history': typeof StaffHistoryRoute
   '/staff/kitchen': typeof StaffKitchenRoute
   '/staff/login': typeof StaffLoginRoute
   '/staff/menu': typeof StaffMenuRoute
+  '/staff/orders': typeof StaffOrdersRoute
   '/staff/tables': typeof StaffTablesRoute
   '/staff/': typeof StaffIndexRoute
 }
@@ -115,9 +133,11 @@ export interface FileRouteTypes {
     | '/q/$token'
     | '/staff/change-password'
     | '/staff/floor'
+    | '/staff/history'
     | '/staff/kitchen'
     | '/staff/login'
     | '/staff/menu'
+    | '/staff/orders'
     | '/staff/tables'
     | '/staff/'
   fileRoutesByTo: FileRoutesByTo
@@ -126,9 +146,11 @@ export interface FileRouteTypes {
     | '/q/$token'
     | '/staff/change-password'
     | '/staff/floor'
+    | '/staff/history'
     | '/staff/kitchen'
     | '/staff/login'
     | '/staff/menu'
+    | '/staff/orders'
     | '/staff/tables'
     | '/staff'
   id:
@@ -138,9 +160,11 @@ export interface FileRouteTypes {
     | '/q/$token'
     | '/staff/change-password'
     | '/staff/floor'
+    | '/staff/history'
     | '/staff/kitchen'
     | '/staff/login'
     | '/staff/menu'
+    | '/staff/orders'
     | '/staff/tables'
     | '/staff/'
   fileRoutesById: FileRoutesById
@@ -195,6 +219,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StaffFloorRouteImport
       parentRoute: typeof StaffRoute
     }
+    '/staff/history': {
+      id: '/staff/history'
+      path: '/history'
+      fullPath: '/staff/history'
+      preLoaderRoute: typeof StaffHistoryRouteImport
+      parentRoute: typeof StaffRoute
+    }
     '/staff/kitchen': {
       id: '/staff/kitchen'
       path: '/kitchen'
@@ -216,6 +247,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StaffMenuRouteImport
       parentRoute: typeof StaffRoute
     }
+    '/staff/orders': {
+      id: '/staff/orders'
+      path: '/orders'
+      fullPath: '/staff/orders'
+      preLoaderRoute: typeof StaffOrdersRouteImport
+      parentRoute: typeof StaffRoute
+    }
     '/staff/tables': {
       id: '/staff/tables'
       path: '/tables'
@@ -229,9 +267,11 @@ declare module '@tanstack/react-router' {
 interface StaffRouteChildren {
   StaffChangePasswordRoute: typeof StaffChangePasswordRoute
   StaffFloorRoute: typeof StaffFloorRoute
+  StaffHistoryRoute: typeof StaffHistoryRoute
   StaffKitchenRoute: typeof StaffKitchenRoute
   StaffLoginRoute: typeof StaffLoginRoute
   StaffMenuRoute: typeof StaffMenuRoute
+  StaffOrdersRoute: typeof StaffOrdersRoute
   StaffTablesRoute: typeof StaffTablesRoute
   StaffIndexRoute: typeof StaffIndexRoute
 }
@@ -239,9 +279,11 @@ interface StaffRouteChildren {
 const StaffRouteChildren: StaffRouteChildren = {
   StaffChangePasswordRoute: StaffChangePasswordRoute,
   StaffFloorRoute: StaffFloorRoute,
+  StaffHistoryRoute: StaffHistoryRoute,
   StaffKitchenRoute: StaffKitchenRoute,
   StaffLoginRoute: StaffLoginRoute,
   StaffMenuRoute: StaffMenuRoute,
+  StaffOrdersRoute: StaffOrdersRoute,
   StaffTablesRoute: StaffTablesRoute,
   StaffIndexRoute: StaffIndexRoute,
 }

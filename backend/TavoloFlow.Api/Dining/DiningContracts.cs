@@ -6,7 +6,7 @@ using TavoloFlow.Api.Accounts;
 
 namespace TavoloFlow.Api.Dining;
 
-public sealed record ActiveSessionResponse(Guid Id, DateTime OpenedAt);
+public sealed record ActiveSessionResponse(Guid Id, DateTime OpenedAt, int OrderCount, int NewOrderCount, long TotalAmountCents);
 public sealed record FloorTableResponse(Guid Id, string TableLabel, bool IsEnabled, ActiveSessionResponse? Session);
 public sealed record FloorResponse(string ServiceStatus, bool OrderingEnabled, FloorTableResponse[] Tables);
 public sealed record SessionResponse(Guid Id, Guid? TableId, string TableLabel, string Status, DateTime OpenedAt,

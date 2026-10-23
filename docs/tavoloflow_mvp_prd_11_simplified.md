@@ -276,7 +276,9 @@ flowchart TD
 - `PAID`：存在有效应收且由 OWNER 确认线下收款才可关闭；STAFF 不能调用。
 - 当前 9 表 DBML 只有 `close_reason` 枚举、`closed_at` 和 `closed_total_cents` 等关闭结果字段，不保存开桌/关桌账号归属，**没有自由文本清桌备注列**；所以 MVP 不承诺持久保存 EMPTY/VOIDED 的文字原因。如果以后强制要求文字理由，应先增设相应字段或审计表。
 
-**当前实现状态（第四阶段）**：已实现 EMPTY 关闭，须读取最新 Session 摘要、确认版本/零金额/已离桌，并在 Session 行锁内验证从未产生任何订单。成功清空码密文，保留历史且不递增版本；同一确认重复请求已 EMPTY 关闭的相同 Session 返回原结果。含取消订单的用餐也不能走 EMPTY；PAID、VOIDED、完整账单和历史页面仍在后续阶段实现。
+**当前实现状态（第四阶段）**：已实现 EMPTY 关闭，须读取最新 Session 摘要、确认版本/零金额/已离桌，并在 Session 行锁内验证从未产生任何订单。成功清空码密文，保留历史且不递增版本；同一确认重复请求已 EMPTY 关闭的相同 Session 返回原结果。含取消订单的用餐也不能走 EMPTY；PAID、VOIDED、完整账单和历史页面已由第七阶段接续实现，见下文。
+
+**当前结账实现（第七阶段）**：已提供老板结账工作台 `/staff/orders`、历史页 `/staff/history`，员工在桌位详情查看账单并关闭 EMPTY/VOIDED。账单明细分页，摘要始终含整桌金额；后台刷新不替换人的确认值。PAID/VOIDED 在 Session 行锁内检查最新版本、金额和 NEW 数，关闭不递增版本；重复相同关闭返回原结果，未知结果只 GET 原 Session。历史默认餐厅当地当天，按关桌日期、桌号快照、关闭原因筛选；支持夏令时，菜单/桌位删除后保留原快照。实际响应为 `{ summary, orders, nextCursor }`；下方旧账单 JSON 示例仅示意核心字段。完整契约和学习实验见 [第七阶段文档](billing-history.md)。
 
 ### 3.8 桌位与二维码
 
@@ -358,21 +360,22 @@ flowchart TD
 | POST | `/api/staff/tables/{tableId}/open` | **已实现**：明确开桌；不要求 openRequestId / tableVersion |
 | GET | `/api/staff/sessions/{id}` | **已实现**：用餐状态、时间、桌号快照、版本、订单数量与金额，用于核对原操作 |
 | GET | `/api/staff/sessions/{id}/join-code` | **已实现**：员工主动查看活动用餐的码 |
-| GET | `/api/staff/sessions/{id}/bill` | 返回金额、明细、`billVersion`、`newOrderCount` |
+| GET | `/api/staff/sessions/{id}/bill` | **已实现**：活动账单摘要和分页订单；默认 50、最大 100，游标绑定账单版本 |
 | POST | `/api/staff/sessions/{id}/close-empty` | **已实现**：`expectedBillVersion + confirmedTotalCents=0 + guestsLeftConfirmed=true`；必须从未产生订单 |
-| POST | `/api/staff/sessions/{id}/close-void` | 同上，另判断存在订单但全部取消 |
+| POST | `/api/staff/sessions/{id}/close-void` | **已实现**：版本/零金额/离桌确认；必须存在订单且全部取消 |
 | GET | `/api/staff/orders` | **已实现**：活动用餐厨房列表，`status`/`cursor`/`limit`，返回筛选总量、待处理数和累计订单数 |
 | GET | `/api/staff/orders/{id}` | **已实现**：当前厨房订单及处理信息，供未知结果 GET 核对 |
 | POST | `/api/staff/orders/{id}/ready` | **已实现**：条件 `NEW → READY`，不递增账单版本 |
 | POST | `/api/staff/orders/{id}/cancel` | **已实现**：`expectedStatus` + 1–500 字符原因；READY 作废仅 OWNER，成功取消递增账单版本 |
 | PATCH | `/api/staff/menu-items/{id}/availability` | `isAvailable` **明确目标值**，仅改这个字段 |
 | PATCH | `/api/staff/accepting-orders` | **已实现**：OWNER/STAFF，`enabled` 明确目标值，只修改接单开关 |
-| POST | `/api/owner/sessions/{id}/checkout` | `expectedBillVersion + confirmedTotalCents`，核账并原子 `PAID` 清桌 |
+| POST | `/api/owner/sessions/{id}/checkout` | **已实现**：`expectedBillVersion + confirmedTotalCents`，Session 锁内核账并原子 PAID 清桌 |
 | GET | `/api/staff/menu` | **已实现**：本店分类、菜品、默认/可用语言及过敏原选项 |
 | POST / PUT / DELETE | `/api/owner/menu/categories`、`/api/owner/menu/items` | **已实现**：三语、审核、价格、删除；PUT/DELETE 使用 `/{id}`，无菜单版本字段；菜品内容 DTO 不含供应状态 |
 | PATCH | `/api/owner/menu/default-language` | **已实现**：OWNER 从 zh/it/en 设置稳定偏好，空菜单也允许；返回 `{ defaultLanguage }` |
 | POST/DELETE/PATCH | `/api/owner/tables`、`/{id}`、`/{id}/label`、`/{id}/enabled` | **已实现**：创建、删除、独立改名与启停；二维码由前端本地生成 PNG，**无 rotate** |
-| GET | `/api/owner/history` | 已关闭账单只读分页 |
+| GET | `/api/owner/history` | **已实现**：默认餐厅当地当天，按日期/历史桌号/原因筛选并分页 |
+| GET | `/api/owner/history/{id}` | **已实现**：已关闭账单摘要与分页订单快照，仅 OWNER |
 | GET/PATCH | `/api/owner/settings` | 店铺基础设置 |
 | POST | `/api/owner/staff/reset-password` | 重置 STAFF 密码、统一失效旧票据 |
 | 登录/管理 | `/api/platform/*` | 平台登录、建店、启停、账号初始化/重置 |
@@ -574,9 +577,9 @@ DBML 注释本身不会生成所有 PostgreSQL 部分索引；使用 **EF Core M
 2. **账户与多租户**：平台/店铺登录、角色授权、首次改密、`credential_version`、创建餐厅。
 3. **菜单与桌位**：三语菜单、价格/审核验证、供应状态、固定二维码、删除。
 4. **开桌与顾客授权**：Session、加密码、Cookie、开桌未知结果恢复。
-5. **购物车和下单（已实现）**：最新价确认、`client_request_id`、历史快照、自动 GET 恢复/手动原请求重试、整桌订单和接单开关；无新迁移。含任何订单的用餐不能 EMPTY 关闭，需由后续结账阶段接续。
+5. **购物车和下单（已实现）**：最新价确认、`client_request_id`、历史快照、自动 GET 恢复/手动原请求重试、整桌订单和接单开关；无新迁移。含任何订单的用餐不能 EMPTY 关闭，由第七阶段 PAID/VOIDED 关闭接续。
 6. **厨房与取消（已实现）**：活动订单分页、10 秒轮询、主动声音提醒、READY/取消条件更新、版本递增、冲突确认和未知结果 GET 核对；无新迁移。
-7. **结账与历史**：GET bill、`expectedBillVersion` checkout、EMPTY/VOIDED、关闭后保护、历史只读。
+7. **结账与历史（已实现）**：活动账单、PAID/VOIDED 关闭、EMPTY 共用界面、冻结确认值、只 GET 恢复、关闭后保护和 OWNER 历史筛选/分页；无新迁移。学习步骤见 [第七阶段文档](billing-history.md)。
 8. **联调/试运营准备**：移动端、异常网路、同桌并发、多餐厅隔离、备份恢复和操作说明。
 
 **MVP 完成标准**：单店能执行“建店 → 设置菜单 → 建桌并打印码 → 开桌 → 多人扫码验证/多次下单 → 厨房处理 → 老板按准确账单线下收款清桌 → 查询历史”的完整闭环；关键的网络中断、重复下单、并发取消、结账竞争和权限检查都通过集成测试。

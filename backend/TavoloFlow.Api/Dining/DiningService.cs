@@ -23,7 +23,10 @@ public sealed class DiningService(ApplicationDbContext db, JoinCodes codes, Time
         var tables = await db.RestaurantTables.AsNoTracking().Where(x => x.RestaurantId == restaurantId).OrderBy(x => x.Id)
             .Select(x => new FloorTableResponse(x.Id, x.TableLabel, x.IsEnabled,
                 x.DiningSessions.Where(s => s.Status == DiningSessionStatus.Active)
-                    .Select(s => new ActiveSessionResponse(s.Id, s.OpenedAt)).SingleOrDefault())).ToArrayAsync(ct);
+                    .Select(s => new ActiveSessionResponse(s.Id, s.OpenedAt, s.Orders.Count,
+                        s.Orders.Count(o => o.Status == OrderStatus.New),
+                        s.Orders.Where(o => o.Status != OrderStatus.Cancelled).Sum(o => o.TotalAmountCents)))
+                    .SingleOrDefault())).ToArrayAsync(ct);
         await transaction.CommitAsync(ct);
         return new(restaurant.ServiceStatus.ToString().ToUpperInvariant(), restaurant.OrderingEnabled, tables);
     }
@@ -76,7 +79,7 @@ public sealed class DiningService(ApplicationDbContext db, JoinCodes codes, Time
         if (input.GuestsLeftConfirmed != true || input.ConfirmedTotalCents != 0 || input.ExpectedBillVersion is null or <= 0)
             throw new DiningException(400, "VALIDATION_FAILED", "请核对零账单并确认顾客已离桌。");
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        // Ordering and kitchen transitions take this same session lock; future checkout must too.
+        // Ordering, kitchen transitions and checkout take this same session lock.
         var session = await DiningLocks.SessionAsync(db, restaurantId, id, true, ct);
         if (session.BillVersion != input.ExpectedBillVersion)
             throw new DiningException(409, "BILL_CHANGED", "账单已变化，请重新核对。");
@@ -90,6 +93,7 @@ public sealed class DiningService(ApplicationDbContext db, JoinCodes codes, Time
             if (await db.Orders.AnyAsync(o => o.RestaurantId == restaurantId && o.DiningSessionId == id, ct))
                 throw new DiningException(409, "SESSION_HAS_ORDERS", "本轮曾产生订单，不能按空桌关闭。");
             var now = clock.GetUtcNow().UtcDateTime;
+            if (now < session.OpenedAt) now = session.OpenedAt;
             await db.DiningSessions.Where(s => s.Id == id && s.RestaurantId == restaurantId)
                 .ExecuteUpdateAsync(update => update
                     .SetProperty(s => s.Status, DiningSessionStatus.Closed)

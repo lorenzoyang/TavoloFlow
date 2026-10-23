@@ -185,7 +185,7 @@ permanent operations.
 `CascadeRestaurantDeletion` is a forward migration that replaces foreign-key
 delete actions without deleting or rewriting existing restaurant records.
 
-Future operations must implement these transaction boundaries:
+Application operations enforce these transaction boundaries:
 
 - Opening and deleting a table acquire the same table row lock and check its
   current state inside the transaction. The active-session unique index is the
@@ -208,8 +208,10 @@ credential invalidation are implemented in `Accounts/`, using the existing schem
 Password changes atomically update the hash, clear the first-change flag and
 increment the credential version with a conditional database update.
 Menu allergen code/review validation is implemented in `Menus/`. Join-code
-encryption and ordering/checkout transactions remain subsequent application work. This layer stores
-hashes/ciphertext supplied by those services.
+encryption is implemented in `Dining/`; ordering, kitchen transitions and closure
+transactions are implemented in `Ordering/`, `Kitchen/` and `Billing/`.
+This layer stores hashes/ciphertext supplied by those services. See
+[billing-history.md](billing-history.md) for PAID/VOIDED closure and historical reads.
 
 ## Migrations and validation
 
@@ -259,5 +261,6 @@ defaults, all five remaining composite tenant relationships, critical
 uniqueness/concurrent insert cases, lifecycle checks, snapshot/history
 preservation, catalog deletion conflicts and tenant isolation, session/order
 cascades with loaded and unloaded dependents, complete restaurant deletion,
-and upgrade/preflight checks. Ordering and checkout workflow tests belong with
-those future workflows.
+and upgrade/preflight checks. Application workflow tests are covered separately
+by the ordering, kitchen and billing integration tests, including lock contention,
+atomic rollback and closed-session access rejection.

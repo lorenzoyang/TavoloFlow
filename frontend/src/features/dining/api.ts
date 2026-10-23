@@ -3,7 +3,7 @@ import type { CurrentAccount } from "@/features/accounts/api";
 import { request } from "@/lib/api";
 
 export type FloorTable = { id: string; tableLabel: string; isEnabled: boolean;
-  session: { id: string; openedAt: string } | null };
+  session: { id: string; openedAt: string; orderCount: number; newOrderCount: number; totalAmountCents: number } | null };
 export type Floor = { serviceStatus: "ACTIVE" | "SUSPENDED"; orderingEnabled: boolean; tables: FloorTable[] };
 export type DiningSession = { id: string; tableId: string | null; tableLabel: string; status: "ACTIVE" | "CLOSED";
   openedAt: string; closedAt: string | null; closeReason: string | null; billVersion: number;

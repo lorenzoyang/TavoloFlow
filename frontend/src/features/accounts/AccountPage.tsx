@@ -36,6 +36,10 @@ function AccountDetails({ account, passwordChanged }: { account: CurrentAccount;
         </dl>
         <Link to="/staff/floor" className={buttonVariants({ className: "h-11 w-full" })}>开桌工作台</Link>
         <Link to="/staff/kitchen" className={buttonVariants({ className: "h-11 w-full" })}>厨房工作台</Link>
+        {account.role === "OWNER" && <>
+          <Link to="/staff/orders" className={buttonVariants({ className: "h-11 w-full" })}>结账工作台</Link>
+          <Link to="/staff/history" className={buttonVariants({ variant: "outline", className: "h-11 w-full" })}>历史账单</Link>
+        </>}
         <Link to="/staff/menu" className={buttonVariants({ className: "h-11 w-full" })}>
           <Utensils aria-hidden="true" />{m.menu}
         </Link>
