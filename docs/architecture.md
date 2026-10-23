@@ -206,7 +206,7 @@ flowchart TD
 
 ## 9. 本次重构记录（2026-10）
 
-重构分为 8 个提交，每个提交都通过了全部 216 个后端集成测试和前端构建、lint 与单元测试。业务规则和 URL 没有变化；唯一的语义调整见 9.3。后端代码量基本持平（约 4.0k 行）：删除的重复实现被新增的说明性注释和共享组件抵消，收益在于每条规则只有一处定义。
+重构分为 8 个提交，每个提交都通过了全部 216 个后端集成测试和前端构建、lint 与单元测试；最后用重构后的镜像在隔离的试运营环境中运行 Playwright 端到端用例，2 个用例全部通过。业务规则和 URL 没有变化；唯一的语义调整见 9.3。后端代码量基本持平（约 4.0k 行）：删除的重复实现被新增的说明性注释和共享组件抵消，收益在于每条规则只有一处定义。
 
 ### 9.1 统一错误处理（`backend: unify api error handling`）
 
@@ -236,6 +236,7 @@ throw DiningErrors.SessionClosed();   // 返回 ApiException
 - `DiningLocks` 移为 `Data/RowLocks`。锁模式参数从 `bool forUpdate` 改为 `RowLock.Share/Update`，调用处一眼就能看懂；另外 5 处手写的 `FOR UPDATE` SQL 也改用它。
 - `SessionResponse` 与 `BillSummaryResponse` 几乎相同，有两份投影和两套嵌套三元表达式；EMPTY 关桌也是 PAID/VOIDED 逻辑的第二份拷贝。现在所有会话读取和三种关闭都返回同一个 `BillSummaryResponse`，前端 `useClosure` 不再需要 `"sessionId" in result ? ...` 这样的结构转换。
 - **唯一的语义变化**：对已关闭的会话用旧版本号重试 EMPTY，现在与 PAID/VOIDED 一样返回 `SESSION_CLOSED`，此前返回 `BILL_CHANGED`。
+- **端到端测试发现的遗漏**：Playwright 用例直接调用开桌接口，也是这次契约变化的使用方。它把响应当作 `any`，读取 `opened.session.id`；契约变化后该值成为 `undefined`。其中“跨租户读取账单应返回 404”的断言因为 URL 里的 `undefined` 被路由约束拒绝，**误通过**了。现在用例为开桌响应声明局部类型 `Opened`，编译器会直接拦截同类错误。教训：测试里的 `any` 会让断言在错误的原因下通过。
 - EF Core 小知识：`SessionSummaries.Project` 在最终投影中调用 `ApiEnum.Text`，EF Core 允许这种“客户端求值”，计数与求和仍在一条 SQL 中完成（已用 `ToQueryString()` 验证）。
 
 ### 9.4 启动组合与横切关注点（`backend: reorganize startup, browser security and rate limits`）

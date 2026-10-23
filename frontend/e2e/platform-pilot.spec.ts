@@ -15,6 +15,8 @@ type Created = {
   restaurant: { id: string };
   credentials: { account: Account; temporaryPassword: string }[];
 };
+// Opening a table returns the visit's bill summary, identified by sessionId.
+type Opened = { session: { sessionId: string }; joinCode: string };
 async function write(
   api: APIRequestContext,
   path: string,
@@ -133,7 +135,7 @@ test("desktop: platform creation, three identities, two tenants, ordering, suspe
   });
   const table = await okWrite(page.request, "/api/owner/tables", { tableLabel: "P1" });
   await okWrite(page.request, "/api/staff/accepting-orders", { enabled: true }, "store", "PATCH");
-  const opened = await okWrite(page.request, `/api/staff/tables/${table.id}/open`, {});
+  const opened: Opened = await okWrite(page.request, `/api/staff/tables/${table.id}/open`, {});
   const other = await browser.newContext({
     baseURL: process.env.PILOT_BASE_URL ?? "https://localhost:8443",
     ignoreHTTPSErrors: true,
@@ -147,9 +149,9 @@ test("desktop: platform creation, three identities, two tenants, ordering, suspe
     currentPassword: otherOwner.temporaryPassword,
     newPassword: fixturePassword,
   });
-  expect((await other.request.get(`/api/staff/sessions/${opened.session.id}/bill`)).status()).toBe(
-    404,
-  );
+  expect(
+    (await other.request.get(`/api/staff/sessions/${opened.session.sessionId}/bill`)).status(),
+  ).toBe(404);
   expect((await other.request.get("/api/platform/restaurants")).status()).toBe(401);
   await other.close();
   await page.goto(table.qrPath);
@@ -186,7 +188,7 @@ test("desktop: platform creation, three identities, two tenants, ordering, suspe
   await expect(page).toHaveURL(/platform\/login/);
   expect((await page.request.get("/api/auth/me")).status()).toBe(200);
   expect(
-    (await page.request.get(`/api/public/sessions/${opened.session.id}/orders`)).status(),
+    (await page.request.get(`/api/public/sessions/${opened.session.sessionId}/orders`)).status(),
   ).toBe(200);
   // Staff can finish existing work while the service is suspended.
   const staffContext = await browser.newContext({
@@ -199,7 +201,7 @@ test("desktop: platform creation, three identities, two tenants, ordering, suspe
   await staffPage.getByRole("button", { name: "整单完成", exact: true }).click();
   await expect(staffPage.getByRole("button", { name: "整单完成", exact: true })).toHaveCount(0);
   await staffContext.close();
-  await page.goto(`/staff/orders?sessionId=${opened.session.id}`);
+  await page.goto(`/staff/orders?sessionId=${opened.session.sessionId}`);
   await page.getByRole("button", { name: "核对收款并清桌", exact: true }).click();
   await page.getByRole("checkbox", { name: "已核对桌号和金额，并完成线下收款" }).check();
   await page.getByRole("button", { name: "已线下收款并清桌", exact: true }).click();
@@ -223,14 +225,14 @@ test("desktop: platform creation, three identities, two tenants, ordering, suspe
     "platform",
     "PATCH",
   );
-  const spare = await okWrite(page.request, `/api/staff/tables/${table.id}/open`, {});
+  const spare: Opened = await okWrite(page.request, `/api/staff/tables/${table.id}/open`, {});
   writeFileSync(
     "/tmp/tavoloflow-pilot-fixture.json",
     JSON.stringify({
       restaurantId: a.restaurant.id,
       tableId: table.id,
-      sessionId: spare.session.id,
-      closedSessionId: opened.session.id,
+      sessionId: spare.session.sessionId,
+      closedSessionId: opened.session.sessionId,
       ownerUsername: owner.account.username,
     }),
     { mode: 0o600 },
