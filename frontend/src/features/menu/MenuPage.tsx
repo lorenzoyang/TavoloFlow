@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Plus, RefreshCw, Utensils } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,18 +8,23 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
-import { accountKey, queryClient } from "@/features/accounts/queries";
+import { isSameAccount, refreshAfterWrite } from "@/features/accounts/queries";
 import type { CurrentAccount } from "@/features/accounts/api";
-import { ApiError, errorMessage, write } from "@/lib/api";
+import { ApiError, errorMessage } from "@/lib/api";
+import { formatCents } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
+  deleteMenuEntry,
   menuQuery,
-  priceText,
+  saveCategory,
+  saveItem,
+  setDefaultLanguage,
+  setItemAvailability,
   type Category,
   type Menu,
   type MenuItem,
 } from "./api";
-import { displayName } from "./language";
+import { displayName } from "@/lib/language";
 import { CategoryForm, ItemForm } from "./MenuForms";
 import { languages, messages as m } from "./messages";
 
@@ -32,13 +37,8 @@ type Editor =
       id: string;
       name: string;
     };
-type Command = {
-  path: string;
-  method: "POST" | "PUT" | "PATCH" | "DELETE";
-  body?: unknown;
-};
-
 function MenuContent({ account }: { account: CurrentAccount }) {
+  const client = useQueryClient();
   const options = menuQuery(account);
   const query = useQuery(options);
   const owner = account.role === "OWNER";
@@ -46,33 +46,18 @@ function MenuContent({ account }: { account: CurrentAccount }) {
   const [editor, setEditor] = useState<Editor | null>(null);
   const [notice, setNotice] = useState("");
   const editorRef = useRef<HTMLDivElement>(null);
-  const sameAccount = () => {
-    const current = queryClient.getQueryData<CurrentAccount | null>(accountKey);
-    return (
-      current?.userId === account.userId &&
-      current.restaurantId === account.restaurantId &&
-      !current.mustChangePassword
-    );
-  };
+  // Each mutation runs one request built by the menu API functions.
   const mutation = useMutation({
-    mutationFn: (command: Command) =>
-      write(command.path, command.method, command.body),
+    mutationFn: (send: () => Promise<unknown>) => send(),
     onMutate: () => {
       setNotice("");
     },
     onSuccess: async () => {
-      if (!sameAccount()) return;
+      if (!isSameAccount(client, account)) return;
       setEditor(null);
-      try {
-        // A read started before the write must not become the post-save refresh.
-        await queryClient.cancelQueries({ queryKey: options.queryKey });
-        if (!sameAccount()) return;
-        await queryClient.fetchQuery(options);
-        if (!sameAccount()) return;
-        setNotice(m.saved);
-      } catch {
-        if (sameAccount()) setNotice(m.refreshFailed);
-      }
+      const result = await refreshAfterWrite(client, account, options);
+      if (result === "refreshed") setNotice(m.saved);
+      else if (result === "failed") setNotice(m.refreshFailed);
     },
   });
   const busy = mutation.isPending;
@@ -89,17 +74,6 @@ function MenuContent({ account }: { account: CurrentAccount }) {
   function cancel() {
     setEditor(null);
     mutation.reset();
-  }
-  function save(
-    resource: "categories" | "items",
-    id: string | undefined,
-    body: unknown,
-  ) {
-    mutation.mutate({
-      path: `/api/owner/menu/${resource}${id ? `/${id}` : ""}`,
-      method: id ? "PUT" : "POST",
-      body,
-    });
   }
   const feedback = mutation.isError ? (
     <Alert variant="destructive" role="alert">
@@ -209,11 +183,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                 owner={owner}
                 busy={busy || editing}
                 save={(language) =>
-                  mutation.mutate({
-                    path: "/api/owner/menu/default-language",
-                    method: "PATCH",
-                    body: { defaultLanguage: language },
-                  })
+                  mutation.mutate(() => setDefaultLanguage(language))
                 }
               />
             </CardContent>
@@ -234,7 +204,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                       error={mutation.error}
                       cancel={cancel}
                       save={(body) =>
-                        save("categories", editor.value?.id, body)
+                        mutation.mutate(() => saveCategory(editor.value?.id, body))
                       }
                       feedback={feedback}
                     />
@@ -248,7 +218,9 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                       busy={busy}
                       error={mutation.error}
                       cancel={cancel}
-                      save={(body) => save("items", editor.value?.id, body)}
+                      save={(body) =>
+                        mutation.mutate(() => saveItem(editor.value?.id, body))
+                      }
                       feedback={feedback}
                     />
                   )}
@@ -266,10 +238,9 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                           variant="destructive"
                           disabled={busy}
                           onClick={() =>
-                            mutation.mutate({
-                              path: `/api/owner/menu/${editor.resource}/${editor.id}`,
-                              method: "DELETE",
-                            })
+                            mutation.mutate(() =>
+                              deleteMenuEntry(editor.resource, editor.id),
+                            )
                           }
                         >
                           {busy ? m.saving : m.confirmDelete}
@@ -409,7 +380,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                           )}
                         </div>
                         <span className="shrink-0 font-medium tabular-nums">
-                          €{priceText(item.priceCents)}
+                          €{formatCents(item.priceCents)}
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -448,11 +419,9 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                             (!item.isAvailable && !item.allergenReviewed)
                           }
                           onClick={() =>
-                            mutation.mutate({
-                              path: `/api/staff/menu-items/${item.id}/availability`,
-                              method: "PATCH",
-                              body: { isAvailable: !item.isAvailable },
-                            })
+                            mutation.mutate(() =>
+                              setItemAvailability(item.id, !item.isAvailable),
+                            )
                           }
                         >
                           {item.isAvailable ? m.markSoldOut : m.restore}

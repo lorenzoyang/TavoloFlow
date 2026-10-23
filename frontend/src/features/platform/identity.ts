@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
-import { ApiError, platformRequest, setPlatformAuthFailureHandler } from "@/lib/api";
+import { ApiError, platformRequest } from "@/lib/api";
+import { queryClient } from "@/lib/query-client";
 import { isPlatformQuery } from "@/lib/query-scope";
-import { queryClient } from "@/features/accounts/queries";
 
 export type PlatformIdentity = { userId: string; username: string; role: "PLATFORM_ADMIN" };
 export const platformKey = ["platform", "me"] as const;
@@ -14,9 +14,6 @@ async function clearPlatformData() {
 export async function replacePlatform(account: PlatformIdentity | null) {
   await queryClient.cancelQueries({ queryKey: platformKey });
   await clearPlatformData();
-  for (const mutation of queryClient.getMutationCache().getAll()) {
-    if (mutation.options.meta?.identityScope === "platform") queryClient.getMutationCache().remove(mutation);
-  }
   queryClient.setQueryData(platformKey, account);
 }
 
@@ -35,4 +32,5 @@ export const platformQuery = queryOptions({
   },
 });
 
-setPlatformAuthFailureHandler(() => replacePlatform(null));
+// Registered in main.tsx: a rejected platform credential signs the platform identity out.
+export const handlePlatformAuthFailure = () => replacePlatform(null);

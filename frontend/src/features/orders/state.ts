@@ -1,4 +1,5 @@
 import type { MenuItem } from "../menu/api.ts";
+import { isUuid } from "../../lib/ids.ts";
 
 export type OrderLineInput = { menuItemId: string; quantity: number; expectedUnitPriceCents: number; remark: string | null };
 export type OrderInput = { sessionId: string; clientRequestId: string; items: OrderLineInput[]; orderNote: string | null };
@@ -11,7 +12,6 @@ export const cartKey = (restaurantId: string, tableId: string) => `tavoloflow:ca
 export const emptyCart = (restaurantId: string, tableId: string, sessionId: string | null): Cart =>
   ({ version: 1, restaurantId, tableId, sessionId, lines: [], orderNote: "", pending: null });
 const clean = (text: string) => text.trim();
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function totalCents(lines: CartLine[]): number {
   let total = 0n;
   for (const line of lines) {
@@ -60,24 +60,16 @@ export function refreshCart(cart: Cart, menu: MenuItem[]): Cart {
 }
 export function createIntent(cart: Cart, sessionId: string, requestId: string): OrderInput {
   validateCart(cart);
-  if (!cart.lines.length || cart.pending || !uuidPattern.test(sessionId) || !uuidPattern.test(requestId)) throw new CartError("limits");
+  if (!cart.lines.length || cart.pending || !isUuid(sessionId) || !isUuid(requestId)) throw new CartError("limits");
   return { sessionId, clientRequestId: requestId, orderNote: clean(cart.orderNote) || null,
     items: cart.lines.map(l => ({ menuItemId: l.item.id, quantity: l.quantity,
       expectedUnitPriceCents: l.item.priceCents, remark: clean(l.remark) || null })) };
 }
 
-// getRandomValues also works on a phone using the development server's plain HTTP LAN address.
-export function requestId(random: Pick<Crypto, "getRandomValues"> = crypto): string {
-  const bytes = random.getRandomValues(new Uint8Array(16));
-  bytes[6] = (bytes[6] & 15) | 64; bytes[8] = (bytes[8] & 63) | 128;
-  const hex = Array.from(bytes, n => n.toString(16).padStart(2, "0")).join("");
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
-
 function validItem(value: unknown): value is MenuItem {
   if (!value || typeof value !== "object") return false;
   const item = value as MenuItem;
-  return typeof item.id === "string" && uuidPattern.test(item.id) && typeof item.categoryId === "string" &&
+  return isUuid(item.id) && typeof item.categoryId === "string" &&
     Number.isSafeInteger(item.priceCents) && item.priceCents > 0 && typeof item.isAvailable === "boolean" &&
     typeof item.allergenReviewed === "boolean" && Array.isArray(item.allergenCodes) && item.allergenCodes.every(x => typeof x === "string") &&
     [item.nameZh, item.nameIt, item.nameEn].some(x => typeof x === "string" && x.trim()) &&
@@ -89,14 +81,14 @@ export function restoreCart(raw: string | null, fallback: Cart): Cart {
   try {
     const value = JSON.parse(raw) as Cart;
     if (value.version !== 1 || value.restaurantId !== fallback.restaurantId || value.tableId !== fallback.tableId ||
-      (value.sessionId !== null && (typeof value.sessionId !== "string" || !uuidPattern.test(value.sessionId))) ||
+      (value.sessionId !== null && !isUuid(value.sessionId)) ||
       !Array.isArray(value.lines) || typeof value.orderNote !== "string" ||
       value.lines.some(l => !l || !validItem(l.item) || typeof l.remark !== "string")) throw new Error();
     const cart: Cart = validateCart({ version: 1, restaurantId: value.restaurantId, tableId: value.tableId,
       sessionId: value.sessionId, lines: value.lines.map(l => ({ item: l.item, quantity: l.quantity, remark: l.remark })), orderNote: value.orderNote, pending: null });
     if (value.pending !== null) {
       const p = value.pending;
-      if (!p || p.sessionId !== cart.sessionId || !uuidPattern.test(p.clientRequestId)) throw new Error();
+      if (!p || p.sessionId !== cart.sessionId || !isUuid(p.clientRequestId)) throw new Error();
       const expected = createIntent(cart, p.sessionId, p.clientRequestId);
       // A pending request must match its frozen draft exactly; damaged data must never become a new submission.
       if (JSON.stringify(expected) !== JSON.stringify({ sessionId: p.sessionId, clientRequestId: p.clientRequestId,

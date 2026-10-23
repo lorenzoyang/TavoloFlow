@@ -1,8 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
-import { request } from "@/lib/api";
+import { request, write } from "@/lib/api";
 import type { CurrentAccount } from "@/features/accounts/api";
-import type { Language, Names } from "./language";
-export type { Language, Names } from "./language";
+import type { Language, Names } from "@/lib/language";
 
 export type Category = Names & { id: string };
 export type MenuItem = Names & {
@@ -30,15 +29,18 @@ export const menuQuery = (account: CurrentAccount) => queryOptions({
   queryFn: ({ signal }) => request<Menu>("/api/staff/menu", { signal }),
 });
 
-// Parse base-10 digits as integers: never round a binary floating-point euro amount.
-export function parsePrice(value: string): number | null {
-  const match = /^(\d{1,14})(?:[.,](\d{1,2}))?$/.exec(value.trim());
-  if (!match) return null;
-  const cents = BigInt(match[1]) * 100n + BigInt((match[2] ?? "").padEnd(2, "0"));
-  return cents > 0n && cents <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(cents) : null;
-}
+// OWNER writes replace the whole category/item (last write wins); availability is a separate STAFF field.
+export const saveCategory = (id: string | undefined, body: unknown) =>
+  write<Category>(`/api/owner/menu/categories${id ? `/${id}` : ""}`, id ? "PUT" : "POST", body);
 
-export function priceText(cents: number): string {
-  const amount = BigInt(cents);
-  return `${amount / 100n}.${(amount % 100n).toString().padStart(2, "0")}`;
-}
+export const saveItem = (id: string | undefined, body: unknown) =>
+  write<MenuItem>(`/api/owner/menu/items${id ? `/${id}` : ""}`, id ? "PUT" : "POST", body);
+
+export const deleteMenuEntry = (resource: "categories" | "items", id: string) =>
+  write<void>(`/api/owner/menu/${resource}/${id}`, "DELETE");
+
+export const setItemAvailability = (id: string, isAvailable: boolean) =>
+  write<MenuItem>(`/api/staff/menu-items/${id}/availability`, "PATCH", { isAvailable });
+
+export const setDefaultLanguage = (defaultLanguage: string) =>
+  write<{ defaultLanguage: Language }>("/api/owner/menu/default-language", "PATCH", { defaultLanguage });

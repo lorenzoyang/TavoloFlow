@@ -42,9 +42,6 @@ export const messages = {
   verifyIdentity: "重新核对登录状态",
   unknownLogoutResult: "暂时无法确认是否已退出，请恢复连接后重新核对。",
   loginUnknown: "登录结果暂时无法确认，请重新核对登录状态。",
-  csrfExpired: "页面验证已失效，请再次提交。",
-  forbidden: "你没有执行此操作的权限。",
-  genericError: "操作未完成，请稍后重试。",
   notFound: "页面不存在",
   goToAccount: "返回店铺账号",
 } as const;

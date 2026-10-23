@@ -6,13 +6,12 @@ import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
 import type { CurrentAccount } from "@/features/accounts/api";
-import { displayName } from "@/features/menu/language";
-import { money } from "@/features/orders/format";
+import { displayName } from "@/lib/language";
+import { formatDateTime, formatMoney } from "@/lib/format";
 import { errorMessage } from "@/lib/api";
 import { closeLabels, closureKind, confirmationChanged, type Confirmation } from "./state";
 import { useBill } from "./useBill";
 import { useClosure } from "./useClosure";
-import { billTime } from "./format";
 
 const orderLabels = { NEW: "待处理", READY: "已完成", CANCELLED: "已取消 · 不计应收" };
 
@@ -25,28 +24,28 @@ export function BillDetails({ model, timeZone = "Europe/Rome" }: { model: Return
       <Card><CardContent className="space-y-3 pt-6">
         <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-2xl font-semibold wrap-break-word">{bill.tableLabel} 桌 · 本轮账单</h2>
           <Badge variant="secondary">{bill.closeReason ? closeLabels[bill.closeReason] : "用餐中"}</Badge></div>
-        <p className="text-3xl font-semibold tabular-nums">{money(bill.totalAmountCents, "zh")}</p>
+        <p className="text-3xl font-semibold tabular-nums">{formatMoney(bill.totalAmountCents)}</p>
         <p className="text-sm text-muted-foreground">{bill.status === "CLOSED" ? "关闭记录金额" : "整桌应收"} · 共 {bill.orderCount} 笔 · 待处理 {bill.newOrderCount} 笔 · 已取消 {bill.cancelledOrderCount} 笔</p>
         <p className="break-all text-xs text-muted-foreground">用餐编号：{bill.sessionId}</p>
-        <p className="text-sm text-muted-foreground">开桌：{billTime(bill.openedAt, timeZone)}{bill.closedAt && ` · 关桌：${billTime(bill.closedAt, timeZone)}`}</p>
+        <p className="text-sm text-muted-foreground">开桌：{formatDateTime(bill.openedAt, "zh", timeZone)}{bill.closedAt && ` · 关桌：${formatDateTime(bill.closedAt, "zh", timeZone)}`}</p>
       </CardContent></Card>
       <p className="text-sm text-muted-foreground">已显示 {model.orders.length} / {bill.orderCount} 笔。应收包含本轮全部未取消订单，与已加载页数无关。</p>
       {model.orders.map(order => <Card key={order.id}><CardContent className="space-y-3 pt-6">
         <header className="flex flex-wrap items-center justify-between gap-3"><Badge variant={order.status === "CANCELLED" ? "outline" : "secondary"}>{orderLabels[order.status]}</Badge>
-          <span className={order.status === "CANCELLED" ? "text-muted-foreground line-through" : "font-semibold"}>{money(order.totalAmountCents, "zh")}</span></header>
+          <span className={order.status === "CANCELLED" ? "text-muted-foreground line-through" : "font-semibold"}>{formatMoney(order.totalAmountCents)}</span></header>
         <p className="break-all text-xs text-muted-foreground">订单 #{order.id}</p>
-        <p className="text-sm text-muted-foreground">下单：{billTime(order.createdAt, timeZone)}</p>
+        <p className="text-sm text-muted-foreground">下单：{formatDateTime(order.createdAt, "zh", timeZone)}</p>
         <ul className="divide-y divide-border">{order.items.map(item => {
           const name = displayName(item, order.defaultLanguage, "zh");
           return <li key={item.id} className="space-y-1 py-3"><div className="flex items-start justify-between gap-3">
             <p lang={name.language} className="min-w-0 wrap-break-word">{item.itemCode && <span className="mr-2 text-muted-foreground">{item.itemCode}</span>}{name.text} × {item.quantity}</p>
-            <p className="shrink-0 tabular-nums">{money(item.unitPriceCents * item.quantity, "zh")}</p></div>
-            <p className="text-xs text-muted-foreground">单价 {money(item.unitPriceCents, "zh")}</p>
+            <p className="shrink-0 tabular-nums">{formatMoney(item.unitPriceCents * item.quantity)}</p></div>
+            <p className="text-xs text-muted-foreground">单价 {formatMoney(item.unitPriceCents)}</p>
             {item.remark && <p className="text-sm whitespace-pre-wrap wrap-break-word">备注：{item.remark}</p>}</li>;
         })}</ul>
         {order.orderNote && <p className="rounded-lg bg-muted p-3 text-sm whitespace-pre-wrap wrap-break-word">整单备注：{order.orderNote}</p>}
-        {order.readyAt && <p className="text-sm text-muted-foreground">完成：{billTime(order.readyAt, timeZone)}</p>}
-        {order.cancelledAt && <div className="space-y-1 text-sm"><p className="text-muted-foreground">取消：{billTime(order.cancelledAt, timeZone)}</p><p className="whitespace-pre-wrap wrap-break-word">取消原因：{order.cancelReason}</p></div>}
+        {order.readyAt && <p className="text-sm text-muted-foreground">完成：{formatDateTime(order.readyAt, "zh", timeZone)}</p>}
+        {order.cancelledAt && <div className="space-y-1 text-sm"><p className="text-muted-foreground">取消：{formatDateTime(order.cancelledAt, "zh", timeZone)}</p><p className="whitespace-pre-wrap wrap-break-word">取消原因：{order.cancelReason}</p></div>}
       </CardContent></Card>)}
       {bill.orderCount === 0 && <p>本轮从未产生订单。</p>}
       {model.query.hasNextPage && <Button variant="outline" className="min-h-11 w-full" disabled={!model.view.active || model.query.isFetching} onClick={() => void model.query.fetchNextPage()}>加载更多账单订单</Button>}
@@ -86,7 +85,7 @@ export function ActiveBillPanel({ account, sessionId }: { account: CurrentAccoun
       <Link to="/staff/kitchen" className={buttonVariants({ variant: "outline", className: "min-h-11" })}>厨房工作台</Link></div>
     {closure.notice && <Alert role="status"><AlertDescription>{closure.notice}</AlertDescription></Alert>}
     {closure.error && <Alert variant="destructive" role="alert"><AlertDescription>{closure.error}
-      {closure.conflict && <p className="mt-2">上次提交被拒绝时：应收 {money(closure.conflict.totalAmountCents, "zh")}，待处理 {closure.conflict.newOrderCount} 笔。请核对下方最新账单。</p>}</AlertDescription></Alert>}
+      {closure.conflict && <p className="mt-2">上次提交被拒绝时：应收 {formatMoney(closure.conflict.totalAmountCents)}，待处理 {closure.conflict.newOrderCount} 笔。请核对下方最新账单。</p>}</AlertDescription></Alert>}
     {closure.storageWarning && <Alert><AlertDescription>浏览器无法保存待确认提示，请在当前页面核对结果，刷新前记录本轮用餐编号。</AlertDescription></Alert>}
     {closure.pending.map(action => <Alert key={action.sessionId} role="status"><AlertDescription className="space-y-3">
       <p className="break-all">关闭结果待确认 · 用餐 #{action.sessionId}。系统不会自动重新提交。</p>
@@ -95,7 +94,7 @@ export function ActiveBillPanel({ account, sessionId }: { account: CurrentAccoun
     {model.session.isError && <Alert variant="destructive"><AlertDescription>{errorMessage(model.session.error)}</AlertDescription></Alert>}
     {model.closed && model.session.data ? <Card><CardContent className="space-y-3 pt-6">
       <h2 className="text-xl font-semibold">{model.session.data.tableLabel} 桌 · 本轮已结束</h2>
-      <p>{closeLabels[model.session.data.closeReason!]} · 记录金额 {money(model.session.data.totalAmountCents, "zh")}</p>
+      <p>{closeLabels[model.session.data.closeReason!]} · 记录金额 {formatMoney(model.session.data.totalAmountCents)}</p>
       <p className="text-sm text-muted-foreground">本轮顾客授权已失效。下一轮用餐须重新开桌。</p>
       {account.role === "OWNER" && <Link to="/staff/history" search={{ sessionId }} className={buttonVariants({ variant: "outline", className: "min-h-11" })}>查看历史账单</Link>}
     </CardContent></Card> : <>
@@ -103,7 +102,7 @@ export function ActiveBillPanel({ account, sessionId }: { account: CurrentAccoun
       {bill?.newOrderCount ? <Alert><AlertDescription>仍有 {bill.newOrderCount} 笔待处理订单，请先到厨房完成或按实际情况取消。</AlertDescription></Alert> : null}
       {confirmation && <section ref={panel} aria-label="关桌确认"><Card><CardContent className="space-y-4 pt-6">
         <h2 className="text-xl font-semibold">{confirmation.kind === "PAID" ? "确认线下收款并清桌" : confirmation.kind === "EMPTY" ? "确认关闭空桌" : "确认全部取消后关闭"} · {confirmation.bill.tableLabel} 桌</h2>
-        <p className="text-2xl font-semibold">核对金额：{money(confirmation.bill.totalAmountCents, "zh")}</p>
+        <p className="text-2xl font-semibold">核对金额：{formatMoney(confirmation.bill.totalAmountCents)}</p>
         <p className="text-sm text-muted-foreground">{confirmation.kind === "PAID" ? "请完成线下收款，再确认关闭本轮用餐。" : "此操作不记录收款。请核对订单并确认顾客已离桌。"}</p>
         {changed && <Alert variant="destructive"><AlertDescription>账单已变化，原确认已失效。请返回账单，核对最新金额后重新确认。</AlertDescription></Alert>}
         <label className="flex min-h-11 items-center gap-3"><input ref={checkbox} type="checkbox" className="size-5 accent-primary" checked={checked} disabled={locked || changed} onChange={e => setChecked(e.target.checked)} />

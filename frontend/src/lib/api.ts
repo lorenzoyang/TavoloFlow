@@ -9,6 +9,13 @@ type ErrorBody = {
   [extension: string]: unknown;
 };
 
+// Writes whose result may be lost give up after this long; the caller then recovers by GET.
+export const REQUEST_TIMEOUT_MS = 15_000;
+
+export function withTimeout(signal: AbortSignal): AbortSignal {
+  return AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]);
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -97,11 +104,6 @@ async function sendRequest<T>(path: string, init: RequestInit | undefined, ident
   return response.status === 204
     ? (undefined as T)
     : (response.json() as Promise<T>);
-}
-
-export async function refreshCsrf(): Promise<string> {
-  const response = await request<{ token: string }>("/api/auth/csrf");
-  return response.token;
 }
 
 export async function write<T>(

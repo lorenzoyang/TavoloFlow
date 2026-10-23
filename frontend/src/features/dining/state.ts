@@ -1,8 +1,5 @@
-export type PendingDiningAction = {
-  kind: "open" | "close";
-  tableId: string;
-  sessionId?: string;
-} | { kind: "accepting"; enabled: boolean };
+// The floor's two writes whose result can be lost. Closing a visit is recovered by billing/useClosure.
+export type PendingDiningAction = { kind: "open"; tableId: string } | { kind: "accepting"; enabled: boolean };
 
 export function pendingDiningKey(restaurantId: string, userId: string) {
   return `tavoloflow:pending-dining:${restaurantId}:${userId}`;
@@ -12,10 +9,7 @@ export function parsePendingAction(raw: string | null): PendingDiningAction | nu
   try {
     const value = JSON.parse(raw ?? "null");
     if (value?.kind === "accepting" && typeof value.enabled === "boolean") return { kind: "accepting", enabled: value.enabled };
-    if (typeof value?.tableId !== "string" || !value.tableId) return null;
-    if (value.kind === "open") return { kind: "open", tableId: value.tableId };
-    if (value.kind === "close" && typeof value.sessionId === "string" && value.sessionId)
-      return { kind: "close", tableId: value.tableId, sessionId: value.sessionId };
+    if (value?.kind === "open" && typeof value.tableId === "string" && value.tableId) return { kind: "open", tableId: value.tableId };
   } catch { /* Unavailable or malformed storage cannot create a write intent. */ }
   return null;
 }

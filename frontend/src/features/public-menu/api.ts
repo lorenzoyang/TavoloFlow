@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { ApiError, publicRequest } from "@/lib/api";
-import type { Category, Language, MenuItem } from "@/features/menu/api";
+import type { Category, MenuItem } from "@/features/menu/api";
+import type { Language } from "@/lib/language";
 
 export type PublicMenu = {
   restaurant: { id: string; name: string; currencyCode: string; defaultLanguage: Language;

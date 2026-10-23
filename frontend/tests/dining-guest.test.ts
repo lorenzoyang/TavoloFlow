@@ -13,10 +13,10 @@ test("unknown opening survives reload as a read-only recovery intent, scoped to 
   assert.notEqual(pendingDiningKey("restaurant", "staff"), pendingDiningKey("another", "staff"));
 });
 
-test("unknown close keeps the original session id even if the table is reopened", () => {
-  assert.deepEqual(parsePendingAction(JSON.stringify({ kind: "close", tableId: "8", sessionId: "old-session" })),
-    { kind: "close", tableId: "8", sessionId: "old-session" });
-  for (const raw of [null, "{", '{"kind":"close","tableId":"8"}', '{"kind":"open"}', '{"kind":"delete","tableId":"8"}'])
+test("malformed or retired pending floor actions cannot create a recovery intent", () => {
+  // Closing moved to the billing panel, so an old floor "close" marker is ignored rather than recovered here.
+  for (const raw of [null, "{", '{"kind":"open"}', '{"kind":"delete","tableId":"8"}',
+    JSON.stringify({ kind: "close", tableId: "8", sessionId: "old-session" })])
     assert.equal(parsePendingAction(raw), null);
 });
 

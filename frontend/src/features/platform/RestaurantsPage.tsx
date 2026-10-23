@@ -9,7 +9,8 @@ import { platformRequest, errorMessage } from "@/lib/api";
 import { PlatformBoundary, PlatformNavigation } from "./PlatformAuth";
 import { TemporaryPasswords } from "./ManagementViews";
 import { useManagement } from "./useManagement";
-import { newRestaurantId, type Restaurant } from "./state";
+import { randomUuid } from "@/lib/ids";
+import type { Restaurant } from "./state";
 import type { PlatformIdentity } from "./identity";
 
 function Restaurants({ account }: { account: PlatformIdentity }) {
@@ -22,7 +23,7 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
   } });
   const create = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form);
-    const id = actions.pending?.kind === "create" ? actions.pending.restaurantId : newRestaurantId();
+    const id = actions.pending?.kind === "create" ? actions.pending.restaurantId : randomUuid();
     const ok = await actions.run({ kind: "create", restaurantId: id }, "/api/platform/restaurants", "POST", {
       id, name: String(data.get("name")), defaultLanguage: String(data.get("language")),
       ownerUsername: String(data.get("owner")), staffUsername: String(data.get("staff")),

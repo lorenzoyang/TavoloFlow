@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { CardContent } from "@/components/ui/card";
 import { FieldSet } from "@/components/ui/field";
-import { ApiError, changePassword, errorMessage, type CurrentAccount } from "./api";
-import { acceptAccount } from "./queries";
+import { ApiError, errorMessage } from "@/lib/api";
+import { changePassword, type CurrentAccount } from "./api";
+import { replaceAccount } from "./queries";
 import { messages as m } from "./messages";
 import { ErrorNotice, VerifyIdentityButton } from "./AccountFeedback";
 import { AccountCard, AccountCardHeader } from "./AccountLayout";
@@ -24,7 +25,7 @@ function PasswordForm({ account }: { account: CurrentAccount }) {
   const mutation = useMutation({
     mutationFn: async ({ currentPassword, newPassword }: { currentPassword: string; newPassword: string }) => {
       const updated = await changePassword(currentPassword, newPassword);
-      await acceptAccount(updated);
+      await replaceAccount(updated);
       await navigate({ to: "/staff", search: { passwordChanged: true }, replace: true });
     },
   });

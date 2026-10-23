@@ -8,7 +8,8 @@ import type { useGuestVisit } from "@/features/guests/useGuestVisit";
 import { accessOutcome } from "@/features/guests/state";
 import { confirmedOrder, ordersKey, type Order } from "./api";
 import { orderError, type OrderMessage } from "./messages";
-import { addItem, cartKey, CartError, createIntent, editLine, emptyCart, persistCart, refreshCart, requestId,
+import { randomUuid } from "@/lib/ids";
+import { addItem, cartKey, CartError, createIntent, editLine, emptyCart, persistCart, refreshCart,
   restoreCart, submissionFailure, validateCart, type Cart, type CartLine, type OrderInput } from "./state";
 
 type Guest = ReturnType<typeof useGuestVisit>;
@@ -170,7 +171,7 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
     try {
       if (retry) pending = current.current.pending!;
       else {
-        pending = createIntent(review!.cart, review!.sessionId, requestId());
+        pending = createIntent(review!.cart, review!.sessionId, randomUuid());
         const frozen = { ...review!.cart, sessionId: pending.sessionId, pending };
         if (!remember(frozen, true)) return;
       }

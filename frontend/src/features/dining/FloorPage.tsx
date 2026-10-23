@@ -12,7 +12,7 @@ import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { ActiveBillPanel } from "@/features/billing/BillViews";
 import { ApiError, errorMessage, request, write } from "@/lib/api";
-import type { BillSummary } from "@/features/billing/state";
+import { formatDateTime } from "@/lib/format";
 import { floorQuery, sessionQuery, sessionKey, type Floor, type FloorTable, type CodeResult, type OpenResult } from "./api";
 import { parsePendingAction, pendingDiningKey, recoveredOpen, type PendingDiningAction } from "./state";
 
@@ -34,7 +34,6 @@ function FloorContent({ account, sessionId = "", select: setSelected }: FloorPro
   const operation = useRef<AbortController | null>(null);
   const codeEpoch = useRef(0);
   const mounted = useRef(true);
-  const date = (value: string) => new Date(value).toLocaleString("zh-CN", { timeZone: "Europe/Rome" });
   const remember = useCallback((action: PendingDiningAction | null) => {
     setPending(action);
     try { if (action) sessionStorage.setItem(key, JSON.stringify(action)); else sessionStorage.removeItem(key); } catch { /* GET recovery remains available. */ }
@@ -70,7 +69,7 @@ function FloorContent({ account, sessionId = "", select: setSelected }: FloorPro
         if (!mounted.current) return;
         client.setQueryData(floorQuery(account).queryKey, data);
         setNotice(data.orderingEnabled ? "已核对：当前允许接单。" : "已核对：当前已暂停接单。");
-      } else if (pending.kind === "open") {
+      } else {
         const data = await request<Floor>("/api/staff/floor", { signal: controller.signal });
         if (!mounted.current) return;
         client.setQueryData(floorQuery(account).queryKey, data);
@@ -78,12 +77,6 @@ function FloorContent({ account, sessionId = "", select: setSelected }: FloorPro
         const result = recoveredOpen(table?.session?.id);
         if (result.kind === "active") { setSelected(result.sessionId); setNotice("已查到本桌当前用餐，请核对桌号；可主动查看入桌码。"); }
         else { setSelected(""); setNotice(table ? "已核对：当前为空桌。如需开桌，请重新确认。" : "此桌已不存在，请联系老板核对。"); }
-      } else {
-        const data = await request<BillSummary>(`/api/staff/sessions/${pending.sessionId}`, { signal: controller.signal });
-        if (!mounted.current) return;
-        setSelected(data.sessionId); client.setQueryData(sessionKey(account, data.sessionId), data);
-        setNotice(data.status === "CLOSED" ? "已核对：原用餐已经结束。" : "已核对：原用餐仍在进行；请重新核对后决定是否关闭。");
-        void client.invalidateQueries({ queryKey: floorQuery(account).queryKey });
       }
       remember(null);
     } catch (e) { if (mounted.current) setError(errorMessage(e, "暂时无法核对，请恢复连接后重新读取。")); }
@@ -156,7 +149,7 @@ function FloorContent({ account, sessionId = "", select: setSelected }: FloorPro
     {floor.data?.serviceStatus === "SUSPENDED" && <Alert><AlertDescription>餐厅服务已暂停，暂不能开新桌。已有用餐仍可核对并关闭空桌。</AlertDescription></Alert>}
     {notice && <Alert role="status"><AlertDescription>{notice}</AlertDescription></Alert>}
     {(error || floor.isError || session.isError || floor.fetchStatus === "paused") && <Alert variant="destructive" role="alert"><AlertDescription>{error || "无法更新状态，请检查连接后重新读取。"}</AlertDescription></Alert>}
-    {pending && <Alert role="status"><AlertDescription className="space-y-3"><p>{pending.kind === "accepting" ? "接单设置结果待确认" : pending.kind === "open" ? "开桌结果待确认" : "关闭结果待确认"}，核对完成前暂停新的操作。</p>
+    {pending && <Alert role="status"><AlertDescription className="space-y-3"><p>{pending.kind === "accepting" ? "接单设置结果待确认" : "开桌结果待确认"}，核对完成前暂停新的操作。</p>
       <Button className="h-11" disabled={busy} onClick={() => void recover()}>核对操作结果</Button></AlertDescription></Alert>}
     <div className="flex flex-wrap gap-3"><Button variant="outline" className="h-11" disabled={busy || floor.isFetching} onClick={() => void refresh()}><RefreshCw />重新读取状态</Button>
       <Link to="/staff/tables" className={buttonVariants({ variant: "outline", className: "h-11" })}>桌位管理</Link>
@@ -172,7 +165,7 @@ function FloorContent({ account, sessionId = "", select: setSelected }: FloorPro
         <Button variant="outline" className="h-11" disabled={busy} onClick={() => setConfirmation(null)}>取消</Button></div></CardContent></Card>}
     {selected && session.data && <Card><CardContent className="space-y-4 pt-6">
       <h2 className="text-xl font-semibold">本轮用餐 · {session.data.tableLabel}</h2>
-      <p className="text-sm text-muted-foreground">开桌时间：{date(session.data.openedAt)}</p>
+      <p className="text-sm text-muted-foreground">开桌时间：{formatDateTime(session.data.openedAt)}</p>
       <Badge variant="secondary">{session.data.status === "ACTIVE" ? "用餐中" : "本轮已结束"}</Badge>
       {session.data.status === "ACTIVE" && <><p>已提交订单：{session.data.orderCount} 笔</p><div className="flex flex-wrap gap-3">
         <Button className="h-11" variant="outline" disabled={busy || !!pending} onClick={() => void viewCode()}>查看入桌码</Button></div></>}
@@ -185,7 +178,7 @@ function FloorContent({ account, sessionId = "", select: setSelected }: FloorPro
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{floor.data?.tables.map(table => <Card key={table.id}><CardContent className="space-y-4 pt-6">
       <h2 className="text-xl font-semibold wrap-break-word">{table.tableLabel}</h2>
       <div className="flex gap-2"><Badge variant="secondary">{table.session ? "用餐中" : "空桌"}</Badge>{!table.isEnabled && <Badge variant="outline">已停用</Badge>}</div>
-      {table.session && <p className="text-sm text-muted-foreground">{date(table.session.openedAt)}</p>}
+      {table.session && <p className="text-sm text-muted-foreground">{formatDateTime(table.session.openedAt)}</p>}
       <Button className="h-11" disabled={busy || !!pending || !!confirmation || (!table.session && (!table.isEnabled || floor.data.serviceStatus !== "ACTIVE"))}
         onClick={() => { setCode(null); setError(""); setNotice(""); if (table.session) setSelected(table.session.id); else setConfirmation({ kind: "open", table }); }}>
         {table.session ? "查看本轮用餐" : "开桌"}</Button>

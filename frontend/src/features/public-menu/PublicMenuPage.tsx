@@ -5,8 +5,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { displayName, type Language } from "@/features/menu/language";
-import { priceText, type MenuItem } from "@/features/menu/api";
+import { displayName, type Language } from "@/lib/language";
+import type { MenuItem } from "@/features/menu/api";
 import { publicMenuQuery, type PublicMenu } from "./api";
 import { readLanguage, saveLanguage, selectedLanguage } from "./language";
 import { allergenNames, languageLabels, messages } from "./messages";
@@ -14,7 +14,7 @@ import { GuestPanel } from "@/features/guests/GuestPanel";
 import { useGuestVisit } from "@/features/guests/useGuestVisit";
 import { useCart } from "@/features/orders/useCart";
 import { CartPanel, TableOrders } from "@/features/orders/OrderViews";
-import { money } from "@/features/orders/format";
+import { formatMoney } from "@/lib/format";
 import { orderMessages } from "@/features/orders/messages";
 import { cartKey, totalCents } from "@/features/orders/state";
 import { guestVisitKey } from "@/features/guests/state";
@@ -32,14 +32,13 @@ function Dish({ item, language, defaultLanguage, add, disabled }: { item: MenuIt
   const m = messages[language];
   const name = displayName(item, defaultLanguage, language);
   const description = { zh: item.descriptionZh, it: item.descriptionIt, en: item.descriptionEn }[name.language];
-  const amount = priceText(item.priceCents);
   return <Card><CardContent className="space-y-3 pt-6">
     <div className="flex items-start justify-between gap-4">
       <div className="min-w-0">
         {item.itemCode && <p className="mb-1 text-xs text-muted-foreground wrap-break-word">{item.itemCode}</p>}
         <h3 lang={name.language} className="text-lg font-semibold leading-7 wrap-break-word">{name.text}</h3>
       </div>
-      <p className="shrink-0 font-semibold tabular-nums">€ {language === "it" ? amount.replace(".", ",") : amount}</p>
+      <p className="shrink-0 font-semibold tabular-nums">{formatMoney(item.priceCents, language)}</p>
     </div>
     {!item.isAvailable && <Badge variant="secondary">{m.soldOut}</Badge>}
     {description && <p lang={name.language} className="text-sm leading-6 text-muted-foreground whitespace-pre-wrap wrap-break-word">{description}</p>}
@@ -119,7 +118,7 @@ function MenuContent({ token, data, confirmedAt, error, refreshing, refresh, rem
     {cart.cart.lines.length > 0 && <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-lg">
       <a href="#cart" className="mx-auto flex min-h-12 max-w-3xl items-center justify-between gap-3 rounded-lg bg-primary px-4 py-3 text-primary-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
         <span>{orderMessages[language].cart} · {cart.cart.lines.reduce((n, line) => n + line.quantity, 0)} {orderMessages[language].portions}</span>
-        <span className="shrink-0 font-semibold tabular-nums">{money(totalCents(cart.cart.lines), language)}</span>
+        <span className="shrink-0 font-semibold tabular-nums">{formatMoney(totalCents(cart.cart.lines), language)}</span>
       </a></div>}
     </>}
   </main>;

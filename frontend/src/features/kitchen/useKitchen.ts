@@ -5,15 +5,15 @@ import { accountKey } from "@/features/accounts/queries";
 import { ApiError, errorMessage, write } from "@/lib/api";
 import { kitchenKey, readKitchen, readKitchenOrder, type KitchenOrder, type KitchenPage } from "./api";
 import { KitchenAudio } from "./audio";
-import { arrivals, pendingKitchenKey, readPending, recoveryOutcome, syncIsFresh,
+import { syncIsFresh } from "@/lib/live-view";
+import { isLive } from "@/lib/useLiveView";
+import { arrivals, pendingKitchenKey, readPending, recoveryOutcome,
   type ArrivalBaseline, type OrderStatus, type PendingKitchenAction } from "./state";
-
-const available = () => navigator.onLine && document.visibilityState === "visible";
 
 export function useKitchen(account: CurrentAccount) {
   const client = useQueryClient();
   const [status, setStatus] = useState<OrderStatus>("NEW");
-  const [active, setActive] = useState(available);
+  const [active, setActive] = useState(isLive);
   const [resumeAfter, setResumeAfter] = useState(Date.now);
   const [now, setNow] = useState(Date.now);
   const [notice, setNotice] = useState("");
@@ -75,7 +75,7 @@ export function useKitchen(account: CurrentAccount) {
   }, [scope, client, refresh, sameAccount]);
 
   const recover = useCallback(async (action: PendingKitchenAction) => {
-    if (!available() || operations.current.has(action.orderId) || !sameAccount()) return;
+    if (!isLive() || operations.current.has(action.orderId) || !sameAccount()) return;
     const controller = new AbortController(); operations.current.set(action.orderId, controller);
     const generation = epoch.current;
     const current = () => mounted.current && generation === epoch.current && !controller.signal.aborted && sameAccount();
@@ -108,13 +108,13 @@ export function useKitchen(account: CurrentAccount) {
     const check = () => {
       epoch.current++; baseline.current = null;
       controllers.forEach(controller => controller.abort()); controllers.clear(); setBusy([]);
-      const online = available(); setActive(online); setResumeAfter(Date.now()); setNow(Date.now());
+      const online = isLive(); setActive(online); setResumeAfter(Date.now()); setNow(Date.now());
       void client.cancelQueries({ queryKey: scope }).then(() => {
         if (mounted.current && online && sameAccount()) void client.invalidateQueries({ queryKey: scope });
       });
     };
     const recoverPending = () => {
-      if (available()) for (const action of pendingRef.current) void recoveryRef.current(action);
+      if (isLive()) for (const action of pendingRef.current) void recoveryRef.current(action);
     };
     const initial = window.setTimeout(recoverPending, 0);
     const recoveryTimer = window.setInterval(recoverPending, 10_000);

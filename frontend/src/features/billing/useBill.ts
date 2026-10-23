@@ -1,26 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { sessionQuery } from "@/features/dining/api";
-import { syncIsFresh } from "@/features/kitchen/state";
+import { syncIsFresh } from "@/lib/live-view";
 import { ApiError } from "@/lib/api";
+import { useLiveView } from "@/lib/useLiveView";
 import { billingKey, readBill } from "./api";
-
-export const available = () => navigator.onLine && document.visibilityState === "visible";
-export function useLiveView() {
-  const [active, setActive] = useState(available);
-  const [resumeAfter, setResumeAfter] = useState(0);
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    const check = () => { setActive(available()); setResumeAfter(Date.now()); setNow(Date.now()); };
-    const tick = window.setInterval(() => setNow(Date.now()), 1000);
-    window.addEventListener("online", check); window.addEventListener("offline", check);
-    document.addEventListener("visibilitychange", check);
-    return () => { window.clearInterval(tick); window.removeEventListener("online", check); window.removeEventListener("offline", check);
-      document.removeEventListener("visibilitychange", check); };
-  }, []);
-  return { active, resumeAfter, now };
-}
 
 export function useBill(account: CurrentAccount, id: string, history = false) {
   const client = useQueryClient();

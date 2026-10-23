@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
 import { Field, FieldLabel, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { ApiError, errorMessage, login } from "./api";
-import { acceptAccount } from "./queries";
+import { ApiError, errorMessage } from "@/lib/api";
+import { login } from "./api";
+import { replaceAccount } from "./queries";
 import { messages as m } from "./messages";
 import { ErrorNotice, VerifyIdentityButton } from "./AccountFeedback";
 import { AccountCard, AccountCardHeader } from "./AccountLayout";
@@ -18,7 +19,7 @@ function LoginForm() {
   const mutation = useMutation({
     mutationFn: async ({ username, password }: { username: string; password: string }) => {
       const account = await login(username, password);
-      await acceptAccount(account);
+      await replaceAccount(account);
     },
   });
   function submit(event: FormEvent<HTMLFormElement>) {

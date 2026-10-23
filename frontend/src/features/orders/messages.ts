@@ -1,4 +1,4 @@
-import type { Language } from "@/features/menu/language";
+import type { Language } from "@/lib/language";
 
 const en = {
   add: "Add to cart", cart: "Your cart", cartHint: "This draft belongs to this tab. Other guests cannot see it.", empty: "Your cart is empty.",

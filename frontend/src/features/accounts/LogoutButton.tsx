@@ -1,8 +1,9 @@
 import { useMutation } from "@tanstack/react-query";
 import { LoaderCircle, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { errorMessage, logout } from "./api";
-import { acceptAccount } from "./queries";
+import { errorMessage } from "@/lib/api";
+import { logout } from "./api";
+import { replaceAccount } from "./queries";
 import { messages as m } from "./messages";
 import { ErrorNotice, VerifyIdentityButton } from "./AccountFeedback";
 
@@ -10,7 +11,7 @@ export function LogoutButton({ disabled = false }: { disabled?: boolean }) {
   const mutation = useMutation({
     mutationFn: async () => {
       await logout();
-      await acceptAccount(null);
+      await replaceAccount(null);
     },
   });
   return (

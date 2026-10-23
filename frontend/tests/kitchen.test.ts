@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { arrivals, canCancel, pendingKitchenKey, readPending, recoveryOutcome, syncIsFresh,
+import { arrivals, canCancel, pendingKitchenKey, readPending, recoveryOutcome,
   type PendingKitchenAction } from "../src/features/kitchen/state.ts";
+import { syncIsFresh } from "../src/lib/live-view.ts";
 import { isPrivateQuery } from "../src/lib/query-scope.ts";
 
 const action: PendingKitchenAction = { orderId: "00000000-0000-4000-8000-000000000001",

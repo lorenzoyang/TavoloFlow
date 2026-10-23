@@ -7,10 +7,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { floorQuery } from "@/features/dining/api";
-import { money } from "@/features/orders/format";
+import { formatDateTime, formatMoney } from "@/lib/format";
 import { ActiveBillPanel } from "./BillViews";
-import { billTime } from "./format";
-import { useLiveView } from "./useBill";
+import { useLiveView } from "@/lib/useLiveView";
 
 export function OwnerOnlyNotice() {
   return <Alert><AlertDescription className="space-y-3"><p>此页面仅老板可访问。</p>
@@ -33,9 +32,9 @@ function BillingContent({ account, sessionId, select }: Props & { account: Curre
     {floor.data && active.length === 0 && <p>当前没有活动用餐。</p>}
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{active.map(table => <Card key={table.id}><CardContent className="space-y-3 pt-6">
       <h2 className="text-xl font-semibold wrap-break-word">{table.tableLabel} 桌</h2>
-      <p className="text-xl tabular-nums">{money(table.session!.totalAmountCents, "zh")}</p>
+      <p className="text-xl tabular-nums">{formatMoney(table.session!.totalAmountCents)}</p>
       <p className="text-sm text-muted-foreground">共 {table.session!.orderCount} 笔 · 待处理 {table.session!.newOrderCount} 笔</p>
-      <p className="text-xs text-muted-foreground">开桌：{billTime(table.session!.openedAt)}</p>
+      <p className="text-xs text-muted-foreground">开桌：{formatDateTime(table.session!.openedAt)}</p>
       <Button className="min-h-11" variant={sessionId === table.session!.id ? "secondary" : "outline"} onClick={() => select(table.session!.id)}>查看账单 · {table.tableLabel}</Button>
     </CardContent></Card>)}</div>
     {sessionId && <ActiveBillPanel key={`${account.restaurantId}:${account.userId}:${sessionId}`} account={account} sessionId={sessionId} />}

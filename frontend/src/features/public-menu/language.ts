@@ -1,4 +1,4 @@
-import type { Language } from "../menu/language.ts";
+import type { Language } from "../../lib/language.ts";
 
 export function selectedLanguage(preference: string | null, fallback: Language): Language {
   return preference === "zh" || preference === "it" || preference === "en" ? preference : fallback;

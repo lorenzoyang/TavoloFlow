@@ -1,5 +1,5 @@
 import { guestRequest } from "@/lib/api";
-import type { Language, Names } from "@/features/menu/language";
+import type { Language, Names } from "@/lib/language";
 export { confirmedOrder } from "./response";
 
 export type OrderLine = Names & { id: string; menuItemId: string | null; itemCode: string | null;

@@ -8,15 +8,14 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
-import { displayName } from "@/features/menu/language";
+import { displayName } from "@/lib/language";
 import { allergenNames } from "@/features/public-menu/messages";
-import { money } from "@/features/orders/format";
+import { formatDateTime, formatMoney } from "@/lib/format";
 import type { KitchenOrder } from "./api";
 import { canCancel, type OrderStatus } from "./state";
 import { useKitchen } from "./useKitchen";
 
 const labels: Record<OrderStatus, string> = { NEW: "待处理", READY: "已完成", CANCELLED: "已取消" };
-const time = (value: string | number) => new Date(value).toLocaleString("zh-CN", { timeZone: "Europe/Rome" });
 const rank: Record<OrderStatus, number> = { NEW: 0, READY: 1, CANCELLED: 2 };
 
 function OrderCard({ order, model, account, cancel }: { order: KitchenOrder; model: ReturnType<typeof useKitchen>;
@@ -28,7 +27,7 @@ function OrderCard({ order, model, account, cancel }: { order: KitchenOrder; mod
       <h2 className="text-2xl font-semibold wrap-break-word">{order.tableLabel} 桌</h2>
       <p className="mt-1 text-sm text-muted-foreground">{order.status === "NEW" ? `已等待 ${minutes} 分钟` : labels[order.status]}</p>
     </div><Badge variant={order.status === "CANCELLED" ? "outline" : "secondary"}>{labels[order.status]}</Badge></header>
-    <div className="space-y-1 text-xs text-muted-foreground"><p className="break-all">订单 #{order.id}</p><p>下单：{time(order.createdAt)}</p></div>
+    <div className="space-y-1 text-xs text-muted-foreground"><p className="break-all">订单 #{order.id}</p><p>下单：{formatDateTime(order.createdAt)}</p></div>
     <ul className="divide-y divide-border">{order.items.map(line => {
       const name = displayName(line, order.defaultLanguage, "zh");
       return <li key={line.id} className="space-y-2 py-3">
@@ -40,9 +39,9 @@ function OrderCard({ order, model, account, cancel }: { order: KitchenOrder; mod
       </li>;
     })}</ul>
     {order.orderNote && <p className="rounded-lg border border-border bg-muted p-3 font-medium whitespace-pre-wrap wrap-break-word">整单备注：{order.orderNote}</p>}
-    <p className="text-sm text-muted-foreground">原订单金额：<span className={order.status === "CANCELLED" ? "line-through" : ""}>{money(order.totalAmountCents, "zh")}</span></p>
-    {order.readyAt && <p className="text-sm text-muted-foreground">完成：{time(order.readyAt)}</p>}
-    {order.cancelledAt && <div className="space-y-1 text-sm"><p className="text-muted-foreground">取消：{time(order.cancelledAt)} · 不计入应收</p>
+    <p className="text-sm text-muted-foreground">原订单金额：<span className={order.status === "CANCELLED" ? "line-through" : ""}>{formatMoney(order.totalAmountCents)}</span></p>
+    {order.readyAt && <p className="text-sm text-muted-foreground">完成：{formatDateTime(order.readyAt)}</p>}
+    {order.cancelledAt && <div className="space-y-1 text-sm"><p className="text-muted-foreground">取消：{formatDateTime(order.cancelledAt)} · 不计入应收</p>
       <p className="whitespace-pre-wrap wrap-break-word">原因：{order.cancelReason}</p></div>}
     <div className="flex flex-wrap gap-2">{order.status === "NEW" && <Button className="min-h-12 flex-1" disabled={locked} onClick={() => void model.perform(order, "ready")}><Check />整单完成</Button>}
       {canCancel(account.role, order.status) && <Button variant="outline" className="min-h-12 h-auto whitespace-normal" disabled={locked} onClick={() => cancel(order)}>
@@ -85,7 +84,7 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
       <Link to="/staff/menu" className={buttonVariants({ variant: "outline", className: "min-h-11" })}>菜单与供应状态</Link></div>
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
       <p className="font-semibold">全店待处理：{model.head?.pendingCount ?? "—"} 笔</p>
-      <p className="text-sm text-muted-foreground">最后成功同步：{model.head ? time(model.head.receivedAt) : "尚未同步"}</p></div>
+      <p className="text-sm text-muted-foreground">最后成功同步：{model.head ? formatDateTime(model.head.receivedAt) : "尚未同步"}</p></div>
     {!model.fresh && <Alert variant="destructive" role="alert"><AlertDescription>
       {!model.active ? "连接已断开或页面暂停。" : model.query.isPending ? "正在同步订单。" : "订单可能尚未更新。"} 暂停状态修改，成功同步后即可继续。</AlertDescription></Alert>}
     {model.notice && <Alert role="status"><AlertDescription>{model.notice}</AlertDescription></Alert>}
@@ -99,7 +98,7 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
     {confirmation && <section ref={confirmationPanel} aria-label="取消订单确认"><Card><CardContent className="space-y-4 pt-6">
       <h2 className="text-lg font-semibold">{confirmation.status === "READY" ? "确认作废已完成订单" : "确认取消整单"} · {confirmation.tableLabel} 桌</h2>
       <p className="break-all text-xs text-muted-foreground">订单 #{confirmation.id}</p>
-      <p className="text-sm">取消整笔订单后，{money(confirmation.totalAmountCents, "zh")} 将不再计入应收。请核对实际情况。</p>
+      <p className="text-sm">取消整笔订单后，{formatMoney(confirmation.totalAmountCents)} 将不再计入应收。请核对实际情况。</p>
       {changed && <Alert variant="destructive"><AlertDescription className="space-y-3"><p>订单已变为“{labels[current.status]}”，原确认已失效。</p>
         {canCancel(account.role, current.status) && <Button variant="outline" className="min-h-11" disabled={!model.fresh || confirmingBusy} onClick={() => setConfirmation(current)}>按最新状态重新确认</Button>}
       </AlertDescription></Alert>}

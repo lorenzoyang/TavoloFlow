@@ -8,12 +8,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
-import { money } from "@/features/orders/format";
+import { formatDateTime, formatMoney } from "@/lib/format";
 import { errorMessage } from "@/lib/api";
 import { historyKey, readHistory } from "./api";
 import { closeLabels, historySearch, type HistorySearch } from "./state";
 import { HistoricalBill } from "./BillViews";
-import { billTime } from "./format";
 import { OwnerOnlyNotice } from "./BillingPage";
 
 type Props = { search: HistorySearch; navigate: (search: HistorySearch) => void };
@@ -46,8 +45,8 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
     {head && rows.length === 0 && <p>该筛选范围内没有已关闭账单。</p>}
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{rows.map(row => <Card key={row.sessionId}><CardContent className="space-y-3 pt-6">
       <h2 className="text-xl font-semibold wrap-break-word">{row.tableLabel} 桌 · {closeLabels[row.closeReason!]}</h2>
-      <p className="text-xl tabular-nums">{money(row.totalAmountCents, "zh")}</p>
-      <p className="text-xs text-muted-foreground">关桌：{billTime(row.closedAt!, head?.timeZone)}</p>
+      <p className="text-xl tabular-nums">{formatMoney(row.totalAmountCents)}</p>
+      <p className="text-xs text-muted-foreground">关桌：{formatDateTime(row.closedAt!, "zh", head?.timeZone)}</p>
       <Button variant="outline" className="min-h-11" onClick={() => navigate({ ...filters, fromDate: head!.fromDate, toDate: head!.toDate, sessionId: row.sessionId })}>查看历史详情 · {row.tableLabel}</Button>
     </CardContent></Card>)}</div>
     {query.hasNextPage && <Button variant="outline" className="min-h-11 w-full" disabled={query.isFetching} onClick={() => void query.fetchNextPage()}>加载更多历史账单</Button>}

@@ -4,9 +4,9 @@ import type { CurrentAccount } from "@/features/accounts/api";
 import { accountKey } from "@/features/accounts/queries";
 import { sessionKey } from "@/features/dining/api";
 import { ApiError, errorMessage, request, write } from "@/lib/api";
-import { money } from "@/features/orders/format";
+import { formatMoney } from "@/lib/format";
 import { billingKey, historyKey } from "./api";
-import { available } from "./useBill";
+import { isLive } from "@/lib/useLiveView";
 import { canAcceptResult, closeLabels, closureKey, closureRequest, readClosures, recoveryPath,
   type BillSummary, type Confirmation, type PendingClosure } from "./state";
 
@@ -47,7 +47,7 @@ export function useClosure(account: CurrentAccount) {
     refresh();
   }, [account, client, scope, refresh]);
   const recover = useCallback(async (action: PendingClosure) => {
-    if (!available() || !sameIdentity() || operations.current.has(action.sessionId)) return;
+    if (!isLive() || !sameIdentity() || operations.current.has(action.sessionId)) return;
     const controller = new AbortController(); operations.current.set(action.sessionId, controller);
     const generation = epoch.current;
     const current = () => canAcceptResult(mounted.current, generation, epoch.current, controller.signal.aborted, sameIdentity());
@@ -59,7 +59,7 @@ export function useClosure(account: CurrentAccount) {
       if (!current()) return;
       forget(action.sessionId); setError(""); setConflict(null);
       setNotice(data.status === "CLOSED"
-        ? `${data.tableLabel} 桌已结束：${closeLabels[data.closeReason!]}，记录金额 ${money(data.totalAmountCents, "zh")}。请核对实际收款。`
+        ? `${data.tableLabel} 桌已结束：${closeLabels[data.closeReason!]}，记录金额 ${formatMoney(data.totalAmountCents)}。请核对实际收款。`
         : `${data.tableLabel} 桌原用餐仍在进行，请重新核对账单后决定是否关闭。系统不会自动重新提交。`);
     } catch (e) {
       if (!current()) return;
@@ -74,7 +74,7 @@ export function useClosure(account: CurrentAccount) {
   useEffect(() => { recoveryRef.current = recover; }, [recover]);
   useEffect(() => {
     mounted.current = true; const controllers = operations.current;
-    const recoverPending = () => { if (available()) for (const action of pendingRef.current) void recoveryRef.current(action); };
+    const recoverPending = () => { if (isLive()) for (const action of pendingRef.current) void recoveryRef.current(action); };
     const lifecycle = () => { epoch.current++; controllers.forEach(c => c.abort()); controllers.clear(); setBusy([]); recoverPending(); };
     const timer = window.setInterval(recoverPending, 10_000); const initial = window.setTimeout(recoverPending, 0);
     window.addEventListener("online", lifecycle); window.addEventListener("offline", lifecycle); document.addEventListener("visibilitychange", lifecycle);
@@ -90,7 +90,7 @@ export function useClosure(account: CurrentAccount) {
 
   async function close(confirmation: Confirmation) {
     const id = confirmation.bill.sessionId;
-    if (!available() || !sameIdentity() || operations.current.has(id) || pendingRef.current.some(p => p.sessionId === id)) return false;
+    if (!isLive() || !sameIdentity() || operations.current.has(id) || pendingRef.current.some(p => p.sessionId === id)) return false;
     const controller = new AbortController(); operations.current.set(id, controller);
     const generation = epoch.current;
     const current = () => canAcceptResult(mounted.current, generation, epoch.current, controller.signal.aborted, sameIdentity());
@@ -103,7 +103,7 @@ export function useClosure(account: CurrentAccount) {
       if (!current()) return false;
       await acceptSession(summary, current);
       if (!current()) return false;
-      forget(id); setNotice(`${summary.tableLabel} 桌已结束：${closeLabels[confirmation.kind]}，记录金额 ${money(summary.totalAmountCents, "zh")}。`);
+      forget(id); setNotice(`${summary.tableLabel} 桌已结束：${closeLabels[confirmation.kind]}，记录金额 ${formatMoney(summary.totalAmountCents)}。`);
       return true;
     } catch (e) {
       if (!current()) return false;

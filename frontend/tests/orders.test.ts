@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { addItem, cartKey, CartError, createIntent, editLine, emptyCart, persistCart, refreshCart, requestId,
+import { addItem, cartKey, CartError, createIntent, editLine, emptyCart, persistCart, refreshCart,
   restoreCart, submissionFailure, totalCents, validateCart } from "../src/features/orders/state.ts";
 import { parsePendingAction } from "../src/features/dining/state.ts";
 import { confirmedOrder } from "../src/features/orders/response.ts";
@@ -118,14 +118,6 @@ test("only a complete server order with consistent safe amounts may clear the sa
   for (const broken of [{ ...order, sessionId: id }, { ...order, createdAt: "bad date" }, { ...order, items: [{}] },
     { ...order, totalAmountCents: 1300 }, { ...order, defaultLanguage: "fr" }, { ...order, orderNote: undefined }])
     assert.throws(() => confirmedOrder(broken as Order, session));
-});
-
-test("UUID generation needs only getRandomValues and sets UUIDv4 version and variant bits", () => {
-  const cryptoWithoutRandomUuid = { getRandomValues<T extends ArrayBufferView | null>(array: T): T {
-    (array as Uint8Array).fill(255); return array;
-  } };
-  assert.equal(requestId(cryptoWithoutRandomUuid), "ffffffff-ffff-4fff-bfff-ffffffffffff");
-  assert.match(requestId(), /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
 });
 
 test("the accepting-orders switch restores as a GET-only recovery action", () => {

@@ -1,3 +1,5 @@
+import { isUuid } from "../../lib/ids.ts";
+
 export type CloseKind = "PAID" | "EMPTY" | "VOIDED";
 export type BillSummary = {
   sessionId: string; tableId: string | null; tableLabel: string; status: "ACTIVE" | "CLOSED";
@@ -7,8 +9,6 @@ export type BillSummary = {
 export type Confirmation = { kind: CloseKind; bill: BillSummary };
 export type PendingClosure = { sessionId: string; kind: CloseKind };
 export const closureKey = (restaurantId: string, userId: string) => `tavoloflow:billing:${restaurantId}:${userId}`;
-export const isSessionId = (value: unknown): value is string => typeof value === "string" &&
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 export const closeLabels: Record<CloseKind, string> = { PAID: "已收款", EMPTY: "空桌关闭", VOIDED: "全部取消后关闭" };
 
 export function closureKind(bill: BillSummary, role: "OWNER" | "STAFF"): CloseKind | null {
@@ -31,7 +31,7 @@ export function readClosures(raw: string | null): PendingClosure[] {
     if (!Array.isArray(rows)) return [];
     const result: PendingClosure[] = [];
     for (const row of rows) {
-      if (row && isSessionId(row.sessionId) && (row.kind === "PAID" || row.kind === "EMPTY" || row.kind === "VOIDED") &&
+      if (row && isUuid(row.sessionId) && (row.kind === "PAID" || row.kind === "EMPTY" || row.kind === "VOIDED") &&
           !result.some(x => x.sessionId === row.sessionId)) result.push({ sessionId: row.sessionId, kind: row.kind });
     }
     return result;
@@ -57,7 +57,7 @@ export type HistoryFilters = { fromDate?: string; toDate?: string; tableLabel?: 
 export type BillingSearch = { sessionId?: string };
 export type HistorySearch = BillingSearch & HistoryFilters;
 export function billingSearch(search: Record<string, unknown>): BillingSearch {
-  return { sessionId: isSessionId(search.sessionId) ? search.sessionId : undefined };
+  return { sessionId: isUuid(search.sessionId) ? search.sessionId : undefined };
 }
 export function historySearch(search: Record<string, unknown>): HistorySearch {
   const date = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined;

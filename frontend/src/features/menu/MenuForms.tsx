@@ -3,8 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldLabel, FieldDescription, FieldError, FieldSet } from "@/components/ui/field";
 import { ApiError } from "@/lib/api";
-import { parsePrice, priceText, type Category, type Menu, type MenuItem, type Names } from "./api";
-import { displayName } from "./language";
+import { formatCents, parsePrice } from "@/lib/format";
+import type { Category, Menu, MenuItem } from "./api";
+import type { Names } from "@/lib/language";
+import { displayName } from "@/lib/language";
 import { languages, messages as m } from "./messages";
 
 type FormProps = { busy: boolean; error: unknown; cancel: () => void; save: (body: unknown) => void; feedback: ReactNode };
@@ -105,7 +107,7 @@ export function ItemForm({ initial, menu, categoryId, busy, error, cancel, save,
         </Field>
         <Field><FieldLabel htmlFor="price">{m.price}</FieldLabel>
           <Input className="h-11" id="price" name="price" inputMode="decimal" required maxLength={17}
-            defaultValue={initial ? priceText(initial.priceCents) : ""} aria-describedby="price-hint" />
+            defaultValue={initial ? formatCents(initial.priceCents) : ""} aria-describedby="price-hint" />
           <FieldDescription id="price-hint">{m.priceHint}</FieldDescription>
         </Field>
       </div>

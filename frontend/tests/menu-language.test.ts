@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { displayName, type Language, type Names } from "../src/features/menu/language.ts";
+import { displayName, type Language, type Names } from "../src/lib/language.ts";
 
 const names: Names = { nameZh: "炒饭", nameIt: "Riso", nameEn: "Rice" };
 

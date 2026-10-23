@@ -1,4 +1,4 @@
-import type { Language } from "@/features/menu/language";
+import type { Language } from "@/lib/language";
 
 type Messages = {
   menu: string; table: string; languages: string; all: string; soldOut: string; loading: string;

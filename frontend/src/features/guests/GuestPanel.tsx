@@ -3,7 +3,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import type { Language } from "@/features/menu/api";
+import type { Language } from "@/lib/language";
 import type { useGuestVisit } from "./useGuestVisit";
 import { guestMessages } from "./messages";
 
