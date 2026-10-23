@@ -1,0 +1,37 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+@AGENTS.md
+
+AGENTS.md (imported above) is the authoritative source for layout, style and the per-area domain rules (lock order, state gates, recovery, limits). Put new domain rules there, not here. This file adds commands and the cross-cutting architecture that AGENTS.md assumes. The README, `docs/` and `deploy/README.md` are written in Chinese. Backend error messages and the staff/platform UI copy are also Chinese. Guest-facing copy (`public-menu`, `guests`, `orders`) has zh/it/en variants.
+
+## Commands not covered in AGENTS.md
+
+Backend (repository root):
+
+- One-time setup: `dotnet tool restore` (pins `dotnet-ef`). Then `dotnet user-secrets set 'ConnectionStrings:Default' '<conn>' --project backend/TavoloFlow.Api` and `dotnet ef database update --project backend/TavoloFlow.Api`. Compose does not configure the API connection string.
+- Single test class or method: `dotnet test TavoloFlow.slnx --filter "FullyQualifiedName~KitchenTests"` (append `.MethodName` for one test). Each test class takes its own `IClassFixture<PostgreSqlFixture>` and starts its own `postgres:18-alpine` container, so Docker must be running.
+- Schema change: `dotnet ef migrations add <Name> --project backend/TavoloFlow.Api --output-dir Data/Migrations`, then check with `dotnet ef migrations has-pending-model-changes --project backend/TavoloFlow.Api`. Migrations are forward-only and never run at startup. Deployment applies a reviewed `dotnet ef migrations script --idempotent` output. See `docs/data-layer.md`.
+- `Program.cs` also acts as a one-shot CLI. Pass exactly one of `--seed-dev-accounts`, `--seed-platform-admin` or `--reset-platform-password`; it runs the command and exits without serving. `--healthcheck` is the container probe.
+
+Frontend (`frontend/`):
+
+- Single test file: `node --test --test-isolation=none tests/orders.test.ts`. Add `--test-name-pattern "<regex>"` to run one test.
+- Node runs these tests by stripping types directly from `src/`. Modules covered by `tests/*.test.ts` (`state.ts`, `language.ts`, `qr-url.ts`, `response.ts`, `lib/query-scope.ts`) therefore use relative imports with explicit `.ts` extensions instead of `@/`. They may only `import type` from modules that use `@/` or browser/React APIs. Keep logic you want to test in these pure modules.
+
+## Backend architecture
+
+- **Request flow.** Controllers are thin. Each one declares an `[Authorize(Policy = ...)]` and the module's exception-filter attributes (`[DiningErrors]`, `[OrderErrors]`, `[BillingErrors]`, ...), then calls a scoped service with the restaurant ID taken from `CurrentAccount.RequireUser()`. Services throw their module's exception (`new DiningException(409, "SESSION_CLOSED", "...")`). The attribute turns it into the shared `ApiError` body `{ code, message, requestId, errors? }`. Each module keeps its DTOs, exception type and filter in `<Module>Contracts.cs`. When adding an endpoint, attach every filter whose exception the service path can throw.
+- **Authentication.** The default scheme `Browser` (`Guests/GuestAuthentication.cs`) forwards by path: `/api/platform` goes to Platform, `/api/public` to Guest, and everything else to Store. The default and fallback authorization policy is Store Staff (OWNER/STAFF with the password already changed), so new endpoints are protected unless they opt out explicitly. `CsrfValidationFilter` is registered globally on controllers. Trusted identity comes from `CurrentAccount`, `GuestIdentity` or `CurrentPlatformAccount`, never from request bodies.
+- **Concurrency.** Services own their transactions. Row locks are taken with raw `SELECT ... FOR SHARE/FOR UPDATE` via `Dining/DiningLocks.cs` (order: restaurant → table → session), with `AsNoTracking`, followed by conditional updates. `DiningSession.BillVersion` is the optimistic version that clients send back when closing a bill. Tables are snake_case, mapped explicitly in `Data/Configurations/`, and enums are stored uppercase via `UppercaseEnumConverter`.
+- **Time.** Code reads time from an injected `TimeProvider`, never from `DateTime.UtcNow`. Tests replace it with `TestClock` to advance cookie and ticket lifetimes.
+- **Integration tests.** `AccountTestHost` (`WebApplicationFactory<Program>`) points the app at the fixture's database and swaps in `TestClock`. It can lower rate limits (`lowLimits`) or run as Production. `Browser()` returns an HTTPS cookie-holding client, `PostAsync` fetches a CSRF token automatically, and `AssertErrorAsync(response, status, code)` checks error codes. Race tests block a transaction at a precise point with `DbCommandInterceptor` subclasses (see `LockGate` in `KitchenTests.cs`).
+
+## Frontend architecture
+
+- **Four request identities** live in `src/lib/api.ts`: store (`request`/`write`), anonymous (`publicRequest`), guest (`guestRequest`/`guestWrite`) and platform (`platformRequest`/`platformWrite`). Each write first fetches a fresh CSRF token from its own scope's endpoint. A store 401 or `CREDENTIALS_CHANGED` triggers the global handler registered via `setAuthFailureHandler`. Platform failures have their own handler.
+- **Query-key scoping.** The first query-key segment decides which identity owns cached data: `public`, `guest`, `platform`, `["auth","me"]`, or anything else, which counts as store-private. `src/lib/query-scope.ts` uses these predicates to cancel and clear only the affected caches on login, logout or identity change. Mutations tag `meta.identityScope` for the same purpose. Choose the prefix deliberately for every new query.
+- **Feature module shape.** `api.ts` holds request functions and response types. `state.ts` holds pure, node-tested logic: validation, cart/intent rules, recovery parsing. `use<Feature>.ts` hooks handle polling, visibility/online gating and abortable late-response handling. `*Page.tsx`/`*Views.tsx` render, and `messages.ts` holds UI copy.
+- **Unknown-result writes.** Before a POST whose result may be lost, the hooks persist minimal tab-scoped identifiers to `sessionStorage`. They recover only by GET of the original resource. The single exception is manual order retry, which resends the same ID and body.
+- **Routing.** `routes/staff.tsx` and `routes/platform.tsx` are layout routes wrapping their child pages. `/q/$token` is the guest entry point and sits outside both. `routeTree.gen.ts` is regenerated by `vite build`/`vite dev`.
