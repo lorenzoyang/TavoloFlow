@@ -6,6 +6,16 @@ using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace TavoloFlow.Api.Accounts;
 
+// Even anonymous login tokens belong to one browser identity domain.
+public sealed class BrowserCsrfScope : IAntiforgeryAdditionalDataProvider
+{
+    public string GetAdditionalData(HttpContext context) =>
+        context.Request.Path.StartsWithSegments("/api/platform") ? "platform" :
+        context.Request.Path.StartsWithSegments("/api/public") ? "guest" : "store";
+    public bool ValidateAdditionalData(HttpContext context, string additionalData) =>
+        additionalData == GetAdditionalData(context);
+}
+
 public sealed class PasswordChangedRequirement : IAuthorizationRequirement;
 
 public sealed class PasswordChangedHandler : AuthorizationHandler<PasswordChangedRequirement>

@@ -54,6 +54,7 @@ public static class GuestAuthentication
         services.AddSingleton<GuestRateLimiter>();
         services.AddAuthentication(options => options.DefaultScheme = "Browser")
             .AddPolicyScheme("Browser", null, options => options.ForwardDefaultSelector = http =>
+                http.Request.Path.StartsWithSegments("/api/platform") ? Platform.PlatformAuthentication.Scheme :
                 http.Request.Path.StartsWithSegments("/api/public") ? Scheme : StoreAuthentication.Scheme)
             .AddCookie(Scheme, options =>
             {

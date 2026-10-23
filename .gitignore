@@ -74,6 +74,10 @@ node_modules
 dist
 dist-ssr
 *.local
+deploy/secrets*/
+deploy/backups/
+frontend/test-results/
+frontend/playwright-report/
 
 # Editor directories and files
 .vscode/*

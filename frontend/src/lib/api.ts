@@ -33,6 +33,11 @@ export class ApiError extends Error {
 
 type AuthFailure = "signed-out" | "password-required";
 let onAuthFailure: (reason: AuthFailure) => Promise<void> = async () => {};
+let onPlatformAuthFailure: () => Promise<void> = async () => {};
+
+export function setPlatformAuthFailureHandler(handler: typeof onPlatformAuthFailure) {
+  onPlatformAuthFailure = handler;
+}
 
 export function setAuthFailureHandler(handler: typeof onAuthFailure) {
   onAuthFailure = handler;
@@ -51,7 +56,17 @@ export async function guestRequest<T>(path: string, init?: RequestInit): Promise
   return sendRequest<T>(path, init, "guest");
 }
 
-async function sendRequest<T>(path: string, init: RequestInit | undefined, identity: "store" | "public" | "guest"): Promise<T> {
+export async function platformRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  return sendRequest<T>(path, init, "platform");
+}
+
+export async function platformWrite<T>(path: string, method: "POST" | "PATCH", body?: unknown, signal?: AbortSignal): Promise<T> {
+  const { token } = await platformRequest<{ token: string }>("/api/platform/auth/csrf", { signal });
+  return platformRequest<T>(path, { method, signal,
+    headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token }, body: JSON.stringify(body) });
+}
+
+async function sendRequest<T>(path: string, init: RequestInit | undefined, identity: "store" | "public" | "guest" | "platform"): Promise<T> {
   const storeIdentity = identity === "store";
   const response = await fetch(path, {
     ...init,
@@ -75,6 +90,10 @@ async function sendRequest<T>(path: string, init: RequestInit | undefined, ident
       await onAuthFailure("signed-out");
     } else if (storeIdentity && error.code === "PASSWORD_CHANGE_REQUIRED") {
       await onAuthFailure("password-required");
+    }
+    if (identity === "platform" && ((response.status === 401 &&
+      path !== "/api/platform/auth/login" && path !== "/api/platform/auth/me") || error.code === "CREDENTIALS_CHANGED")) {
+      await onPlatformAuthFailure();
     }
     throw error;
   }

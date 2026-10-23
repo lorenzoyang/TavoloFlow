@@ -24,6 +24,7 @@ public static class AccountServiceCollectionExtensions
         services.AddScoped<CurrentAccount>();
         services.AddScoped<StoreCookieEvents>();
         services.AddScoped<CsrfValidationFilter>();
+        services.AddSingleton<Microsoft.AspNetCore.Antiforgery.IAntiforgeryAdditionalDataProvider, BrowserCsrfScope>();
 
         services.AddSingleton<IAuthorizationHandler, PasswordChangedHandler>();
         services.AddSingleton<IAuthorizationMiddlewareResultHandler, AccountAuthorizationResultHandler>();

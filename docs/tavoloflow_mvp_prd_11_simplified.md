@@ -368,7 +368,7 @@ flowchart TD
 | POST | `/api/staff/orders/{id}/ready` | **已实现**：条件 `NEW → READY`，不递增账单版本 |
 | POST | `/api/staff/orders/{id}/cancel` | **已实现**：`expectedStatus` + 1–500 字符原因；READY 作废仅 OWNER，成功取消递增账单版本 |
 | PATCH | `/api/staff/menu-items/{id}/availability` | `isAvailable` **明确目标值**，仅改这个字段 |
-| PATCH | `/api/staff/accepting-orders` | **已实现**：OWNER/STAFF，`enabled` 明确目标值，只修改接单开关 |
+| PATCH | `/api/staff/accepting-orders` | **已实现**：OWNER/STAFF，`enabled` 明确目标值；仅 ACTIVE 餐厅可开启，检查与修改在餐厅行锁内完成 |
 | POST | `/api/owner/sessions/{id}/checkout` | **已实现**：`expectedBillVersion + confirmedTotalCents`，Session 锁内核账并原子 PAID 清桌 |
 | GET | `/api/staff/menu` | **已实现**：本店分类、菜品、默认/可用语言及过敏原选项 |
 | POST / PUT / DELETE | `/api/owner/menu/categories`、`/api/owner/menu/items` | **已实现**：三语、审核、价格、删除；PUT/DELETE 使用 `/{id}`，无菜单版本字段；菜品内容 DTO 不含供应状态 |
@@ -376,9 +376,13 @@ flowchart TD
 | POST/DELETE/PATCH | `/api/owner/tables`、`/{id}`、`/{id}/label`、`/{id}/enabled` | **已实现**：创建、删除、独立改名与启停；二维码由前端本地生成 PNG，**无 rotate** |
 | GET | `/api/owner/history` | **已实现**：默认餐厅当地当天，按日期/历史桌号/原因筛选并分页 |
 | GET | `/api/owner/history/{id}` | **已实现**：已关闭账单摘要与分页订单快照，仅 OWNER |
-| GET/PATCH | `/api/owner/settings` | 店铺基础设置 |
-| POST | `/api/owner/staff/reset-password` | 重置 STAFF 密码、统一失效旧票据 |
-| 登录/管理 | `/api/platform/*` | 平台登录、建店、启停、账号初始化/重置 |
+| 页面 / 已有接口 | `/staff/settings`、`/api/owner/menu/default-language` | 员工密码维护及菜单默认语言分别使用专用接口；本阶段没有通用基础设置 API |
+| GET / POST | `/api/owner/staff`、`/api/owner/staff/reset-password` | **已实现**：查询本店 STAFF；重置仅传 expectedCredentialVersion，目标由服务器解析 |
+| GET / POST | `/api/platform/auth/csrf`、`login`、`me`、`logout`、`change-password` | **已实现**：独立 Platform 身份、固定 8 小时、独立限流及 CSRF 用途 |
+| GET / POST | `/api/platform/restaurants` | **已实现**：分页/筛选；客户端指定 UUID 原子建店，成功响应一次性返回两个随机密码 |
+| GET / PATCH | `/api/platform/restaurants/{id}`、`/{id}/service-status` | **已实现**：餐厅与账号详情；明确 ACTIVE/SUSPENDED，停用同时关闭接单 |
+| PATCH / POST | `/api/platform/restaurants/{id}/users/{userId}/active`、`reset-password` | **已实现**：预期凭据版本保护账号启停/重置，冲突 ACCOUNT_CHANGED |
+| GET | `/api/health/live`、`/api/health/ready` | **已实现**：最小存活/数据库与迁移就绪状态 |
 
 **部分请求 / 响应样例（仅核心字段）**
 
@@ -440,6 +444,7 @@ Content-Type: application/json
 | `403 FORBIDDEN` / `404 NOT_FOUND` | 显示无权操作或资源不存在，不泄露跨餐厅数据 |
 | `409 SESSION_ALREADY_ACTIVE` | 员工刷新桌位，查看现有 Session，不重开 |
 | `409 SESSION_CLOSED` | 停止顾客旧请求，进入结束流程 |
+| `409 ACCOUNT_CHANGED` | 目标账号已变化，GET 核对最新版本后重新人工确认，不退出当前操作者 |
 | `409 ORDER_CHANGED` | 厨房/员工刷新订单当前状态，不强制覆盖 |
 | `409 MENU_CHANGED` | 顾客重新查看变动菜品和金额并明确确认 |
 | `409 BILL_CHANGED` | 老板显示新账单，重新核对后再单击确认 |
@@ -580,7 +585,7 @@ DBML 注释本身不会生成所有 PostgreSQL 部分索引；使用 **EF Core M
 5. **购物车和下单（已实现）**：最新价确认、`client_request_id`、历史快照、自动 GET 恢复/手动原请求重试、整桌订单和接单开关；无新迁移。含任何订单的用餐不能 EMPTY 关闭，由第七阶段 PAID/VOIDED 关闭接续。
 6. **厨房与取消（已实现）**：活动订单分页、10 秒轮询、主动声音提醒、READY/取消条件更新、版本递增、冲突确认和未知结果 GET 核对；无新迁移。
 7. **结账与历史（已实现）**：活动账单、PAID/VOIDED 关闭、EMPTY 共用界面、冻结确认值、只 GET 恢复、关闭后保护和 OWNER 历史筛选/分页；无新迁移。学习步骤见 [第七阶段文档](billing-history.md)。
-8. **联调/试运营准备**：移动端、异常网路、同桌并发、多餐厅隔离、备份恢复和操作说明。
+8. **平台管理与试运营准备（已实现）**：独立平台身份、原子建店、账号启停/重置、OWNER 员工维护、服务与接单协调、GET 恢复；单机 Compose/Caddy、显式迁移、健康检查和隔离备份恢复。沿用九张表，无新迁移。学习与本地验收见 [第八阶段](platform-pilot.md)，正式启用前填写 [试运营手册](pilot-operations.md)。
 
 **MVP 完成标准**：单店能执行“建店 → 设置菜单 → 建桌并打印码 → 开桌 → 多人扫码验证/多次下单 → 厨房处理 → 老板按准确账单线下收款清桌 → 查询历史”的完整闭环；关键的网络中断、重复下单、并发取消、结账竞争和权限检查都通过集成测试。
 

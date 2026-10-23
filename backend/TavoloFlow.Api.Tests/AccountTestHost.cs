@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Guests;
+using TavoloFlow.Api.Platform;
 
 namespace TavoloFlow.Api.Tests;
 
@@ -30,6 +31,7 @@ public sealed class AccountTestHost(PostgreSqlFixture database, bool lowLimits =
     {
         builder.UseEnvironment(production ? "Production" : "Development");
         builder.UseSetting("ConnectionStrings:Default", database.ConnectionString);
+        builder.UseSetting("DataProtection:KeyRingPath", Path.Combine(Path.GetTempPath(), "tavoloflow-test-keys"));
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
@@ -40,6 +42,14 @@ public sealed class AccountTestHost(PostgreSqlFixture database, bool lowLimits =
                 options => options.TimeProvider = Clock);
             services.Configure<CookieAuthenticationOptions>(GuestAuthentication.Scheme,
                 options => options.TimeProvider = Clock);
+            services.Configure<CookieAuthenticationOptions>(PlatformAuthentication.Scheme,
+                options => options.TimeProvider = Clock);
+            services.Configure<AccountRateLimitOptions>(PlatformAuthentication.Scheme, options =>
+            {
+                options.LoginPerIpPerMinute = lowLimits ? 3 : 1000;
+                options.LoginPerUsernamePerFiveMinutes = lowLimits ? 2 : 1000;
+                options.PasswordChangesPerMinute = lowLimits ? 1 : 1000;
+            });
             services.Configure<AccountRateLimitOptions>(options =>
             {
                 options.LoginPerIpPerMinute = lowLimits ? 3 : 1000;

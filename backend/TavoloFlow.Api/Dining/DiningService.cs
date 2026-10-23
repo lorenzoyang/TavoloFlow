@@ -9,10 +9,14 @@ public sealed class DiningService(ApplicationDbContext db, JoinCodes codes, Time
 {
     public async Task<AcceptingOrdersResponse> SetAcceptingOrdersAsync(Guid restaurantId, bool enabled, CancellationToken ct)
     {
-        // UPDATE conflicts with order creation's restaurant SHARE lock; unrelated settings remain untouched.
-        var count = await db.Restaurants.Where(r => r.Id == restaurantId)
-            .ExecuteUpdateAsync(u => u.SetProperty(r => r.OrderingEnabled, enabled), ct);
-        if (count == 0) throw new DiningException(404, "RESTAURANT_NOT_FOUND", "餐厅不存在。");
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var restaurant = await db.Restaurants.FromSqlInterpolated($"SELECT * FROM restaurants WHERE id = {restaurantId} FOR UPDATE")
+            .SingleOrDefaultAsync(ct) ?? throw new DiningException(404, "RESTAURANT_NOT_FOUND", "餐厅不存在。");
+        if (enabled && restaurant.ServiceStatus != RestaurantServiceStatus.Active)
+            throw new DiningException(409, "SERVICE_SUSPENDED", "餐厅服务已暂停，无法开启接单。");
+        restaurant.OrderingEnabled = enabled;
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return new(enabled);
     }
 

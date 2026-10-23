@@ -5,12 +5,14 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Dining;
 using TavoloFlow.Api.Entities;
 using TavoloFlow.Api.Guests;
 using TavoloFlow.Api.Menus;
 using TavoloFlow.Api.Ordering;
+using TavoloFlow.Api.Platform;
 using TavoloFlow.Api.Tables;
 using static TavoloFlow.Api.Tests.AccountTestHost;
 
@@ -263,6 +265,7 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
     [InlineData("delete", true)][InlineData("delete", false)]
     [InlineData("disabled", true)][InlineData("disabled", false)]
     [InlineData("paused", true)][InlineData("paused", false)]
+    [InlineData("service", true)][InlineData("service", false)]
     [InlineData("close", true)][InlineData("close", false)]
     public async Task Create_CompetingMutation_RespectsBothLockOrders(string kind, bool orderFirst)
     {
@@ -282,6 +285,8 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
                     .CloseEmptyAsync(s.Guest.RestaurantId, s.Guest.SessionId, new(1, 0, true), default);
             else if (kind == "disabled") await new TableService(mutationDb, new CatalogDeletionService(mutationDb))
                     .SetEnabledAsync(s.Guest.RestaurantId, s.Table.Id, false, default);
+            else if (kind == "service") await new RestaurantAdministration(mutationDb, new PasswordHasher<RestaurantUser>(),
+                    NullLogger<RestaurantAdministration>.Instance).SetStatusAsync(s.Guest.RestaurantId, "SUSPENDED", Guid.NewGuid(), default);
             else
             {
                 await using var tx = await mutationDb.Database.BeginTransactionAsync();
@@ -324,6 +329,12 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
         await using var check = database.CreateContext();
         Assert.Equal(orderFirst ? 1 : 0, await check.Orders.CountAsync(o => o.DiningSessionId == s.Guest.SessionId));
         Assert.Equal(orderFirst ? 2 : 1, (await check.DiningSessions.FindAsync(s.Guest.SessionId))!.BillVersion);
+        if (kind == "service")
+        {
+            var restaurant = (await check.Restaurants.FindAsync(s.Guest.RestaurantId))!;
+            Assert.Equal(RestaurantServiceStatus.Suspended, restaurant.ServiceStatus);
+            Assert.False(restaurant.OrderingEnabled);
+        }
     }
 
     [Theory]

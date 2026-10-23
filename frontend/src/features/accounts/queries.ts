@@ -1,5 +1,5 @@
 import { QueryClient, queryOptions } from "@tanstack/react-query";
-import { isPrivateQuery } from "@/lib/query-scope";
+import { isPrivateQuery, isStoreMutation } from "@/lib/query-scope";
 import { getCurrentAccount, refreshCsrf, setAuthFailureHandler, type CurrentAccount } from "./api";
 
 export const accountKey = ["auth", "me"] as const;
@@ -37,7 +37,7 @@ export async function replaceAccount(account: CurrentAccount | null) {
   // Keep the observed identity query, replacing its value; remove all other private cached data.
   await clearPrivateQueries();
   for (const mutation of queryClient.getMutationCache().getAll()) {
-    if (mutation.options.meta?.identityScope !== "guest") queryClient.getMutationCache().remove(mutation);
+    if (isStoreMutation(mutation.options.meta)) queryClient.getMutationCache().remove(mutation);
   }
   queryClient.setQueryData(accountKey, account);
 }
