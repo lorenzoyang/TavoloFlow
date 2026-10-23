@@ -15,17 +15,15 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
 {
     public async Task<RestaurantPage> ListAsync(string? search, string? status, int page, int pageSize, CancellationToken ct)
     {
+        RestaurantServiceStatus? state = null;
+        if (ApiEnum.TryParse(status, out RestaurantServiceStatus parsed)) state = parsed;
         if (page < 1 || page > 100000 || pageSize is < 1 or > 100 || search?.Length > 150 ||
-            status is not (null or "ACTIVE" or "SUSPENDED"))
+            (status is not null && state is null))
             throw ApiException.Validation("请检查分页、名称和状态筛选。");
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
         var query = db.Restaurants.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(search)) query = query.Where(r => r.Name.Contains(search.Trim()));
-        if (status is not null)
-        {
-            var state = status == "ACTIVE" ? RestaurantServiceStatus.Active : RestaurantServiceStatus.Suspended;
-            query = query.Where(r => r.ServiceStatus == state);
-        }
+        if (state is { } filter) query = query.Where(r => r.ServiceStatus == filter);
         var total = await query.CountAsync(ct);
         var rows = await query.OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.Id)
             .Skip((page - 1) * pageSize).Take(pageSize).ToArrayAsync(ct);
@@ -49,7 +47,7 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
         var staff = AccountInput.NormalizeUsername(input.StaffUsername);
         if (input.Id == Guid.Empty || string.IsNullOrWhiteSpace(input.Name) || input.Name.Trim().Length > 150 ||
             owner.Length is < 1 or > 50 || staff.Length is < 1 or > 50 || owner == staff ||
-            input.DefaultLanguage is not ("zh" or "it" or "en"))
+            !InputRules.IsLanguage(input.DefaultLanguage))
             throw ApiException.Validation("请填写餐厅名称、语言和两个不同的登录名。");
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         if (await db.Restaurants.AnyAsync(r => r.Id == input.Id, ct))
@@ -76,15 +74,12 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
 
     public async Task<RestaurantSummary> SetStatusAsync(Guid id, string status, Guid actor, CancellationToken ct)
     {
+        if (!ApiEnum.TryParse(status, out RestaurantServiceStatus target)) throw ApiException.Validation("无效服务状态。");
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         // This conflicts with opening/joining/ordering restaurant SHARE locks.
         var restaurant = await db.Restaurants.FromSqlInterpolated($"SELECT * FROM restaurants WHERE id = {id} FOR UPDATE")
             .SingleOrDefaultAsync(ct) ?? throw AdministrationErrors.RestaurantNotFound();
-        restaurant.ServiceStatus = status switch
-        {
-            "ACTIVE" => RestaurantServiceStatus.Active, "SUSPENDED" => RestaurantServiceStatus.Suspended,
-            _ => throw ApiException.Validation("无效服务状态。")
-        };
+        restaurant.ServiceStatus = target;
         if (restaurant.ServiceStatus == RestaurantServiceStatus.Suspended) restaurant.OrderingEnabled = false;
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);

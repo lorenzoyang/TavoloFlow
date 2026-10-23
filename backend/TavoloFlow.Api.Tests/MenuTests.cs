@@ -131,7 +131,7 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
             "description" => original with { DescriptionIt = "Without a name" },
             "zero" => original with { PriceCents = 0 },
             "negative" => original with { PriceCents = -1 },
-            "unsafe" => original with { PriceCents = MenuValidation.MaxPriceCents + 1 },
+            "unsafe" => original with { PriceCents = InputRules.MaxSafeCents + 1 },
             "unreviewed" => original with { AllergenReviewed = false },
             "unknownCode" => original with { AllergenCodes = ["UNKNOWN"] },
             _ => original with { AllergenCodes = null }

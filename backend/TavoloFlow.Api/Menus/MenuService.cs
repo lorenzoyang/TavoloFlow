@@ -9,8 +9,6 @@ namespace TavoloFlow.Api.Menus;
 
 public sealed class MenuService(ApplicationDbContext context, CatalogDeletionService deletion)
 {
-    private static readonly string[] Languages = ["zh", "it", "en"];
-
     public async Task<MenuResponse> ReadAsync(Guid restaurantId, CancellationToken ct)
     {
         // All queries see the same committed menu, even when another request edits it.
@@ -98,7 +96,7 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
 
     public async Task<DefaultLanguageResponse> SetDefaultLanguageAsync(Guid restaurantId, string? language, CancellationToken ct)
     {
-        if (language is null || !Languages.Contains(language))
+        if (!InputRules.IsLanguage(language))
             throw ApiException.Validation("请选择中文、意大利语或英语。", "defaultLanguage", "语言代码必须为 zh、it 或 en。");
         var updated = await context.Restaurants.Where(x => x.Id == restaurantId)
             .ExecuteUpdateAsync(update => update.SetProperty(x => x.DefaultLanguage, language), ct);

@@ -37,7 +37,7 @@ public sealed class PublicMenuService(ApplicationDbContext context)
         var menu = await MenuReader.ReadAsync(context, entrance.RestaurantId, entrance.DefaultLanguage, ct);
         await transaction.CommitAsync(ct);
         return new(new(entrance.RestaurantId, entrance.Name, entrance.CurrencyCode, entrance.DefaultLanguage,
-                entrance.ServiceStatus.ToString().ToUpperInvariant(), entrance.OrderingEnabled),
+                ApiEnum.Text(entrance.ServiceStatus), entrance.OrderingEnabled),
             new(entrance.Id, entrance.TableLabel, entrance.IsEnabled), entrance.ActiveSessionId,
             new(menu.AvailableLanguages, menu.Categories, menu.Items));
     }

@@ -1,18 +1,15 @@
-using System.Text.Json;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Dining;
 using TavoloFlow.Api.Entities;
 using TavoloFlow.Api.Guests;
-using TavoloFlow.Api.Menus;
 
 namespace TavoloFlow.Api.Ordering;
 
 public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
 {
-    public const long MaxAmountCents = MenuValidation.MaxPriceCents;
+    private const long MaxCents = InputRules.MaxSafeCents;
 
     public async Task<OrderCreation> CreateAsync(GuestIdentity guest, CreateOrderInput input, CancellationToken ct)
     {
@@ -53,20 +50,20 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
         foreach (var line in lines)
         {
             var price = menu[line.MenuItemId].PriceCents;
-            if (price <= 0 || price > MaxAmountCents / line.Quantity || total > MaxAmountCents - price * line.Quantity)
+            if (price <= 0 || price > MaxCents / line.Quantity || total > MaxCents - price * line.Quantity)
                 throw OrderErrors.Invalid("items", "订单金额超出安全整数范围。");
             total += price * line.Quantity;
         }
         var existingTotal = await db.Orders.Where(o => o.RestaurantId == guest.RestaurantId &&
             o.DiningSessionId == guest.SessionId && o.Status != OrderStatus.Cancelled).SumAsync(o => o.TotalAmountCents, ct);
-        if (existingTotal > MaxAmountCents - total || session.BillVersion == int.MaxValue)
+        if (existingTotal > MaxCents - total || session.BillVersion == int.MaxValue)
             throw new ApiException(409, "BILL_LIMIT_REACHED", "本轮账单已达到支持的上限，请联系工作人员。");
 
         var order = new Order
         {
             Id = Guid.CreateVersion7(), RestaurantId = guest.RestaurantId, DiningSessionId = guest.SessionId,
             ClientRequestId = input.ClientRequestId.Value, TotalAmountCents = total,
-            OrderNote = Clean(input.OrderNote), DefaultLanguageSnapshot = restaurant.DefaultLanguage,
+            OrderNote = InputRules.TrimToNull(input.OrderNote), DefaultLanguageSnapshot = restaurant.DefaultLanguage,
             CreatedAt = clock.GetUtcNow().UtcDateTime
         };
         foreach (var line in lines)
@@ -77,7 +74,7 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
                 Id = Guid.CreateVersion7(), RestaurantId = guest.RestaurantId, MenuItemId = item.Id,
                 ItemCodeSnapshot = item.ItemCode, NameZhSnapshot = item.NameZh, NameItSnapshot = item.NameIt,
                 NameEnSnapshot = item.NameEn, AllergenCodesSnapshot = item.AllergenCodes.ToArray(),
-                UnitPriceCents = item.PriceCents, Quantity = line.Quantity, Remark = Clean(line.Remark)
+                UnitPriceCents = item.PriceCents, Quantity = line.Quantity, Remark = InputRules.TrimToNull(line.Remark)
             });
         }
         db.Orders.Add(order);
@@ -105,19 +102,17 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
     public async Task<OrderPage> ListAsync(GuestIdentity guest, Guid sessionId, string? cursor, int limit, CancellationToken ct)
     {
         RequireTarget(guest, sessionId);
-        if (limit is < 1 or > 100) throw OrderErrors.Invalid("limit", "每页数量须为 1–100。");
-        var after = DecodeCursor(cursor, sessionId);
+        Paging.EnsureLimit(limit);
+        var after = Paging.Decode<OrderCursor>(cursor, c => c.SessionId == sessionId && Paging.IsPosition(c.CreatedAt, c.Id));
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await LockSessionAsync(guest, false, ct);
         var query = Orders(guest);
         if (after is not null)
             query = query.Where(o => EF.Functions.LessThan(ValueTuple.Create(o.CreatedAt, o.Id), ValueTuple.Create(after.CreatedAt, after.Id)));
         var rows = await query.OrderByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id).Take(limit + 1).ToArrayAsync(ct);
-        var page = rows.Take(limit).ToArray();
+        var (page, next) = Paging.Page(rows, limit, last => new OrderCursor(sessionId, last.CreatedAt, last.Id));
         var total = await db.Orders.Where(o => o.RestaurantId == guest.RestaurantId && o.DiningSessionId == sessionId &&
             o.Status != OrderStatus.Cancelled).SumAsync(o => o.TotalAmountCents, ct);
-        var next = rows.Length > limit ? WebEncoders.Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(
-            new OrderCursor(sessionId, page[^1].CreatedAt, page[^1].Id))) : null;
         await transaction.CommitAsync(ct);
         return new(page.Select(OrderResponse.From).ToArray(), next, total);
     }
@@ -138,7 +133,6 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
     {
         if (guest.SessionId != target) throw GuestErrors.SessionMismatch();
     }
-    private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static OrderLineInput[] Validate(CreateOrderInput input)
     {
@@ -149,7 +143,7 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
         foreach (var (line, index) in lines.Select((line, index) => (line, index)))
         {
             if (line.MenuItemId == Guid.Empty || line.Quantity is < 1 or > 20 ||
-                line.ExpectedUnitPriceCents < 1 || line.ExpectedUnitPriceCents > MaxAmountCents || line.Remark?.Length > 200)
+                line.ExpectedUnitPriceCents < 1 || line.ExpectedUnitPriceCents > MaxCents || line.Remark?.Length > 200)
                 throw OrderErrors.Invalid($"items[{index}]", "菜品须有效，每行 1–20 份，备注最多 200 字符，确认价格须为正整数欧分。");
         }
         if (lines.Sum(x => x.Quantity) > 100) throw OrderErrors.Invalid("items", "每单最多 100 份。");
@@ -157,20 +151,4 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
     }
 
     private sealed record OrderCursor(Guid SessionId, DateTime CreatedAt, Guid Id);
-    private static OrderCursor? DecodeCursor(string? raw, Guid sessionId)
-    {
-        if (raw is null) return null;
-        try
-        {
-            if (raw.Length > 512) throw new FormatException();
-            var cursor = JsonSerializer.Deserialize<OrderCursor>(WebEncoders.Base64UrlDecode(raw));
-            if (cursor is null || cursor.SessionId != sessionId || cursor.Id == Guid.Empty || cursor.CreatedAt.Kind != DateTimeKind.Utc)
-                throw new FormatException();
-            return cursor;
-        }
-        catch (Exception error) when (error is FormatException or JsonException or ArgumentException)
-        {
-            throw OrderErrors.Invalid("cursor", "分页位置无效，请重新读取订单。");
-        }
-    }
 }

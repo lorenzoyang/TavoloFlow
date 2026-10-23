@@ -1,15 +1,13 @@
 using TavoloFlow.Api.Common;
+using static TavoloFlow.Api.Common.InputRules;
 
 namespace TavoloFlow.Api.Menus;
 
 public static class MenuValidation
 {
-    public const long MaxPriceCents = 9_007_199_254_740_991;
-    private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
     public static CategoryInput Normalize(CategoryInput input)
     {
-        var value = input with { NameZh = Clean(input.NameZh), NameIt = Clean(input.NameIt), NameEn = Clean(input.NameEn) };
+        var value = input with { NameZh = TrimToNull(input.NameZh), NameIt = TrimToNull(input.NameIt), NameEn = TrimToNull(input.NameEn) };
         var errors = new Dictionary<string, string[]>();
         Names(value.NameZh, value.NameIt, value.NameEn, 100, errors);
         Reject(errors);
@@ -20,14 +18,14 @@ public static class MenuValidation
     {
         var value = input with
         {
-            ItemCode = Clean(input.ItemCode), NameZh = Clean(input.NameZh), NameIt = Clean(input.NameIt),
-            NameEn = Clean(input.NameEn), DescriptionZh = Clean(input.DescriptionZh),
-            DescriptionIt = Clean(input.DescriptionIt), DescriptionEn = Clean(input.DescriptionEn)
+            ItemCode = TrimToNull(input.ItemCode), NameZh = TrimToNull(input.NameZh), NameIt = TrimToNull(input.NameIt),
+            NameEn = TrimToNull(input.NameEn), DescriptionZh = TrimToNull(input.DescriptionZh),
+            DescriptionIt = TrimToNull(input.DescriptionIt), DescriptionEn = TrimToNull(input.DescriptionEn)
         };
         var errors = new Dictionary<string, string[]>();
         Names(value.NameZh, value.NameIt, value.NameEn, 150, errors);
         if (value.ItemCode?.Length > 40) errors["itemCode"] = ["编号最多 40 个字符。"];
-        if (value.PriceCents < 1 || value.PriceCents > MaxPriceCents)
+        if (value.PriceCents < 1 || value.PriceCents > MaxSafeCents)
             errors["priceCents"] = ["价格必须为正整数欧分，且不能超过安全整数范围。"];
         foreach (var (name, description, field) in new[]
         {

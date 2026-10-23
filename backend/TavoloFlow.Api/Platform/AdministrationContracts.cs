@@ -21,14 +21,14 @@ public sealed record ManagedAccount(Guid Id, string Username, string Role, bool 
     bool MustChangePassword, int CredentialVersion)
 {
     public static ManagedAccount From(RestaurantUser user) => new(user.Id, user.Username,
-        user.Role.ToString().ToUpperInvariant(), user.IsActive, user.MustChangePassword, user.CredentialVersion);
+        ApiEnum.Text(user.Role), user.IsActive, user.MustChangePassword, user.CredentialVersion);
 }
 public sealed record RestaurantSummary(Guid Id, string Name, string DefaultLanguage, string TimeZone,
     string CurrencyCode, string ServiceStatus, bool OrderingEnabled, DateTime CreatedAt)
 {
     public static RestaurantSummary From(Restaurant restaurant) => new(restaurant.Id, restaurant.Name,
         restaurant.DefaultLanguage, restaurant.TimeZone, restaurant.CurrencyCode,
-        restaurant.ServiceStatus.ToString().ToUpperInvariant(), restaurant.OrderingEnabled, restaurant.CreatedAt);
+        ApiEnum.Text(restaurant.ServiceStatus), restaurant.OrderingEnabled, restaurant.CreatedAt);
 }
 public sealed record RestaurantDetail(RestaurantSummary Restaurant, ManagedAccount[] Accounts);
 public sealed record RestaurantPage(RestaurantSummary[] Items, int TotalCount, int Page, int PageSize);

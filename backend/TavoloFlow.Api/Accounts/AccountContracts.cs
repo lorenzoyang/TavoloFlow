@@ -21,7 +21,7 @@ public sealed record CurrentAccountResponse(
     bool MustChangePassword)
 {
     public static CurrentAccountResponse From(RestaurantUser user) => new(
-        user.Id, user.Username, user.Role.ToString().ToUpperInvariant(),
+        user.Id, user.Username, ApiEnum.Text(user.Role),
         user.RestaurantId, user.Restaurant.Name, user.MustChangePassword);
 }
 

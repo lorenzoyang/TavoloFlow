@@ -171,11 +171,11 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
         using var host = new AccountTestHost(database);
         var s = await SeedAsync(host);
         await using var db = database.CreateContext();
-        await db.MenuItems.Where(i => i.Id == s.Item.Id).ExecuteUpdateAsync(u => u.SetProperty(i => i.PriceCents, OrderService.MaxAmountCents));
-        var input = s.Input(1) with { Items = [new(s.Item.Id, 2, OrderService.MaxAmountCents, null)] };
+        await db.MenuItems.Where(i => i.Id == s.Item.Id).ExecuteUpdateAsync(u => u.SetProperty(i => i.PriceCents, InputRules.MaxSafeCents));
+        var input = s.Input(1) with { Items = [new(s.Item.Id, 2, InputRules.MaxSafeCents, null)] };
         var service = new OrderService(db, host.Clock);
         Assert.Equal("VALIDATION_FAILED", (await Assert.ThrowsAsync<ApiException>(() => service.CreateAsync(s.Guest, input, default))).Code);
-        input = input with { Items = [new(s.Item.Id, 1, OrderService.MaxAmountCents, null), new(s.Item.Id, 1, OrderService.MaxAmountCents, "other")] };
+        input = input with { Items = [new(s.Item.Id, 1, InputRules.MaxSafeCents, null), new(s.Item.Id, 1, InputRules.MaxSafeCents, "other")] };
         Assert.Equal("VALIDATION_FAILED", (await Assert.ThrowsAsync<ApiException>(() => service.CreateAsync(s.Guest, input, default))).Code);
         await service.CreateAsync(s.Guest, input with { Items = [input.Items[0]] }, default);
         Assert.Equal("BILL_LIMIT_REACHED", (await Assert.ThrowsAsync<ApiException>(() => service.CreateAsync(s.Guest,

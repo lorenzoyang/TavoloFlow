@@ -47,7 +47,7 @@ public sealed class GuestService(ApplicationDbContext db, JoinCodes codes)
                 Enabled = s.Table != null && s.Table.IsEnabled }).SingleOrDefaultAsync(ct) ?? throw DiningErrors.SessionNotFound();
         if (state.Status != DiningSessionStatus.Active) throw DiningErrors.SessionClosed();
         if (state.TableId != guest.TableId) throw GuestErrors.SessionMismatch();
-        return new(guest.RestaurantId, guest.TableId, target, "ACTIVE", state.ServiceStatus.ToString().ToUpperInvariant(),
+        return new(guest.RestaurantId, guest.TableId, target, "ACTIVE", ApiEnum.Text(state.ServiceStatus),
             state.Enabled, state.OrderingEnabled);
     }
 

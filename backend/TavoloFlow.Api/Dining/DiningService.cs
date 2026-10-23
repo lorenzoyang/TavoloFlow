@@ -33,7 +33,7 @@ public sealed class DiningService(ApplicationDbContext db, JoinCodes codes, Time
                         s.Orders.Where(o => o.Status != OrderStatus.Cancelled).Sum(o => o.TotalAmountCents)))
                     .SingleOrDefault())).ToArrayAsync(ct);
         await transaction.CommitAsync(ct);
-        return new(restaurant.ServiceStatus.ToString().ToUpperInvariant(), restaurant.OrderingEnabled, tables);
+        return new(ApiEnum.Text(restaurant.ServiceStatus), restaurant.OrderingEnabled, tables);
     }
 
     public async Task<SessionResponse> ReadAsync(Guid restaurantId, Guid sessionId, CancellationToken ct) =>

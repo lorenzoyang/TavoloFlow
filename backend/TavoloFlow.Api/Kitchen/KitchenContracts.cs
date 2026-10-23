@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Entities;
 using TavoloFlow.Api.Ordering;
 
@@ -12,13 +13,11 @@ public sealed record KitchenOrderResponse(Guid Id, Guid SessionId, string TableL
     DateTime CreatedAt, DateTime? ReadyAt, DateTime? CancelledAt, string? CancelReason,
     string DefaultLanguage, long TotalAmountCents, string? OrderNote, OrderLineResponse[] Items)
 {
-    public static KitchenOrderResponse From(Order order)
-    {
-        var snapshot = OrderResponse.From(order);
-        return new(snapshot.Id, snapshot.SessionId, order.DiningSession.TableLabelSnapshot, snapshot.Status,
-            snapshot.CreatedAt, order.ReadyAt, order.CancelledAt, order.CancelReason, snapshot.DefaultLanguage,
-            snapshot.TotalAmountCents, snapshot.OrderNote, snapshot.Items);
-    }
+    // Requires Items and DiningSession to be loaded.
+    public static KitchenOrderResponse From(Order order) => new(order.Id, order.DiningSessionId,
+        order.DiningSession.TableLabelSnapshot, ApiEnum.Text(order.Status), order.CreatedAt, order.ReadyAt,
+        order.CancelledAt, order.CancelReason, order.DefaultLanguageSnapshot, order.TotalAmountCents,
+        order.OrderNote, OrderLineResponse.ForOrder(order));
 }
 
 public sealed record KitchenPage(KitchenOrderResponse[] Items, string? NextCursor,

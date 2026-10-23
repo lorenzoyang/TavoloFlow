@@ -28,7 +28,7 @@ public static class StoreAuthentication
         [
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Name, user.Username),
-            new Claim(ClaimTypes.Role, user.Role.ToString().ToUpperInvariant()),
+            new Claim(ClaimTypes.Role, ApiEnum.Text(user.Role)),
             new Claim(RestaurantClaim, user.RestaurantId.ToString()),
             new Claim(VersionClaim, user.CredentialVersion.ToString(CultureInfo.InvariantCulture)),
             new Claim(PasswordChangeClaim, user.MustChangePassword ? "true" : "false")
@@ -62,7 +62,7 @@ public sealed class StoreCookieEvents(ApplicationDbContext context, CurrentAccou
             .SingleOrDefaultAsync(user => user.Id == userId && user.RestaurantId == restaurantId,
                 cookieContext.HttpContext.RequestAborted);
         if (user is null || !user.IsActive || user.CredentialVersion != version ||
-            principal.FindFirstValue(ClaimTypes.Role) != user.Role.ToString().ToUpperInvariant() ||
+            principal.FindFirstValue(ClaimTypes.Role) != ApiEnum.Text(user.Role) ||
             principal.FindFirstValue(ClaimTypes.Name) != user.Username)
         {
             await RejectAsync(cookieContext);

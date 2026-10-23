@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using TavoloFlow.Api.Common;
 
 namespace TavoloFlow.Api.Data.Configurations;
 
@@ -7,7 +8,7 @@ internal sealed class UppercaseEnumConverter<TEnum> : ValueConverter<TEnum, stri
 {
     public UppercaseEnumConverter()
         : base(
-            value => value.ToString().ToUpperInvariant(),
+            value => ApiEnum.Text(value),
             value => Enum.Parse<TEnum>(value, ignoreCase: true))
     {
     }
