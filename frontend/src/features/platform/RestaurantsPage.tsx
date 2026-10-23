@@ -5,29 +5,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { platformRequest, errorMessage } from "@/lib/api";
+import { errorMessage } from "@/lib/api";
 import { PlatformBoundary, PlatformNavigation } from "./PlatformAuth";
 import { TemporaryPasswords } from "./ManagementViews";
 import { useManagement } from "./useManagement";
 import { randomUuid } from "@/lib/ids";
-import type { Restaurant } from "./state";
+import { createRestaurant, listRestaurants, RESTAURANTS_PAGE_SIZE } from "./api";
 import type { PlatformIdentity } from "./identity";
 
 function Restaurants({ account }: { account: PlatformIdentity }) {
   const [filter, setFilter] = useState({ search: "", status: "", page: 1 });
   const actions = useManagement("platform", account.userId);
-  const query = useQuery({ queryKey: ["platform", "restaurants", account.userId, filter], queryFn: ({ signal }) => {
-    const search = new URLSearchParams({ page: String(filter.page), pageSize: "20" });
-    if (filter.search) search.set("search", filter.search); if (filter.status) search.set("status", filter.status);
-    return platformRequest<{ items: Restaurant[]; totalCount: number }>(`/api/platform/restaurants?${search}`, { signal });
-  } });
+  const query = useQuery({ queryKey: ["platform", "restaurants", account.userId, filter],
+    queryFn: ({ signal }) => listRestaurants(filter, signal) });
   const create = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form);
     const id = actions.pending?.kind === "create" ? actions.pending.restaurantId : randomUuid();
-    const ok = await actions.run({ kind: "create", restaurantId: id }, "/api/platform/restaurants", "POST", {
-      id, name: String(data.get("name")), defaultLanguage: String(data.get("language")),
-      ownerUsername: String(data.get("owner")), staffUsername: String(data.get("staff")),
-    });
+    const input = { id, name: String(data.get("name")), defaultLanguage: String(data.get("language")),
+      ownerUsername: String(data.get("owner")), staffUsername: String(data.get("staff")) };
+    const ok = await actions.run({ kind: "create", restaurantId: id }, signal => createRestaurant(input, signal));
     if (ok) form.reset();
   };
   return <><PlatformNavigation account={account} /><h1 className="mb-5 text-2xl font-semibold">餐厅管理</h1>
@@ -64,7 +60,7 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
     {query.data?.totalCount === 0 && <p>暂无匹配的餐厅。</p>}
     <div className="mt-5 flex items-center gap-3"><Button variant="outline" disabled={filter.page <= 1 || query.isFetching} onClick={() => setFilter(f => ({ ...f, page: f.page - 1 }))}>上一页</Button>
       <span>第 {filter.page} 页 · 共 {query.data?.totalCount ?? 0} 家</span>
-      <Button variant="outline" disabled={!query.data || filter.page * 20 >= query.data.totalCount || query.isFetching} onClick={() => setFilter(f => ({ ...f, page: f.page + 1 }))}>下一页</Button></div>
+      <Button variant="outline" disabled={!query.data || filter.page * RESTAURANTS_PAGE_SIZE >= query.data.totalCount || query.isFetching} onClick={() => setFilter(f => ({ ...f, page: f.page + 1 }))}>下一页</Button></div>
   </>;
 }
 export function RestaurantsPage() { return <PlatformBoundary>{account => <Restaurants key={account!.userId} account={account!} />}</PlatformBoundary>; }

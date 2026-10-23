@@ -11,6 +11,7 @@ import { publicMenuQuery, type PublicMenu } from "./api";
 import { readLanguage, saveLanguage, selectedLanguage } from "./language";
 import { allergenNames, languageLabels, messages } from "./messages";
 import { GuestPanel } from "@/features/guests/GuestPanel";
+import { guestKeys } from "@/features/guests/api";
 import { useGuestVisit } from "@/features/guests/useGuestVisit";
 import { useCart } from "@/features/orders/useCart";
 import { CartPanel, TableOrders } from "@/features/orders/OrderViews";
@@ -132,8 +133,8 @@ export function PublicMenuPage({ token }: { token: string }) {
     if (query.data) { previous.current = { token, data: query.data }; return; }
     if (query.data !== null || previous.current?.token !== token) return;
     const old = previous.current.data;
-    void client.cancelQueries({ queryKey: ["guest", old.restaurant.id, old.table.id] });
-    client.removeQueries({ queryKey: ["guest", old.restaurant.id, old.table.id] });
+    void client.cancelQueries({ queryKey: guestKeys.table(old.restaurant.id, old.table.id) });
+    client.removeQueries({ queryKey: guestKeys.table(old.restaurant.id, old.table.id) });
     try {
       sessionStorage.removeItem(cartKey(old.restaurant.id, old.table.id));
       sessionStorage.setItem(guestVisitKey(token), JSON.stringify({ sessionId: old.activeSessionId, skipped: false, ended: true }));

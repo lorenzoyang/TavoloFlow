@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { CurrentAccount } from "@/features/accounts/api";
-import { accountKey } from "@/features/accounts/queries";
-import { sessionKey } from "@/features/dining/api";
-import { ApiError, errorMessage, request, write } from "@/lib/api";
+import { isSameAccount } from "@/features/accounts/queries";
+import { diningKey, floorKey, sessionKey } from "@/features/dining/api";
+import { kitchenKey } from "@/features/kitchen/api";
+import { tablesKey } from "@/features/tables/api";
+import { ApiError, errorMessage, request, withTimeout, write } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
+import { isLive, onLifecycleChange } from "@/lib/useLiveView";
 import { billingKey, historyKey } from "./api";
-import { isLive } from "@/lib/useLiveView";
 import { canAcceptResult, closeLabels, closureKey, closureRequest, readClosures, recoveryPath,
   type BillSummary, type Confirmation, type PendingClosure } from "./state";
 
@@ -23,10 +25,7 @@ export function useClosure(account: CurrentAccount) {
   const [conflict, setConflict] = useState<BillSummary | null>(null);
   const mounted = useRef(false); const epoch = useRef(0);
   const operations = useRef(new Map<string, AbortController>());
-  const sameIdentity = useCallback(() => {
-    const current = client.getQueryData<CurrentAccount | null>(accountKey);
-    return current?.userId === account.userId && current.restaurantId === account.restaurantId && current.role === account.role;
-  }, [account, client]);
+  const sameIdentity = useCallback(() => isSameAccount(client, account), [account, client]);
   const remember = useCallback((next: PendingClosure[]) => {
     pendingRef.current = next; setPending(next);
     try { if (next.length) sessionStorage.setItem(key, JSON.stringify(next)); else sessionStorage.removeItem(key); }
@@ -34,8 +33,8 @@ export function useClosure(account: CurrentAccount) {
   }, [key]);
   const forget = useCallback((id: string) => remember(pendingRef.current.filter(p => p.sessionId !== id)), [remember]);
   const refresh = useCallback(() => {
-    for (const prefix of [scope, historyKey(account), ["floor", account.restaurantId, account.userId],
-      ["dining", account.restaurantId, account.userId], ["tables", account.restaurantId, account.userId], ["kitchen", account.restaurantId, account.userId]])
+    // A closed visit changes the floor, the table list and the kitchen queue as well as the bill.
+    for (const prefix of [scope, historyKey(account), floorKey(account), diningKey(account), tablesKey(account), kitchenKey(account)])
       void client.invalidateQueries({ queryKey: prefix });
   }, [account, client, scope]);
   const acceptSession = useCallback(async (bill: BillSummary, valid: () => boolean) => {
@@ -53,7 +52,7 @@ export function useClosure(account: CurrentAccount) {
     const current = () => canAcceptResult(mounted.current, generation, epoch.current, controller.signal.aborted, sameIdentity());
     setBusy(ids => [...ids, action.sessionId]);
     try {
-      const data = await request<BillSummary>(recoveryPath(action), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
+      const data = await request<BillSummary>(recoveryPath(action), { signal: withTimeout(controller.signal) });
       if (!current()) return;
       await acceptSession(data, current);
       if (!current()) return;
@@ -77,13 +76,12 @@ export function useClosure(account: CurrentAccount) {
     const recoverPending = () => { if (isLive()) for (const action of pendingRef.current) void recoveryRef.current(action); };
     const lifecycle = () => { epoch.current++; controllers.forEach(c => c.abort()); controllers.clear(); setBusy([]); recoverPending(); };
     const timer = window.setInterval(recoverPending, 10_000); const initial = window.setTimeout(recoverPending, 0);
-    window.addEventListener("online", lifecycle); window.addEventListener("offline", lifecycle); document.addEventListener("visibilitychange", lifecycle);
+    const stopListening = onLifecycleChange(lifecycle);
     return () => {
       // Invalidate every asynchronous continuation from this page/identity before unmounting.
       // oxlint-disable-next-line react-hooks/exhaustive-deps
       mounted.current = false; epoch.current++; controllers.forEach(c => c.abort()); controllers.clear();
-      window.clearInterval(timer); window.clearTimeout(initial); window.removeEventListener("online", lifecycle);
-      window.removeEventListener("offline", lifecycle); document.removeEventListener("visibilitychange", lifecycle);
+      window.clearInterval(timer); window.clearTimeout(initial); stopListening();
       if (!sameIdentity()) { try { sessionStorage.removeItem(key); } catch { /* Identity scoped memory is discarded too. */ } }
     };
   }, [sameIdentity, key]);
@@ -98,8 +96,7 @@ export function useClosure(account: CurrentAccount) {
     setError(""); setNotice(""); setConflict(null);
     const intent = closureRequest(confirmation);
     try {
-      const summary = await write<BillSummary>(intent.path, "POST", intent.body,
-        AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]));
+      const summary = await write<BillSummary>(intent.path, "POST", intent.body, withTimeout(controller.signal));
       if (!current()) return false;
       await acceptSession(summary, current);
       if (!current()) return false;

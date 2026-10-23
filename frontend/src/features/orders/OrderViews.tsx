@@ -11,6 +11,7 @@ import type { PublicMenu } from "@/features/public-menu/api";
 import type { useGuestVisit } from "@/features/guests/useGuestVisit";
 import { accessOutcome } from "@/features/guests/state";
 import { ApiError } from "@/lib/api";
+import { uniqueBy } from "@/lib/utils";
 import { ordersKey, readOrders, type Order } from "./api";
 import { orderMessages } from "./messages";
 import { totalCents } from "./state";
@@ -102,7 +103,7 @@ export function TableOrders({ guest, data, language }: { guest: ReturnType<typeo
   }, [query.error, invalidate]);
   if (!guest.verified || guest.visit.ended) return null;
   const pages = query.data?.pages ?? [];
-  const orders = Array.from(new Map(pages.flatMap(p => p.items).map(o => [o.id, o])).values());
+  const orders = uniqueBy(pages.flatMap(p => p.items), o => o.id);
   return <section id="table-orders" aria-labelledby="orders-title" className="space-y-4">
     <div><h2 id="orders-title" className="text-xl font-semibold">{m.orders}</h2><p className="mt-2 text-sm text-muted-foreground">{m.ordersHint}</p></div>
     <Button variant="outline" className="min-h-11" disabled={query.isFetching} onClick={() => void query.refetch()}>{m.refresh}</Button>

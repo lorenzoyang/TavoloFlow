@@ -10,6 +10,7 @@ import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import { errorMessage } from "@/lib/api";
+import { uniqueBy } from "@/lib/utils";
 import { historyKey, readHistory } from "./api";
 import { closeLabels, historySearch, type HistorySearch } from "./state";
 import { HistoricalBill } from "./BillViews";
@@ -22,7 +23,7 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
   const query = useInfiniteQuery({ queryKey: [...historyKey(account), filters], initialPageParam: null as string | null,
     queryFn: ({ pageParam, signal }) => readHistory(filters, pageParam, signal), getNextPageParam: page => page.nextCursor ?? undefined });
   const head = query.data?.pages[0];
-  const rows = [...new Map((query.data?.pages ?? []).flatMap(p => p.items).map(s => [s.sessionId, s])).values()];
+  const rows = uniqueBy((query.data?.pages ?? []).flatMap(p => p.items), s => s.sessionId);
   return <div className="space-y-6">
     <header className="space-y-2"><p className="text-sm text-muted-foreground">{account.restaurantName}</p><h1 className="text-2xl font-semibold">历史账单</h1>
       <p className="text-sm text-muted-foreground">默认查看餐厅当天关闭的用餐。按关桌日期查询，保留原始账单快照。</p></header>

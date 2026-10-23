@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ApiError, guestRequest, guestWrite, publicRequest } from "@/lib/api";
-import type { PublicMenu } from "@/features/public-menu/api";
+import { ApiError, withTimeout } from "@/lib/api";
+import { publicMenuKey, readBootstrap, type PublicMenu } from "@/features/public-menu/api";
 import type { MenuItem } from "@/features/menu/api";
-import type { GuestAccess } from "@/features/guests/api";
+import { readGuestAccess } from "@/features/guests/api";
 import type { useGuestVisit } from "@/features/guests/useGuestVisit";
 import { accessOutcome } from "@/features/guests/state";
-import { confirmedOrder, ordersKey, type Order } from "./api";
+import { isLive } from "@/lib/useLiveView";
+import { createOrder, ordersKey, readOrderByRequest, type Order } from "./api";
+import { confirmedOrder } from "./response";
 import { orderError, type OrderMessage } from "./messages";
 import { randomUuid } from "@/lib/ids";
 import { addItem, cartKey, CartError, createIntent, editLine, emptyCart, persistCart, refreshCart,
@@ -51,7 +53,7 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
     setBusy(false); setReview(null); setReceipt(null);
   }, []);
   useEffect(() => {
-    const hidden = () => { if (!navigator.onLine || document.visibilityState !== "visible") cancel(); };
+    const hidden = () => { if (!isLive()) cancel(); };
     const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("tavoloflow-guest") : null;
     if (channel) channel.onmessage = cancel;
     window.addEventListener("offline", hidden); document.addEventListener("visibilitychange", hidden);
@@ -91,7 +93,7 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
     const controller = new AbortController(); operation.current = controller;
     setBusy(true); setMessage(null);
     const generation = ++epoch.current;
-    return { controller, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]),
+    return { controller, signal: withTimeout(controller.signal),
       active: () => !controller.signal.aborted && generation === epoch.current };
   }
   function finish(controller: AbortController) {
@@ -108,14 +110,14 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
   const recover = useCallback(async () => {
     const pending = current.current.pending;
     const state = live.current;
-    if (!pending || operation.current || state.guest.visit.ended || !state.guest.verified || !navigator.onLine || document.visibilityState !== "visible") return;
+    if (!pending || operation.current || state.guest.visit.ended || !state.guest.verified || !isLive()) return;
     const controller = new AbortController(); operation.current = controller;
     const generation = ++epoch.current;
-    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]);
+    const signal = withTimeout(controller.signal);
     setBusy(true);
     try {
-      await guestRequest<GuestAccess>(`/api/public/sessions/${pending.sessionId}/access`, { signal });
-      const result = await guestRequest<Order>(`/api/public/sessions/${pending.sessionId}/orders/by-request/${pending.clientRequestId}`, { signal });
+      await readGuestAccess(pending.sessionId, signal);
+      const result = await readOrderByRequest(pending.sessionId, pending.clientRequestId, signal);
       if (!controller.signal.aborted && generation === epoch.current && current.current.pending?.clientRequestId === pending.clientRequestId)
         success(confirmedOrder(result, pending.sessionId), pending);
     } catch (e) {
@@ -140,13 +142,13 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
     if (!guest.verified) { guest.enter(); setMessage("unverified"); document.getElementById("guest-join-code")?.focus(); return; }
     const work = start(); if (!work) return;
     try {
-      const latest = await publicRequest<PublicMenu>(`/api/public/qr/${encodeURIComponent(token)}/bootstrap`, { signal: work.signal });
+      const latest = await readBootstrap(token, work.signal);
       if (!work.active()) return;
-      client.setQueryData(["public", "qr", token], latest);
+      client.setQueryData(publicMenuKey(token), latest);
       if (!latest.activeSessionId || latest.activeSessionId !== live.current.guest.visit.sessionId) {
         live.current.guest.invalidate("SESSION_CLOSED"); return;
       }
-      const access = await guestRequest<GuestAccess>(`/api/public/sessions/${latest.activeSessionId}/access`, { signal: work.signal });
+      const access = await readGuestAccess(latest.activeSessionId, work.signal);
       if (!work.active()) return;
       if (access.serviceStatus !== "ACTIVE" || !access.isTableEnabled || !access.orderingEnabled) {
         setMessage(access.serviceStatus !== "ACTIVE" ? "suspended" : !access.isTableEnabled ? "disabled" : "paused"); return;
@@ -164,7 +166,7 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
   }
 
   async function send(retry: boolean) {
-    if (blocked || guest.visit.ended || !guest.verified || !navigator.onLine || document.visibilityState !== "visible") return;
+    if (blocked || guest.visit.ended || !guest.verified || !isLive()) return;
     if ((!retry && (!review || current.current.pending)) || (retry && !current.current.pending)) return;
     const work = start(); if (!work) return;
     let pending: OrderInput | null = null;
@@ -178,8 +180,8 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
       // Also verify durable storage before a manual replay; never silently reconstruct a lost intent.
       if (retry && !remember(current.current, true)) return;
       setReview(null);
-      await guestRequest<GuestAccess>(`/api/public/sessions/${pending.sessionId}/access`, { signal: work.signal });
-      const result = await guestWrite<Order>("/api/public/orders", pending, work.signal);
+      await readGuestAccess(pending.sessionId, work.signal);
+      const result = await createOrder(pending, work.signal);
       if (work.active()) success(confirmedOrder(result, pending.sessionId), pending);
     } catch (e) {
       if (!work.active()) return;
@@ -187,7 +189,7 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
       if (e instanceof ApiError && accessOutcome(e.code)) live.current.guest.invalidate(e.code);
       if (disposition === "editable" && pending) remember({ ...current.current, pending: null });
       setMessage(e instanceof CartError ? e.issue : e instanceof ApiError ? orderError(e.code) : "offline");
-      if (e instanceof ApiError && e.code === "MENU_CHANGED") void client.invalidateQueries({ queryKey: ["public", "qr", token] });
+      if (e instanceof ApiError && e.code === "MENU_CHANGED") void client.invalidateQueries({ queryKey: publicMenuKey(token) });
     } finally { finish(work.controller); }
   }
 

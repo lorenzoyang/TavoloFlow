@@ -11,9 +11,11 @@ import { Input } from "@/components/ui/input";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { ActiveBillPanel } from "@/features/billing/BillViews";
-import { ApiError, errorMessage, request, write } from "@/lib/api";
+import { tablesKey } from "@/features/tables/api";
+import { ApiError, errorMessage, withTimeout } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
-import { floorQuery, sessionQuery, sessionKey, type Floor, type FloorTable, type CodeResult, type OpenResult } from "./api";
+import { floorQuery, openTable, readFloor, readStaffJoinCode, sessionQuery, sessionKey, setAcceptingOrders,
+  type FloorTable, type CodeResult } from "./api";
 import { parsePendingAction, pendingDiningKey, recoveredOpen, type PendingDiningAction } from "./state";
 
 type FloorProps = { sessionId?: string; select: (id: string) => void };
@@ -56,7 +58,7 @@ function FloorContent({ account, sessionId = "", select: setSelected }: FloorPro
   async function refresh() {
     await floor.refetch();
     if (selected) await session.refetch();
-    void client.invalidateQueries({ queryKey: ["tables", account.restaurantId, account.userId] });
+    void client.invalidateQueries({ queryKey: tablesKey(account) });
   }
 
   const recover = useCallback(async () => {
@@ -65,12 +67,12 @@ function FloorContent({ account, sessionId = "", select: setSelected }: FloorPro
     setBusy(true); setError(""); setCode(null);
     try {
       if (pending.kind === "accepting") {
-        const data = await request<Floor>("/api/staff/floor", { signal: controller.signal });
+        const data = await readFloor(controller.signal);
         if (!mounted.current) return;
         client.setQueryData(floorQuery(account).queryKey, data);
         setNotice(data.orderingEnabled ? "已核对：当前允许接单。" : "已核对：当前已暂停接单。");
       } else {
-        const data = await request<Floor>("/api/staff/floor", { signal: controller.signal });
+        const data = await readFloor(controller.signal);
         if (!mounted.current) return;
         client.setQueryData(floorQuery(account).queryKey, data);
         const table = data.tables.find(t => t.id === pending.tableId);
@@ -95,10 +97,10 @@ function FloorContent({ account, sessionId = "", select: setSelected }: FloorPro
     if (!confirmation || operation.current || pending) return;
     const action: PendingDiningAction = { kind: "open", tableId: confirmation.table.id };
     const controller = new AbortController(); operation.current = controller;
-    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]);
+    const signal = withTimeout(controller.signal);
     remember(action); setBusy(true); setError(""); setNotice(""); setCode(null);
     try {
-      const result = await write<OpenResult>(`/api/staff/tables/${action.tableId}/open`, "POST", {}, signal);
+      const result = await openTable(action.tableId, signal);
       if (!mounted.current) return;
       setSelected(result.session.sessionId); client.setQueryData(sessionKey(account, result.session.sessionId), result.session);
       if (document.visibilityState === "visible" && navigator.onLine) setCode({ sessionId: result.session.sessionId, joinCode: result.joinCode });
@@ -118,7 +120,7 @@ function FloorContent({ account, sessionId = "", select: setSelected }: FloorPro
     const controller = new AbortController(); operation.current = controller;
     remember({ kind: "accepting", enabled }); setBusy(true); setError(""); setNotice("");
     try {
-      await write("/api/staff/accepting-orders", "PATCH", { enabled }, AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]));
+      await setAcceptingOrders(enabled, withTimeout(controller.signal));
       if (!mounted.current) return;
       remember(null); setNotice(enabled ? "已允许接单；实际下单仍须餐厅服务和桌位可用。" : "已暂停新增订单，既有订单仍可核对。");
       void refresh();
@@ -135,7 +137,7 @@ function FloorContent({ account, sessionId = "", select: setSelected }: FloorPro
     const generation = ++codeEpoch.current;
     setBusy(true); setError("");
     try {
-      const result = await request<CodeResult>(`/api/staff/sessions/${id}/join-code`, { signal: controller.signal });
+      const result = await readStaffJoinCode(id, controller.signal);
       if (mounted.current && !controller.signal.aborted && generation === codeEpoch.current && document.visibilityState === "visible" && navigator.onLine) setCode(result);
     } catch (e) { if (mounted.current) { setCode(null); setError(errorMessage(e)); void refresh(); } }
     finally { operation.current = null; if (mounted.current) setBusy(false); }

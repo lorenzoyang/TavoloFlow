@@ -42,7 +42,7 @@ export async function handleStoreAuthFailure(reason: "signed-out" | "password-re
 }
 
 // Whether a late result still belongs to the account a component was rendered for.
-export function isSameAccount(client: QueryClient, account: CurrentAccount) {
+export function isSameAccount(client: QueryClient, account: Pick<CurrentAccount, "restaurantId" | "userId" | "role">) {
   const current = client.getQueryData<CurrentAccount | null>(accountKey);
   return current?.userId === account.userId && current.restaurantId === account.restaurantId &&
     current.role === account.role && !current.mustChangePassword;

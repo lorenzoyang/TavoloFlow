@@ -1,10 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ApiError, errorMessage, platformRequest, platformWrite, request, write } from "@/lib/api";
+import { ApiError, errorMessage, platformRequest, request } from "@/lib/api";
 import { isPlatformQuery, isPrivateQuery } from "@/lib/query-scope";
+import { isLive, onLifecycleChange } from "@/lib/useLiveView";
 import { accountKey } from "@/features/accounts/queries";
 import { platformKey } from "./identity";
 import { accountRecoveryMessage, managementKey, readPending, recoveryUrl, type ManagedAccount, type RestaurantDetail, type PendingManagement, type TemporaryCredential } from "./state";
+
+// Create returns both temporary passwords and a reset returns one; status and active changes return none.
+function temporaryCredentials(result: unknown): TemporaryCredential[] {
+  const value = result as { credentials?: TemporaryCredential[] } & Partial<TemporaryCredential>;
+  if (value.credentials) return value.credentials;
+  return value.account && value.temporaryPassword ? [{ account: value.account, temporaryPassword: value.temporaryPassword }] : [];
+}
 
 export function useManagement(scope: "platform" | "store", userId: string, restaurantId?: string) {
   const client = useQueryClient();
@@ -38,7 +46,7 @@ export function useManagement(scope: "platform" | "store", userId: string, resta
 
   const recover = useCallback(async () => {
     const p = pendingRef.current;
-    if (!p || operation.current || !sameIdentity() || !navigator.onLine || document.visibilityState !== "visible") return;
+    if (!p || operation.current || !sameIdentity() || !isLive()) return;
     const controller = new AbortController(); operation.current = controller;
     const generation = epoch.current; setBusy(true);
     try {
@@ -67,14 +75,13 @@ export function useManagement(scope: "platform" | "store", userId: string, resta
     };
     const initial = window.setTimeout(() => void recover(), 0);
     const timer = window.setInterval(() => void recover(), 15_000);
-    document.addEventListener("visibilitychange", lifecycle); window.addEventListener("online", lifecycle); window.addEventListener("offline", lifecycle);
-    return () => { cancel();
-      window.clearTimeout(initial); window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", lifecycle); window.removeEventListener("online", lifecycle); window.removeEventListener("offline", lifecycle); };
+    const stopListening = onLifecycleChange(lifecycle);
+    return () => { cancel(); window.clearTimeout(initial); window.clearInterval(timer); stopListening(); };
   }, [key, recover]);
 
-  const run = async (action: PendingManagement, path: string, method: "POST" | "PATCH", body: unknown) => {
-    if (operation.current || damaged || !sameIdentity() || !navigator.onLine || document.visibilityState !== "visible" ||
+  // The intent is stored before sending, so a lost result can be recovered by GET after a reload.
+  const run = async (action: PendingManagement, send: (signal: AbortSignal) => Promise<unknown>) => {
+    if (operation.current || damaged || !sameIdentity() || !isLive() ||
       (pendingRef.current && !(missingCreate && pendingRef.current.kind === "create" && action.restaurantId === pendingRef.current.restaurantId))) return false;
     const wasUnknown = !!pendingRef.current;
     try { remember(action); } catch { setMessage("浏览器无法保存待确认标识，尚未发送修改。请允许此站点的标签页存储。"); return false; }
@@ -82,11 +89,10 @@ export function useManagement(scope: "platform" | "store", userId: string, resta
     const generation = epoch.current; setBusy(true); setSecrets([]); setMessage("");
     try {
       // Direct promises deliberately keep one-time credentials out of the mutation/query cache.
-      const result = await (scope === "platform" ? platformWrite : write)<{ credentials?: TemporaryCredential[] } & Partial<TemporaryCredential>>
-        (path, method, body, controller.signal);
+      const result = await send(controller.signal);
       if (controller.signal.aborted || generation !== epoch.current || !sameIdentity()) return false;
       remember(null);
-      setSecrets(result.credentials ?? (result.account && result.temporaryPassword ? [{ account: result.account, temporaryPassword: result.temporaryPassword }] : []));
+      setSecrets(temporaryCredentials(result));
       setMessage("操作已完成，请核对当前状态。");
       await invalidate();
       return true;

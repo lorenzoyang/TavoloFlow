@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import type { CurrentAccount } from "@/features/accounts/api";
+import type { AccountScope } from "@/features/accounts/api";
 import { request, write } from "@/lib/api";
 
 export type RestaurantTable = {
@@ -10,8 +10,8 @@ export type RestaurantTable = {
   activeSessionId: string | null;
 };
 
-export const tablesKey = (account: CurrentAccount) => ["tables", account.restaurantId, account.userId] as const;
-export const tablesQuery = (account: CurrentAccount) => queryOptions({
+export const tablesKey = (account: AccountScope) => ["tables", account.restaurantId, account.userId] as const;
+export const tablesQuery = (account: AccountScope) => queryOptions({
   queryKey: tablesKey(account),
   queryFn: ({ signal }) => request<RestaurantTable[]>("/api/staff/tables", { signal }),
 });

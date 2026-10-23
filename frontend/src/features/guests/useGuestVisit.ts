@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ApiError, guestRequest, guestWrite, publicRequest } from "@/lib/api";
-import type { PublicMenu } from "@/features/public-menu/api";
-import { guestKey, readAccess } from "./api";
+import { ApiError, withTimeout } from "@/lib/api";
+import { isLive, onLifecycleChange } from "@/lib/useLiveView";
+import { publicMenuKey, readBootstrap, type PublicMenu } from "@/features/public-menu/api";
+import { guestKeys, joinVisit, readAccess, readGuestJoinCode } from "./api";
 import { guestVisitKey, readVisit, reconcileVisit, accessOutcome, type GuestVisit } from "./state";
 import { guestMessages } from "./messages";
 
@@ -25,7 +26,7 @@ export function useGuestVisit(token: string, data: PublicMenu, confirmedAt: numb
   const operation = useRef<AbortController | null>(null);
   const epoch = useRef(0);
   const channel = useRef<BroadcastChannel | null>(null);
-  const key = guestKey(data.restaurant.id, data.table.id, visit.sessionId);
+  const key = guestKeys.access(data.restaurant.id, data.table.id, visit.sessionId);
   const access = useQuery({ queryKey: key, queryFn: ({ signal }) => readAccess(visit.sessionId!, signal),
     enabled: !!visit.sessionId && !visit.ended, refetchInterval: 30_000 });
   const clearCode = useCallback(() => { epoch.current++; setCode(""); }, []);
@@ -35,12 +36,13 @@ export function useGuestVisit(token: string, data: PublicMenu, confirmedAt: numb
   }, [token]);
   const invalidate = useCallback((errorCode: string) => {
     clearCode();
-    const prefix = ["guest", data.restaurant.id, data.table.id, visit.sessionId];
-    void client.cancelQueries({ queryKey: prefix });
-    client.removeQueries({ queryKey: prefix, predicate: q => q.queryKey[4] !== "access" });
+    const visitKey = guestKeys.visit(data.restaurant.id, data.table.id, visit.sessionId);
+    void client.cancelQueries({ queryKey: visitKey });
+    // Keep the visit's access entry (key position 4): it still drives which panel the page shows.
+    client.removeQueries({ queryKey: visitKey, predicate: q => q.queryKey[4] !== "access" });
     if (accessOutcome(errorCode) === "ended") remember({ ...visit, ended: true });
     else if (accessOutcome(errorCode) === "unverified") {
-      client.setQueryData([...prefix, "access"], { kind: "unverified" });
+      client.setQueryData(guestKeys.access(data.restaurant.id, data.table.id, visit.sessionId), { kind: "unverified" });
       remember({ ...visit, skipped: false });
     }
   }, [clearCode, client, data.restaurant.id, data.table.id, visit, remember]);
@@ -66,7 +68,7 @@ export function useGuestVisit(token: string, data: PublicMenu, confirmedAt: numb
 
   useEffect(() => {
     if (!access.data || access.data.kind === "verified") return;
-    const protectedOrders = { queryKey: ["guest", data.restaurant.id, data.table.id, visit.sessionId, "orders"] };
+    const protectedOrders = { queryKey: [...guestKeys.visit(data.restaurant.id, data.table.id, visit.sessionId), "orders"] };
     void client.cancelQueries(protectedOrders);
     client.removeQueries(protectedOrders);
   }, [access.data, data.restaurant.id, data.table.id, visit.sessionId, client]);
@@ -79,8 +81,8 @@ export function useGuestVisit(token: string, data: PublicMenu, confirmedAt: numb
       operation.current?.abort();
       operation.current = null;
       setBusy(false);
-      void client.cancelQueries({ queryKey: ["guest", data.restaurant.id, data.table.id, visit.sessionId] });
-      client.removeQueries({ queryKey: ["guest", data.restaurant.id, data.table.id, visit.sessionId] });
+      void client.cancelQueries({ queryKey: guestKeys.visit(data.restaurant.id, data.table.id, visit.sessionId) });
+      client.removeQueries({ queryKey: guestKeys.visit(data.restaurant.id, data.table.id, visit.sessionId) });
     }
   }, [visit.sessionId, visit.ended, data.restaurant.id, data.table.id, client, clearCode]);
 
@@ -89,19 +91,18 @@ export function useGuestVisit(token: string, data: PublicMenu, confirmedAt: numb
       setOnline(navigator.onLine); setVisible(document.visibilityState === "visible"); clearCode();
       setVerificationAfter(Date.now());
       // Cancel old-identity requests before revalidating; their late responses must not repopulate protected queries.
-      void client.cancelQueries({ queryKey: ["guest"] }).then(() => {
-        client.removeQueries({ queryKey: ["guest"], predicate: q => q.queryKey[4] !== "access" });
-        if (navigator.onLine && document.visibilityState === "visible") void client.invalidateQueries({ queryKey: ["guest"] });
+      void client.cancelQueries({ queryKey: guestKeys.all }).then(() => {
+        client.removeQueries({ queryKey: guestKeys.all, predicate: q => q.queryKey[4] !== "access" });
+        if (isLive()) void client.invalidateQueries({ queryKey: guestKeys.all });
       });
     };
-    window.addEventListener("online", check); window.addEventListener("offline", check); document.addEventListener("visibilitychange", check);
+    const stopListening = onLifecycleChange(check);
     const broadcast = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("tavoloflow-guest") : null;
     channel.current = broadcast;
     if (broadcast) broadcast.onmessage = check;
     // Cleanup intentionally cancels the latest operation, not the one present at mount.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-    return () => { epoch.current++; operation.current?.abort(); operation.current = null; broadcast?.close(); window.removeEventListener("online", check);
-      window.removeEventListener("offline", check); document.removeEventListener("visibilitychange", check); };
+    return () => { epoch.current++; operation.current?.abort(); operation.current = null; broadcast?.close(); stopListening(); };
   }, [client, clearCode]);
 
   useEffect(() => {
@@ -136,12 +137,12 @@ export function useGuestVisit(token: string, data: PublicMenu, confirmedAt: numb
     const generation = ++epoch.current;
     setBusy(true); setError(""); setUnknown(false); setCode("");
     try {
-      await guestWrite(`/api/public/qr/${encodeURIComponent(token)}/join`, { sessionId: visit.sessionId, joinCode: input },
-        AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]));
+      await joinVisit(token, visit.sessionId, input, withTimeout(controller.signal));
       if (controller.signal.aborted || generation !== epoch.current) return;
       setInput(""); channel.current?.postMessage("changed");
-      await client.cancelQueries({ queryKey: ["guest"] });
-      client.removeQueries({ queryKey: ["guest"], predicate: query => query.queryKey[3] !== visit.sessionId });
+      await client.cancelQueries({ queryKey: guestKeys.all });
+      // Only the joined visit (key position 3) survives a new authorization in this browser.
+      client.removeQueries({ queryKey: guestKeys.all, predicate: query => query.queryKey[3] !== visit.sessionId });
       await access.refetch();
     } catch (e) {
       if (controller.signal.aborted || generation !== epoch.current) return;
@@ -151,14 +152,13 @@ export function useGuestVisit(token: string, data: PublicMenu, confirmedAt: numb
   }
 
   async function reveal() {
-    if (operation.current || !verified || !entranceAllowed) return;
+    if (operation.current || !verified || !entranceAllowed || !visit.sessionId) return;
     const controller = new AbortController(); operation.current = controller;
     const generation = ++epoch.current;
     setBusy(true); setError(""); setCode("");
     try {
-      const result = await guestRequest<{ sessionId: string; joinCode: string }>(`/api/public/sessions/${visit.sessionId}/join-code`,
-        { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
-      if (!controller.signal.aborted && generation === epoch.current && result.sessionId === visit.sessionId && navigator.onLine && document.visibilityState === "visible") setCode(result.joinCode);
+      const result = await readGuestJoinCode(visit.sessionId, withTimeout(controller.signal));
+      if (!controller.signal.aborted && generation === epoch.current && result.sessionId === visit.sessionId && isLive()) setCode(result.joinCode);
     } catch (e) {
       if (!controller.signal.aborted && generation === epoch.current) { showError(e); void access.refetch(); }
     } finally { finish(controller); }
@@ -170,16 +170,15 @@ export function useGuestVisit(token: string, data: PublicMenu, confirmedAt: numb
     clearCode(); setUnknown(false); setError(""); setBusy(true);
     try {
       // Explicit re-entry must use a fresh entrance, not the previous visit's cached bootstrap.
-      const latest = await publicRequest<PublicMenu>(`/api/public/qr/${encodeURIComponent(token)}/bootstrap`,
-        { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
+      const latest = await readBootstrap(token, withTimeout(controller.signal));
       if (controller.signal.aborted) return;
-      await client.cancelQueries({ queryKey: ["guest", data.restaurant.id, data.table.id] });
-      client.removeQueries({ queryKey: ["guest", data.restaurant.id, data.table.id] });
-      client.setQueryData(["public", "qr", token], latest);
+      await client.cancelQueries({ queryKey: guestKeys.table(data.restaurant.id, data.table.id) });
+      client.removeQueries({ queryKey: guestKeys.table(data.restaurant.id, data.table.id) });
+      client.setQueryData(publicMenuKey(token), latest);
       remember({ sessionId: latest.activeSessionId, skipped: false, ended: false });
     } catch (e) {
       if (!controller.signal.aborted) {
-        if (e instanceof ApiError && e.code === "QR_NOT_FOUND") client.setQueryData(["public", "qr", token], null);
+        if (e instanceof ApiError && e.code === "QR_NOT_FOUND") client.setQueryData(publicMenuKey(token), null);
         else showError(e);
       }
     } finally { finish(controller); }

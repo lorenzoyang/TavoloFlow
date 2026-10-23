@@ -1,17 +1,18 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { platformRequest, errorMessage } from "@/lib/api";
+import { errorMessage } from "@/lib/api";
+import { readRestaurant, resetAccountPassword, setAccountActive, setServiceStatus } from "./api";
 import { PlatformBoundary, PlatformNavigation } from "./PlatformAuth";
 import { AccountActions, TemporaryPasswords } from "./ManagementViews";
 import { useManagement } from "./useManagement";
-import type { ManagedAccount, RestaurantDetail } from "./state";
+import type { ManagedAccount } from "./state";
 import type { PlatformIdentity } from "./identity";
 
 type Confirmation = { kind: "reset" | "active"; account: ManagedAccount } | { kind: "status"; status: "ACTIVE" | "SUSPENDED" };
 function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: string }) {
   const query = useQuery({ queryKey: ["platform", "restaurant", identity.userId, id],
-    queryFn: ({ signal }) => platformRequest<RestaurantDetail>(`/api/platform/restaurants/${id}`, { signal }) });
+    queryFn: ({ signal }) => readRestaurant(id, signal) });
   const actions = useManagement("platform", identity.userId);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const current = confirmation && confirmation.kind !== "status" ? query.data?.accounts.find(a => a.id === confirmation.account.id) : null;
@@ -21,12 +22,15 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
   const submit = async () => {
     if (!confirmation || locked || changed) return;
     const c = confirmation; setConfirmation(null);
-    if (c.kind === "status") await actions.run({ kind: "status", restaurantId: id }, `/api/platform/restaurants/${id}/service-status`, "PATCH",
-      { status: c.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE" });
-    else await actions.run({ kind: c.kind, restaurantId: id, userId: c.account.id, expectedVersion: c.account.credentialVersion },
-      `/api/platform/restaurants/${id}/users/${c.account.id}/${c.kind === "reset" ? "reset-password" : "active"}`,
-      c.kind === "reset" ? "POST" : "PATCH", { expectedCredentialVersion: c.account.credentialVersion,
-        ...(c.kind === "active" ? { isActive: !c.account.isActive } : {}) });
+    if (c.kind === "status") {
+      const next = c.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
+      await actions.run({ kind: "status", restaurantId: id }, signal => setServiceStatus(id, next, signal));
+    } else {
+      const pending = { kind: c.kind, restaurantId: id, userId: c.account.id, expectedVersion: c.account.credentialVersion };
+      await actions.run(pending, signal => c.kind === "reset"
+        ? resetAccountPassword(id, c.account, signal)
+        : setAccountActive(id, c.account, !c.account.isActive, signal));
+    }
   };
   return <><PlatformNavigation account={identity} /><h1 className="mb-5 text-2xl font-semibold">{query.data?.restaurant.name ?? "餐厅详情"}</h1>
     <Button className="mb-5 min-h-11" variant="outline" onClick={() => void query.refetch()}>刷新餐厅状态</Button>

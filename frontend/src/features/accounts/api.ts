@@ -9,6 +9,9 @@ export type CurrentAccount = {
   mustChangePassword: boolean;
 };
 
+// Private query keys and tab storage are scoped to the signed-in account within its restaurant.
+export type AccountScope = Pick<CurrentAccount, "restaurantId" | "userId">;
+
 export async function getCurrentAccount(signal?: AbortSignal): Promise<CurrentAccount | null> {
   try {
     return await request<CurrentAccount>("/api/auth/me", { signal });

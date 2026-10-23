@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { ApiError, errorMessage, platformWrite } from "@/lib/api";
+import { ApiError, errorMessage } from "@/lib/api";
+import { changePlatformPassword, platformLogin, platformLogout } from "./api";
 import { platformQuery, replacePlatform, type PlatformIdentity } from "./identity";
 
 export function PlatformLayout({ children }: { children: ReactNode }) {
@@ -37,7 +38,7 @@ export function PlatformNavigation({ account }: { account: PlatformIdentity }) {
   const logout = async () => {
     setBusy(true); setError("");
     try {
-      try { await platformWrite<void>("/api/platform/auth/logout", "POST", {}); }
+      try { await platformLogout(); }
       catch (e) { if (!(e instanceof ApiError && e.status === 401)) throw e; }
       await replacePlatform(null);
     } catch (e) { setError(errorMessage(e, "退出结果待确认，请重新读取平台身份。")); }
@@ -64,9 +65,9 @@ function PlatformForm({ password = false }: { password?: boolean }) {
     setBusy(true); setMessage("");
     const work = new AbortController(); controller.current = work;
     try {
-      const body = password ? { currentPassword: String(data.get("currentPassword")), newPassword: String(data.get("newPassword")) }
-        : { username: String(data.get("username")), password: String(data.get("password")) };
-      const account = await platformWrite<PlatformIdentity>(`/api/platform/auth/${password ? "change-password" : "login"}`, "POST", body, work.signal);
+      const account = password
+        ? await changePlatformPassword(String(data.get("currentPassword")), String(data.get("newPassword")), work.signal)
+        : await platformLogin(String(data.get("username")), String(data.get("password")), work.signal);
       if (!work.signal.aborted) { await replacePlatform(account); setMessage(password ? "平台密码已更新，其他旧登录已失效。" : "登录成功。"); }
     } catch (e) {
       if (!work.signal.aborted) setMessage(errorMessage(e, "结果待确认，请重新读取平台身份；不会自动重发请求。"));

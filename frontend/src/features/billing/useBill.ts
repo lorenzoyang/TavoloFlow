@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CurrentAccount } from "@/features/accounts/api";
-import { sessionQuery } from "@/features/dining/api";
+import { floorKey, sessionQuery } from "@/features/dining/api";
 import { syncIsFresh } from "@/lib/live-view";
 import { ApiError } from "@/lib/api";
 import { useLiveView } from "@/lib/useLiveView";
+import { uniqueBy } from "@/lib/utils";
 import { billingKey, readBill } from "./api";
 
 export function useBill(account: CurrentAccount, id: string, history = false) {
@@ -23,7 +24,7 @@ export function useBill(account: CurrentAccount, id: string, history = false) {
   const refresh = useCallback(async () => {
     if (!history) {
       await client.invalidateQueries({ queryKey: sessionQuery(account, id).queryKey });
-      void client.invalidateQueries({ queryKey: ["floor", account.restaurantId, account.userId] });
+      void client.invalidateQueries({ queryKey: floorKey(account) });
     }
     await client.invalidateQueries({ queryKey: key });
   }, [account, client, history, id, key]);
@@ -42,6 +43,6 @@ export function useBill(account: CurrentAccount, id: string, history = false) {
   }, [closed, client, key]);
   const head = query.data?.pages[0];
   const fresh = !closed && !session.isError && syncIsFresh(head?.receivedAt ?? 0, view.now, view.resumeAfter, view.active, query.isError);
-  const orders = [...new Map((query.data?.pages ?? []).flatMap(p => p.orders).map(o => [o.id, o])).values()];
+  const orders = uniqueBy((query.data?.pages ?? []).flatMap(p => p.orders), o => o.id);
   return { query, session, closed, head, orders, fresh, view, refresh };
 }

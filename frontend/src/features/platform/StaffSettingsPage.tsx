@@ -5,22 +5,24 @@ import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { request, errorMessage } from "@/lib/api";
+import { errorMessage } from "@/lib/api";
+import { readStaffAccount, resetStaffPassword } from "./api";
 import { AccountActions, TemporaryPasswords } from "./ManagementViews";
 import { useManagement } from "./useManagement";
 import type { ManagedAccount } from "./state";
 
 function StaffSettings({ owner }: { owner: CurrentAccount }) {
   const query = useQuery({ queryKey: ["staff-account", owner.restaurantId, owner.userId],
-    queryFn: ({ signal }) => request<ManagedAccount>("/api/owner/staff", { signal }) });
+    queryFn: ({ signal }) => readStaffAccount(signal) });
   const actions = useManagement("store", owner.userId, owner.restaurantId);
   const [confirmation, setConfirmation] = useState<ManagedAccount | null>(null);
   const locked = actions.busy || !!actions.pending || actions.damaged || query.isError || query.isFetching;
   const submit = async () => {
     if (!confirmation || locked || confirmation.credentialVersion !== query.data?.credentialVersion) return;
     setConfirmation(null);
-    await actions.run({ kind: "reset", restaurantId: owner.restaurantId, userId: confirmation.id, expectedVersion: confirmation.credentialVersion },
-      "/api/owner/staff/reset-password", "POST", { expectedCredentialVersion: confirmation.credentialVersion });
+    const version = confirmation.credentialVersion;
+    await actions.run({ kind: "reset", restaurantId: owner.restaurantId, userId: confirmation.id, expectedVersion: version },
+      signal => resetStaffPassword(version, signal));
   };
   return <div className="mx-auto max-w-2xl space-y-5"><h1 className="text-2xl font-semibold">店铺账号设置 · {owner.restaurantName}</h1>
     <Link to="/staff" className={buttonVariants({ variant: "outline", className: "min-h-11" })}>返回账号页</Link>
