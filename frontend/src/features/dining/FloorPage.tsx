@@ -180,7 +180,8 @@ function FloorContent({ account }: { account: CurrentAccount }) {
     {pending && <Alert role="status"><AlertDescription className="space-y-3"><p>{pending.kind === "accepting" ? "接单设置结果待确认" : pending.kind === "open" ? "开桌结果待确认" : "关闭结果待确认"}，核对完成前暂停新的操作。</p>
       <Button className="h-11" disabled={busy} onClick={() => void recover()}>核对操作结果</Button></AlertDescription></Alert>}
     <div className="flex flex-wrap gap-3"><Button variant="outline" className="h-11" disabled={busy || floor.isFetching} onClick={() => void refresh()}><RefreshCw />重新读取状态</Button>
-      <Link to="/staff/tables" className={buttonVariants({ variant: "outline", className: "h-11" })}>桌位管理</Link></div>
+      <Link to="/staff/tables" className={buttonVariants({ variant: "outline", className: "h-11" })}>桌位管理</Link>
+      <Link to="/staff/kitchen" className={buttonVariants({ variant: "outline", className: "h-11" })}>厨房工作台</Link></div>
     {floor.data && <Card><CardContent className="flex flex-wrap items-center justify-between gap-4 pt-6"><div>
       <h2 className="font-semibold">扫码接单：{floor.data.orderingEnabled ? "已开启" : "已暂停"}</h2>
       <p className="mt-1 text-sm text-muted-foreground">暂停不结束用餐，已提交的订单仍可核对。</p></div>

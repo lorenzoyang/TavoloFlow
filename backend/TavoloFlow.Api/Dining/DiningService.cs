@@ -76,7 +76,7 @@ public sealed class DiningService(ApplicationDbContext db, JoinCodes codes, Time
         if (input.GuestsLeftConfirmed != true || input.ConfirmedTotalCents != 0 || input.ExpectedBillVersion is null or <= 0)
             throw new DiningException(400, "VALIDATION_FAILED", "请核对零账单并确认顾客已离桌。");
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        // Future ordering/cancellation/checkout operations must take this same session lock.
+        // Ordering and kitchen transitions take this same session lock; future checkout must too.
         var session = await DiningLocks.SessionAsync(db, restaurantId, id, true, ct);
         if (session.BillVersion != input.ExpectedBillVersion)
             throw new DiningException(409, "BILL_CHANGED", "账单已变化，请重新核对。");

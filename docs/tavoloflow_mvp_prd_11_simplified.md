@@ -238,6 +238,8 @@ flowchart TD
 - `NEW → READY` 不改变 `bill_version`；**实际成功取消**才递增 `bill_version`。重复取消、不合法状态操作不递增。
 - 状态冲突时前端刷新订单、显示已由别的设备处理；不提示为服务器异常。
 
+**当前厨房实现（第六阶段）**：`/staff/kitchen` 已提供待处理、已完成、已取消三个活动用餐视图。NEW 按提交时间/ID 升序，READY/CANCELLED 按处理时间/ID 倒序；游标分页默认 50、最大 100。完成和取消均在 Session 行锁内条件更新；取消须携带 `expectedStatus` 和 trim 后 1–500 字符原因，实际取消才递增账单版本。过期确认、重复操作返回 `ORDER_CHANGED`，保留原处理信息。页面每 10 秒刷新已加载分页，超过 30 秒未同步或连接失败时暂停修改；未知写入结果只 GET 核对。声音主动开启，以全店累计订单数检测新增，初次进入/恢复连接不补响。顾客端沿用原轮询获得状态和非取消总额。无新表、迁移或取消操作者字段；全部取消仍不能 EMPTY 关闭。接口、学习步骤和实验见 [第六阶段学习文档](kitchen-cancellation.md)。
+
 ### 3.7 结账、`bill_version` 与关桌（核心事务）
 
 **老板端交互**
@@ -359,9 +361,10 @@ flowchart TD
 | GET | `/api/staff/sessions/{id}/bill` | 返回金额、明细、`billVersion`、`newOrderCount` |
 | POST | `/api/staff/sessions/{id}/close-empty` | **已实现**：`expectedBillVersion + confirmedTotalCents=0 + guestsLeftConfirmed=true`；必须从未产生订单 |
 | POST | `/api/staff/sessions/{id}/close-void` | 同上，另判断存在订单但全部取消 |
-| GET | `/api/staff/orders` | 厨房列表、状态筛选与分页 |
-| POST | `/api/staff/orders/{id}/ready` | 条件 `NEW → READY` |
-| POST | `/api/staff/orders/{id}/cancel` | 取消原因；按角色与当前状态判断 |
+| GET | `/api/staff/orders` | **已实现**：活动用餐厨房列表，`status`/`cursor`/`limit`，返回筛选总量、待处理数和累计订单数 |
+| GET | `/api/staff/orders/{id}` | **已实现**：当前厨房订单及处理信息，供未知结果 GET 核对 |
+| POST | `/api/staff/orders/{id}/ready` | **已实现**：条件 `NEW → READY`，不递增账单版本 |
+| POST | `/api/staff/orders/{id}/cancel` | **已实现**：`expectedStatus` + 1–500 字符原因；READY 作废仅 OWNER，成功取消递增账单版本 |
 | PATCH | `/api/staff/menu-items/{id}/availability` | `isAvailable` **明确目标值**，仅改这个字段 |
 | PATCH | `/api/staff/accepting-orders` | **已实现**：OWNER/STAFF，`enabled` 明确目标值，只修改接单开关 |
 | POST | `/api/owner/sessions/{id}/checkout` | `expectedBillVersion + confirmedTotalCents`，核账并原子 `PAID` 清桌 |
@@ -571,8 +574,8 @@ DBML 注释本身不会生成所有 PostgreSQL 部分索引；使用 **EF Core M
 2. **账户与多租户**：平台/店铺登录、角色授权、首次改密、`credential_version`、创建餐厅。
 3. **菜单与桌位**：三语菜单、价格/审核验证、供应状态、固定二维码、删除。
 4. **开桌与顾客授权**：Session、加密码、Cookie、开桌未知结果恢复。
-5. **购物车和下单（已实现）**：最新价确认、`client_request_id`、历史快照、自动 GET 恢复/手动原请求重试、整桌订单和接单开关；无新迁移。含任何订单的用餐不能 EMPTY 关闭，需由后续厨房/结账阶段接续。
-6. **厨房与取消**：轮询、READY/取消条件更新、版本递增。
+5. **购物车和下单（已实现）**：最新价确认、`client_request_id`、历史快照、自动 GET 恢复/手动原请求重试、整桌订单和接单开关；无新迁移。含任何订单的用餐不能 EMPTY 关闭，需由后续结账阶段接续。
+6. **厨房与取消（已实现）**：活动订单分页、10 秒轮询、主动声音提醒、READY/取消条件更新、版本递增、冲突确认和未知结果 GET 核对；无新迁移。
 7. **结账与历史**：GET bill、`expectedBillVersion` checkout、EMPTY/VOIDED、关闭后保护、历史只读。
 8. **联调/试运营准备**：移动端、异常网路、同桌并发、多餐厅隔离、备份恢复和操作说明。
 

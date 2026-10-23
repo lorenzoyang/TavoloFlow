@@ -35,6 +35,7 @@ function AccountDetails({ account, passwordChanged }: { account: CurrentAccount;
           ))}
         </dl>
         <Link to="/staff/floor" className={buttonVariants({ className: "h-11 w-full" })}>开桌工作台</Link>
+        <Link to="/staff/kitchen" className={buttonVariants({ className: "h-11 w-full" })}>厨房工作台</Link>
         <Link to="/staff/menu" className={buttonVariants({ className: "h-11 w-full" })}>
           <Utensils aria-hidden="true" />{m.menu}
         </Link>
