@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parsePendingAction, pendingDiningKey, recoveredOpen } from "../src/features/dining/state.ts";
+import {
+  parsePendingAction,
+  pendingDiningKey,
+  recoveredOpen,
+} from "../src/features/dining/state.ts";
 import { readVisit, reconcileVisit, accessOutcome } from "../src/features/guests/state.ts";
 import { isPrivateQuery } from "../src/lib/query-scope.ts";
 
@@ -15,8 +19,13 @@ test("unknown opening survives reload as a read-only recovery intent, scoped to 
 
 test("malformed or retired pending floor actions cannot create a recovery intent", () => {
   // Closing moved to the billing panel, so an old floor "close" marker is ignored rather than recovered here.
-  for (const raw of [null, "{", '{"kind":"open"}', '{"kind":"delete","tableId":"8"}',
-    JSON.stringify({ kind: "close", tableId: "8", sessionId: "old-session" })])
+  for (const raw of [
+    null,
+    "{",
+    '{"kind":"open"}',
+    '{"kind":"delete","tableId":"8"}',
+    JSON.stringify({ kind: "close", tableId: "8", sessionId: "old-session" }),
+  ])
     assert.equal(parsePendingAction(raw), null);
 });
 
@@ -47,7 +56,10 @@ test("expired or replaced credentials require verification without falsely closi
 });
 
 test("staff identity changes preserve guest authorization queries and anonymous menu data", () => {
-  assert.equal(isPrivateQuery({ queryKey: ["guest", "restaurant", "table", "session", "access"] }), false);
+  assert.equal(
+    isPrivateQuery({ queryKey: ["guest", "restaurant", "table", "session", "access"] }),
+    false,
+  );
   assert.equal(isPrivateQuery({ queryKey: ["public", "qr", "token"] }), false);
   assert.equal(isPrivateQuery({ queryKey: ["floor", "restaurant", "staff"] }), true);
   assert.equal(isPrivateQuery({ queryKey: ["dining", "restaurant", "staff", "session"] }), true);

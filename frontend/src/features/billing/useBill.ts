@@ -11,13 +11,21 @@ import { billingKey, readBill } from "./api";
 export function useBill(account: CurrentAccount, id: string, history = false) {
   const client = useQueryClient();
   const view = useLiveView();
-  const key = useMemo(() => [...billingKey(account), history ? "closed" : "active", id], [account, history, id]);
-  const session = useQuery({ ...sessionQuery(account, id), enabled: !history && !!id && view.active,
-    refetchInterval: view.active ? 30_000 : false });
+  const key = useMemo(
+    () => [...billingKey(account), history ? "closed" : "active", id],
+    [account, history, id],
+  );
+  const session = useQuery({
+    ...sessionQuery(account, id),
+    enabled: !history && !!id && view.active,
+    refetchInterval: view.active ? 30_000 : false,
+  });
   const closed = !history && session.data?.status === "CLOSED";
-  const query = useInfiniteQuery({ queryKey: key, initialPageParam: null as string | null,
+  const query = useInfiniteQuery({
+    queryKey: key,
+    initialPageParam: null as string | null,
     queryFn: ({ pageParam, signal }) => readBill(id, history, pageParam, signal),
-    getNextPageParam: page => page.nextCursor ?? undefined,
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
     enabled: !!id && view.active && (history || session.data?.status === "ACTIVE"),
     refetchInterval: view.active && !history && !closed ? 30_000 : false,
   });
@@ -30,19 +38,34 @@ export function useBill(account: CurrentAccount, id: string, history = false) {
   }, [account, client, history, id, key]);
   useEffect(() => {
     let alive = true;
-    void client.cancelQueries({ queryKey: key }).then(() => { if (alive && view.active) void refresh(); });
-    return () => { alive = false; void client.cancelQueries({ queryKey: key }); };
+    void client.cancelQueries({ queryKey: key }).then(() => {
+      if (alive && view.active) void refresh();
+    });
+    return () => {
+      alive = false;
+      void client.cancelQueries({ queryKey: key });
+    };
   }, [view.active, view.resumeAfter, client, key, refresh]);
   useEffect(() => {
     if (!(query.error instanceof ApiError)) return;
     if (query.error.code === "BILL_CHANGED") void client.resetQueries({ queryKey: key });
-    if (query.error.code === "SESSION_CLOSED") void client.invalidateQueries({ queryKey: sessionQuery(account, id).queryKey });
+    if (query.error.code === "SESSION_CLOSED")
+      void client.invalidateQueries({ queryKey: sessionQuery(account, id).queryKey });
   }, [query.error, client, key, account, id]);
   useEffect(() => {
-    if (closed) { void client.cancelQueries({ queryKey: key }); client.removeQueries({ queryKey: key }); }
+    if (closed) {
+      void client.cancelQueries({ queryKey: key });
+      client.removeQueries({ queryKey: key });
+    }
   }, [closed, client, key]);
   const head = query.data?.pages[0];
-  const fresh = !closed && !session.isError && syncIsFresh(head?.receivedAt ?? 0, view.now, view.resumeAfter, view.active, query.isError);
-  const orders = uniqueBy((query.data?.pages ?? []).flatMap(p => p.orders), o => o.id);
+  const fresh =
+    !closed &&
+    !session.isError &&
+    syncIsFresh(head?.receivedAt ?? 0, view.now, view.resumeAfter, view.active, query.isError);
+  const orders = uniqueBy(
+    (query.data?.pages ?? []).flatMap((p) => p.orders),
+    (o) => o.id,
+  );
   return { query, session, closed, head, orders, fresh, view, refresh };
 }

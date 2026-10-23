@@ -10,14 +10,17 @@ export type RestaurantTable = {
   activeSessionId: string | null;
 };
 
-export const tablesKey = (account: AccountScope) => ["tables", account.restaurantId, account.userId] as const;
-export const tablesQuery = (account: AccountScope) => queryOptions({
-  queryKey: tablesKey(account),
-  queryFn: ({ signal }) => request<RestaurantTable[]>("/api/staff/tables", { signal }),
-});
+export const tablesKey = (account: AccountScope) =>
+  ["tables", account.restaurantId, account.userId] as const;
+export const tablesQuery = (account: AccountScope) =>
+  queryOptions({
+    queryKey: tablesKey(account),
+    queryFn: ({ signal }) => request<RestaurantTable[]>("/api/staff/tables", { signal }),
+  });
 
 // Renaming and enabling each change only their own field; the QR token never changes.
-export const createTable = (tableLabel: string) => write<RestaurantTable>("/api/owner/tables", "POST", { tableLabel });
+export const createTable = (tableLabel: string) =>
+  write<RestaurantTable>("/api/owner/tables", "POST", { tableLabel });
 export const renameTable = (id: string, tableLabel: string) =>
   write<RestaurantTable>(`/api/owner/tables/${id}/label`, "PATCH", { tableLabel });
 export const setTableEnabled = (id: string, isEnabled: boolean) =>

@@ -21,8 +21,9 @@ export const platformQuery = queryOptions({
   queryKey: platformKey,
   queryFn: async ({ signal }) => {
     let account: PlatformIdentity | null;
-    try { account = await platformRequest<PlatformIdentity>("/api/platform/auth/me", { signal }); }
-    catch (error) {
+    try {
+      account = await platformRequest<PlatformIdentity>("/api/platform/auth/me", { signal });
+    } catch (error) {
       if (error instanceof ApiError && error.status === 401) account = null;
       else throw error;
     }

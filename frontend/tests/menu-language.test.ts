@@ -5,7 +5,11 @@ import { displayName, type Language, type Names } from "../src/lib/language.ts";
 const names: Names = { nameZh: "炒饭", nameIt: "Riso", nameEn: "Rice" };
 
 test("the restaurant preference wins when no viewer language is selected", () => {
-  for (const [language, text] of [["zh", "炒饭"], ["it", "Riso"], ["en", "Rice"]] as const) {
+  for (const [language, text] of [
+    ["zh", "炒饭"],
+    ["it", "Riso"],
+    ["en", "Rice"],
+  ] as const) {
     assert.deepEqual(displayName(names, language), { language, text });
   }
 });
@@ -13,7 +17,10 @@ test("the restaurant preference wins when no viewer language is selected", () =>
 test("a missing default falls back to Italian, then Chinese, then English", () => {
   assert.deepEqual(displayName({ ...names, nameEn: null }, "en"), { language: "it", text: "Riso" });
   assert.deepEqual(displayName({ ...names, nameIt: null }, "it"), { language: "zh", text: "炒饭" });
-  assert.deepEqual(displayName({ ...names, nameIt: null, nameZh: null }, "it"), { language: "en", text: "Rice" });
+  assert.deepEqual(displayName({ ...names, nameIt: null, nameZh: null }, "it"), {
+    language: "en",
+    text: "Rice",
+  });
 });
 
 test("each single translation works with every default and a repeated viewer choice", () => {

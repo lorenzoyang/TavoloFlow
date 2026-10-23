@@ -23,7 +23,13 @@ function PasswordForm({ account }: { account: CurrentAccount }) {
   const navigate = useNavigate();
   const [validationError, setValidationError] = useState<PasswordValidationError | null>(null);
   const mutation = useMutation({
-    mutationFn: async ({ currentPassword, newPassword }: { currentPassword: string; newPassword: string }) => {
+    mutationFn: async ({
+      currentPassword,
+      newPassword,
+    }: {
+      currentPassword: string;
+      newPassword: string;
+    }) => {
       const updated = await changePassword(currentPassword, newPassword);
       await replaceAccount(updated);
       await navigate({ to: "/staff", search: { passwordChanged: true }, replace: true });
@@ -55,8 +61,10 @@ function PasswordForm({ account }: { account: CurrentAccount }) {
   }
   return (
     <>
-      <AccountCardHeader title={account.mustChangePassword ? m.firstChangeTitle : m.changeTitle}
-        description={account.mustChangePassword ? undefined : m.changeDescription} />
+      <AccountCardHeader
+        title={account.mustChangePassword ? m.firstChangeTitle : m.changeTitle}
+        description={account.mustChangePassword ? undefined : m.changeDescription}
+      />
       <CardContent className="space-y-5">
         {account.mustChangePassword && (
           <Alert role="status">
@@ -65,29 +73,65 @@ function PasswordForm({ account }: { account: CurrentAccount }) {
           </Alert>
         )}
         <form onSubmit={submit} className="space-y-4" aria-busy={mutation.isPending}>
-          <input type="text" name="username" autoComplete="username" value={account.username} readOnly hidden />
+          <input
+            type="text"
+            name="username"
+            autoComplete="username"
+            value={account.username}
+            readOnly
+            hidden
+          />
           <FieldSet disabled={mutation.isPending} className="gap-5">
-            <PasswordInput name="currentPassword" label={m.currentPassword} autoComplete="current-password" disabled={mutation.isPending} />
-            <PasswordInput name="newPassword" label={m.newPassword} autoComplete="new-password" minimum={12}
-              description={m.passwordHint} disabled={mutation.isPending}
-              error={validationError?.field === "newPassword" ? validationError.message : undefined}
-              onChange={() => setValidationError(null)} />
-            <PasswordInput name="confirmPassword" label={m.confirmPassword} autoComplete="new-password" minimum={12}
+            <PasswordInput
+              name="currentPassword"
+              label={m.currentPassword}
+              autoComplete="current-password"
               disabled={mutation.isPending}
-              error={validationError?.field === "confirmPassword" ? validationError.message : undefined}
-              onChange={() => setValidationError(null)} />
-            {mutation.isError && <ErrorNotice message={errorMessage(mutation.error, m.unknownPasswordResult)} />}
+            />
+            <PasswordInput
+              name="newPassword"
+              label={m.newPassword}
+              autoComplete="new-password"
+              minimum={12}
+              description={m.passwordHint}
+              disabled={mutation.isPending}
+              error={validationError?.field === "newPassword" ? validationError.message : undefined}
+              onChange={() => setValidationError(null)}
+            />
+            <PasswordInput
+              name="confirmPassword"
+              label={m.confirmPassword}
+              autoComplete="new-password"
+              minimum={12}
+              disabled={mutation.isPending}
+              error={
+                validationError?.field === "confirmPassword" ? validationError.message : undefined
+              }
+              onChange={() => setValidationError(null)}
+            />
+            {mutation.isError && (
+              <ErrorNotice message={errorMessage(mutation.error, m.unknownPasswordResult)} />
+            )}
             <Button type="submit" disabled={mutation.isPending} className="h-11 w-full">
               {mutation.isPending && <LoaderCircle aria-hidden="true" className="animate-spin" />}
-              <span aria-live="polite">{mutation.isPending ? m.savingPassword : m.savePassword}</span>
+              <span aria-live="polite">
+                {mutation.isPending ? m.savingPassword : m.savePassword}
+              </span>
             </Button>
           </FieldSet>
-          {mutation.isError && !(mutation.error instanceof ApiError && mutation.error.status < 500) && <VerifyIdentityButton />}
+          {mutation.isError &&
+            !(mutation.error instanceof ApiError && mutation.error.status < 500) && (
+              <VerifyIdentityButton />
+            )}
         </form>
         <div className="space-y-3">
           {!account.mustChangePassword && !mutation.isPending && (
-            <Link to="/staff" className={buttonVariants({ variant: "ghost", className: "h-11 w-full" })}>
-              <ArrowLeft aria-hidden="true" />{m.back}
+            <Link
+              to="/staff"
+              className={buttonVariants({ variant: "ghost", className: "h-11 w-full" })}
+            >
+              <ArrowLeft aria-hidden="true" />
+              {m.back}
             </Link>
           )}
           <LogoutButton disabled={mutation.isPending} />

@@ -22,8 +22,15 @@ export function useLiveView() {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     const tick = window.setInterval(() => setNow(Date.now()), 1000);
-    const stop = onLifecycleChange(() => { setActive(isLive()); setResumeAfter(Date.now()); setNow(Date.now()); });
-    return () => { window.clearInterval(tick); stop(); };
+    const stop = onLifecycleChange(() => {
+      setActive(isLive());
+      setResumeAfter(Date.now());
+      setNow(Date.now());
+    });
+    return () => {
+      window.clearInterval(tick);
+      stop();
+    };
   }, []);
   return { active, resumeAfter, now };
 }

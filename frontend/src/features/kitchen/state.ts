@@ -1,9 +1,15 @@
 import { isUuid } from "../../lib/ids.ts";
 
 export type OrderStatus = "NEW" | "READY" | "CANCELLED";
-export type PendingKitchenAction = { orderId: string; sessionId: string; kind: "ready" | "cancel"; expectedStatus: "NEW" | "READY" };
+export type PendingKitchenAction = {
+  orderId: string;
+  sessionId: string;
+  kind: "ready" | "cancel";
+  expectedStatus: "NEW" | "READY";
+};
 export type ArrivalBaseline = { count: number; at: number } | null;
-export const pendingKitchenKey = (restaurantId: string, userId: string) => `tavoloflow:kitchen:${restaurantId}:${userId}`;
+export const pendingKitchenKey = (restaurantId: string, userId: string) =>
+  `tavoloflow:kitchen:${restaurantId}:${userId}`;
 
 export function readPending(raw: string | null): PendingKitchenAction[] {
   try {
@@ -11,15 +17,27 @@ export function readPending(raw: string | null): PendingKitchenAction[] {
     if (!Array.isArray(value)) return [];
     const entries: PendingKitchenAction[] = [];
     for (const row of value) {
-      if (!row || !isUuid(row.orderId) || !isUuid(row.sessionId) ||
-          (row.kind !== "ready" && row.kind !== "cancel") ||
-          (row.expectedStatus !== "NEW" && row.expectedStatus !== "READY") ||
-          (row.kind === "ready" && row.expectedStatus !== "NEW")) continue;
-      if (!entries.some(x => x.orderId === row.orderId)) entries.push({ orderId: row.orderId,
-        sessionId: row.sessionId, kind: row.kind, expectedStatus: row.expectedStatus });
+      if (
+        !row ||
+        !isUuid(row.orderId) ||
+        !isUuid(row.sessionId) ||
+        (row.kind !== "ready" && row.kind !== "cancel") ||
+        (row.expectedStatus !== "NEW" && row.expectedStatus !== "READY") ||
+        (row.kind === "ready" && row.expectedStatus !== "NEW")
+      )
+        continue;
+      if (!entries.some((x) => x.orderId === row.orderId))
+        entries.push({
+          orderId: row.orderId,
+          sessionId: row.sessionId,
+          kind: row.kind,
+          expectedStatus: row.expectedStatus,
+        });
     }
     return entries;
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 export function arrivals(previous: ArrivalBaseline, count: number, at: number) {

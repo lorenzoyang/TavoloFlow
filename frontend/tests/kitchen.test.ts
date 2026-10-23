@@ -1,20 +1,40 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { arrivals, canCancel, pendingKitchenKey, readPending, recoveryOutcome,
-  type PendingKitchenAction } from "../src/features/kitchen/state.ts";
+import {
+  arrivals,
+  canCancel,
+  pendingKitchenKey,
+  readPending,
+  recoveryOutcome,
+  type PendingKitchenAction,
+} from "../src/features/kitchen/state.ts";
 import { syncIsFresh } from "../src/lib/live-view.ts";
 import { isPrivateQuery } from "../src/lib/query-scope.ts";
 
-const action: PendingKitchenAction = { orderId: "00000000-0000-4000-8000-000000000001",
-  sessionId: "00000000-0000-4000-8000-000000000002", kind: "cancel", expectedStatus: "NEW" };
+const action: PendingKitchenAction = {
+  orderId: "00000000-0000-4000-8000-000000000001",
+  sessionId: "00000000-0000-4000-8000-000000000002",
+  kind: "cancel",
+  expectedStatus: "NEW",
+};
 
 test("unknown operations survive reload with only scoped identifiers and never carry replay bodies", () => {
-  const stored = JSON.stringify([{ ...action, reason: "private reason", items: ["private order"], cookie: "secret" }, action]);
+  const stored = JSON.stringify([
+    { ...action, reason: "private reason", items: ["private order"], cookie: "secret" },
+    action,
+  ]);
   assert.deepEqual(readPending(stored), [action]);
   assert.notEqual(pendingKitchenKey("a", "staff"), pendingKitchenKey("b", "staff"));
   assert.notEqual(pendingKitchenKey("a", "staff"), pendingKitchenKey("a", "owner"));
-  for (const raw of [null, "{", "{}", '[null]', JSON.stringify([{ ...action, orderId: "../another" }]),
-    JSON.stringify([{ ...action, kind: "ready", expectedStatus: "READY" }])]) assert.deepEqual(readPending(raw), []);
+  for (const raw of [
+    null,
+    "{",
+    "{}",
+    "[null]",
+    JSON.stringify([{ ...action, orderId: "../another" }]),
+    JSON.stringify([{ ...action, kind: "ready", expectedStatus: "READY" }]),
+  ])
+    assert.deepEqual(readPending(raw), []);
 });
 
 test("GET recovery distinguishes achieved target, changed state and a fresh human confirmation", () => {

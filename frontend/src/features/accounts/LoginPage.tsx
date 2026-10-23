@@ -40,24 +40,53 @@ function LoginForm() {
           <FieldSet disabled={mutation.isPending} className="gap-5">
             <Field data-disabled={mutation.isPending}>
               <FieldLabel htmlFor={usernameId}>{m.username}</FieldLabel>
-              <Input id={usernameId} name="username" autoComplete="username" autoCapitalize="none"
-                spellCheck={false} required maxLength={50} disabled={mutation.isPending} className="h-11" />
+              <Input
+                id={usernameId}
+                name="username"
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
+                required
+                maxLength={50}
+                disabled={mutation.isPending}
+                className="h-11"
+              />
             </Field>
-            <PasswordInput name="password" label={m.password} autoComplete="current-password" disabled={mutation.isPending} />
-            {mutation.isError && <ErrorNotice message={errorMessage(mutation.error, m.loginUnknown)} />}
+            <PasswordInput
+              name="password"
+              label={m.password}
+              autoComplete="current-password"
+              disabled={mutation.isPending}
+            />
+            {mutation.isError && (
+              <ErrorNotice message={errorMessage(mutation.error, m.loginUnknown)} />
+            )}
             <Button type="submit" disabled={mutation.isPending} className="h-11 w-full">
-              {mutation.isPending ? <LoaderCircle aria-hidden="true" className="animate-spin" /> : <ArrowRight aria-hidden="true" />}
+              {mutation.isPending ? (
+                <LoaderCircle aria-hidden="true" className="animate-spin" />
+              ) : (
+                <ArrowRight aria-hidden="true" />
+              )}
               <span aria-live="polite">{mutation.isPending ? m.loggingIn : m.login}</span>
             </Button>
           </FieldSet>
-          {mutation.isError && !(mutation.error instanceof ApiError && mutation.error.status < 500) && <VerifyIdentityButton />}
+          {mutation.isError &&
+            !(mutation.error instanceof ApiError && mutation.error.status < 500) && (
+              <VerifyIdentityButton />
+            )}
         </form>
-        <p className="mt-6 text-center text-xs leading-6 text-muted-foreground">{m.loginFootnote}</p>
+        <p className="mt-6 text-center text-xs leading-6 text-muted-foreground">
+          {m.loginFootnote}
+        </p>
       </CardContent>
     </>
   );
 }
 
 export function LoginPage() {
-  return <AccountCard><AuthBoundary mode="login">{() => <LoginForm />}</AuthBoundary></AccountCard>;
+  return (
+    <AccountCard>
+      <AuthBoundary mode="login">{() => <LoginForm />}</AuthBoundary>
+    </AccountCard>
+  );
 }

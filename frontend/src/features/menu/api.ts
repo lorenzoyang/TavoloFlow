@@ -24,10 +24,11 @@ export type Menu = {
   items: MenuItem[];
   allergens: { code: string; label: string; description: string }[];
 };
-export const menuQuery = (account: CurrentAccount) => queryOptions({
-  queryKey: ["menu", account.restaurantId, account.userId] as const,
-  queryFn: ({ signal }) => request<Menu>("/api/staff/menu", { signal }),
-});
+export const menuQuery = (account: CurrentAccount) =>
+  queryOptions({
+    queryKey: ["menu", account.restaurantId, account.userId] as const,
+    queryFn: ({ signal }) => request<Menu>("/api/staff/menu", { signal }),
+  });
 
 // OWNER writes replace the whole category/item (last write wins); availability is a separate STAFF field.
 export const saveCategory = (id: string | undefined, body: unknown) =>
@@ -43,4 +44,6 @@ export const setItemAvailability = (id: string, isAvailable: boolean) =>
   write<MenuItem>(`/api/staff/menu-items/${id}/availability`, "PATCH", { isAvailable });
 
 export const setDefaultLanguage = (defaultLanguage: string) =>
-  write<{ defaultLanguage: Language }>("/api/owner/menu/default-language", "PATCH", { defaultLanguage });
+  write<{ defaultLanguage: Language }>("/api/owner/menu/default-language", "PATCH", {
+    defaultLanguage,
+  });

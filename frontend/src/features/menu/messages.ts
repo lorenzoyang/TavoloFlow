@@ -15,8 +15,7 @@ export const messages = {
   readError: "菜单读取失败，请检查网络后重试。",
   saved: "已保存。",
   refreshFailed: "操作已成功，但菜单刷新失败，请重新读取。",
-  unknown:
-    "操作结果暂时无法确认。请恢复网络后重新读取菜单并核对结果，再决定是否提交。",
+  unknown: "操作结果暂时无法确认。请恢复网络后重新读取菜单并核对结果，再决定是否提交。",
   categories: "菜单分类",
   all: "全部菜品",
   addCategory: "添加分类",
@@ -26,8 +25,7 @@ export const messages = {
   edit: "编辑",
   remove: "删除",
   confirmDelete: "确认删除",
-  deleteHint:
-    "删除后不能恢复。菜品的历史订单快照会保留；非空分类需要先移走或删除菜品。",
+  deleteHint: "删除后不能恢复。菜品的历史订单快照会保留；非空分类需要先移走或删除菜品。",
   cancel: "取消",
   save: "保存",
   saving: "正在提交…",
@@ -54,7 +52,8 @@ export const messages = {
   markSoldOut: "设为售罄",
   restore: "恢复供应",
   defaultLanguage: "菜单默认语言",
-  defaultHint: "设置菜单的首选语言，缺少翻译时逐条回退。菜单增删不会改变此设置；后台仍优先显示中文。",
+  defaultHint:
+    "设置菜单的首选语言，缺少翻译时逐条回退。菜单增删不会改变此设置；后台仍优先显示中文。",
   setDefault: "保存默认语言",
   fieldError: "请检查以下字段",
 } as const;

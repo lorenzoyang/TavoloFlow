@@ -17,8 +17,13 @@ export function ErrorNotice({ message }: { message: string }) {
 export function VerifyIdentityButton() {
   const query = useQuery(accountQuery);
   return (
-    <Button type="button" variant="outline" className="h-11 w-full"
-      disabled={query.isFetching} onClick={() => void query.refetch()}>
+    <Button
+      type="button"
+      variant="outline"
+      className="h-11 w-full"
+      disabled={query.isFetching}
+      onClick={() => void query.refetch()}
+    >
       {query.isFetching && <LoaderCircle aria-hidden="true" className="animate-spin" />}
       {m.verifyIdentity}
     </Button>

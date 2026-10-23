@@ -16,24 +16,50 @@ type PasswordInputProps = {
   onChange?: () => void;
 };
 
-export function PasswordInput({ name, label, autoComplete, minimum, description, error, disabled, onChange }: PasswordInputProps) {
+export function PasswordInput({
+  name,
+  label,
+  autoComplete,
+  minimum,
+  description,
+  error,
+  disabled,
+  onChange,
+}: PasswordInputProps) {
   const id = useId();
   const [visible, setVisible] = useState(false);
   const descriptionId = `${id}-description`;
   const errorId = `${id}-error`;
-  const describedBy = [description && descriptionId, error && errorId].filter(Boolean).join(" ") || undefined;
+  const describedBy =
+    [description && descriptionId, error && errorId].filter(Boolean).join(" ") || undefined;
   return (
     <Field data-invalid={!!error} data-disabled={disabled}>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
       <div className="relative">
-        <Input id={id} name={name} type={visible ? "text" : "password"}
-          required minLength={minimum} maxLength={128} autoComplete={autoComplete}
-          disabled={disabled} aria-invalid={!!error} aria-describedby={describedBy}
-          onChange={onChange} className="h-11 pr-12" />
-        <Button type="button" variant="ghost" size="icon" disabled={disabled}
+        <Input
+          id={id}
+          name={name}
+          type={visible ? "text" : "password"}
+          required
+          minLength={minimum}
+          maxLength={128}
+          autoComplete={autoComplete}
+          disabled={disabled}
+          aria-invalid={!!error}
+          aria-describedby={describedBy}
+          onChange={onChange}
+          className="h-11 pr-12"
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          disabled={disabled}
           onClick={() => setVisible(!visible)}
-          aria-label={`${visible ? m.hidePassword : m.showPassword}：${label}`} aria-pressed={visible}
-          className="absolute right-0 top-0 size-11 text-muted-foreground">
+          aria-label={`${visible ? m.hidePassword : m.showPassword}：${label}`}
+          aria-pressed={visible}
+          className="absolute right-0 top-0 size-11 text-muted-foreground"
+        >
           {visible ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
         </Button>
       </div>

@@ -20,7 +20,11 @@ export function AuthBoundary(props: AuthBoundaryProps) {
     return (
       <CardContent className="space-y-4">
         <ErrorNotice message={m.connectionError} />
-        <Button className="h-11 w-full" disabled={query.isFetching} onClick={() => void query.refetch()}>
+        <Button
+          className="h-11 w-full"
+          disabled={query.isFetching}
+          onClick={() => void query.refetch()}
+        >
           {query.isFetching && <LoaderCircle aria-hidden="true" className="animate-spin" />}
           {m.retry}
         </Button>
@@ -30,7 +34,10 @@ export function AuthBoundary(props: AuthBoundaryProps) {
   if (query.isPending) {
     return (
       <CardContent>
-        <p role="status" className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+        <p
+          role="status"
+          className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"
+        >
           <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
           {m.loading}
         </p>
@@ -47,11 +54,17 @@ export function AuthBoundary(props: AuthBoundaryProps) {
   if (!account) return <Navigate to="/staff/login" replace />;
   // A failed background identity refresh must not unmount an in-progress menu form.
   // A real 401 still produces null above, clears private queries and redirects.
-  return <>
-    {query.isError && <div className="mb-5 space-y-3">
-      <ErrorNotice message={m.connectionError} />
-      <Button className="h-11" disabled={query.isFetching} onClick={() => void query.refetch()}>{m.retry}</Button>
-    </div>}
-    {props.children(account)}
-  </>;
+  return (
+    <>
+      {query.isError && (
+        <div className="mb-5 space-y-3">
+          <ErrorNotice message={m.connectionError} />
+          <Button className="h-11" disabled={query.isFetching} onClick={() => void query.refetch()}>
+            {m.retry}
+          </Button>
+        </div>
+      )}
+      {props.children(account)}
+    </>
+  );
 }

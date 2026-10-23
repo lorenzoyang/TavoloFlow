@@ -64,13 +64,26 @@ export async function platformRequest<T>(path: string, init?: RequestInit): Prom
   return sendRequest<T>(path, init, "platform");
 }
 
-export async function platformWrite<T>(path: string, method: "POST" | "PATCH", body?: unknown, signal?: AbortSignal): Promise<T> {
+export async function platformWrite<T>(
+  path: string,
+  method: "POST" | "PATCH",
+  body?: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
   const { token } = await platformRequest<{ token: string }>("/api/platform/auth/csrf", { signal });
-  return platformRequest<T>(path, { method, signal,
-    headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token }, body: JSON.stringify(body) });
+  return platformRequest<T>(path, {
+    method,
+    signal,
+    headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token },
+    body: JSON.stringify(body),
+  });
 }
 
-async function sendRequest<T>(path: string, init: RequestInit | undefined, identity: "store" | "public" | "guest" | "platform"): Promise<T> {
+async function sendRequest<T>(
+  path: string,
+  init: RequestInit | undefined,
+  identity: "store" | "public" | "guest" | "platform",
+): Promise<T> {
   const storeIdentity = identity === "store";
   const response = await fetch(path, {
     ...init,
@@ -79,31 +92,29 @@ async function sendRequest<T>(path: string, init: RequestInit | undefined, ident
   });
   if (!response.ok) {
     const body: ErrorBody = await response.json().catch(() => ({}));
-    const error = new ApiError(
-      response.status,
-      body,
-      response.headers.get("Retry-After"),
-    );
+    const error = new ApiError(response.status, body, response.headers.get("Retry-After"));
     // /me maps 401 to an anonymous identity; a wrong password on /login must not invalidate another account.
     if (
-      storeIdentity && ((response.status === 401 &&
-        path !== "/api/auth/login" &&
-        path !== "/api/auth/me") ||
-      error.code === "CREDENTIALS_CHANGED")
+      storeIdentity &&
+      ((response.status === 401 && path !== "/api/auth/login" && path !== "/api/auth/me") ||
+        error.code === "CREDENTIALS_CHANGED")
     ) {
       await onAuthFailure("signed-out");
     } else if (storeIdentity && error.code === "PASSWORD_CHANGE_REQUIRED") {
       await onAuthFailure("password-required");
     }
-    if (identity === "platform" && ((response.status === 401 &&
-      path !== "/api/platform/auth/login" && path !== "/api/platform/auth/me") || error.code === "CREDENTIALS_CHANGED")) {
+    if (
+      identity === "platform" &&
+      ((response.status === 401 &&
+        path !== "/api/platform/auth/login" &&
+        path !== "/api/platform/auth/me") ||
+        error.code === "CREDENTIALS_CHANGED")
+    ) {
       await onPlatformAuthFailure();
     }
     throw error;
   }
-  return response.status === 204
-    ? (undefined as T)
-    : (response.json() as Promise<T>);
+  return response.status === 204 ? (undefined as T) : (response.json() as Promise<T>);
 }
 
 export async function write<T>(
@@ -125,7 +136,8 @@ export async function write<T>(
 export async function guestWrite<T>(path: string, body: unknown, signal: AbortSignal): Promise<T> {
   const { token } = await guestRequest<{ token: string }>("/api/public/csrf", { signal });
   return guestRequest<T>(path, {
-    method: "POST", signal,
+    method: "POST",
+    signal,
     headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token },
     body: JSON.stringify(body),
   });

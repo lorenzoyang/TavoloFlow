@@ -17,9 +17,7 @@ export function StaffLayout({ children }: { children: ReactNode }) {
           <p className="text-sm text-muted-foreground">{m.brandCaption}</p>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-6xl px-4 pb-6 sm:px-6 sm:pt-6">
-        {children}
-      </main>
+      <main className="mx-auto w-full max-w-6xl px-4 pb-6 sm:px-6 sm:pt-6">{children}</main>
       <footer className="mx-auto max-w-6xl px-4 pb-8 text-center text-xs leading-6 text-muted-foreground">
         {m.sessionNote}
       </footer>
@@ -29,7 +27,12 @@ export function StaffLayout({ children }: { children: ReactNode }) {
 
 export function AccountCard({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   return (
-    <Card className={cn("mx-auto w-full [--card-spacing:--spacing(6)]", wide ? "max-w-2xl" : "max-w-md")}>
+    <Card
+      className={cn(
+        "mx-auto w-full [--card-spacing:--spacing(6)]",
+        wide ? "max-w-2xl" : "max-w-md",
+      )}
+    >
       {children}
     </Card>
   );
@@ -38,7 +41,9 @@ export function AccountCard({ children, wide = false }: { children: ReactNode; w
 export function AccountCardHeader({ title, description }: { title: string; description?: string }) {
   return (
     <CardHeader className="gap-2">
-      <CardTitle><h1 className="text-2xl font-semibold tracking-tight">{title}</h1></CardTitle>
+      <CardTitle>
+        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+      </CardTitle>
       {description && <CardDescription className="leading-6">{description}</CardDescription>}
     </CardHeader>
   );

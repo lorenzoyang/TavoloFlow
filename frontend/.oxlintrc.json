@@ -10,7 +10,10 @@
     {
       "files": ["src/routes/**/*.tsx"],
       "rules": {
-        "react/only-export-components": ["warn", { "allowConstantExport": true, "allowExportNames": ["Route"] }]
+        "react/only-export-components": [
+          "warn",
+          { "allowConstantExport": true, "allowExportNames": ["Route"] }
+        ]
       }
     }
   ]

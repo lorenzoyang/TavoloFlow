@@ -11,8 +11,12 @@ export function isLanguage(value: unknown): value is Language {
 export function displayName(names: Names, defaultLanguage: Language, selectedLanguage?: Language) {
   const values = { zh: names.nameZh, it: names.nameIt, en: names.nameEn };
   const priority = new Set<Language>([
-    ...(selectedLanguage ? [selectedLanguage] : []), defaultLanguage, "it", "zh", "en",
+    ...(selectedLanguage ? [selectedLanguage] : []),
+    defaultLanguage,
+    "it",
+    "zh",
+    "en",
   ]);
-  const language = [...priority].find(key => values[key]?.trim()) ?? defaultLanguage;
+  const language = [...priority].find((key) => values[key]?.trim()) ?? defaultLanguage;
   return { text: values[language]?.trim() ?? "", language };
 }

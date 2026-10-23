@@ -23,6 +23,10 @@ export function formatMoney(cents: number, language: Language = "zh"): string {
   return `€ ${language === "it" ? amount.replace(".", ",") : amount}`;
 }
 
-export function formatDateTime(value: string | number, language: Language = "zh", timeZone = RESTAURANT_TIME_ZONE) {
+export function formatDateTime(
+  value: string | number,
+  language: Language = "zh",
+  timeZone = RESTAURANT_TIME_ZONE,
+) {
   return new Date(value).toLocaleString(language === "zh" ? "zh-CN" : language, { timeZone });
 }
