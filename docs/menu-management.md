@@ -42,11 +42,11 @@ sequenceDiagram
 | 文件 | 作用 |
 | --- | --- |
 | `MenuContracts.cs` | 输入/输出 DTO，以及后端提供的 14 类过敏原选项 |
-| `MenuValidation.cs` | 空白归一化、字段校验、业务错误及 Controller 错误转换 |
+| `MenuValidation.cs` | 空白归一化与字段校验；业务错误抛出 `ApiException`，由全局 `ApiExceptionFilter`（`Common/ApiErrors.cs`）转换 |
 | `MenuService.cs` | 餐厅隔离、一致快照查询、内容事务及独立语言设置 |
 
 `MenuForms.tsx` 保存当前表单草稿；服务器刷新不会重新填充已打开的表单。
-`features/menu/api.ts` 定义响应类型、查询键与金额转换；`language.ts` 提供纯名称回退函数，
+`features/menu/api.ts` 定义响应类型、查询键与写入函数；`lib/format.ts` 负责金额解析与显示，`lib/language.ts` 提供纯名称回退函数，
 返回实际名称和语言，供界面选择同语言描述；`messages.ts` 集中存放菜单界面文案。关闭表单会放弃未保存输入，不持久化草稿。
 
 练习：创建 `12,50` 欧元的菜品，查看网络请求中的 `priceCents: 1250`。

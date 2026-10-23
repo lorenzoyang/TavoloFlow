@@ -32,12 +32,14 @@ cd frontend
 node --test --test-isolation=none tests/*.test.ts
 npm run build
 npm run lint
+npm run format:check
 ```
 
 集成测试使用 Docker 临时 PostgreSQL，不访问开发库。浏览器验收使用独立 localhost 部署；命令及演练记录见 [第八阶段](docs/platform-pilot.md)。
 
 ## 学习与试运营
 
+- [架构说明与重构记录](docs/architecture.md)：分层、身份、锁顺序、数据流与设计取舍的总览，建议先读
 - [精简版 PRD](docs/tavoloflow_mvp_prd_11_simplified.md) · [数据模型](docs/er-diagram.dbml)
 - [账号](docs/store-accounts.md) → [菜单](docs/menu-management.md) → [桌位和公开菜单](docs/tables-public-menu.md)
 - [开桌与顾客授权](docs/dining-guest-access.md) → [购物车和下单](docs/cart-ordering.md) → [厨房](docs/kitchen-cancellation.md) → [结账与历史](docs/billing-history.md)

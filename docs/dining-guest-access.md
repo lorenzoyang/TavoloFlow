@@ -10,7 +10,7 @@
 
 | 步骤 | 主要位置 | 应理解的问题 |
 | --- | --- | --- |
-| 员工用餐操作 | `Dining/DiningService.cs`、`Dining/DiningLocks.cs`、`Controllers/DiningController.cs` | 为什么开桌锁桌位，而关桌锁 Session？ |
+| 员工用餐操作 | `Dining/DiningService.cs`、`Data/RowLocks.cs`、`Dining/DiningEntrance.cs`、`Controllers/DiningController.cs` | 为什么开桌锁桌位，而关桌锁 Session？ |
 | 顾客授权 | `Guests/GuestAuthentication.cs`、`Guests/GuestService.cs`、`Dining/JoinCodes.cs` | 入桌码、Cookie 和用餐 ID 各有什么作用？ |
 | 页面联调 | `features/dining/`、`features/guests/`、`lib/api.ts` | 请求响应丢失为什么只能先查结果？ |
 | 验收 | `DiningAndGuestTests.cs`、`frontend/tests/dining-guest.test.ts` | 怎样用两个独立数据库连接验证竞争？ |
@@ -82,7 +82,7 @@ CSRF 沿用框架服务和现有 CSRF Cookie，但请求 token 分别从 `/api/a
 | `POST /api/staff/tables/{tableId}/open` | 无业务输入；201 `{ session, joinCode }` |
 | `GET /api/staff/sessions/{id}` | Session 摘要，包含已关闭记录，用于核对原操作 |
 | `GET /api/staff/sessions/{id}/join-code` | `{ sessionId, joinCode }`，仅活动用餐 |
-| `POST /api/staff/sessions/{id}/close-empty` | 输入确认信息，200 Session 摘要 |
+| `POST /api/staff/sessions/{id}/close-empty` | 输入确认信息，200 账单摘要（与 PAID/VOIDED 相同；现由 `BillingService` 实现） |
 | `GET /api/public/csrf` | `{ token }`，匿名或当前顾客均可取得 |
 | `POST /api/public/qr/{token}/join` | `{ sessionId, joinCode }` → Cookie 及 `{ restaurantId, tableId, sessionId }`，不回传码值 |
 | `GET /api/public/sessions/{id}/access` | `{ restaurantId, tableId, sessionId, status, serviceStatus, isTableEnabled, orderingEnabled }` |
@@ -131,7 +131,7 @@ Session 摘要字段：`id`、可空 `tableId`、历史 `tableLabel`、`status`�
 
 共享锁可以并行读取，并与 UPDATE/DELETE 的冲突锁协调。第五阶段下单和第六阶段厨房完成/取消已使用该 Session 行锁，第七阶段结账也使用
 同一 Session 行锁，不能仅先查询再无条件保存。桌位唯一活动 Session 索引继续提供最后一道约束。
-`DiningLocks` 必须在调用方拥有的事务内使用；不要给现有目录删除服务再包外层事务。
+`RowLocks` 必须在调用方拥有的事务内使用；不要给现有目录删除服务再包外层事务。
 
 暂停接单不阻止开桌、验证或读码。餐厅服务停用/桌位停用阻止新开桌、顾客验证和顾客读码；
 既有授权可查询用餐状态，员工可查看当前码、核对并关闭空桌，公开菜单仍可浏览。

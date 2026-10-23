@@ -19,7 +19,7 @@
 | `backend/TavoloFlow.Api/Controllers/AuthController.cs` | HTTP 输入输出、状态码、账号服务调用 |
 | `backend/TavoloFlow.Api/Accounts/AccountService.cs` | 密码校验、带版本条件的原子更新 |
 | `backend/TavoloFlow.Api/Accounts/StoreAuthentication.cs` | Cookie 内容、每次请求核对数据库、当前账号 |
-| `backend/TavoloFlow.Api/Accounts/AccountSecurity.cs` | 首次改密权限策略和 CSRF 验证 |
+| `backend/TavoloFlow.Api/Accounts/AccountSecurity.cs` | 首次改密权限策略；CSRF 验证与身份作用域在 `Common/BrowserSecurity.cs` |
 | `frontend/src/routes/` | 文件名与 URL、父布局、搜索参数 |
 | `frontend/src/router.tsx` | 使用自动生成的路由树创建 Router |
 | `frontend/src/features/accounts/` | 独立页面、身份边界、文案、请求和查询缓存 |
@@ -202,11 +202,11 @@ flowchart TD
     Q --> A[有效身份：显示当前页面]
     P --> F[提交表单]
     F --> API[features/accounts/api.ts → lib/api.ts：CSRF 后发送 POST]
-    API --> S[acceptAccount：替换身份并清理私有缓存]
+    API --> S[replaceAccount：替换身份并清理私有缓存]
     S --> B
 ```
 
-`features/accounts/queries.ts` 管理共享身份查询、缓存清理及 mutation 设置；
+`features/accounts/queries.ts` 管理共享身份查询与缓存清理，全局 `QueryClient` 及默认 mutation 设置位于 `lib/query-client.ts`；
 `features/accounts/api.ts` 保留账号 DTO 和账号接口函数，通用请求、CSRF、认证失败回调
 及错误转换已提取到 `frontend/src/lib/api.ts`，供菜单复用。通用错误保留 `errors` 和
 `requestId`；通用文案位于 `lib/api-messages.ts`。路由没有额外的身份 loader，也没有另一份登录状态。

@@ -25,7 +25,7 @@ Controller 验证访问策略、接收 DTO、读取可信餐厅；Service 负责
 | `GET /api/staff/sessions/{id}/bill` | STAFF / OWNER | 活动用餐账单；`cursor`、`limit` 默认 50 / 最大 100 |
 | `POST /api/owner/sessions/{id}/checkout` | OWNER | `{ expectedBillVersion, confirmedTotalCents }`；200 关闭后的账单摘要 |
 | `POST /api/staff/sessions/{id}/close-void` | STAFF / OWNER | `{ expectedBillVersion, confirmedTotalCents: 0, guestsLeftConfirmed: true }`；200 关闭后的账单摘要 |
-| `POST /api/staff/sessions/{id}/close-empty` | STAFF / OWNER | 保留第四阶段契约，200 Session 摘要 |
+| `POST /api/staff/sessions/{id}/close-empty` | STAFF / OWNER | URL 不变；与 PAID/VOIDED 共用 `BillingService` 关闭路径，200 账单摘要 |
 | `GET /api/owner/history` | OWNER | 日期、桌号、关闭原因及游标分页 |
 | `GET /api/owner/history/{id}` | OWNER | 已关闭用餐账单；`cursor`、`limit` 与活动账单相同 |
 | `GET /api/staff/sessions/{id}` | STAFF / OWNER | 保留现有摘要接口，用于只读核对原用餐的关闭结果 |
