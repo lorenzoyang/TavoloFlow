@@ -8,7 +8,7 @@ export const guestMessages = {
     invalid: "请输入四位有效入桌码。", retry: "重新核对授权", unknown: "验证结果待确认，请重新核对授权；不会自动重发验证。",
     offline: "连接中断或状态尚未确认。菜单可继续浏览，入桌码暂时隐藏。", expired: "请验证本轮入桌码；当前浏览器可能已切换至另一桌或授权已到期。",
     limited: "验证过于频繁，请稍后重试。", wait: "秒后可重试", unavailable: "当前无法验证或查看入桌码，请联系工作人员。",
-    csrf: "页面验证已变化，请再次点击验证。", busy: "处理中…", stage: "如需点单，请联系工作人员。",
+    csrf: "页面验证已变化，请再次点击验证。", busy: "处理中…", stage: "你可以核对购物车并下单，也可查看本轮整桌已提交订单。",
   },
   it: {
     title: "Unisciti al tavolo", hint: "Inserisci il codice di quattro caratteri comunicato dal personale o dai tuoi commensali.", code: "Codice del tavolo", join: "Verifica codice",
@@ -19,7 +19,7 @@ export const guestMessages = {
     invalid: "Inserisci quattro caratteri validi.", retry: "Ricontrolla accesso", unknown: "Esito della verifica da confermare. Ricontrolla l’accesso; la richiesta non verrà ripetuta automaticamente.",
     offline: "Connessione interrotta o stato da confermare. Puoi consultare il menu; il codice è nascosto.", expired: "Verifica il codice di questa visita. L’accesso potrebbe essere scaduto o riferirsi a un altro tavolo.",
     limited: "Troppi tentativi. Riprova più tardi.", wait: "secondi prima di riprovare", unavailable: "Verifica o codice non disponibili. Contatta il personale.",
-    csrf: "La verifica della pagina è cambiata. Premi nuovamente Verifica codice.", busy: "Attendi…", stage: "Per ordinare, rivolgiti al personale.",
+    csrf: "La verifica della pagina è cambiata. Premi nuovamente Verifica codice.", busy: "Attendi…", stage: "Puoi controllare e inviare il carrello e consultare gli ordini già inviati dal tavolo.",
   },
   en: {
     title: "Join this visit", hint: "Enter the four-character code shared by staff or someone at your table.", code: "Table join code", join: "Verify code",
@@ -30,6 +30,6 @@ export const guestMessages = {
     invalid: "Enter four valid characters.", retry: "Check access again", unknown: "Verification result is unknown. Check your access; verification will not be resent automatically.",
     offline: "Connection lost or status unconfirmed. You can browse the menu; the code is hidden.", expired: "Verify this visit’s code. Your access may have expired or changed to another table.",
     limited: "Too many attempts. Please try again later.", wait: "seconds before retrying", unavailable: "Verification or code is unavailable. Please contact staff.",
-    csrf: "Page verification has changed. Press Verify code again.", busy: "Working…", stage: "Please ask staff to place an order.",
+    csrf: "Page verification has changed. Press Verify code again.", busy: "Working…", stage: "You can review and submit your cart and see all orders submitted during this visit.",
   },
 };

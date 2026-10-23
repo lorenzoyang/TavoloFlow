@@ -14,6 +14,7 @@ export function useGuestVisit(token: string, data: PublicMenu, confirmedAt: numb
   });
   const [online, setOnline] = useState(() => navigator.onLine);
   const [visible, setVisible] = useState(() => document.visibilityState === "visible");
+  const [verificationAfter, setVerificationAfter] = useState(0);
   const [code, setCode] = useState("");
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -32,6 +33,17 @@ export function useGuestVisit(token: string, data: PublicMenu, confirmedAt: numb
     setVisit(next);
     try { sessionStorage.setItem(guestVisitKey(token), JSON.stringify(next)); } catch { /* Metadata is optional; server authorization is not. */ }
   }, [token]);
+  const invalidate = useCallback((errorCode: string) => {
+    clearCode();
+    const prefix = ["guest", data.restaurant.id, data.table.id, visit.sessionId];
+    void client.cancelQueries({ queryKey: prefix });
+    client.removeQueries({ queryKey: prefix, predicate: q => q.queryKey[4] !== "access" });
+    if (accessOutcome(errorCode) === "ended") remember({ ...visit, ended: true });
+    else if (accessOutcome(errorCode) === "unverified") {
+      client.setQueryData([...prefix, "access"], { kind: "unverified" });
+      remember({ ...visit, skipped: false });
+    }
+  }, [clearCode, client, data.restaurant.id, data.table.id, visit, remember]);
 
   useEffect(() => {
     if (!confirmedAt) return;
@@ -53,6 +65,13 @@ export function useGuestVisit(token: string, data: PublicMenu, confirmedAt: numb
   }, [access.data, access.isError, access.isFetching, menuError, visit, remember, clearCode]);
 
   useEffect(() => {
+    if (!access.data || access.data.kind === "verified") return;
+    const protectedOrders = { queryKey: ["guest", data.restaurant.id, data.table.id, visit.sessionId, "orders"] };
+    void client.cancelQueries(protectedOrders);
+    client.removeQueries(protectedOrders);
+  }, [access.data, data.restaurant.id, data.table.id, visit.sessionId, client]);
+
+  useEffect(() => {
     // A changed/closed server session invalidates in-flight sensitive reads as well as local inputs.
     // oxlint-disable-next-line react/set-state-in-effect
     clearCode(); setInput(""); setError("");
@@ -68,7 +87,12 @@ export function useGuestVisit(token: string, data: PublicMenu, confirmedAt: numb
   useEffect(() => {
     const check = () => {
       setOnline(navigator.onLine); setVisible(document.visibilityState === "visible"); clearCode();
-      if (navigator.onLine && document.visibilityState === "visible") void client.invalidateQueries({ queryKey: ["guest"] });
+      setVerificationAfter(Date.now());
+      // Cancel old-identity requests before revalidating; their late responses must not repopulate protected queries.
+      void client.cancelQueries({ queryKey: ["guest"] }).then(() => {
+        client.removeQueries({ queryKey: ["guest"], predicate: q => q.queryKey[4] !== "access" });
+        if (navigator.onLine && document.visibilityState === "visible") void client.invalidateQueries({ queryKey: ["guest"] });
+      });
     };
     window.addEventListener("online", check); window.addEventListener("offline", check); document.addEventListener("visibilitychange", check);
     const broadcast = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("tavoloflow-guest") : null;
@@ -86,7 +110,8 @@ export function useGuestVisit(token: string, data: PublicMenu, confirmedAt: numb
     return () => window.clearInterval(timer);
   }, [retryAt]);
 
-  const verified = access.data?.kind === "verified" && !access.isError && access.fetchStatus !== "paused" && online && !menuError && !visit.ended;
+  const verified = access.data?.kind === "verified" && access.isFetchedAfterMount && access.dataUpdatedAt >= verificationAfter &&
+    !access.isError && access.fetchStatus !== "paused" && online && visible && !menuError && !visit.ended;
   const entranceAllowed = data.restaurant.serviceStatus === "ACTIVE" && data.table.isEnabled;
 
   function finish(controller: AbortController) {
@@ -164,7 +189,7 @@ export function useGuestVisit(token: string, data: PublicMenu, confirmedAt: numb
     error, unknown: unknown && !verified, stale: !online || menuError || access.isError || access.fetchStatus === "paused",
     entranceAllowed, wait: Math.max(0, Math.ceil((retryAt - now) / 1000)), visible,
     skip: () => remember({ ...visit, skipped: true }), enter: () => remember({ ...visit, skipped: false }),
-    join, reveal, clearCode, browse, retry: async () => { clearCode(); await access.refetch(); setUnknown(false); },
+    join, reveal, clearCode, browse, invalidate, retry: async () => { clearCode(); await access.refetch(); setUnknown(false); },
   };
 }
 

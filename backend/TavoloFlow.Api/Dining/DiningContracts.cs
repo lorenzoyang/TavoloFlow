@@ -15,6 +15,10 @@ public sealed record OpenSessionResponse(SessionResponse Session, string JoinCod
 public sealed record JoinCodeResponse(Guid SessionId, string JoinCode);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record AcceptingOrdersInput([Required] bool? Enabled);
+public sealed record AcceptingOrdersResponse(bool OrderingEnabled);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record CloseEmptyInput([Required, Range(1, int.MaxValue)] int? ExpectedBillVersion,
     [Required] long? ConfirmedTotalCents, [Required] bool? GuestsLeftConfirmed);
 

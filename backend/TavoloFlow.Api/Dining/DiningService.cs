@@ -7,6 +7,15 @@ namespace TavoloFlow.Api.Dining;
 
 public sealed class DiningService(ApplicationDbContext db, JoinCodes codes, TimeProvider clock)
 {
+    public async Task<AcceptingOrdersResponse> SetAcceptingOrdersAsync(Guid restaurantId, bool enabled, CancellationToken ct)
+    {
+        // UPDATE conflicts with order creation's restaurant SHARE lock; unrelated settings remain untouched.
+        var count = await db.Restaurants.Where(r => r.Id == restaurantId)
+            .ExecuteUpdateAsync(u => u.SetProperty(r => r.OrderingEnabled, enabled), ct);
+        if (count == 0) throw new DiningException(404, "RESTAURANT_NOT_FOUND", "餐厅不存在。");
+        return new(enabled);
+    }
+
     public async Task<FloorResponse> FloorAsync(Guid restaurantId, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);

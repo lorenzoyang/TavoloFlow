@@ -12,6 +12,10 @@ public sealed class DiningController(DiningService dining, CurrentAccount curren
 {
     private Guid RestaurantId => current.RequireUser().RestaurantId;
 
+    [HttpPatch("api/staff/accepting-orders")]
+    public async Task<IActionResult> AcceptingOrders(AcceptingOrdersInput input, CancellationToken ct) =>
+        Ok(await dining.SetAcceptingOrdersAsync(RestaurantId, input.Enabled!.Value, ct));
+
     [HttpGet("api/staff/floor")]
     public async Task<IActionResult> Floor(CancellationToken ct) => Ok(await dining.FloorAsync(RestaurantId, ct));
 

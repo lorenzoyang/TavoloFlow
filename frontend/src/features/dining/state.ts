@@ -2,7 +2,7 @@ export type PendingDiningAction = {
   kind: "open" | "close";
   tableId: string;
   sessionId?: string;
-};
+} | { kind: "accepting"; enabled: boolean };
 
 export function pendingDiningKey(restaurantId: string, userId: string) {
   return `tavoloflow:pending-dining:${restaurantId}:${userId}`;
@@ -11,6 +11,7 @@ export function pendingDiningKey(restaurantId: string, userId: string) {
 export function parsePendingAction(raw: string | null): PendingDiningAction | null {
   try {
     const value = JSON.parse(raw ?? "null");
+    if (value?.kind === "accepting" && typeof value.enabled === "boolean") return { kind: "accepting", enabled: value.enabled };
     if (typeof value?.tableId !== "string" || !value.tableId) return null;
     if (value.kind === "open") return { kind: "open", tableId: value.tableId };
     if (value.kind === "close" && typeof value.sessionId === "string" && value.sessionId)

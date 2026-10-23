@@ -185,7 +185,7 @@ flowchart LR
 - 审核后有过敏原则 `allergen_reviewed=true` 且数组列出标准代码（限定使用约定的 EU 14 类代码）。
 - 添加或变更过敏原时，编辑 UI 必须让 OWNER **重新明确确认已审核**；后端校验输入代码和审核确认。V1 **不提供独立菜单草稿/发布**，新建及编辑菜品均须确认已审核，包括售罄菜品；售罄不作为未审核草稿。既有未审核数据可查看或设为售罄，恢复供应前须由 OWNER 编辑并完成审核；失败时保留旧记录，不做半成品更新。
 
-**当前实现状态**：店铺菜单管理已实现分类/菜品增删改、三语内容、整数欧分、过敏原审核、供应状态及稳定默认语言偏好设置；OWNER 与 STAFF 共用 `/staff/menu`，STAFF 仅可读取和切换供应状态。公开顾客菜单 `/q/{token}` 已支持匿名只读浏览，界面始终提供中、意、英三种语言；首次使用餐厅默认语言，之后按餐厅保存顾客在本浏览器的明确选择。`availableLanguages` 作为内容统计，不限制界面语言选项；不依据浏览器语言覆盖餐厅默认值。缺少翻译继续按上述规则回退，描述跟随最终名称语言。没有新增表或迁移。购物车、开桌、入桌授权与下单尚未实现。运行、接口和验收见 [菜单管理模块说明](menu-management.md) 与 [桌位与公开菜单](tables-public-menu.md)。
+**当前实现状态**：店铺菜单管理已实现分类/菜品增删改、三语内容、整数欧分、过敏原审核、供应状态及稳定默认语言偏好设置；OWNER 与 STAFF 共用 `/staff/menu`，STAFF 仅可读取和切换供应状态。公开顾客菜单 `/q/{token}` 已支持匿名只读浏览，界面始终提供中、意、英三种语言；首次使用餐厅默认语言，之后按餐厅保存顾客在本浏览器的明确选择。`availableLanguages` 作为内容统计，不限制界面语言选项；不依据浏览器语言覆盖餐厅默认值。缺少翻译继续按上述规则回退，描述跟随最终名称语言。没有新增表或迁移。开桌与入桌授权已在第四阶段实现，购物车与下单已在第五阶段实现，见 [购物车与下单](cart-ordering.md)。运行、接口和验收见 [菜单管理模块说明](menu-management.md) 与 [桌位与公开菜单](tables-public-menu.md)。
 
 **本地购物车**
 
@@ -193,6 +193,8 @@ flowchart LR
 - 草稿绑定 `restaurant_id`、`table_id`、所见 `session_id`（未开桌可为 null）；购物车中增减数量、备注无需发送后端订单写请求。
 - 从空桌变成开桌、切桌、发现旧 Session 被关闭时，禁止直接沿用旧确认状态。允许重新核对菜品、数量和最新金额后再对新的 Session 建立新的提交意图；已明确结束而清空的旧订单草稿不自动恢复。
 - 订单总额、单价最终以服务端数据库为准；前端价格仅作为展示/预览。
+
+**当前购物车实现（第五阶段）**：`/q/{token}` 内提供底部数量/金额入口、购物车、单行及整单备注、核价确认和本桌订单；同菜同规范化备注合并，草稿保存于标签页 `sessionStorage`。空桌草稿须确认新用餐归属。每单 1–30 行、每行 1–20 份、总计最多 100 份，单行/整单备注上限 200/500 字符；金额为整数欧分，行、订单及账单合计均限制在 JavaScript 安全整数范围。存储失败可编辑但不能正式提交。
 
 ### 3.5 顾客正式下单、断网与未知结果（重点）
 
@@ -206,7 +208,7 @@ flowchart TD
   D --> E[发送 POST 下单]
   E -->|成功| F[展示服务器订单 / 清除已确认购物车草稿]
   E -->|超时或网络异常| G[结果待确认: 保留原标识与原内容]
-  G -->|网络恢复, 本轮仍 ACTIVE| H[原标识查询 / 原内容安全重试]
+  G -->|网络恢复, 本轮仍 ACTIVE| H[自动 GET 原标识查询 / 顾客手动重试原内容]
   H -->|找到原单| F
   H -->|尚未知晓结果| G
   G -->|本轮 CLOSED| I[停止重试 / 员工核对]
@@ -216,7 +218,7 @@ flowchart TD
 
 1. 顾客明确确认后，每次**新的**正式下单意图生成一个 UUID `client_request_id`。必须在发送前与原请求内容、目标 Session 一并持久保存；网络故障时继续沿用它，不创建新 ID。
 2. 正式请求发送期间，锁定**再次正式提交**和修改当前待提交意图的功能。用户仍可以查看菜单与连接状态；不需要将整个站点永久锁死。
-3. 若响应丢失，显示“**结果待确认**”，不能假设失败，也不能自动以新 ID 创建同内容订单；网络恢复先校验原 Session 和 Cookie，再按原标识查询或重发原内容。
+3. 若响应丢失，显示“**结果待确认**”，不能假设失败，也不能自动以新 ID 创建同内容订单；网络恢复先校验原 Session 和 Cookie，再自动 GET 查询原标识。**不自动重发 POST**；仅允许顾客点击“重试原订单”，使用原 ID、原内容和新 CSRF token。查询 404 只表示暂未查到，不能解锁草稿或换 ID；已进入未知状态的意图也不因后续重试被拒绝而自动解除。
 4. 数据库唯一约束 `(dining_session_id, client_request_id)` 保证相同提交意图最多一个订单。若原单已成功创建，重复请求**只返回原订单结果**，不再受之后的售罄、暂停接单影响，也不把它创建第二次。重试内容不应被前端擅自改变；即使重复请求携带了不同内容，同一键也绝不能产生第二单。
 5. 若原请求不存在，服务器把它当作首次正式提交，验证：Cookie、Session ACTIVE、餐厅服务 ACTIVE、全店接单启用、桌位启用、菜品/分类存在且可售、数量以及**数据库当前价格**。
 6. 若数据库价格/售罄/项目状态发生变化，返回业务冲突并提供必要的最新信息，由顾客重新确认；一旦用户实际更改后开始新的提交意图，应使用**新的** `client_request_id`，但不能利用新 ID 绕过尚待确认的旧订单结果。
@@ -224,6 +226,8 @@ flowchart TD
 8. 顾客提交一次新订单或加单成功，服务端事务内写入订单和全部明细快照，`bill_version += 1`（只增加一次）。
 
 **前端恢复时机**：连接恢复、页面从后台回到前台、刷新待确认页面时，都先校验 Session / 授权，再处理待确认意图。不要把“请求超时”映射成“订单未创建”。
+
+**当前下单实现（第五阶段）**：订单及快照在同一事务保存；首次返回 201、同键恢复返回 200，版本只增一次。活动授权可在暂停接单、服务停用或桌位停用时读取原订单，关桌后拒绝。列表按创建时间及 ID 倒序游标分页（默认 50、最多 100），返回整桌非取消订单总额；前台约 30 秒更新，可手动刷新和加载更多。授权替换保留原轮次草稿/意图，隐藏受保护数据，重新验证同轮后恢复；确认关桌清理本轮数据。`/staff/floor` 已提供 OWNER/STAFF 开始/暂停接单，仅修改 `OrderingEnabled`，未知结果用原工作台 GET 核对。实现、实验与验收见 [第五阶段学习文档](cart-ordering.md)。
 
 ### 3.6 厨房工作台与取消
 
@@ -292,7 +296,7 @@ flowchart TD
 - 首次及主动改密后，当前浏览器签发新的 16 小时票据并继续登录，其他设备的旧票据失效。新密码须为 12–128 个字符，与当前密码不同；密码不做首尾空白裁剪。
 - 首次改密前只允许查询自身身份、取得 CSRF token、改密和退出；业务访问由服务端返回 `403 PASSWORD_CHANGE_REQUIRED`。
 
-**当前实现状态**：店铺账号初始化、登录/退出、身份查询、首次及主动改密、角色策略和凭据版本校验已实现，页面先用中文。初始化只允许在 Development 显式执行，不随普通启动运行；平台账号、老板重置 STAFF 密码及顾客授权仍待后续开发。运行与验收见 [店铺账号模块说明](store-accounts.md)。
+**当前实现状态**：店铺账号初始化、登录/退出、身份查询、首次及主动改密、角色策略和凭据版本校验已实现，页面先用中文。初始化只允许在 Development 显式执行，不随普通启动运行；顾客授权已在第四阶段实现；平台账号和老板重置 STAFF 密码仍待后续开发。运行与验收见 [店铺账号模块说明](store-accounts.md)。
 
 ---
 
@@ -340,9 +344,9 @@ flowchart TD
 | POST | `/api/public/qr/{token}/join` | **已实现**：输入 `sessionId + joinCode`；验证并写入独立顾客 Cookie |
 | GET | `/api/public/sessions/{id}/access` | **已实现**：验证当前顾客 Cookie、绑定归属和 Session ACTIVE，返回最小访问状态 |
 | GET | `/api/public/sessions/{id}/join-code` | **已实现**：当前有效顾客授权及可用入口才允许读取码，`no-store` |
-| GET | `/api/public/sessions/{id}/orders` | 当前有效顾客看本轮整桌订单；分页、`no-store` |
-| POST | `/api/public/orders` | `sessionId + clientRequestId + items + note + 客户端已确认价格信息`；服务端核价和幂等 |
-| GET | `/api/public/sessions/{id}/orders/by-request/{requestId}` | 本轮活动且授权有效时核对原提交结果 |
+| GET | `/api/public/sessions/{id}/orders` | **已实现**：整桌订单，`cursor` / `limit` 游标分页、非取消总额、`no-store` |
+| POST | `/api/public/orders` | **已实现**：`sessionId + clientRequestId + orderNote + items`；每行 `menuItemId + quantity + remark + expectedUnitPriceCents`；首次 201、重复 200 |
+| GET | `/api/public/sessions/{id}/orders/by-request/{requestId}` | **已实现**：核对原提交，未找到返回 `404 ORDER_NOT_FOUND` |
 | POST | `/api/auth/login` / `/api/auth/logout` | 店铺后台登录/本设备退出 |
 | GET | `/api/auth/csrf` | 获取与当前身份匹配的请求 token，写请求通过 `X-CSRF-TOKEN` 提交 |
 | GET | `/api/auth/me` | 查询当前店铺账号、角色、餐厅及首次改密标记 |
@@ -359,7 +363,7 @@ flowchart TD
 | POST | `/api/staff/orders/{id}/ready` | 条件 `NEW → READY` |
 | POST | `/api/staff/orders/{id}/cancel` | 取消原因；按角色与当前状态判断 |
 | PATCH | `/api/staff/menu-items/{id}/availability` | `isAvailable` **明确目标值**，仅改这个字段 |
-| PATCH | `/api/staff/accepting-orders` | `enabled` 明确目标值 |
+| PATCH | `/api/staff/accepting-orders` | **已实现**：OWNER/STAFF，`enabled` 明确目标值，只修改接单开关 |
 | POST | `/api/owner/sessions/{id}/checkout` | `expectedBillVersion + confirmedTotalCents`，核账并原子 `PAID` 清桌 |
 | GET | `/api/staff/menu` | **已实现**：本店分类、菜品、默认/可用语言及过敏原选项 |
 | POST / PUT / DELETE | `/api/owner/menu/categories`、`/api/owner/menu/items` | **已实现**：三语、审核、价格、删除；PUT/DELETE 使用 `/{id}`，无菜单版本字段；菜品内容 DTO 不含供应状态 |
@@ -436,7 +440,7 @@ Content-Type: application/json
 | `429 RATE_LIMITED` | 显示等待时间，不通过换 requestId 绕过 |
 | 网络错误、超时、`5xx` | **状态未知，不直接假设失败**；开桌查状态、下单按原 requestId 核对、结账查 Session |
 
-所有受保护订单、账单、入桌码接口设置 `Cache-Control: no-store`；建议与 React 使用同源 `/api`，避免不必要的跨域 Cookie 问题。通过 OpenAPI 生成 TypeScript API 类型，保持前后端 DTO 一致。
+所有受保护订单、账单、入桌码接口设置 `Cache-Control: no-store`；建议与 React 使用同源 `/api`，避免不必要的跨域 Cookie 问题。当前 TypeScript API 类型按 Controller DTO 手工对齐；OpenAPI 自动生成可在后续引入。
 
 ---
 
@@ -462,7 +466,8 @@ DBML 注释本身不会生成所有 PostgreSQL 部分索引；使用 **EF Core M
 
 ### 6.2 一个统一锁顺序，避免引入复杂并发框架
 
-- **写入订单**：开启事务 → 锁目标 Session 行 → 检查授权/状态/必要接单条件 → 检查该 `client_request_id` 是否已经存在 → 若是首次提交，读取并锁定/协调涉及的菜品可售和价格状态 → 写订单与明细 → `bill_version+1` → 提交。
+- **写入订单（已实现）**：开启事务 → 餐厅 SHARE → 桌位 SHARE → Session UPDATE → 核验授权归属/ACTIVE → 查原 `client_request_id`，存在即返回原单 → 首次才检查服务/接单/桌位条件、输入、菜品审核/可售与已确认价格 → 保存订单及全部快照 → `bill_version+1` → 提交。菜单写入持有餐厅 UPDATE，与下单的 SHARE 协调。
+- **读取订单（已实现）**：事务内 Session SHARE → 验证归属/ACTIVE → 读取订单及账单总额 → 提交；不随后获取餐厅/桌位锁。
 - **取消订单**：开启事务 → 锁订单所属 Session 行 → 确认仍 ACTIVE → 按角色与订单状态执行条件更新 → 实际成功时 `bill_version+1` → 提交。
 - **READY 操作**：在事务内确认订单仍属于 ACTIVE Session，并条件更新 `NEW → READY`；无需改账单版本。
 - **结账/零账单关闭**：开启事务 → 锁 Session 行 → 重新计算金额、NEW 数及当前 `bill_version` → 核对用户确认值和权限 → 写 CLOSED/close_reason/金额/关闭时间并清除加密码 → 提交。
@@ -476,7 +481,7 @@ DBML 注释本身不会生成所有 PostgreSQL 部分索引；使用 **EF Core M
 
 - OWNER 对菜单的最后保存可以覆盖此前保存内容；UI 可展示“其他设备可能修改”的非阻断提示，但不做自动冲突合并。
 - STAFF 修改售罄只 PATCH 供应状态，不覆盖别的字段。
-- 下单事务以数据库当前单价与可售状态决定是否允许创建订单；顾客先看到的价格不是结算依据。若菜单维护同时发生，应通过相同菜品行锁/一致校验或适当事务策略，避免读取与写入竞争导致按失效价格成功下单。
+- 下单事务以数据库当前单价与可售状态决定是否允许创建订单；顾客先看到的价格不是结算依据。第五阶段通过下单持有餐厅 SHARE、菜单写入持有餐厅 UPDATE 协调；下单先获得锁可按当时已确认价格完成，菜单变更先提交则下单必须重新核价。
 
 ### 6.4 关于没有 `open_request_id` 的真实取舍
 
@@ -566,7 +571,7 @@ DBML 注释本身不会生成所有 PostgreSQL 部分索引；使用 **EF Core M
 2. **账户与多租户**：平台/店铺登录、角色授权、首次改密、`credential_version`、创建餐厅。
 3. **菜单与桌位**：三语菜单、价格/审核验证、供应状态、固定二维码、删除。
 4. **开桌与顾客授权**：Session、加密码、Cookie、开桌未知结果恢复。
-5. **购物车和下单**：最新价确认、`client_request_id`、历史快照、原请求恢复。
+5. **购物车和下单（已实现）**：最新价确认、`client_request_id`、历史快照、自动 GET 恢复/手动原请求重试、整桌订单和接单开关；无新迁移。含任何订单的用餐不能 EMPTY 关闭，需由后续厨房/结账阶段接续。
 6. **厨房与取消**：轮询、READY/取消条件更新、版本递增。
 7. **结账与历史**：GET bill、`expectedBillVersion` checkout、EMPTY/VOIDED、关闭后保护、历史只读。
 8. **联调/试运营准备**：移动端、异常网路、同桌并发、多餐厅隔离、备份恢复和操作说明。

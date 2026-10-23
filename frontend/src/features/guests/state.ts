@@ -20,6 +20,6 @@ export function reconcileVisit(visit: GuestVisit, activeId: string | null): Gues
 
 export function accessOutcome(code: string): "unverified" | "ended" | null {
   if (["GUEST_AUTH_REQUIRED", "GUEST_SESSION_MISMATCH", "GUEST_ACCESS_DENIED"].includes(code)) return "unverified";
-  if (["SESSION_CLOSED", "SESSION_NOT_FOUND", "QR_NOT_FOUND"].includes(code)) return "ended";
+  if (["SESSION_CLOSED", "SESSION_NOT_FOUND", "QR_NOT_FOUND", "TABLE_NOT_FOUND", "RESTAURANT_NOT_FOUND"].includes(code)) return "ended";
   return null;
 }

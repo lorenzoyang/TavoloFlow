@@ -63,7 +63,12 @@ function FloorContent({ account }: { account: CurrentAccount }) {
     const controller = new AbortController(); operation.current = controller;
     setBusy(true); setError(""); setCode(null);
     try {
-      if (pending.kind === "open") {
+      if (pending.kind === "accepting") {
+        const data = await request<Floor>("/api/staff/floor", { signal: controller.signal });
+        if (!mounted.current) return;
+        client.setQueryData(floorQuery(account).queryKey, data);
+        setNotice(data.orderingEnabled ? "已核对：当前允许接单。" : "已核对：当前已暂停接单。");
+      } else if (pending.kind === "open") {
         const data = await request<Floor>("/api/staff/floor", { signal: controller.signal });
         if (!mounted.current) return;
         client.setQueryData(floorQuery(account).queryKey, data);
@@ -121,6 +126,23 @@ function FloorContent({ account }: { account: CurrentAccount }) {
     } finally { operation.current = null; if (mounted.current) { setBusy(false); setConfirmation(null); setLeft(false); } }
   }
 
+  async function setAccepting() {
+    if (!floor.data || operation.current || pending) return;
+    const enabled = !floor.data.orderingEnabled;
+    const controller = new AbortController(); operation.current = controller;
+    remember({ kind: "accepting", enabled }); setBusy(true); setError(""); setNotice("");
+    try {
+      await write("/api/staff/accepting-orders", "PATCH", { enabled }, AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]));
+      if (!mounted.current) return;
+      remember(null); setNotice(enabled ? "已允许接单；实际下单仍须餐厅服务和桌位可用。" : "已暂停新增订单，既有订单仍可核对。");
+      void refresh();
+    } catch (e) {
+      if (!mounted.current) return;
+      if (e instanceof ApiError && e.status < 500) remember(null);
+      setError(errorMessage(e, "接单设置结果待确认，请重新读取状态。"));
+    } finally { operation.current = null; if (mounted.current) setBusy(false); }
+  }
+
   async function viewCode() {
     if (!selected || operation.current) return;
     const id = selected; const controller = new AbortController(); operation.current = controller;
@@ -155,10 +177,15 @@ function FloorContent({ account }: { account: CurrentAccount }) {
     {floor.data?.serviceStatus === "SUSPENDED" && <Alert><AlertDescription>餐厅服务已暂停，暂不能开新桌。已有用餐仍可核对并关闭空桌。</AlertDescription></Alert>}
     {notice && <Alert role="status"><AlertDescription>{notice}</AlertDescription></Alert>}
     {(error || floor.isError || session.isError || floor.fetchStatus === "paused") && <Alert variant="destructive" role="alert"><AlertDescription>{error || "无法更新状态，请检查连接后重新读取。"}</AlertDescription></Alert>}
-    {pending && <Alert role="status"><AlertDescription className="space-y-3"><p>{pending.kind === "open" ? "开桌结果待确认" : "关闭结果待确认"}，核对完成前暂停新的操作。</p>
+    {pending && <Alert role="status"><AlertDescription className="space-y-3"><p>{pending.kind === "accepting" ? "接单设置结果待确认" : pending.kind === "open" ? "开桌结果待确认" : "关闭结果待确认"}，核对完成前暂停新的操作。</p>
       <Button className="h-11" disabled={busy} onClick={() => void recover()}>核对操作结果</Button></AlertDescription></Alert>}
     <div className="flex flex-wrap gap-3"><Button variant="outline" className="h-11" disabled={busy || floor.isFetching} onClick={() => void refresh()}><RefreshCw />重新读取状态</Button>
       <Link to="/staff/tables" className={buttonVariants({ variant: "outline", className: "h-11" })}>桌位管理</Link></div>
+    {floor.data && <Card><CardContent className="flex flex-wrap items-center justify-between gap-4 pt-6"><div>
+      <h2 className="font-semibold">扫码接单：{floor.data.orderingEnabled ? "已开启" : "已暂停"}</h2>
+      <p className="mt-1 text-sm text-muted-foreground">暂停不结束用餐，已提交的订单仍可核对。</p></div>
+      <Button className="min-h-11" variant={floor.data.orderingEnabled ? "outline" : "default"} disabled={busy || !!pending || !!confirmation || floor.isError || floor.fetchStatus === "paused"}
+        onClick={() => void setAccepting()}>{floor.data.orderingEnabled ? "暂停接单" : "开始接单"}</Button></CardContent></Card>}
     {confirmation && <Card><CardContent className="space-y-4 pt-6"><h2 className="text-lg font-semibold">{confirmation.kind === "open" ? "确认开桌" : "确认关闭空桌"} · {confirmation.kind === "open" ? confirmation.table.tableLabel : confirmation.session.tableLabel}</h2>
       {confirmation.kind === "close" && <><p>本轮从未产生订单，应收 € 0.00。</p><label className="flex min-h-11 items-center gap-3"><input type="checkbox" checked={left} disabled={busy} onChange={e => setLeft(e.target.checked)} className="size-5 accent-primary" />已核对桌号，确认顾客已离桌</label></>}
       <div className="flex gap-3"><Button className="h-11" disabled={busy || !!pending || (confirmation.kind === "close" && !left)} onClick={() => void submit()}>确认{confirmation.kind === "open" ? "开桌" : "关闭空桌"}</Button>

@@ -5,6 +5,7 @@ type ErrorBody = {
   message?: string;
   requestId?: string;
   errors?: Record<string, string[]>;
+  changes?: { menuItemId: string; reason: string; currentUnitPriceCents: number | null; isAvailable: boolean | null }[];
 };
 
 export class ApiError extends Error {
@@ -13,12 +14,14 @@ export class ApiError extends Error {
   readonly retryAfter: number | null;
   readonly errors: Record<string, string[]>;
   readonly requestId?: string;
+  readonly changes: NonNullable<ErrorBody["changes"]>;
 
   constructor(status: number, body: ErrorBody, retryAfter: string | null) {
     super(body.message ?? messages.genericError);
     this.status = status;
     this.errors = body.errors ?? {};
     this.requestId = body.requestId;
+    this.changes = body.changes ?? [];
     this.code = body.code ?? "UNKNOWN_ERROR";
     this.retryAfter = retryAfter ? Number(retryAfter) : null;
   }
