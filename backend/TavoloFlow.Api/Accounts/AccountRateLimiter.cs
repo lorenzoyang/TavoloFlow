@@ -1,6 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using System.Threading.RateLimiting;
-using Microsoft.Extensions.Options;
 using TavoloFlow.Api.Common;
 
 namespace TavoloFlow.Api.Accounts;
@@ -15,24 +13,18 @@ public sealed class AccountRateLimitOptions
     public int PasswordChangesPerMinute { get; set; } = 5;
 }
 
-public sealed class AccountRateLimiter : IDisposable
+// Used by both the store and the platform identity, each with its own instance and limits.
+public sealed class AccountRateLimiter(AccountRateLimitOptions options) : IDisposable
 {
-    private readonly PartitionedRateLimiter<string> ipLimiter;
-    private readonly PartitionedRateLimiter<string> usernameLimiter;
-    private readonly PartitionedRateLimiter<string> passwordLimiter;
-
-    public AccountRateLimiter(IOptions<AccountRateLimitOptions> options)
-    {
-        ipLimiter = Create(options.Value.LoginPerIpPerMinute, TimeSpan.FromMinutes(1));
-        usernameLimiter = Create(options.Value.LoginPerUsernamePerFiveMinutes, TimeSpan.FromMinutes(5));
-        passwordLimiter = Create(options.Value.PasswordChangesPerMinute, TimeSpan.FromMinutes(1));
-    }
+    private readonly FixedWindowLimiter ips = new(options.LoginPerIpPerMinute, TimeSpan.FromMinutes(1));
+    private readonly FixedWindowLimiter usernames = new(options.LoginPerUsernamePerFiveMinutes, TimeSpan.FromMinutes(5));
+    private readonly FixedWindowLimiter passwordChanges = new(options.PasswordChangesPerMinute, TimeSpan.FromMinutes(1));
 
     // The username window is consumed only after the IP window admits the attempt.
     public void EnsureLoginAllowed(string ip, string username) =>
-        ThrowIfLimited(Check(ipLimiter, ip) ?? Check(usernameLimiter, username));
+        ThrowIfLimited(ips.TryAcquire(ip) ?? usernames.TryAcquire(username));
 
-    public void EnsurePasswordChangeAllowed(Guid userId) => ThrowIfLimited(Check(passwordLimiter, userId.ToString()));
+    public void EnsurePasswordChangeAllowed(Guid userId) => ThrowIfLimited(passwordChanges.TryAcquire(userId.ToString()));
 
     private static void ThrowIfLimited(int? waitSeconds)
     {
@@ -42,25 +34,10 @@ public sealed class AccountRateLimiter : IDisposable
         }
     }
 
-    private static PartitionedRateLimiter<string> Create(int limit, TimeSpan window) =>
-        PartitionedRateLimiter.Create<string, string>(key => RateLimitPartition.GetFixedWindowLimiter(
-            key, _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = limit, Window = window, QueueLimit = 0, AutoReplenishment = true
-            }));
-
-    private static int? Check(PartitionedRateLimiter<string> limiter, string key)
-    {
-        using var lease = limiter.AttemptAcquire(key);
-        return lease.IsAcquired ? null :
-            lease.TryGetMetadata(MetadataName.RetryAfter, out var wait)
-                ? Math.Max(1, (int)Math.Ceiling(wait.TotalSeconds)) : 60;
-    }
-
     public void Dispose()
     {
-        ipLimiter.Dispose();
-        usernameLimiter.Dispose();
-        passwordLimiter.Dispose();
+        ips.Dispose();
+        usernames.Dispose();
+        passwordChanges.Dispose();
     }
 }

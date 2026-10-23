@@ -6,13 +6,6 @@ using TavoloFlow.Api.Entities;
 
 namespace TavoloFlow.Api.Menus;
 
-public sealed record PublicRestaurantResponse(Guid Id, string Name, string CurrencyCode, string DefaultLanguage,
-    string ServiceStatus, bool OrderingEnabled);
-public sealed record PublicTableResponse(Guid Id, string TableLabel, bool IsEnabled);
-public sealed record PublicMenuContent(string[] AvailableLanguages, CategoryResponse[] Categories, MenuItemResponse[] Items);
-public sealed record PublicMenuResponse(PublicRestaurantResponse Restaurant, PublicTableResponse Table,
-    Guid? ActiveSessionId, PublicMenuContent Menu);
-
 public sealed class PublicMenuService(ApplicationDbContext context)
 {
     public async Task<PublicMenuResponse> ReadAsync(string token, CancellationToken ct)

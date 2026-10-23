@@ -42,6 +42,14 @@ public sealed record MenuResponse(
     Guid RestaurantId, string DefaultLanguage, string[] AvailableLanguages,
     CategoryResponse[] Categories, MenuItemResponse[] Items, IReadOnlyList<AllergenOption> Allergens);
 
+// Anonymous QR bootstrap: entrance state plus the menu, never join codes, orders or accounts.
+public sealed record PublicRestaurantResponse(Guid Id, string Name, string CurrencyCode, string DefaultLanguage,
+    string ServiceStatus, bool OrderingEnabled);
+public sealed record PublicTableResponse(Guid Id, string TableLabel, bool IsEnabled);
+public sealed record PublicMenuContent(string[] AvailableLanguages, CategoryResponse[] Categories, MenuItemResponse[] Items);
+public sealed record PublicMenuResponse(PublicRestaurantResponse Restaurant, PublicTableResponse Table,
+    Guid? ActiveSessionId, PublicMenuContent Menu);
+
 public static class MenuErrors
 {
     public static ApiException NotFound() => new(404, "MENU_RESOURCE_NOT_FOUND", "分类或菜品不存在，请刷新菜单。");

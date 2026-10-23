@@ -11,7 +11,7 @@ namespace TavoloFlow.Api.Accounts;
 
 public static class StoreAuthentication
 {
-    public const string Scheme = "Store";
+    public const string Scheme = BrowserSecurity.StoreScheme;
     public const string CookieName = "TavoloFlow.Store";
     public const string AccountPolicy = "StoreAccount";
     public const string StaffPolicy = "StoreStaff";

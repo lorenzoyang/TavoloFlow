@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
-using System.Threading.RateLimiting;
 using Microsoft.Extensions.Options;
+using TavoloFlow.Api.Common;
 
 namespace TavoloFlow.Api.Guests;
 
@@ -10,33 +10,18 @@ public sealed class GuestRateLimitOptions
     [Range(1, 10000)] public int JoinsPerSessionPerFiveMinutes { get; set; } = 30;
 }
 
-public sealed class GuestRateLimiter : IDisposable
+// A four-character join code has only about 20 bits of entropy, so attempts are limited per IP and per session.
+public sealed class GuestRateLimiter(IOptions<GuestRateLimitOptions> options) : IDisposable
 {
-    private readonly PartitionedRateLimiter<string> ips;
-    private readonly PartitionedRateLimiter<string> sessions;
+    private readonly FixedWindowLimiter ips = new(options.Value.JoinsPerIpPerMinute, TimeSpan.FromMinutes(1));
+    private readonly FixedWindowLimiter sessions = new(options.Value.JoinsPerSessionPerFiveMinutes, TimeSpan.FromMinutes(5));
 
-    public GuestRateLimiter(IOptions<GuestRateLimitOptions> options)
+    // Returns null when admitted, otherwise the seconds to wait.
+    public int? Check(string ip, Guid session) => ips.TryAcquire(ip) ?? sessions.TryAcquire(session.ToString());
+
+    public void Dispose()
     {
-        ips = Create(options.Value.JoinsPerIpPerMinute, TimeSpan.FromMinutes(1));
-        sessions = Create(options.Value.JoinsPerSessionPerFiveMinutes, TimeSpan.FromMinutes(5));
+        ips.Dispose();
+        sessions.Dispose();
     }
-
-    public int? Check(string ip, Guid session)
-    {
-        var wait = Acquire(ips, ip);
-        return wait ?? Acquire(sessions, session.ToString());
-    }
-
-    private static PartitionedRateLimiter<string> Create(int limit, TimeSpan window) =>
-        PartitionedRateLimiter.Create<string, string>(key => RateLimitPartition.GetFixedWindowLimiter(key, _ =>
-            new FixedWindowRateLimiterOptions { PermitLimit = limit, Window = window, QueueLimit = 0, AutoReplenishment = true }));
-
-    private static int? Acquire(PartitionedRateLimiter<string> limiter, string key)
-    {
-        using var lease = limiter.AttemptAcquire(key);
-        return lease.IsAcquired ? null : lease.TryGetMetadata(MetadataName.RetryAfter, out var wait)
-            ? Math.Max(1, (int)Math.Ceiling(wait.TotalSeconds)) : 60;
-    }
-
-    public void Dispose() { ips.Dispose(); sessions.Dispose(); }
 }

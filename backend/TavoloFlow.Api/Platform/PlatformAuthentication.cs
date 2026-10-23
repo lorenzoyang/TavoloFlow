@@ -14,7 +14,7 @@ namespace TavoloFlow.Api.Platform;
 
 public static class PlatformAuthentication
 {
-    public const string Scheme = "Platform";
+    public const string Scheme = BrowserSecurity.PlatformScheme;
     public const string Policy = "PlatformAdmin";
     public const string CookieName = "TavoloFlow.Platform";
     public static readonly TimeSpan Lifetime = TimeSpan.FromHours(8);
@@ -28,16 +28,18 @@ public static class PlatformAuthentication
         services.AddScoped<PlatformBootstrap>();
         services.AddScoped<CurrentPlatformAccount>();
         services.AddScoped<PlatformCookieEvents>();
+        // Platform logins get their own limiter instance and limits, resolved as a keyed service.
         services.AddOptions<AccountRateLimitOptions>(Scheme).Bind(configuration.GetSection("PlatformRateLimits"))
             .ValidateDataAnnotations().ValidateOnStart();
-        services.AddSingleton<PlatformRateLimiter>();
+        services.AddKeyedSingleton(Scheme, (provider, _) =>
+            new AccountRateLimiter(provider.GetRequiredService<IOptionsMonitor<AccountRateLimitOptions>>().Get(Scheme)));
         services.AddAuthentication().AddCookie(Scheme, options =>
         {
             options.Cookie.Name = CookieName;
             options.Cookie.Path = "/api/platform";
             options.Cookie.HttpOnly = true;
             options.Cookie.SameSite = SameSiteMode.Lax;
-            options.Cookie.SecurePolicy = environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+            options.Cookie.SecurePolicy = BrowserSecurity.CookiePolicy(environment);
             options.ExpireTimeSpan = Lifetime;
             options.SlidingExpiration = false;
             options.EventsType = typeof(PlatformCookieEvents);
@@ -99,10 +101,4 @@ public sealed class PlatformCookieEvents(ApplicationDbContext db, CurrentPlatfor
         ApiError.WriteAsync(context.HttpContext, 401, "UNAUTHENTICATED", "请先登录平台。");
     public override Task RedirectToAccessDenied(RedirectContext<CookieAuthenticationOptions> context) =>
         ApiError.WriteAsync(context.HttpContext, 403, "FORBIDDEN", "没有平台管理权限。");
-}
-
-public sealed class PlatformRateLimiter(IOptionsMonitor<AccountRateLimitOptions> options) : IDisposable
-{
-    public AccountRateLimiter Limiter { get; } = new(Options.Create(options.Get(PlatformAuthentication.Scheme)));
-    public void Dispose() => Limiter.Dispose();
 }

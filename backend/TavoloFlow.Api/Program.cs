@@ -1,73 +1,60 @@
 using Microsoft.AspNetCore.Diagnostics;
 using TavoloFlow.Api.Accounts;
+using TavoloFlow.Api.Billing;
 using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
-using TavoloFlow.Api.Menus;
-using TavoloFlow.Api.Tables;
+using TavoloFlow.Api.Dining;
 using TavoloFlow.Api.Guests;
-using TavoloFlow.Api.Ordering;
 using TavoloFlow.Api.Kitchen;
-using TavoloFlow.Api.Billing;
-using TavoloFlow.Api.Platform;
+using TavoloFlow.Api.Menus;
 using TavoloFlow.Api.Operations;
+using TavoloFlow.Api.Ordering;
+using TavoloFlow.Api.Platform;
+using TavoloFlow.Api.Tables;
 
 if (args is ["--healthcheck"])
 {
-    try
-    {
-        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-        using var response = await client.GetAsync("http://127.0.0.1:8080/api/health/ready");
-        Environment.ExitCode = response.IsSuccessStatusCode ? 0 : 1;
-    }
-    catch (HttpRequestException) { Environment.ExitCode = 1; }
-    catch (TaskCanceledException) { Environment.ExitCode = 1; }
+    Environment.ExitCode = await MaintenanceCommands.ProbeHealthAsync();
     return;
 }
 
-string[] commandFlags = ["--seed-dev-accounts", "--seed-platform-admin", "--reset-platform-password"];
-var commands = args.Where(arg => commandFlags.Contains(arg, StringComparer.Ordinal)).ToArray();
-if (commands.Length > 1) throw new InvalidOperationException("Run one initialization or recovery command at a time.");
-var seedAccounts = commands.Contains("--seed-dev-accounts");
-var builder = WebApplication.CreateBuilder(args.Where(arg => !commandFlags.Contains(arg, StringComparer.Ordinal)).ToArray());
+var command = MaintenanceCommands.Parse(args, out var hostArgs);
+var builder = WebApplication.CreateBuilder(hostArgs);
 builder.Configuration.AddKeyPerFile("/run/secrets", optional: true);
 
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddControllers(options =>
 {
+    // Every write must carry its identity's CSRF token; every business error shares one JSON shape.
     options.Filters.Add<CsrfValidationFilter>();
     options.Filters.Add<ApiExceptionFilter>();
-});
+}).ConfigureApiBehaviorOptions(options => options.InvalidModelStateResponseFactory = ApiExceptionFilter.InvalidModelState);
+builder.Services.AddOpenApi();
 builder.Services.AddDataLayer(builder.Configuration);
+builder.Services.AddDeployment(builder.Configuration);
+
+// Three independent browser identities share one path-based authentication selector.
+builder.Services.AddBrowserSecurity(builder.Configuration, builder.Environment);
 builder.Services.AddStoreAccounts(builder.Configuration, builder.Environment);
-builder.Services.AddDiningAndGuests(builder.Configuration, builder.Environment);
+builder.Services.AddGuestAccess(builder.Configuration, builder.Environment);
 builder.Services.AddPlatformAccounts(builder.Configuration, builder.Environment);
-builder.Services.AddScoped<RestaurantAdministration>();
+
+// Business services are scoped: each request gets its own instance sharing the request's DbContext.
+builder.Services.AddScoped<MenuService>();
+builder.Services.AddScoped<PublicMenuService>();
+builder.Services.AddScoped<TableService>();
+builder.Services.AddSingleton<JoinCodes>();
+builder.Services.AddScoped<DiningService>();
 builder.Services.AddScoped<OrderService>();
 builder.Services.AddScoped<KitchenService>();
 builder.Services.AddScoped<BillingService>();
-builder.Services.AddScoped<MenuService>();
-builder.Services.AddScoped<TableService>();
-builder.Services.AddScoped<PublicMenuService>();
-builder.Services.AddDeployment(builder.Configuration);
-builder.Services.AddOpenApi();
+builder.Services.AddScoped<RestaurantAdministration>();
 
 var app = builder.Build();
 
-if (commands.Contains("--seed-platform-admin") || commands.Contains("--reset-platform-password"))
+if (command is not null)
 {
-    await using var scope = app.Services.CreateAsyncScope();
-    var options = builder.Configuration.GetSection("PlatformBootstrap").Get<PlatformBootstrapOptions>() ?? new();
-    var changed = await scope.ServiceProvider.GetRequiredService<PlatformBootstrap>()
-        .RunAsync(options, commands.Contains("--reset-platform-password"));
-    app.Logger.LogInformation(changed ? "Platform command completed." : "Platform administrator already exists; unchanged.");
-    return;
-}
-
-if (seedAccounts)
-{
-    await using var scope = app.Services.CreateAsyncScope();
-    var options = builder.Configuration.GetSection("DevelopmentSeed").Get<DevelopmentSeedOptions>() ?? new();
-    var created = await scope.ServiceProvider.GetRequiredService<DevelopmentAccountSeeder>().SeedAsync(options);
-    app.Logger.LogInformation(created ? "Development accounts created." : "Development accounts already exist; unchanged.");
+    await MaintenanceCommands.RunAsync(app, command);
     return;
 }
 

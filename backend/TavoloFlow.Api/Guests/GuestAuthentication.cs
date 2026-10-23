@@ -1,9 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Common;
-using TavoloFlow.Api.Dining;
 
 namespace TavoloFlow.Api.Guests;
 
@@ -23,7 +21,7 @@ public sealed record GuestIdentity(Guid RestaurantId, Guid TableId, Guid Session
 
 public static class GuestAuthentication
 {
-    public const string Scheme = "Guest";
+    public const string Scheme = BrowserSecurity.GuestScheme;
     public const string Policy = "GuestAccess";
     public const string CookieName = "TavoloFlow.Guest";
     public static readonly TimeSpan Lifetime = TimeSpan.FromHours(12);
@@ -44,34 +42,29 @@ public static class GuestAuthentication
         });
     }
 
-    public static IServiceCollection AddDiningAndGuests(this IServiceCollection services,
+    // The Guest identity: a session-bound cookie scoped to /api/public, plus join verification.
+    public static IServiceCollection AddGuestAccess(this IServiceCollection services,
         IConfiguration configuration, IHostEnvironment environment)
     {
-        services.AddScoped<DiningService>();
-        services.AddSingleton<JoinCodes>();
         services.AddScoped<GuestService>();
         services.AddOptions<GuestRateLimitOptions>().Bind(configuration.GetSection("GuestRateLimits"))
             .ValidateDataAnnotations().ValidateOnStart();
         services.AddSingleton<GuestRateLimiter>();
-        services.AddAuthentication(options => options.DefaultScheme = "Browser")
-            .AddPolicyScheme("Browser", null, options => options.ForwardDefaultSelector = http =>
-                http.Request.Path.StartsWithSegments("/api/platform") ? Platform.PlatformAuthentication.Scheme :
-                http.Request.Path.StartsWithSegments("/api/public") ? Scheme : StoreAuthentication.Scheme)
-            .AddCookie(Scheme, options =>
+        services.AddAuthentication().AddCookie(Scheme, options =>
+        {
+            options.Cookie.Name = CookieName;
+            options.Cookie.Path = "/api/public";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SameSite = SameSiteMode.Lax;
+            options.Cookie.SecurePolicy = BrowserSecurity.CookiePolicy(environment);
+            options.ExpireTimeSpan = Lifetime;
+            options.SlidingExpiration = false;
+            options.Events = new CookieAuthenticationEvents
             {
-                options.Cookie.Name = CookieName;
-                options.Cookie.Path = "/api/public";
-                options.Cookie.HttpOnly = true;
-                options.Cookie.SameSite = SameSiteMode.Lax;
-                options.Cookie.SecurePolicy = environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
-                options.ExpireTimeSpan = Lifetime;
-                options.SlidingExpiration = false;
-                options.Events = new CookieAuthenticationEvents
-                {
-                    OnRedirectToLogin = ctx => ApiError.WriteAsync(ctx.HttpContext, 401, "GUEST_AUTH_REQUIRED", "请验证本轮入桌码。"),
-                    OnRedirectToAccessDenied = ctx => ApiError.WriteAsync(ctx.HttpContext, 403, "GUEST_ACCESS_DENIED", "无法访问本轮用餐。")
-                };
-            });
+                OnRedirectToLogin = ctx => ApiError.WriteAsync(ctx.HttpContext, 401, "GUEST_AUTH_REQUIRED", "请验证本轮入桌码。"),
+                OnRedirectToAccessDenied = ctx => ApiError.WriteAsync(ctx.HttpContext, 403, "GUEST_ACCESS_DENIED", "无法访问本轮用餐。")
+            };
+        });
         services.AddAuthorization(options => options.AddPolicy(Policy, policy =>
             policy.AddAuthenticationSchemes(Scheme).RequireAuthenticatedUser()));
         return services;
