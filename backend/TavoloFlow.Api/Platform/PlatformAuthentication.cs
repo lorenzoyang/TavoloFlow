@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TavoloFlow.Api.Accounts;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Entities;
 
@@ -95,9 +96,9 @@ public sealed class PlatformCookieEvents(ApplicationDbContext db, CurrentPlatfor
     }
 
     public override Task RedirectToLogin(RedirectContext<CookieAuthenticationOptions> context) =>
-        StoreCookieEvents.WriteErrorAsync(context.HttpContext, 401, "UNAUTHENTICATED", "请先登录平台。");
+        ApiError.WriteAsync(context.HttpContext, 401, "UNAUTHENTICATED", "请先登录平台。");
     public override Task RedirectToAccessDenied(RedirectContext<CookieAuthenticationOptions> context) =>
-        StoreCookieEvents.WriteErrorAsync(context.HttpContext, 403, "FORBIDDEN", "没有平台管理权限。");
+        ApiError.WriteAsync(context.HttpContext, 403, "FORBIDDEN", "没有平台管理权限。");
 }
 
 public sealed class PlatformRateLimiter(IOptionsMonitor<AccountRateLimitOptions> options) : IDisposable

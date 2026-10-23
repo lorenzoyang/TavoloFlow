@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.DataProtection;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Entities;
 
 namespace TavoloFlow.Api.Dining;
@@ -20,11 +21,11 @@ public sealed class JoinCodes(IDataProtectionProvider protection)
     public string Read(DiningSession session)
     {
         if (session.Status != DiningSessionStatus.Active || session.JoinCodeCiphertext is null)
-            throw DiningException.Closed();
+            throw DiningErrors.SessionClosed();
         try { return Protector(session).Unprotect(session.JoinCodeCiphertext); }
         catch (CryptographicException)
         {
-            throw new DiningException(503, "JOIN_CODE_UNAVAILABLE", "暂时无法读取入桌码，请联系工作人员。");
+            throw new ApiException(503, "JOIN_CODE_UNAVAILABLE", "暂时无法读取入桌码，请联系工作人员。");
         }
     }
 

@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using TavoloFlow.Api.Accounts;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Dining;
 
 namespace TavoloFlow.Api.Guests;
@@ -15,7 +16,7 @@ public sealed record GuestIdentity(Guid RestaurantId, Guid TableId, Guid Session
             !Guid.TryParse(identity.FindFirst("restaurant_id")?.Value, out var restaurant) ||
             !Guid.TryParse(identity.FindFirst("table_id")?.Value, out var table) ||
             !Guid.TryParse(identity.FindFirst("session_id")?.Value, out var session))
-            throw new DiningException(401, "GUEST_AUTH_REQUIRED", "请验证本轮入桌码。");
+            throw GuestErrors.AuthRequired();
         return new(restaurant, table, session);
     }
 }
@@ -67,18 +68,12 @@ public static class GuestAuthentication
                 options.SlidingExpiration = false;
                 options.Events = new CookieAuthenticationEvents
                 {
-                    OnRedirectToLogin = ctx => WriteErrorAsync(ctx.HttpContext, 401, "GUEST_AUTH_REQUIRED", "请验证本轮入桌码。"),
-                    OnRedirectToAccessDenied = ctx => WriteErrorAsync(ctx.HttpContext, 403, "GUEST_ACCESS_DENIED", "无法访问本轮用餐。")
+                    OnRedirectToLogin = ctx => ApiError.WriteAsync(ctx.HttpContext, 401, "GUEST_AUTH_REQUIRED", "请验证本轮入桌码。"),
+                    OnRedirectToAccessDenied = ctx => ApiError.WriteAsync(ctx.HttpContext, 403, "GUEST_ACCESS_DENIED", "无法访问本轮用餐。")
                 };
             });
         services.AddAuthorization(options => options.AddPolicy(Policy, policy =>
             policy.AddAuthenticationSchemes(Scheme).RequireAuthenticatedUser()));
         return services;
-    }
-
-    private static Task WriteErrorAsync(HttpContext http, int status, string code, string message)
-    {
-        http.Response.StatusCode = status;
-        return http.Response.WriteAsJsonAsync(ApiError.Create(http, code, message));
     }
 }

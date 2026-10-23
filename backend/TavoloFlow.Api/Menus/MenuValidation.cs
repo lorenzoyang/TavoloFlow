@@ -1,29 +1,6 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Filters;
-using TavoloFlow.Api.Accounts;
+using TavoloFlow.Api.Common;
 
 namespace TavoloFlow.Api.Menus;
-
-public sealed class MenuException(int status, string code, string message,
-    IReadOnlyDictionary<string, string[]>? errors = null) : Exception(message)
-{
-    public int Status { get; } = status;
-    public string Code { get; } = code;
-    public IReadOnlyDictionary<string, string[]>? Errors { get; } = errors;
-
-    public static MenuException NotFound() => new(404, "MENU_RESOURCE_NOT_FOUND", "分类或菜品不存在，请刷新菜单。");
-}
-
-public sealed class MenuErrorsAttribute : ExceptionFilterAttribute
-{
-    public override void OnException(ExceptionContext context)
-    {
-        if (context.Exception is not MenuException error) return;
-        context.Result = new ObjectResult(ApiError.Create(context.HttpContext, error.Code, error.Message, error.Errors))
-        { StatusCode = error.Status };
-        context.ExceptionHandled = true;
-    }
-}
 
 public static class MenuValidation
 {
@@ -77,6 +54,6 @@ public static class MenuValidation
 
     private static void Reject(Dictionary<string, string[]> errors)
     {
-        if (errors.Count > 0) throw new MenuException(400, "VALIDATION_FAILED", "请检查菜单内容。", errors);
+        if (errors.Count > 0) throw ApiException.Validation("请检查菜单内容。", errors);
     }
 }

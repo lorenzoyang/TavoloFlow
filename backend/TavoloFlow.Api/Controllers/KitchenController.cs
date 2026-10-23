@@ -1,15 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TavoloFlow.Api.Accounts;
-using TavoloFlow.Api.Dining;
 using TavoloFlow.Api.Kitchen;
-using TavoloFlow.Api.Ordering;
 
 namespace TavoloFlow.Api.Controllers;
 
 [ApiController]
-[OrderErrors]
-[DiningErrors]
 [Authorize(Policy = StoreAuthentication.StaffPolicy)]
 public sealed class KitchenController(KitchenService kitchen, CurrentAccount current) : ControllerBase
 {

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using TavoloFlow.Api.Common;
 
 namespace TavoloFlow.Api.Accounts;
 
@@ -41,7 +42,7 @@ public sealed class AccountAuthorizationResultHandler : IAuthorizationMiddleware
         if (result.Forbidden &&
             result.AuthorizationFailure?.FailedRequirements.OfType<PasswordChangedRequirement>().Any() == true)
         {
-            return StoreCookieEvents.WriteErrorAsync(context, StatusCodes.Status403Forbidden,
+            return ApiError.WriteAsync(context, StatusCodes.Status403Forbidden,
                 "PASSWORD_CHANGE_REQUIRED", "请先修改初始密码。");
         }
         return defaultHandler.HandleAsync(next, context, policy, result);

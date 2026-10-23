@@ -2,13 +2,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Billing;
-using TavoloFlow.Api.Dining;
 
 namespace TavoloFlow.Api.Controllers;
 
 [ApiController]
-[BillingErrors]
-[DiningErrors]
 [Authorize(Policy = StoreAuthentication.StaffPolicy)]
 public sealed class BillingController(BillingService billing, CurrentAccount current) : ControllerBase
 {

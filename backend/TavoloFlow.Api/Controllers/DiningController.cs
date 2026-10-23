@@ -6,7 +6,6 @@ using TavoloFlow.Api.Dining;
 namespace TavoloFlow.Api.Controllers;
 
 [ApiController]
-[DiningErrors]
 [Authorize(Policy = StoreAuthentication.StaffPolicy)]
 public sealed class DiningController(DiningService dining, CurrentAccount current) : ControllerBase
 {

@@ -1,14 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using TavoloFlow.Api.Dining;
 using TavoloFlow.Api.Guests;
 using TavoloFlow.Api.Ordering;
 
 namespace TavoloFlow.Api.Controllers;
 
 [ApiController]
-[OrderErrors]
-[DiningErrors]
 [Authorize(Policy = GuestAuthentication.Policy)]
 public sealed class OrderController(OrderService orders) : ControllerBase
 {

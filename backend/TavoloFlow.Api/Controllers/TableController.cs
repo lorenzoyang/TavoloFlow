@@ -6,7 +6,6 @@ using TavoloFlow.Api.Tables;
 namespace TavoloFlow.Api.Controllers;
 
 [ApiController]
-[TableErrors]
 [Authorize(Policy = StoreAuthentication.StaffPolicy)]
 public sealed class TableController(TableService tables, CurrentAccount current) : ControllerBase
 {

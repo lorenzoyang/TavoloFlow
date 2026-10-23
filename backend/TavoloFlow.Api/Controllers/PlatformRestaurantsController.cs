@@ -4,7 +4,7 @@ using TavoloFlow.Api.Platform;
 
 namespace TavoloFlow.Api.Controllers;
 
-[ApiController, AdministrationErrors]
+[ApiController]
 [Route("api/platform/restaurants")]
 [Authorize(Policy = PlatformAuthentication.Policy)]
 public sealed class PlatformRestaurantsController(RestaurantAdministration service, CurrentPlatformAccount current) : ControllerBase

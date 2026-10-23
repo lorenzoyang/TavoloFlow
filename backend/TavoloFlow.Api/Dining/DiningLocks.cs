@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Entities;
 
@@ -10,7 +11,7 @@ public static class DiningLocks
 {
     public static async Task<Restaurant> RestaurantAsync(ApplicationDbContext db, Guid id, CancellationToken ct) =>
         await db.Restaurants.FromSqlInterpolated($"SELECT * FROM restaurants WHERE id = {id} FOR SHARE")
-            .AsNoTracking().SingleOrDefaultAsync(ct) ?? throw new DiningException(404, "RESTAURANT_NOT_FOUND", "餐厅不存在。");
+            .AsNoTracking().SingleOrDefaultAsync(ct) ?? throw DiningErrors.RestaurantNotFound();
 
     public static async Task<RestaurantTable> TableAsync(ApplicationDbContext db, Guid restaurantId, Guid id,
         bool forUpdate, CancellationToken ct)
@@ -19,7 +20,7 @@ public static class DiningLocks
             ? db.RestaurantTables.FromSqlInterpolated($"SELECT * FROM restaurant_tables WHERE restaurant_id = {restaurantId} AND id = {id} FOR UPDATE")
             : db.RestaurantTables.FromSqlInterpolated($"SELECT * FROM restaurant_tables WHERE restaurant_id = {restaurantId} AND id = {id} FOR SHARE");
         return await query.AsNoTracking().SingleOrDefaultAsync(ct)
-            ?? throw new DiningException(404, "TABLE_NOT_FOUND", "桌位不存在。");
+            ?? throw DiningErrors.TableNotFound();
     }
 
     public static async Task<DiningSession> SessionAsync(ApplicationDbContext db, Guid restaurantId, Guid id,
@@ -28,15 +29,15 @@ public static class DiningLocks
         var query = forUpdate
             ? db.DiningSessions.FromSqlInterpolated($"SELECT * FROM dining_sessions WHERE restaurant_id = {restaurantId} AND id = {id} FOR UPDATE")
             : db.DiningSessions.FromSqlInterpolated($"SELECT * FROM dining_sessions WHERE restaurant_id = {restaurantId} AND id = {id} FOR SHARE");
-        return await query.AsNoTracking().SingleOrDefaultAsync(ct) ?? throw DiningException.Missing();
+        return await query.AsNoTracking().SingleOrDefaultAsync(ct) ?? throw DiningErrors.SessionNotFound();
     }
 
     public static void RequireEntrance(Restaurant restaurant, RestaurantTable table)
     {
         if (restaurant.ServiceStatus != RestaurantServiceStatus.Active)
-            throw new DiningException(409, "SERVICE_SUSPENDED", "餐厅服务已暂停。");
+            throw new ApiException(409, "SERVICE_SUSPENDED", "餐厅服务已暂停。");
         if (!table.IsEnabled)
-            throw new DiningException(409, "TABLE_DISABLED", "此桌已停用，请联系工作人员。");
+            throw new ApiException(409, "TABLE_DISABLED", "此桌已停用，请联系工作人员。");
         // OrderingEnabled gates future orders, not seating or joining a session.
     }
 }

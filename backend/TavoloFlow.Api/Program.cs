@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics;
 using TavoloFlow.Api.Accounts;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Menus;
 using TavoloFlow.Api.Tables;
@@ -30,7 +31,11 @@ var seedAccounts = commands.Contains("--seed-dev-accounts");
 var builder = WebApplication.CreateBuilder(args.Where(arg => !commandFlags.Contains(arg, StringComparer.Ordinal)).ToArray());
 builder.Configuration.AddKeyPerFile("/run/secrets", optional: true);
 
-builder.Services.AddControllers(options => options.Filters.Add<CsrfValidationFilter>());
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<CsrfValidationFilter>();
+    options.Filters.Add<ApiExceptionFilter>();
+});
 builder.Services.AddDataLayer(builder.Configuration);
 builder.Services.AddStoreAccounts(builder.Configuration, builder.Environment);
 builder.Services.AddDiningAndGuests(builder.Configuration, builder.Environment);

@@ -1,6 +1,7 @@
 using System.Data.Common;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -156,7 +157,10 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
         }
         var response = await SubmitAsync(guest, input);
         await AssertErrorAsync(response, HttpStatusCode.Conflict, "MENU_CHANGED");
-        Assert.Contains("changes", await response.Content.ReadAsStringAsync());
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var change = body.RootElement.GetProperty("changes").EnumerateArray().First();
+        Assert.True(change.TryGetProperty("menuItemId", out _));
+        Assert.True(change.TryGetProperty("reason", out _));
         Assert.False(await db.Orders.AnyAsync(o => o.DiningSessionId == s.Guest.SessionId));
         Assert.Equal(1, (await db.DiningSessions.FindAsync(s.Guest.SessionId))!.BillVersion);
     }
@@ -170,11 +174,11 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
         await db.MenuItems.Where(i => i.Id == s.Item.Id).ExecuteUpdateAsync(u => u.SetProperty(i => i.PriceCents, OrderService.MaxAmountCents));
         var input = s.Input(1) with { Items = [new(s.Item.Id, 2, OrderService.MaxAmountCents, null)] };
         var service = new OrderService(db, host.Clock);
-        Assert.Equal("VALIDATION_FAILED", (await Assert.ThrowsAsync<OrderException>(() => service.CreateAsync(s.Guest, input, default))).Code);
+        Assert.Equal("VALIDATION_FAILED", (await Assert.ThrowsAsync<ApiException>(() => service.CreateAsync(s.Guest, input, default))).Code);
         input = input with { Items = [new(s.Item.Id, 1, OrderService.MaxAmountCents, null), new(s.Item.Id, 1, OrderService.MaxAmountCents, "other")] };
-        Assert.Equal("VALIDATION_FAILED", (await Assert.ThrowsAsync<OrderException>(() => service.CreateAsync(s.Guest, input, default))).Code);
+        Assert.Equal("VALIDATION_FAILED", (await Assert.ThrowsAsync<ApiException>(() => service.CreateAsync(s.Guest, input, default))).Code);
         await service.CreateAsync(s.Guest, input with { Items = [input.Items[0]] }, default);
-        Assert.Equal("BILL_LIMIT_REACHED", (await Assert.ThrowsAsync<OrderException>(() => service.CreateAsync(s.Guest,
+        Assert.Equal("BILL_LIMIT_REACHED", (await Assert.ThrowsAsync<ApiException>(() => service.CreateAsync(s.Guest,
             input with { ClientRequestId = Guid.NewGuid(), Items = [input.Items[0]] }, default))).Code);
     }
 
@@ -317,14 +321,14 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
         if (orderFirst)
         {
             Assert.True((await creation!).Created);
-            if (kind == "close") Assert.Equal("BILL_CHANGED", (await Assert.ThrowsAsync<DiningException>(() => mutation!)).Code);
+            if (kind == "close") Assert.Equal("BILL_CHANGED", (await Assert.ThrowsAsync<ApiException>(() => mutation!)).Code);
             else await mutation!;
         }
         else
         {
             await mutation!;
             var exception = await Record.ExceptionAsync(() => creation!);
-            Assert.True(exception is DiningException or OrderException);
+            Assert.True(exception is ApiException);
         }
         await using var check = database.CreateContext();
         Assert.Equal(orderFirst ? 1 : 0, await check.Orders.CountAsync(o => o.DiningSessionId == s.Guest.SessionId));
@@ -363,7 +367,7 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
         finally { firstGate.Release.TrySetResult(); }
         Assert.Equal("CLOSED", (await closing!).Status);
         if (readFirst) Assert.Empty((await reading!).Items);
-        else Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<DiningException>(() => reading!)).Code);
+        else Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => reading!)).Code);
     }
 
     private async Task<Setup> SeedAsync(AccountTestHost host, RestaurantUserRole role = RestaurantUserRole.Staff)

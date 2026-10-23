@@ -6,7 +6,6 @@ namespace TavoloFlow.Api.Controllers;
 
 [ApiController]
 [AllowAnonymous]
-[MenuErrors]
 public sealed class PublicMenuController(PublicMenuService menus) : ControllerBase
 {
     [HttpGet("api/public/qr/{token}/bootstrap")]

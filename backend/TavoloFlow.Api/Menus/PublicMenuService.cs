@@ -1,5 +1,6 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Entities;
 
@@ -41,5 +42,5 @@ public sealed class PublicMenuService(ApplicationDbContext context)
             new(menu.AvailableLanguages, menu.Categories, menu.Items));
     }
 
-    private static MenuException NotFound() => new(404, "QR_NOT_FOUND", "二维码无效，请联系餐厅工作人员。");
+    private static ApiException NotFound() => new(404, "QR_NOT_FOUND", "二维码无效，请联系餐厅工作人员。");
 }

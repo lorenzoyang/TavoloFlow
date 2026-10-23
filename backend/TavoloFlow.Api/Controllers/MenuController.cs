@@ -6,7 +6,6 @@ using TavoloFlow.Api.Menus;
 namespace TavoloFlow.Api.Controllers;
 
 [ApiController]
-[MenuErrors]
 [Authorize(Policy = StoreAuthentication.StaffPolicy)]
 public sealed class MenuController(MenuService menus, CurrentAccount current) : ControllerBase
 {

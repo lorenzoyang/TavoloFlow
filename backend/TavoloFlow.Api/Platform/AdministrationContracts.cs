@@ -1,8 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Filters;
-using TavoloFlow.Api.Accounts;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Entities;
 
 namespace TavoloFlow.Api.Platform;
@@ -37,19 +35,9 @@ public sealed record RestaurantPage(RestaurantSummary[] Items, int TotalCount, i
 public sealed record TemporaryAccount(ManagedAccount Account, string TemporaryPassword);
 public sealed record CreatedRestaurant(RestaurantSummary Restaurant, TemporaryAccount[] Credentials);
 
-public sealed class AdministrationException(int status, string code, string message) : Exception(message)
+public static class AdministrationErrors
 {
-    public int Status { get; } = status;
-    public string Code { get; } = code;
-    public static AdministrationException Missing() => new(404, "ACCOUNT_NOT_FOUND", "账号不存在或不属于此餐厅。");
-    public static AdministrationException Changed() => new(409, "ACCOUNT_CHANGED", "目标账号已变化，请重新读取并确认。");
-}
-public sealed class AdministrationErrorsAttribute : ExceptionFilterAttribute
-{
-    public override void OnException(ExceptionContext context)
-    {
-        if (context.Exception is not AdministrationException error) return;
-        context.Result = new ObjectResult(ApiError.Create(context.HttpContext, error.Code, error.Message)) { StatusCode = error.Status };
-        context.ExceptionHandled = true;
-    }
+    public static ApiException RestaurantNotFound() => new(404, "RESTAURANT_NOT_FOUND", "餐厅不存在。");
+    public static ApiException AccountNotFound() => new(404, "ACCOUNT_NOT_FOUND", "账号不存在或不属于此餐厅。");
+    public static ApiException AccountChanged() => new(409, "ACCOUNT_CHANGED", "目标账号已变化，请重新读取并确认。");
 }

@@ -1,7 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Filters;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Kitchen;
 
 namespace TavoloFlow.Api.Billing;
@@ -21,24 +20,12 @@ public sealed record BillPage(BillSummaryResponse Summary, KitchenOrderResponse[
 public sealed record HistoryPage(BillSummaryResponse[] Items, string? NextCursor, long TotalCount,
     DateOnly FromDate, DateOnly ToDate, string TimeZone);
 
-public sealed class BillingException(int status, string code, string message,
-    BillSummaryResponse? currentBill = null) : Exception(message)
+public static class BillingErrors
 {
-    public int Status { get; } = status;
-    public string Code { get; } = code;
-    public BillSummaryResponse? CurrentBill { get; } = currentBill;
-    public static BillingException Invalid(string message) => new(400, "VALIDATION_FAILED", message);
-    public static BillingException Changed(BillSummaryResponse bill) =>
-        new(409, "BILL_CHANGED", "账单已变化，请重新核对桌号、金额和订单。", bill);
-}
+    // Closure conflicts include the latest bill, so the owner can re-check it before confirming again.
+    public static ApiException Conflict(string code, string message, BillSummaryResponse bill) =>
+        new(409, code, message) { Extensions = new() { ["currentBill"] = bill } };
 
-public sealed class BillingErrorsAttribute : ExceptionFilterAttribute
-{
-    public override void OnException(ExceptionContext context)
-    {
-        if (context.Exception is not BillingException error) return;
-        context.Result = new ObjectResult(new { error.Code, error.Message,
-            RequestId = context.HttpContext.TraceIdentifier, error.CurrentBill }) { StatusCode = error.Status };
-        context.ExceptionHandled = true;
-    }
+    public static ApiException Changed(BillSummaryResponse bill) =>
+        Conflict("BILL_CHANGED", "账单已变化，请重新核对桌号、金额和订单。", bill);
 }

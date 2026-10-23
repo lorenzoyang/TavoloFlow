@@ -1,6 +1,7 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Entities;
 
@@ -28,7 +29,7 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
         {
             var category = id is null ? new MenuCategory { RestaurantId = restaurantId } :
                 await context.MenuCategories.SingleOrDefaultAsync(x => x.RestaurantId == restaurantId && x.Id == id, ct)
-                    ?? throw MenuException.NotFound();
+                    ?? throw MenuErrors.NotFound();
             category.NameZh = value.NameZh;
             category.NameIt = value.NameIt;
             category.NameEn = value.NameEn;
@@ -41,9 +42,9 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
     public Task<bool> DeleteCategoryAsync(Guid restaurantId, Guid id, CancellationToken ct) => WriteAsync(restaurantId, async () =>
     {
         if (!await context.MenuCategories.AnyAsync(x => x.RestaurantId == restaurantId && x.Id == id, ct))
-            throw MenuException.NotFound();
+            throw MenuErrors.NotFound();
         if (await context.MenuItems.AnyAsync(x => x.RestaurantId == restaurantId && x.CategoryId == id, ct))
-            throw new MenuException(409, "CATEGORY_NOT_EMPTY", "请先移走或删除分类中的菜品。");
+            throw new ApiException(409, "CATEGORY_NOT_EMPTY", "请先移走或删除分类中的菜品。");
         await context.MenuCategories.Where(x => x.RestaurantId == restaurantId && x.Id == id).ExecuteDeleteAsync(ct);
         return true;
     }, ct);
@@ -55,9 +56,9 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
         {
             var item = id is null ? new MenuItem { RestaurantId = restaurantId, IsAvailable = true } :
                 await context.MenuItems.SingleOrDefaultAsync(x => x.RestaurantId == restaurantId && x.Id == id, ct)
-                    ?? throw MenuException.NotFound();
+                    ?? throw MenuErrors.NotFound();
             if (!await context.MenuCategories.AnyAsync(x => x.RestaurantId == restaurantId && x.Id == value.CategoryId, ct))
-                throw MenuException.NotFound();
+                throw MenuErrors.NotFound();
             item.CategoryId = value.CategoryId;
             item.ItemCode = value.ItemCode;
             item.NameZh = value.NameZh;
@@ -79,16 +80,16 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
     public async Task DeleteItemAsync(Guid restaurantId, Guid id, CancellationToken ct)
     {
         if (await deletion.DeleteMenuItemAsync(restaurantId, id, ct) == CatalogDeletionResult.NotFound)
-            throw MenuException.NotFound();
+            throw MenuErrors.NotFound();
     }
 
     public Task<MenuItemResponse> SetAvailabilityAsync(Guid restaurantId, Guid id, bool available, CancellationToken ct) =>
         WriteAsync(restaurantId, async () =>
         {
             var item = await context.MenuItems.AsNoTracking()
-                .SingleOrDefaultAsync(x => x.RestaurantId == restaurantId && x.Id == id, ct) ?? throw MenuException.NotFound();
+                .SingleOrDefaultAsync(x => x.RestaurantId == restaurantId && x.Id == id, ct) ?? throw MenuErrors.NotFound();
             if (available && !item.AllergenReviewed)
-                throw new MenuException(409, "ALLERGEN_REVIEW_REQUIRED", "请先由老板编辑菜品并完成过敏原审核。");
+                throw new ApiException(409, "ALLERGEN_REVIEW_REQUIRED", "请先由老板编辑菜品并完成过敏原审核。");
             await context.MenuItems.Where(x => x.RestaurantId == restaurantId && x.Id == id)
                 .ExecuteUpdateAsync(update => update.SetProperty(x => x.IsAvailable, available), ct);
             item.IsAvailable = available;
@@ -98,11 +99,10 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
     public async Task<DefaultLanguageResponse> SetDefaultLanguageAsync(Guid restaurantId, string? language, CancellationToken ct)
     {
         if (language is null || !Languages.Contains(language))
-            throw new MenuException(400, "VALIDATION_FAILED", "请选择中文、意大利语或英语。",
-                new Dictionary<string, string[]> { ["defaultLanguage"] = ["语言代码必须为 zh、it 或 en。"] });
+            throw ApiException.Validation("请选择中文、意大利语或英语。", "defaultLanguage", "语言代码必须为 zh、it 或 en。");
         var updated = await context.Restaurants.Where(x => x.Id == restaurantId)
             .ExecuteUpdateAsync(update => update.SetProperty(x => x.DefaultLanguage, language), ct);
-        if (updated == 0) throw MenuException.NotFound();
+        if (updated == 0) throw MenuErrors.NotFound();
         return new(language);
     }
 
@@ -113,7 +113,7 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
         var restaurant = await context.Restaurants.FromSqlInterpolated($"""
             SELECT * FROM restaurants WHERE id = {restaurantId} FOR UPDATE
             """).AsNoTracking().SingleOrDefaultAsync(ct);
-        if (restaurant is null) throw MenuException.NotFound();
+        if (restaurant is null) throw MenuErrors.NotFound();
         try
         {
             var result = await operation();
@@ -123,7 +123,7 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
         catch (DbUpdateException error) when (error.InnerException is PostgresException
         { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "uq_menu_items_code" })
         {
-            throw new MenuException(409, "ITEM_CODE_CONFLICT", "该菜品编号已被本店其他菜品使用。",
+            throw new ApiException(409, "ITEM_CODE_CONFLICT", "该菜品编号已被本店其他菜品使用。",
                 new Dictionary<string, string[]> { ["itemCode"] = ["请使用不同编号，或留空。"] });
         }
     }

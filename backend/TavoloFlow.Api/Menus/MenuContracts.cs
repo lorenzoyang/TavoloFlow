@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Entities;
 
 namespace TavoloFlow.Api.Menus;
@@ -40,6 +41,11 @@ public sealed record AllergenOption(string Code, string Label, string Descriptio
 public sealed record MenuResponse(
     Guid RestaurantId, string DefaultLanguage, string[] AvailableLanguages,
     CategoryResponse[] Categories, MenuItemResponse[] Items, IReadOnlyList<AllergenOption> Allergens);
+
+public static class MenuErrors
+{
+    public static ApiException NotFound() => new(404, "MENU_RESOURCE_NOT_FOUND", "分类或菜品不存在，请刷新菜单。");
+}
 
 public static class MenuAllergens
 {

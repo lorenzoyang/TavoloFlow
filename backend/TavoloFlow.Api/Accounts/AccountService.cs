@@ -5,14 +5,6 @@ using TavoloFlow.Api.Entities;
 
 namespace TavoloFlow.Api.Accounts;
 
-public enum PasswordChangeResult
-{
-    Changed,
-    IncorrectPassword,
-    SamePassword,
-    CredentialsChanged
-}
-
 // a precomputed hash avoids a cheap username-existence timing distinction.
 public sealed class UnknownAccountPassword
 {

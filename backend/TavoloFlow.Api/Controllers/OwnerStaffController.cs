@@ -5,7 +5,7 @@ using TavoloFlow.Api.Platform;
 
 namespace TavoloFlow.Api.Controllers;
 
-[ApiController, AdministrationErrors]
+[ApiController]
 [Route("api/owner/staff")]
 [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
 public sealed class OwnerStaffController(RestaurantAdministration service, CurrentAccount current) : ControllerBase

@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Entities;
 
@@ -26,7 +27,7 @@ public sealed class TableService(ApplicationDbContext context, CatalogDeletionSe
         };
         context.RestaurantTables.Add(table);
         try { await context.SaveChangesAsync(ct); }
-        catch (DbUpdateException error) when (IsLabelConflict(error.InnerException)) { throw TableException.LabelConflict(); }
+        catch (DbUpdateException error) when (IsLabelConflict(error.InnerException)) { throw TableErrors.LabelConflict(); }
         return new(table.Id, table.TableLabel, table.IsEnabled, "/q/" + table.QrToken, null);
     }
 
@@ -50,7 +51,7 @@ public sealed class TableService(ApplicationDbContext context, CatalogDeletionSe
         var table = await context.RestaurantTables.FromSqlInterpolated($"""
             SELECT * FROM restaurant_tables WHERE restaurant_id = {restaurantId} AND id = {id} FOR UPDATE
             """).AsNoTracking().SingleOrDefaultAsync(ct);
-        if (table is null) throw TableException.NotFound();
+        if (table is null) throw TableErrors.NotFound();
         try
         {
             await update();
@@ -58,24 +59,23 @@ public sealed class TableService(ApplicationDbContext context, CatalogDeletionSe
             await transaction.CommitAsync(ct);
             return result;
         }
-        catch (PostgresException error) when (IsLabelConflict(error)) { throw TableException.LabelConflict(); }
+        catch (PostgresException error) when (IsLabelConflict(error)) { throw TableErrors.LabelConflict(); }
     }
 
     public async Task DeleteAsync(Guid restaurantId, Guid id, CancellationToken ct)
     {
         // The deletion service owns its transaction; never wrap this call in another one.
         var result = await deletion.DeleteRestaurantTableAsync(restaurantId, id, ct);
-        if (result == CatalogDeletionResult.NotFound) throw TableException.NotFound();
+        if (result == CatalogDeletionResult.NotFound) throw TableErrors.NotFound();
         if (result == CatalogDeletionResult.TableHasActiveSession)
-            throw new TableException(409, "TABLE_HAS_ACTIVE_SESSION", "此桌仍有进行中的用餐，结束用餐后才能删除。");
+            throw new ApiException(409, "TABLE_HAS_ACTIVE_SESSION", "此桌仍有进行中的用餐，结束用餐后才能删除。");
     }
 
     private static string NormalizeLabel(string? value)
     {
         var label = value?.Trim();
         if (string.IsNullOrEmpty(label) || label.Length > 50)
-            throw new TableException(400, "VALIDATION_FAILED", "请检查桌号。",
-                new Dictionary<string, string[]> { ["tableLabel"] = ["桌号去除首尾空白后须为 1–50 个字符。"] });
+            throw ApiException.Validation("请检查桌号。", "tableLabel", "桌号去除首尾空白后须为 1–50 个字符。");
         return label;
     }
 

@@ -1,15 +1,12 @@
-using System.Globalization;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using TavoloFlow.Api.Accounts;
-using TavoloFlow.Api.Dining;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Guests;
 
 namespace TavoloFlow.Api.Controllers;
 
 [ApiController]
-[DiningErrors]
 [Authorize(Policy = GuestAuthentication.Policy)]
 public sealed class GuestController(GuestService guests, IAntiforgery antiforgery, GuestRateLimiter limiter,
     TimeProvider clock, ILogger<GuestController> logger) : ControllerBase
@@ -26,12 +23,11 @@ public sealed class GuestController(GuestService guests, IAntiforgery antiforger
         if (wait is not null)
         {
             logger.LogWarning("Guest join rate limit reached. Request {RequestId}.", HttpContext.TraceIdentifier);
-            Response.Headers.RetryAfter = wait.Value.ToString(CultureInfo.InvariantCulture);
-            return StatusCode(429, ApiError.Create(HttpContext, "RATE_LIMITED", "验证过于频繁，请稍后再试。"));
+            throw ApiException.RateLimited(wait.Value, "验证过于频繁，请稍后再试。");
         }
         var guest = await guests.JoinAsync(token, input, ct);
         await GuestAuthentication.SignInAsync(HttpContext, guest, clock);
-        return Ok(new { guest.RestaurantId, guest.TableId, guest.SessionId });
+        return Ok(new JoinResponse(guest.RestaurantId, guest.TableId, guest.SessionId));
     }
 
     [HttpGet("api/public/sessions/{id:guid}/access")]

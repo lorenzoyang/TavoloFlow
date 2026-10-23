@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Dining;
 using TavoloFlow.Api.Entities;
@@ -16,7 +17,7 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
     public async Task<OrderCreation> CreateAsync(GuestIdentity guest, CreateOrderInput input, CancellationToken ct)
     {
         if (input.SessionId is null || input.SessionId == Guid.Empty || input.ClientRequestId is null || input.ClientRequestId == Guid.Empty)
-            throw OrderException.Invalid("sessionId", "请提供有效的用餐和请求标识。");
+            throw OrderErrors.Invalid("sessionId", "请提供有效的用餐和请求标识。");
         RequireTarget(guest, input.SessionId.Value);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         
@@ -33,7 +34,7 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
 
         DiningLocks.RequireEntrance(restaurant, table);
         if (!restaurant.OrderingEnabled)
-            throw new OrderException(409, "ORDERING_PAUSED", "餐厅暂未接受扫码订单。");
+            throw new ApiException(409, "ORDERING_PAUSED", "餐厅暂未接受扫码订单。");
         var lines = Validate(input);
         var ids = lines.Select(x => x.MenuItemId).Distinct().ToArray();
         var menu = await db.MenuItems.AsNoTracking().Where(x => x.RestaurantId == guest.RestaurantId && ids.Contains(x.Id))
@@ -46,20 +47,20 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
             else if (item.PriceCents != line.ExpectedUnitPriceCents) changes.Add(new(item.Id, "PRICE_CHANGED", item.PriceCents, true));
         }
         if (changes.Count > 0)
-            throw new OrderException(409, "MENU_CHANGED", "菜品信息已变化，请重新核对菜单和金额。", changes: changes.Distinct().ToArray());
+            throw OrderErrors.MenuChanged(changes.Distinct().ToArray());
 
         long total = 0;
         foreach (var line in lines)
         {
             var price = menu[line.MenuItemId].PriceCents;
             if (price <= 0 || price > MaxAmountCents / line.Quantity || total > MaxAmountCents - price * line.Quantity)
-                throw OrderException.Invalid("items", "订单金额超出安全整数范围。");
+                throw OrderErrors.Invalid("items", "订单金额超出安全整数范围。");
             total += price * line.Quantity;
         }
         var existingTotal = await db.Orders.Where(o => o.RestaurantId == guest.RestaurantId &&
             o.DiningSessionId == guest.SessionId && o.Status != OrderStatus.Cancelled).SumAsync(o => o.TotalAmountCents, ct);
         if (existingTotal > MaxAmountCents - total || session.BillVersion == int.MaxValue)
-            throw new OrderException(409, "BILL_LIMIT_REACHED", "本轮账单已达到支持的上限，请联系工作人员。");
+            throw new ApiException(409, "BILL_LIMIT_REACHED", "本轮账单已达到支持的上限，请联系工作人员。");
 
         var order = new Order
         {
@@ -95,7 +96,7 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await LockSessionAsync(guest, false, ct);
         var order = await Orders(guest).SingleOrDefaultAsync(o => o.ClientRequestId == requestId, ct)
-            ?? throw new OrderException(404, "ORDER_NOT_FOUND", "暂未查到这次提交，请继续核对，或使用原请求重试。");
+            ?? throw new ApiException(404, "ORDER_NOT_FOUND", "暂未查到这次提交，请继续核对，或使用原请求重试。");
         var result = OrderResponse.From(order);
         await transaction.CommitAsync(ct);
         return result;
@@ -104,7 +105,7 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
     public async Task<OrderPage> ListAsync(GuestIdentity guest, Guid sessionId, string? cursor, int limit, CancellationToken ct)
     {
         RequireTarget(guest, sessionId);
-        if (limit is < 1 or > 100) throw OrderException.Invalid("limit", "每页数量须为 1–100。");
+        if (limit is < 1 or > 100) throw OrderErrors.Invalid("limit", "每页数量须为 1–100。");
         var after = DecodeCursor(cursor, sessionId);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await LockSessionAsync(guest, false, ct);
@@ -128,31 +129,30 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
     {
         // Reading needs only the session lock: no later restaurant/table locks are acquired.
         var session = await DiningLocks.SessionAsync(db, guest.RestaurantId, guest.SessionId, update, ct);
-        if (session.Status != DiningSessionStatus.Active) throw DiningException.Closed();
-        if (session.TableId != guest.TableId) throw Mismatch();
+        if (session.Status != DiningSessionStatus.Active) throw DiningErrors.SessionClosed();
+        if (session.TableId != guest.TableId) throw GuestErrors.SessionMismatch();
         return session;
     }
 
     private static void RequireTarget(GuestIdentity guest, Guid target)
     {
-        if (guest.SessionId != target) throw Mismatch();
+        if (guest.SessionId != target) throw GuestErrors.SessionMismatch();
     }
-    private static DiningException Mismatch() => new(403, "GUEST_SESSION_MISMATCH", "当前浏览器授权属于另一轮用餐，请重新验证。");
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static OrderLineInput[] Validate(CreateOrderInput input)
     {
         if (input.Items is null || input.Items.Length is < 1 or > 30 || input.Items.Any(x => x is null))
-            throw OrderException.Invalid("items", "每笔订单须包含 1–30 行菜品。");
-        if (input.OrderNote?.Length > 500) throw OrderException.Invalid("orderNote", "整单备注最多 500 个字符。");
+            throw OrderErrors.Invalid("items", "每笔订单须包含 1–30 行菜品。");
+        if (input.OrderNote?.Length > 500) throw OrderErrors.Invalid("orderNote", "整单备注最多 500 个字符。");
         var lines = input.Items.Select(x => x!).ToArray();
         foreach (var (line, index) in lines.Select((line, index) => (line, index)))
         {
             if (line.MenuItemId == Guid.Empty || line.Quantity is < 1 or > 20 ||
                 line.ExpectedUnitPriceCents < 1 || line.ExpectedUnitPriceCents > MaxAmountCents || line.Remark?.Length > 200)
-                throw OrderException.Invalid($"items[{index}]", "菜品须有效，每行 1–20 份，备注最多 200 字符，确认价格须为正整数欧分。");
+                throw OrderErrors.Invalid($"items[{index}]", "菜品须有效，每行 1–20 份，备注最多 200 字符，确认价格须为正整数欧分。");
         }
-        if (lines.Sum(x => x.Quantity) > 100) throw OrderException.Invalid("items", "每单最多 100 份。");
+        if (lines.Sum(x => x.Quantity) > 100) throw OrderErrors.Invalid("items", "每单最多 100 份。");
         return lines;
     }
 
@@ -170,7 +170,7 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
         }
         catch (Exception error) when (error is FormatException or JsonException or ArgumentException)
         {
-            throw OrderException.Invalid("cursor", "分页位置无效，请重新读取订单。");
+            throw OrderErrors.Invalid("cursor", "分页位置无效，请重新读取订单。");
         }
     }
 }

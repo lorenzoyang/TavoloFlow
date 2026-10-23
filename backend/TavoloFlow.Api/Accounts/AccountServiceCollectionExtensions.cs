@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Entities;
 
 namespace TavoloFlow.Api.Accounts;
@@ -23,7 +24,6 @@ public static class AccountServiceCollectionExtensions
         services.AddScoped<DevelopmentAccountSeeder>();
         services.AddScoped<CurrentAccount>();
         services.AddScoped<StoreCookieEvents>();
-        services.AddScoped<CsrfValidationFilter>();
         services.AddSingleton<Microsoft.AspNetCore.Antiforgery.IAntiforgeryAdditionalDataProvider, BrowserCsrfScope>();
 
         services.AddSingleton<IAuthorizationHandler, PasswordChangedHandler>();

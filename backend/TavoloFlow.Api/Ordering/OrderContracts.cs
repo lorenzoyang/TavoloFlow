@@ -1,7 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Filters;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Entities;
 
 namespace TavoloFlow.Api.Ordering;
@@ -31,24 +30,11 @@ public sealed record OrderPage(OrderResponse[] Items, string? NextCursor, long T
 public sealed record OrderCreation(OrderResponse Order, bool Created);
 public sealed record MenuChange(Guid MenuItemId, string Reason, long? CurrentUnitPriceCents, bool? IsAvailable);
 
-public sealed class OrderException(int status, string code, string message,
-    IReadOnlyDictionary<string, string[]>? errors = null, MenuChange[]? changes = null) : Exception(message)
+public static class OrderErrors
 {
-    public int Status { get; } = status;
-    public string Code { get; } = code;
-    public IReadOnlyDictionary<string, string[]>? Errors { get; } = errors;
-    public MenuChange[]? Changes { get; } = changes;
-    public static OrderException Invalid(string field, string message) => new(400, "VALIDATION_FAILED",
-        "请检查订单内容。", new Dictionary<string, string[]> { [field] = [message] });
-}
+    public static ApiException Invalid(string field, string message) =>
+        ApiException.Validation("请检查订单内容。", field, message);
 
-public sealed class OrderErrorsAttribute : ExceptionFilterAttribute
-{
-    public override void OnException(ExceptionContext context)
-    {
-        if (context.Exception is not OrderException error) return;
-        context.Result = new ObjectResult(new { error.Code, error.Message,
-            RequestId = context.HttpContext.TraceIdentifier, error.Errors, error.Changes }) { StatusCode = error.Status };
-        context.ExceptionHandled = true;
-    }
+    public static ApiException MenuChanged(MenuChange[] changes) =>
+        new(409, "MENU_CHANGED", "菜品信息已变化，请重新核对菜单和金额。") { Extensions = new() { ["changes"] = changes } };
 }

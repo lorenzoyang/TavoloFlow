@@ -155,9 +155,9 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
         await CloseForTest(db, s, host.Clock);
         var empty = await service.ListAsync(s.RestaurantId, "READY", null, 50, default);
         Assert.Empty(empty.Items); Assert.Equal(0, empty.TotalCount); Assert.Equal(3, empty.CreatedOrderCount);
-        Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<DiningException>(() => service.ReadAsync(s.RestaurantId, a.Id, default))).Code);
-        Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<DiningException>(() => service.ReadyAsync(s.RestaurantId, b.Id, default))).Code);
-        Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<DiningException>(() => service.CancelAsync(s.RestaurantId, a.Id, RestaurantUserRole.Owner, new("READY", "取消"), default))).Code);
+        Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => service.ReadAsync(s.RestaurantId, a.Id, default))).Code);
+        Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => service.ReadyAsync(s.RestaurantId, b.Id, default))).Code);
+        Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => service.CancelAsync(s.RestaurantId, a.Id, RestaurantUserRole.Owner, new("READY", "取消"), default))).Code);
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
         await service.ReadyAsync(s.RestaurantId, a.Id, default);
         await service.CancelAsync(s.RestaurantId, a.Id, RestaurantUserRole.Owner, new("READY", "取消"), default);
         await db.DiningSessions.Where(x => x.Id == s.Guest.SessionId).ExecuteUpdateAsync(u => u.SetProperty(x => x.BillVersion, int.MaxValue));
-        Assert.Equal("BILL_LIMIT_REACHED", (await Assert.ThrowsAsync<OrderException>(() => service.CancelAsync(s.RestaurantId, b.Id, RestaurantUserRole.Staff, new("NEW", "取消"), default))).Code);
+        Assert.Equal("BILL_LIMIT_REACHED", (await Assert.ThrowsAsync<ApiException>(() => service.CancelAsync(s.RestaurantId, b.Id, RestaurantUserRole.Staff, new("NEW", "取消"), default))).Code);
         Assert.Equal("NEW", (await service.ReadAsync(s.RestaurantId, b.Id, default)).Status);
         await service.ReadyAsync(s.RestaurantId, b.Id, default);
         Assert.Equal(int.MaxValue, await VersionAsync(s));
@@ -197,7 +197,7 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
         }
         var errors = await Task.WhenAll(Attempt(cancelA), Attempt(cancelB));
         Assert.Single(errors, e => e is null);
-        Assert.Equal("ORDER_CHANGED", Assert.IsType<OrderException>(errors.Single(e => e is not null)).Code);
+        Assert.Equal("ORDER_CHANGED", Assert.IsType<ApiException>(errors.Single(e => e is not null)).Code);
         await using var check = database.CreateContext();
         var saved = await check.Orders.SingleAsync(o => o.Id == order.Id);
         Assert.Equal(saved.Status == OrderStatus.Cancelled ? 3 : 2, await VersionAsync(s));
@@ -263,7 +263,7 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
         finally { gate.Release.TrySetResult(); }
         await closing!;
         if (cancelFirst) Assert.Equal("CANCELLED", (await cancelling!).Status);
-        else Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<DiningException>(() => cancelling!)).Code);
+        else Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => cancelling!)).Code);
         Assert.Equal(cancelFirst ? 3 : 2, await VersionAsync(s));
     }
 

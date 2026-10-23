@@ -1,5 +1,6 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Entities;
 
@@ -11,9 +12,9 @@ public sealed class DiningService(ApplicationDbContext db, JoinCodes codes, Time
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var restaurant = await db.Restaurants.FromSqlInterpolated($"SELECT * FROM restaurants WHERE id = {restaurantId} FOR UPDATE")
-            .SingleOrDefaultAsync(ct) ?? throw new DiningException(404, "RESTAURANT_NOT_FOUND", "餐厅不存在。");
+            .SingleOrDefaultAsync(ct) ?? throw DiningErrors.RestaurantNotFound();
         if (enabled && restaurant.ServiceStatus != RestaurantServiceStatus.Active)
-            throw new DiningException(409, "SERVICE_SUSPENDED", "餐厅服务已暂停，无法开启接单。");
+            throw new ApiException(409, "SERVICE_SUSPENDED", "餐厅服务已暂停，无法开启接单。");
         restaurant.OrderingEnabled = enabled;
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
@@ -42,7 +43,7 @@ public sealed class DiningService(ApplicationDbContext db, JoinCodes codes, Time
                 s.CloseReason == null ? null : s.CloseReason == SessionCloseReason.Empty ? "EMPTY" : s.CloseReason == SessionCloseReason.Paid ? "PAID" : "VOIDED",
                 s.BillVersion, s.Orders.Count,
                 s.ClosedTotalCents ?? s.Orders.Where(o => o.Status != OrderStatus.Cancelled).Sum(o => o.TotalAmountCents)))
-            .SingleOrDefaultAsync(ct) ?? throw DiningException.Missing();
+            .SingleOrDefaultAsync(ct) ?? throw DiningErrors.SessionNotFound();
 
     public async Task<OpenSessionResponse> OpenAsync(Guid restaurantId, Guid tableId, CancellationToken ct)
     {
@@ -53,7 +54,7 @@ public sealed class DiningService(ApplicationDbContext db, JoinCodes codes, Time
         DiningLocks.RequireEntrance(restaurant, table);
         if (await db.DiningSessions.AnyAsync(s => s.RestaurantId == restaurantId && s.TableId == tableId &&
             s.Status == DiningSessionStatus.Active, ct))
-            throw new DiningException(409, "SESSION_ALREADY_ACTIVE", "此桌已开桌，请重新读取当前用餐状态。");
+            throw new ApiException(409, "SESSION_ALREADY_ACTIVE", "此桌已开桌，请重新读取当前用餐状态。");
 
         var session = new DiningSession
         {
@@ -81,21 +82,21 @@ public sealed class DiningService(ApplicationDbContext db, JoinCodes codes, Time
     public async Task<SessionResponse> CloseEmptyAsync(Guid restaurantId, Guid id, CloseEmptyInput input, CancellationToken ct)
     {
         if (input.GuestsLeftConfirmed != true || input.ConfirmedTotalCents != 0 || input.ExpectedBillVersion is null or <= 0)
-            throw new DiningException(400, "VALIDATION_FAILED", "请核对零账单并确认顾客已离桌。");
+            throw ApiException.Validation("请核对零账单并确认顾客已离桌。");
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         // Ordering, kitchen transitions and checkout take this same session lock.
         var session = await DiningLocks.SessionAsync(db, restaurantId, id, true, ct);
         if (session.BillVersion != input.ExpectedBillVersion)
-            throw new DiningException(409, "BILL_CHANGED", "账单已变化，请重新核对。");
+            throw new ApiException(409, "BILL_CHANGED", "账单已变化，请重新核对。");
         if (session.Status == DiningSessionStatus.Closed)
         {
             if (session.CloseReason != SessionCloseReason.Empty || session.ClosedTotalCents != 0)
-                throw DiningException.Closed();
+                throw DiningErrors.SessionClosed();
         }
         else
         {
             if (await db.Orders.AnyAsync(o => o.RestaurantId == restaurantId && o.DiningSessionId == id, ct))
-                throw new DiningException(409, "SESSION_HAS_ORDERS", "本轮曾产生订单，不能按空桌关闭。");
+                throw new ApiException(409, "SESSION_HAS_ORDERS", "本轮曾产生订单，不能按空桌关闭。");
             var now = clock.GetUtcNow().UtcDateTime;
             if (now < session.OpenedAt) now = session.OpenedAt;
             await db.DiningSessions.Where(s => s.Id == id && s.RestaurantId == restaurantId)

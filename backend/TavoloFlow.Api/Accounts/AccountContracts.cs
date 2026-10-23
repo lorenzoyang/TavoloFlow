@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Entities;
 
 namespace TavoloFlow.Api.Accounts;
@@ -30,17 +31,39 @@ public static class AccountInput
 
     public static bool IsValidPassword(string password) =>
         password.Length is >= 12 and <= 128 && !string.IsNullOrWhiteSpace(password);
+
+    public static void EnsureValidNewPassword(string password)
+    {
+        if (!IsValidPassword(password))
+        {
+            throw ApiException.Validation("新密码须为 12–128 个字符。", "newPassword", "密码不能全部为空白。");
+        }
+    }
 }
 
-public sealed record ApiError(
-    string Code,
-    string Message,
-    string RequestId,
-    IReadOnlyDictionary<string, string[]>? Errors = null)
+public enum PasswordChangeResult
 {
-    public static ApiError Create(HttpContext context, string code, string message,
-        IReadOnlyDictionary<string, string[]>? errors = null) =>
-        new(code, message, context.TraceIdentifier, errors);
+    Changed,
+    IncorrectPassword,
+    SamePassword,
+    CredentialsChanged
+}
+
+public static class PasswordChangeResults
+{
+    // Store and platform accounts report the same outcomes; only the re-login hint differs.
+    public static void EnsureChanged(this PasswordChangeResult result, string credentialsChangedMessage)
+    {
+        switch (result)
+        {
+            case PasswordChangeResult.IncorrectPassword:
+                throw new ApiException(400, "CURRENT_PASSWORD_INCORRECT", "当前密码不正确。");
+            case PasswordChangeResult.SamePassword:
+                throw new ApiException(400, "PASSWORD_UNCHANGED", "新密码须与当前密码不同。");
+            case PasswordChangeResult.CredentialsChanged:
+                throw new ApiException(409, "CREDENTIALS_CHANGED", credentialsChangedMessage);
+        }
+    }
 }
 
 // Populated only after the cookie has been checked against the database.

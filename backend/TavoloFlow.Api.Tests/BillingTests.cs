@@ -82,8 +82,8 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
         await AssertErrorAsync(await PostAsync(owner, Checkout(s.Id), new CheckoutInput(4, 800)), HttpStatusCode.Conflict, "SESSION_CLOSED");
         await AssertErrorAsync(await PostAsync(owner, Void(s.Id), new CloseVoidInput(4, 0, true)), HttpStatusCode.Conflict, "SESSION_CLOSED");
         Assert.Null(await db.DiningSessions.Where(x => x.Id == s.Id).Select(x => x.JoinCodeCiphertext).SingleAsync());
-        Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<DiningException>(() => kitchen.ReadyAsync(s.RestaurantId, a.Id, default))).Code);
-        Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<DiningException>(() => kitchen.CancelAsync(s.RestaurantId, a.Id, RestaurantUserRole.Owner, new("READY", "错误"), default))).Code);
+        Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => kitchen.ReadyAsync(s.RestaurantId, a.Id, default))).Code);
+        Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => kitchen.CancelAsync(s.RestaurantId, a.Id, RestaurantUserRole.Owner, new("READY", "错误"), default))).Code);
         var history = (await owner.GetFromJsonAsync<BillPage>($"/api/owner/history/{s.Id}"))!;
         Assert.Equal(saved, history.Summary); Assert.Equal(2, history.Orders.Length);
         await AssertErrorAsync(await owner.GetAsync(Bill(s.Id)), HttpStatusCode.Conflict, "SESSION_CLOSED");
@@ -154,8 +154,8 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
         foreach (var suffix in new[] { "access", "orders", "join-code", $"orders/by-request/{input.ClientRequestId}" })
             Assert.False((await guest.GetAsync($"/api/public/sessions/{s.Id}/{suffix}")).IsSuccessStatusCode);
         var orderService = new OrderService(db, host.Clock);
-        await Assert.ThrowsAsync<DiningException>(() => orderService.CreateAsync(s.Guest, input, default));
-        await Assert.ThrowsAsync<DiningException>(() => orderService.CreateAsync(s.Guest, s.Input(), default));
+        await Assert.ThrowsAsync<ApiException>(() => orderService.CreateAsync(s.Guest, input, default));
+        await Assert.ThrowsAsync<ApiException>(() => orderService.CreateAsync(s.Guest, s.Input(), default));
         Assert.Equal(1, await db.Orders.CountAsync(o => o.DiningSessionId == s.Id));
         Assert.Equal(0, await db.Orders.CountAsync(o => o.DiningSessionId == reopened.Session.Id));
     }
@@ -180,9 +180,9 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
         Assert.Equal(2, first.TotalCount); Assert.Equal(ids[2], first.Items.Single().SessionId);
         var second = await service.HistoryAsync(s.RestaurantId, date, date, "旧桌", "EMPTY", first.NextCursor, 1, default);
         Assert.Equal(ids[1], second.Items.Single().SessionId); Assert.Null(second.NextCursor);
-        await Assert.ThrowsAsync<BillingException>(() => service.HistoryAsync(s.RestaurantId, date, date, "别桌", "EMPTY", first.NextCursor, 1, default));
-        await Assert.ThrowsAsync<BillingException>(() => service.HistoryAsync(s.RestaurantId, date, date, "旧桌", "PAID", first.NextCursor, 1, default));
-        await Assert.ThrowsAsync<BillingException>(() => service.HistoryAsync(s.RestaurantId, "invalid", date, null, null, null, 1, default));
+        await Assert.ThrowsAsync<ApiException>(() => service.HistoryAsync(s.RestaurantId, date, date, "别桌", "EMPTY", first.NextCursor, 1, default));
+        await Assert.ThrowsAsync<ApiException>(() => service.HistoryAsync(s.RestaurantId, date, date, "旧桌", "PAID", first.NextCursor, 1, default));
+        await Assert.ThrowsAsync<ApiException>(() => service.HistoryAsync(s.RestaurantId, "invalid", date, null, null, null, 1, default));
         host.Clock.Advance(new DateTimeOffset(start.AddHours(10)) - host.Clock.GetUtcNow());
         var today = await service.HistoryAsync(s.RestaurantId, null, null, null, null, null, 1, default);
         Assert.Equal(DateOnly.Parse(date), today.FromDate); Assert.Equal(today.FromDate, today.ToDate);
@@ -208,7 +208,7 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
         Assert.Equal(closed.TotalAmountCents, first.Summary.TotalAmountCents);
         Assert.Equal(new[] { a.Id, b.Id }, first.Orders.Concat(second.Orders).Select(o => o.Id));
         Assert.All(first.Orders.Concat(second.Orders), o => Assert.Equal("炒饭", o.Items.Single().NameZh));
-        await Assert.ThrowsAsync<BillingException>(() => service.ReadAsync(other.RestaurantId, s.Id, true, first.NextCursor, 1, default));
+        await Assert.ThrowsAsync<ApiException>(() => service.ReadAsync(other.RestaurantId, s.Id, true, first.NextCursor, 1, default));
         var history = await service.HistoryAsync(s.RestaurantId, null, null, "8", "PAID", null, 50, default);
         Assert.Single(history.Items); Assert.Equal("Europe/Rome", history.TimeZone);
         Assert.Empty((await service.HistoryAsync(other.RestaurantId, null, null, null, null, null, 50, default)).Items);
@@ -248,12 +248,12 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
         {
             Assert.Null(writeError);
             if (operation == "ready") Assert.Null(closeError);
-            else Assert.Equal("BILL_CHANGED", Assert.IsType<BillingException>(closeError).Code);
+            else Assert.Equal("BILL_CHANGED", Assert.IsType<ApiException>(closeError).Code);
         }
         else if (operation == "ready")
-        { Assert.Equal("ORDERS_PENDING", Assert.IsType<BillingException>(closeError).Code); Assert.Null(writeError); }
+        { Assert.Equal("ORDERS_PENDING", Assert.IsType<ApiException>(closeError).Code); Assert.Null(writeError); }
         else
-        { Assert.Null(closeError); Assert.Equal("SESSION_CLOSED", Assert.IsType<DiningException>(writeError).Code); }
+        { Assert.Null(closeError); Assert.Equal("SESSION_CLOSED", Assert.IsType<ApiException>(writeError).Code); }
     }
 
     [Fact]

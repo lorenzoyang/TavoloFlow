@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Entities;
 
@@ -80,22 +81,16 @@ public sealed class StoreCookieEvents(ApplicationDbContext context, CurrentAccou
     }
 
     public override Task RedirectToLogin(RedirectContext<CookieAuthenticationOptions> context) =>
-        WriteErrorAsync(context.HttpContext, StatusCodes.Status401Unauthorized,
+        ApiError.WriteAsync(context.HttpContext, StatusCodes.Status401Unauthorized,
             "UNAUTHENTICATED", "请先登录。");
 
     public override Task RedirectToAccessDenied(RedirectContext<CookieAuthenticationOptions> context) =>
-        WriteErrorAsync(context.HttpContext, StatusCodes.Status403Forbidden,
+        ApiError.WriteAsync(context.HttpContext, StatusCodes.Status403Forbidden,
             "FORBIDDEN", "没有执行此操作的权限。");
 
     private static async Task RejectAsync(CookieValidatePrincipalContext context)
     {
         context.RejectPrincipal();
         await context.HttpContext.SignOutAsync(StoreAuthentication.Scheme);
-    }
-
-    internal static Task WriteErrorAsync(HttpContext context, int status, string code, string message)
-    {
-        context.Response.StatusCode = status;
-        return context.Response.WriteAsJsonAsync(ApiError.Create(context, code, message));
     }
 }

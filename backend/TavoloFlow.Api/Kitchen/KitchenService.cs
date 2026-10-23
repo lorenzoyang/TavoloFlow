@@ -2,6 +2,7 @@ using System.Data;
 using System.Text.Json;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Dining;
 using TavoloFlow.Api.Entities;
@@ -14,7 +15,7 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
     public async Task<KitchenPage> ListAsync(Guid restaurantId, string status, string? cursor, int limit, CancellationToken ct)
     {
         var state = ParseStatus(status);
-        if (limit is < 1 or > 100) throw OrderException.Invalid("limit", "每页数量须为 1–100。");
+        if (limit is < 1 or > 100) throw OrderErrors.Invalid("limit", "每页数量须为 1–100。");
         var after = DecodeCursor(cursor, restaurantId, status);
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
         var active = Orders(restaurantId).Where(o => o.DiningSession.Status == DiningSessionStatus.Active);
@@ -59,15 +60,15 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
         {
             "NEW" => OrderStatus.New,
             "READY" => OrderStatus.Ready,
-            _ => throw OrderException.Invalid("expectedStatus", "请确认订单当前为待处理或已完成。")
+            _ => throw OrderErrors.Invalid("expectedStatus", "请确认订单当前为待处理或已完成。")
         };
         var reason = input.Reason?.Trim();
         if (string.IsNullOrEmpty(reason) || reason.Length > 500)
-            throw OrderException.Invalid("reason", "取消原因须为 1–500 个字符。");
+            throw OrderErrors.Invalid("reason", "取消原因须为 1–500 个字符。");
         // Resolve ownership before role-specific errors so foreign IDs remain indistinguishable from missing ones.
         await SessionIdAsync(restaurantId, id, ct);
         if (expected == OrderStatus.Ready && role != RestaurantUserRole.Owner)
-            throw new OrderException(403, "FORBIDDEN", "只有老板可以作废已完成的订单。");
+            throw new ApiException(403, "FORBIDDEN", "只有老板可以作废已完成的订单。");
         return await ChangeAsync(restaurantId, id, expected, reason, ct);
     }
 
@@ -80,7 +81,7 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
         var order = await FindAsync(restaurantId, id, ct);
         if (order.Status != expected) throw Changed();
         if (reason is not null && session.BillVersion == int.MaxValue)
-            throw new OrderException(409, "BILL_LIMIT_REACHED", "本轮账单版本已达到支持的上限，请联系管理员。");
+            throw new ApiException(409, "BILL_LIMIT_REACHED", "本轮账单版本已达到支持的上限，请联系管理员。");
         var now = clock.GetUtcNow().UtcDateTime;
         // Keep lifecycle timestamps valid even if the host clock moves backwards.
         var earliest = order.ReadyAt ?? order.CreatedAt;
@@ -114,16 +115,16 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
     {
         var sessionId = await SessionIdAsync(restaurantId, id, ct);
         var session = await DiningLocks.SessionAsync(db, restaurantId, sessionId, update, ct);
-        if (session.Status != DiningSessionStatus.Active) throw DiningException.Closed();
+        if (session.Status != DiningSessionStatus.Active) throw DiningErrors.SessionClosed();
         return session;
     }
 
-    private static OrderException Missing() => new(404, "ORDER_NOT_FOUND", "订单不存在。");
-    private static OrderException Changed() => new(409, "ORDER_CHANGED", "订单状态已变化，请重新读取并确认。");
+    private static ApiException Missing() => new(404, "ORDER_NOT_FOUND", "订单不存在。");
+    private static ApiException Changed() => new(409, "ORDER_CHANGED", "订单状态已变化，请重新读取并确认。");
     private static OrderStatus ParseStatus(string status) => status switch
     {
         "NEW" => OrderStatus.New, "READY" => OrderStatus.Ready, "CANCELLED" => OrderStatus.Cancelled,
-        _ => throw OrderException.Invalid("status", "订单状态须为 NEW、READY 或 CANCELLED。")
+        _ => throw OrderErrors.Invalid("status", "订单状态须为 NEW、READY 或 CANCELLED。")
     };
     private static DateTime SortTime(Order order, OrderStatus status) => status switch
     {
@@ -142,6 +143,6 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
             return value;
         }
         catch (Exception e) when (e is FormatException or JsonException or ArgumentException)
-        { throw OrderException.Invalid("cursor", "分页位置无效，请重新读取订单。"); }
+        { throw OrderErrors.Invalid("cursor", "分页位置无效，请重新读取订单。"); }
     }
 }

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using TavoloFlow.Api.Accounts;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Entities;
 
@@ -16,7 +17,7 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
     {
         if (page < 1 || page > 100000 || pageSize is < 1 or > 100 || search?.Length > 150 ||
             status is not (null or "ACTIVE" or "SUSPENDED"))
-            throw new AdministrationException(400, "VALIDATION_FAILED", "请检查分页、名称和状态筛选。");
+            throw ApiException.Validation("请检查分页、名称和状态筛选。");
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
         var query = db.Restaurants.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(search)) query = query.Where(r => r.Name.Contains(search.Trim()));
@@ -36,7 +37,7 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
     {
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
         var restaurant = await db.Restaurants.AsNoTracking().SingleOrDefaultAsync(r => r.Id == id, ct)
-            ?? throw new AdministrationException(404, "RESTAURANT_NOT_FOUND", "餐厅不存在。");
+            ?? throw AdministrationErrors.RestaurantNotFound();
         var users = await db.RestaurantUsers.AsNoTracking().Where(u => u.RestaurantId == id).OrderBy(u => u.Role).ToArrayAsync(ct);
         await transaction.CommitAsync(ct);
         return new(RestaurantSummary.From(restaurant), users.Select(ManagedAccount.From).ToArray());
@@ -49,10 +50,10 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
         if (input.Id == Guid.Empty || string.IsNullOrWhiteSpace(input.Name) || input.Name.Trim().Length > 150 ||
             owner.Length is < 1 or > 50 || staff.Length is < 1 or > 50 || owner == staff ||
             input.DefaultLanguage is not ("zh" or "it" or "en"))
-            throw new AdministrationException(400, "VALIDATION_FAILED", "请填写餐厅名称、语言和两个不同的登录名。");
+            throw ApiException.Validation("请填写餐厅名称、语言和两个不同的登录名。");
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         if (await db.Restaurants.AnyAsync(r => r.Id == input.Id, ct))
-            throw new AdministrationException(409, "RESTAURANT_EXISTS", "此创建标识已存在，请核对原餐厅。");
+            throw new ApiException(409, "RESTAURANT_EXISTS", "此创建标识已存在，请核对原餐厅。");
         var restaurant = new Restaurant { Id = input.Id, Name = input.Name.Trim(), DefaultLanguage = input.DefaultLanguage };
         var credentials = new List<TemporaryAccount>();
         foreach (var (name, role) in new[] { (owner, RestaurantUserRole.Owner), (staff, RestaurantUserRole.Staff) })
@@ -67,7 +68,7 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
         db.Restaurants.Add(restaurant);
         try { await db.SaveChangesAsync(ct); }
         catch (DbUpdateException error) when (error.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
-        { throw new AdministrationException(409, "CREATE_CONFLICT", "餐厅标识或登录名已被使用，请核对原结果或修改登录名。"); }
+        { throw new ApiException(409, "CREATE_CONFLICT", "餐厅标识或登录名已被使用，请核对原结果或修改登录名。"); }
         await transaction.CommitAsync(ct);
         logger.LogInformation("Platform {ActorId} created restaurant {RestaurantId}.", actor, restaurant.Id);
         return new(RestaurantSummary.From(restaurant), credentials.ToArray());
@@ -78,11 +79,11 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         // This conflicts with opening/joining/ordering restaurant SHARE locks.
         var restaurant = await db.Restaurants.FromSqlInterpolated($"SELECT * FROM restaurants WHERE id = {id} FOR UPDATE")
-            .SingleOrDefaultAsync(ct) ?? throw new AdministrationException(404, "RESTAURANT_NOT_FOUND", "餐厅不存在。");
+            .SingleOrDefaultAsync(ct) ?? throw AdministrationErrors.RestaurantNotFound();
         restaurant.ServiceStatus = status switch
         {
             "ACTIVE" => RestaurantServiceStatus.Active, "SUSPENDED" => RestaurantServiceStatus.Suspended,
-            _ => throw new AdministrationException(400, "VALIDATION_FAILED", "无效服务状态。")
+            _ => throw ApiException.Validation("无效服务状态。")
         };
         if (restaurant.ServiceStatus == RestaurantServiceStatus.Suspended) restaurant.OrderingEnabled = false;
         await db.SaveChangesAsync(ct);
@@ -93,18 +94,18 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
 
     public async Task<ManagedAccount> StaffAsync(Guid restaurantId, CancellationToken ct) => ManagedAccount.From(
         await db.RestaurantUsers.AsNoTracking().SingleOrDefaultAsync(u => u.RestaurantId == restaurantId && u.Role == RestaurantUserRole.Staff, ct)
-            ?? throw AdministrationException.Missing());
+            ?? throw AdministrationErrors.AccountNotFound());
 
     public async Task<TemporaryAccount> ResetAsync(Guid restaurantId, Guid userId, int version, string actor, CancellationToken ct)
     {
         var user = await FindAsync(restaurantId, userId, ct);
-        if (user.CredentialVersion != version || version == int.MaxValue) throw AdministrationException.Changed();
+        if (user.CredentialVersion != version || version == int.MaxValue) throw AdministrationErrors.AccountChanged();
         var password = NewPassword();
         var hash = hasher.HashPassword(user, password);
         var count = await db.RestaurantUsers.Where(u => u.RestaurantId == restaurantId && u.Id == userId && u.CredentialVersion == version)
             .ExecuteUpdateAsync(update => update.SetProperty(u => u.PasswordHash, hash).SetProperty(u => u.MustChangePassword, true)
                 .SetProperty(u => u.CredentialVersion, u => u.CredentialVersion + 1), ct);
-        if (count != 1) throw AdministrationException.Changed();
+        if (count != 1) throw AdministrationErrors.AccountChanged();
         user.PasswordHash = hash; user.MustChangePassword = true; user.CredentialVersion++;
         logger.LogInformation("{Actor} reset account {AccountId} in restaurant {RestaurantId}.", actor, userId, restaurantId);
         return new(ManagedAccount.From(user), password);
@@ -114,8 +115,8 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var user = await db.RestaurantUsers.FromSqlInterpolated($"SELECT * FROM restaurant_users WHERE restaurant_id = {restaurantId} AND id = {userId} FOR UPDATE")
-            .SingleOrDefaultAsync(ct) ?? throw AdministrationException.Missing();
-        if (user.CredentialVersion != version || version == int.MaxValue) throw AdministrationException.Changed();
+            .SingleOrDefaultAsync(ct) ?? throw AdministrationErrors.AccountNotFound();
+        if (user.CredentialVersion != version || version == int.MaxValue) throw AdministrationErrors.AccountChanged();
         if (user.IsActive != active)
         {
             user.IsActive = active; user.CredentialVersion++;
@@ -128,7 +129,7 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
 
     private async Task<RestaurantUser> FindAsync(Guid restaurantId, Guid userId, CancellationToken ct) =>
         await db.RestaurantUsers.AsNoTracking().SingleOrDefaultAsync(u => u.Id == userId && u.RestaurantId == restaurantId, ct)
-            ?? throw AdministrationException.Missing();
+            ?? throw AdministrationErrors.AccountNotFound();
 
     private static string NewPassword() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(18))
         .Replace('+', '-').Replace('/', '_');

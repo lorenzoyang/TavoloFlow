@@ -328,7 +328,7 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
         }
         else
         {
-            var error = await Assert.ThrowsAsync<DiningException>(async () => await second!);
+            var error = await Assert.ThrowsAsync<ApiException>(async () => await second!);
             Assert.Equal(delete ? "TABLE_NOT_FOUND" : "TABLE_DISABLED", error.Code);
             await using var check = database.CreateContext();
             Assert.False(await check.DiningSessions.AnyAsync(s => s.TableId == table.Id));
@@ -373,11 +373,11 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
         finally { gate.Release.TrySetResult(); }
         await first;
         if (closeFirst)
-            Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<DiningException>(async () => await second!)).Code);
+            Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(async () => await second!)).Code);
         else await second!;
         await using var check = database.CreateContext();
         var serviceAfterClose = new GuestService(check, codes);
-        Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<DiningException>(() => serviceAfterClose.AccessAsync(
+        Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => serviceAfterClose.AccessAsync(
             new(user.RestaurantId, table.Id, opened.Session.Id), opened.Session.Id, default))).Code);
     }
 

@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Threading.RateLimiting;
 using Microsoft.Extensions.Options;
+using TavoloFlow.Api.Common;
 
 namespace TavoloFlow.Api.Accounts;
 
@@ -27,17 +28,19 @@ public sealed class AccountRateLimiter : IDisposable
         passwordLimiter = Create(options.Value.PasswordChangesPerMinute, TimeSpan.FromMinutes(1));
     }
 
-    public int? CheckLogin(string ip, string username)
-    {
-        var ipWait = Check(ipLimiter, ip);
-        if (ipWait is not null)
-        {
-            return ipWait;
-        }
-        return Check(usernameLimiter, username);
-    }
+    // The username window is consumed only after the IP window admits the attempt.
+    public void EnsureLoginAllowed(string ip, string username) =>
+        ThrowIfLimited(Check(ipLimiter, ip) ?? Check(usernameLimiter, username));
 
-    public int? CheckPasswordChange(Guid userId) => Check(passwordLimiter, userId.ToString());
+    public void EnsurePasswordChangeAllowed(Guid userId) => ThrowIfLimited(Check(passwordLimiter, userId.ToString()));
+
+    private static void ThrowIfLimited(int? waitSeconds)
+    {
+        if (waitSeconds is { } seconds)
+        {
+            throw ApiException.RateLimited(seconds, $"操作过于频繁，请在 {seconds} 秒后重试。");
+        }
+    }
 
     private static PartitionedRateLimiter<string> Create(int limit, TimeSpan window) =>
         PartitionedRateLimiter.Create<string, string>(key => RateLimitPartition.GetFixedWindowLimiter(
