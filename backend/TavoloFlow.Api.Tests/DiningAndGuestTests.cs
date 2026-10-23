@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using TavoloFlow.Api.Billing;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Dining;
 using TavoloFlow.Api.Entities;
@@ -23,7 +24,7 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
     private static string SessionPath(Guid id) => $"/api/staff/sessions/{id}";
     private static string AccessPath(Guid id) => $"/api/public/sessions/{id}/access";
     private static string CodePath(Guid id) => $"/api/public/sessions/{id}/join-code";
-    private static CloseEmptyInput CloseInput(int version = 1) => new(version, 0, true);
+    private static CloseZeroBillInput CloseInput(int version = 1) => new(version, 0, true);
 
     [Fact]
     public async Task Lifecycle_OpenJoinCloseReopen_PreservesHistoryAndRejectsOldGrant()
@@ -38,7 +39,7 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
         Assert.Equal("8", opened.Session.TableLabel);
         Assert.Matches("^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{4}$", opened.JoinCode);
         await using var db = database.CreateContext();
-        var saved = await db.DiningSessions.AsNoTracking().SingleAsync(s => s.Id == opened.Session.Id);
+        var saved = await db.DiningSessions.AsNoTracking().SingleAsync(s => s.Id == opened.Session.SessionId);
         Assert.NotEqual(opened.JoinCode, saved.JoinCodeCiphertext);
         Assert.Equal(opened.JoinCode, host.Services.GetRequiredService<JoinCodes>().Read(saved));
         Assert.Equal(HttpStatusCode.OK, (await JoinAsync(guest, table, opened)).StatusCode);
@@ -46,7 +47,7 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
         Assert.Equal(opened.JoinCode, (await guest.GetFromJsonAsync<JoinCodeResponse>(CodePath(saved.Id)))!.JoinCode);
         var closed = await PostAsync(staff, SessionPath(saved.Id) + "/close-empty", CloseInput());
         Assert.Equal(HttpStatusCode.OK, closed.StatusCode);
-        var result = (await closed.Content.ReadFromJsonAsync<SessionResponse>())!;
+        var result = (await closed.Content.ReadFromJsonAsync<BillSummaryResponse>())!;
         Assert.Equal("EMPTY", result.CloseReason);
         Assert.Equal("CLOSED", result.Status);
         Assert.Equal(1, result.BillVersion);
@@ -58,16 +59,16 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
         }
         Assert.Null((await db.DiningSessions.AsNoTracking().SingleAsync(s => s.Id == saved.Id)).JoinCodeCiphertext);
         var next = await OpenAsync(staff, table);
-        Assert.NotEqual(saved.Id, next.Session.Id);
+        Assert.NotEqual(saved.Id, next.Session.SessionId);
         Assert.Equal(1, next.Session.BillVersion);
         // Even an identical short code does not revive a cookie bound to the old session.
-        var nextEntity = await db.DiningSessions.SingleAsync(s => s.Id == next.Session.Id);
+        var nextEntity = await db.DiningSessions.SingleAsync(s => s.Id == next.Session.SessionId);
         nextEntity.JoinCodeCiphertext = host.Services.GetRequiredService<JoinCodes>().Encrypt(nextEntity, opened.JoinCode);
         await db.SaveChangesAsync();
-        await AssertErrorAsync(await guest.GetAsync(AccessPath(next.Session.Id)), HttpStatusCode.Forbidden, "GUEST_SESSION_MISMATCH");
+        await AssertErrorAsync(await guest.GetAsync(AccessPath(next.Session.SessionId)), HttpStatusCode.Forbidden, "GUEST_SESSION_MISMATCH");
         var repeated = await PostAsync(staff, SessionPath(saved.Id) + "/close-empty", CloseInput());
-        Assert.Equal(result, await repeated.Content.ReadFromJsonAsync<SessionResponse>());
-        Assert.Equal(DiningSessionStatus.Active, (await db.DiningSessions.AsNoTracking().SingleAsync(s => s.Id == next.Session.Id)).Status);
+        Assert.Equal(result, await repeated.Content.ReadFromJsonAsync<BillSummaryResponse>());
+        Assert.Equal(DiningSessionStatus.Active, (await db.DiningSessions.AsNoTracking().SingleAsync(s => s.Id == next.Session.SessionId)).Status);
     }
 
     [Fact]
@@ -87,11 +88,11 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
         await AssertErrorAsync(await anonymous.GetAsync("/api/staff/floor"), HttpStatusCode.Unauthorized, "UNAUTHENTICATED");
         await AssertErrorAsync(await PostAsync(other, $"/api/staff/tables/{table.Id}/open", new { }), HttpStatusCode.NotFound, "TABLE_NOT_FOUND");
         foreach (var suffix in new[] { "", "/join-code" })
-            await AssertErrorAsync(await other.GetAsync(SessionPath(opened.Session.Id) + suffix), HttpStatusCode.NotFound, "SESSION_NOT_FOUND");
-        await AssertErrorAsync(await PostAsync(other, SessionPath(opened.Session.Id) + "/close-empty", CloseInput()), HttpStatusCode.NotFound, "SESSION_NOT_FOUND");
-        await AssertErrorAsync(await staff.PostAsJsonAsync(SessionPath(opened.Session.Id) + "/close-empty", CloseInput()), HttpStatusCode.BadRequest, "CSRF_VALIDATION_FAILED");
-        await AssertErrorAsync(await staff.GetAsync(AccessPath(opened.Session.Id)), HttpStatusCode.Unauthorized, "GUEST_AUTH_REQUIRED");
-        await AssertErrorAsync(await anonymous.PostAsJsonAsync($"/api/public/qr/{table.QrToken}/join", new JoinInput(opened.Session.Id, opened.JoinCode)), HttpStatusCode.BadRequest, "CSRF_VALIDATION_FAILED");
+            await AssertErrorAsync(await other.GetAsync(SessionPath(opened.Session.SessionId) + suffix), HttpStatusCode.NotFound, "SESSION_NOT_FOUND");
+        await AssertErrorAsync(await PostAsync(other, SessionPath(opened.Session.SessionId) + "/close-empty", CloseInput()), HttpStatusCode.NotFound, "SESSION_NOT_FOUND");
+        await AssertErrorAsync(await staff.PostAsJsonAsync(SessionPath(opened.Session.SessionId) + "/close-empty", CloseInput()), HttpStatusCode.BadRequest, "CSRF_VALIDATION_FAILED");
+        await AssertErrorAsync(await staff.GetAsync(AccessPath(opened.Session.SessionId)), HttpStatusCode.Unauthorized, "GUEST_AUTH_REQUIRED");
+        await AssertErrorAsync(await anonymous.PostAsJsonAsync($"/api/public/qr/{table.QrToken}/join", new JoinInput(opened.Session.SessionId, opened.JoinCode)), HttpStatusCode.BadRequest, "CSRF_VALIDATION_FAILED");
         await JoinAsync(anonymous, table, opened);
         await AssertErrorAsync(await anonymous.GetAsync("/api/staff/floor"), HttpStatusCode.Unauthorized, "UNAUTHENTICATED");
     }
@@ -109,9 +110,9 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
         var joined = await JoinAsync(browser, table, opened);
         Assert.Equal(HttpStatusCode.OK, joined.StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await browser.GetAsync("/api/auth/me")).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await browser.GetAsync(AccessPath(opened.Session.Id))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await browser.GetAsync(AccessPath(opened.Session.SessionId))).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await PostAsync(browser, "/api/auth/logout", new { })).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await browser.GetAsync(AccessPath(opened.Session.Id))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await browser.GetAsync(AccessPath(opened.Session.SessionId))).StatusCode);
         await AssertErrorAsync(await browser.GetAsync("/api/auth/me"), HttpStatusCode.Unauthorized, "UNAUTHENTICATED");
     }
 
@@ -126,17 +127,17 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
         var wrong = first with { JoinCode = first.JoinCode == "2222" ? "3333" : "2222" };
         await AssertErrorAsync(await JoinAsync(guest, table, wrong), HttpStatusCode.Unauthorized, "JOIN_CODE_INCORRECT");
         await AssertErrorAsync(await JoinAsync(guest, table, first with { JoinCode = "0000" }), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
-        await AssertErrorAsync(await guest.GetAsync(CodePath(first.Session.Id)), HttpStatusCode.Unauthorized, "GUEST_AUTH_REQUIRED");
+        await AssertErrorAsync(await guest.GetAsync(CodePath(first.Session.SessionId)), HttpStatusCode.Unauthorized, "GUEST_AUTH_REQUIRED");
         Assert.Equal(HttpStatusCode.OK, (await JoinAsync(guest, table, first with { JoinCode = " " + first.JoinCode.ToLowerInvariant() + " " })).StatusCode);
         var (otherUser, otherTable) = await SeedAsync();
         using var otherStaff = await LoginAsync(host, otherUser);
         var second = await OpenAsync(otherStaff, otherTable);
         await AssertErrorAsync(await JoinAsync(guest, table, second), HttpStatusCode.NotFound, "SESSION_NOT_FOUND");
         await JoinAsync(guest, otherTable, second);
-        var mismatch = await guest.GetAsync(CodePath(first.Session.Id));
+        var mismatch = await guest.GetAsync(CodePath(first.Session.SessionId));
         await AssertErrorAsync(mismatch, HttpStatusCode.Forbidden, "GUEST_SESSION_MISMATCH");
         Assert.False(mismatch.Headers.Contains("Set-Cookie"));
-        Assert.Equal(HttpStatusCode.OK, (await guest.GetAsync(AccessPath(second.Session.Id))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await guest.GetAsync(AccessPath(second.Session.SessionId))).StatusCode);
     }
 
     [Fact]
@@ -161,9 +162,9 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
         Assert.DoesNotContain(ticket.Principal.Claims, c => c.Value == opened.JoinCode);
         using var raw = host.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost"), HandleCookies = false });
         raw.DefaultRequestHeaders.Add("Cookie", "TavoloFlow.Guest=corrupt" + value);
-        await AssertErrorAsync(await raw.GetAsync(AccessPath(opened.Session.Id)), HttpStatusCode.Unauthorized, "GUEST_AUTH_REQUIRED");
+        await AssertErrorAsync(await raw.GetAsync(AccessPath(opened.Session.SessionId)), HttpStatusCode.Unauthorized, "GUEST_AUTH_REQUIRED");
         host.Clock.Advance(TimeSpan.FromHours(12) + TimeSpan.FromSeconds(1));
-        await AssertErrorAsync(await guest.GetAsync(AccessPath(opened.Session.Id)), HttpStatusCode.Unauthorized, "GUEST_AUTH_REQUIRED");
+        await AssertErrorAsync(await guest.GetAsync(AccessPath(opened.Session.SessionId)), HttpStatusCode.Unauthorized, "GUEST_AUTH_REQUIRED");
     }
 
     [Fact]
@@ -178,13 +179,13 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
         await using var db = database.CreateContext();
         await db.RestaurantTables.Where(t => t.Id == table.Id).ExecuteUpdateAsync(u => u.SetProperty(t => t.IsEnabled, false));
         await AssertErrorAsync(await JoinAsync(guest, table, opened), HttpStatusCode.Conflict, "TABLE_DISABLED");
-        await AssertErrorAsync(await guest.GetAsync(CodePath(opened.Session.Id)), HttpStatusCode.Conflict, "TABLE_DISABLED");
-        Assert.Equal(HttpStatusCode.OK, (await guest.GetAsync(AccessPath(opened.Session.Id))).StatusCode);
+        await AssertErrorAsync(await guest.GetAsync(CodePath(opened.Session.SessionId)), HttpStatusCode.Conflict, "TABLE_DISABLED");
+        Assert.Equal(HttpStatusCode.OK, (await guest.GetAsync(AccessPath(opened.Session.SessionId))).StatusCode);
         await db.Restaurants.Where(r => r.Id == user.RestaurantId).ExecuteUpdateAsync(u => u.SetProperty(r => r.ServiceStatus, RestaurantServiceStatus.Suspended));
         await AssertErrorAsync(await PostAsync(staff, $"/api/staff/tables/{table.Id}/open", new { }), HttpStatusCode.Conflict, "SERVICE_SUSPENDED");
         await AssertErrorAsync(await JoinAsync(guest, table, opened), HttpStatusCode.Conflict, "SERVICE_SUSPENDED");
-        Assert.Equal(HttpStatusCode.OK, (await staff.GetAsync(SessionPath(opened.Session.Id) + "/join-code")).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await PostAsync(staff, SessionPath(opened.Session.Id) + "/close-empty", CloseInput())).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await staff.GetAsync(SessionPath(opened.Session.SessionId) + "/join-code")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await PostAsync(staff, SessionPath(opened.Session.SessionId) + "/close-empty", CloseInput())).StatusCode);
     }
 
     [Fact]
@@ -194,11 +195,11 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
         var (user, table) = await SeedAsync();
         using var staff = await LoginAsync(host, user);
         var opened = await OpenAsync(staff, table);
-        foreach (var input in new object[] { new { }, new CloseEmptyInput(1, 10, true), new CloseEmptyInput(1, 0, false), new CloseEmptyInput(0, 0, true),
+        foreach (var input in new object[] { new { }, new CloseZeroBillInput(1, 10, true), new CloseZeroBillInput(1, 0, false), new CloseZeroBillInput(0, 0, true),
             new { expectedBillVersion = 1, confirmedTotalCents = 0, guestsLeftConfirmed = true, restaurantId = user.RestaurantId } })
-            await AssertErrorAsync(await PostAsync(staff, SessionPath(opened.Session.Id) + "/close-empty", input), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
-        await AssertErrorAsync(await PostAsync(staff, SessionPath(opened.Session.Id) + "/close-empty", CloseInput(2)), HttpStatusCode.Conflict, "BILL_CHANGED");
-        Assert.Equal("ACTIVE", (await staff.GetFromJsonAsync<SessionResponse>(SessionPath(opened.Session.Id)))!.Status);
+            await AssertErrorAsync(await PostAsync(staff, SessionPath(opened.Session.SessionId) + "/close-empty", input), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
+        await AssertErrorAsync(await PostAsync(staff, SessionPath(opened.Session.SessionId) + "/close-empty", CloseInput(2)), HttpStatusCode.Conflict, "BILL_CHANGED");
+        Assert.Equal("ACTIVE", (await staff.GetFromJsonAsync<BillSummaryResponse>(SessionPath(opened.Session.SessionId)))!.Status);
     }
 
     [Theory]
@@ -211,13 +212,13 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
         using var staff = await LoginAsync(host, user);
         var opened = await OpenAsync(staff, table);
         await using var db = database.CreateContext();
-        db.Orders.Add(new Order { RestaurantId = user.RestaurantId, DiningSessionId = opened.Session.Id,
+        db.Orders.Add(new Order { RestaurantId = user.RestaurantId, DiningSessionId = opened.Session.SessionId,
             ClientRequestId = Guid.NewGuid(), DefaultLanguageSnapshot = "it", TotalAmountCents = 100,
             Status = cancelled ? OrderStatus.Cancelled : OrderStatus.New,
             CreatedAt = host.Clock.GetUtcNow().UtcDateTime,
             CancelledAt = cancelled ? host.Clock.GetUtcNow().UtcDateTime : null, CancelReason = cancelled ? "test" : null });
         await db.SaveChangesAsync();
-        await AssertErrorAsync(await PostAsync(staff, SessionPath(opened.Session.Id) + "/close-empty", CloseInput()), HttpStatusCode.Conflict, "SESSION_HAS_ORDERS");
+        await AssertErrorAsync(await PostAsync(staff, SessionPath(opened.Session.SessionId) + "/close-empty", CloseInput()), HttpStatusCode.Conflict, "SESSION_HAS_ORDERS");
     }
 
     [Theory]
@@ -275,10 +276,10 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
         var opened = await OpenAsync(staff, table);
         await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql(database.ConnectionString).AddInterceptors(new FailCloseInterceptor()).Options);
-        var service = new DiningService(db, host.Services.GetRequiredService<JoinCodes>(), host.Clock);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CloseEmptyAsync(user.RestaurantId, opened.Session.Id, CloseInput(), default));
+        var service = new BillingService(db, host.Clock);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CloseEmptyAsync(user.RestaurantId, opened.Session.SessionId, CloseInput(), default));
         await using var check = database.CreateContext();
-        var saved = await check.DiningSessions.SingleAsync(s => s.Id == opened.Session.Id);
+        var saved = await check.DiningSessions.SingleAsync(s => s.Id == opened.Session.SessionId);
         Assert.Equal(DiningSessionStatus.Active, saved.Status);
         Assert.NotNull(saved.JoinCodeCiphertext);
         Assert.Null(saved.ClosedAt);
@@ -353,13 +354,13 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
         var closeDb = closeFirst ? firstDb : secondDb;
         var guestDb = closeFirst ? secondDb : firstDb;
         var codes = host.Services.GetRequiredService<JoinCodes>();
-        async Task<object> Close() => await new DiningService(closeDb, codes, host.Clock)
-            .CloseEmptyAsync(user.RestaurantId, opened.Session.Id, CloseInput(), default);
+        async Task<object> Close() => await new BillingService(closeDb, host.Clock)
+            .CloseEmptyAsync(user.RestaurantId, opened.Session.SessionId, CloseInput(), default);
         async Task<object> Guest()
         {
             var service = new GuestService(guestDb, codes);
-            return join ? await service.JoinAsync(table.QrToken, new(opened.Session.Id, opened.JoinCode), default)
-                : await service.ReadCodeAsync(new(user.RestaurantId, table.Id, opened.Session.Id), opened.Session.Id, default);
+            return join ? await service.JoinAsync(table.QrToken, new(opened.Session.SessionId, opened.JoinCode), default)
+                : await service.ReadCodeAsync(new(user.RestaurantId, table.Id, opened.Session.SessionId), opened.Session.SessionId, default);
         }
         var first = closeFirst ? Close() : Guest();
         Task<object>? second = null;
@@ -378,7 +379,7 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
         await using var check = database.CreateContext();
         var serviceAfterClose = new GuestService(check, codes);
         Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => serviceAfterClose.AccessAsync(
-            new(user.RestaurantId, table.Id, opened.Session.Id), opened.Session.Id, default))).Code);
+            new(user.RestaurantId, table.Id, opened.Session.SessionId), opened.Session.SessionId, default))).Code);
     }
 
     private ApplicationDbContext Intercepted(DbCommandInterceptor interceptor) => new(
@@ -440,7 +441,7 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
     private static async Task<HttpResponseMessage> JoinAsync(HttpClient client, RestaurantTable table, OpenSessionResponse opened, string? csrf = null)
     {
         csrf ??= (await client.GetFromJsonAsync<CsrfToken>("/api/public/csrf"))!.Token;
-        return await PostAsync(client, $"/api/public/qr/{table.QrToken}/join", new JoinInput(opened.Session.Id, opened.JoinCode), csrf);
+        return await PostAsync(client, $"/api/public/qr/{table.QrToken}/join", new JoinInput(opened.Session.SessionId, opened.JoinCode), csrf);
     }
     private sealed record CsrfToken(string Token);
     private sealed class FailCloseInterceptor : DbCommandInterceptor

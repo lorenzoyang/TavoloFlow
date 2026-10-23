@@ -18,10 +18,10 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
         RequireTarget(guest, input.SessionId.Value);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         
-        // Menu writers/deletion take restaurant UPDATE first. SHARE protects prices and snapshots without serializing different tables.
-        var restaurant = await DiningLocks.RestaurantAsync(db, guest.RestaurantId, ct);
-        var table = await DiningLocks.TableAsync(db, guest.RestaurantId, guest.TableId, false, ct);
-        var session = await LockSessionAsync(guest, true, ct);
+        // Menu writers and item deletion take restaurant UPDATE, so these SHARE locks keep prices and snapshots
+        // stable without serializing orders from different tables.
+        var (restaurant, table) = await DiningEntrance.LockAsync(db, guest.RestaurantId, guest.TableId, ct);
+        var session = await LockSessionAsync(guest, RowLock.Update, ct);
         var original = await Orders(guest).SingleOrDefaultAsync(o => o.ClientRequestId == input.ClientRequestId, ct);
         if (original is not null)
         {
@@ -29,7 +29,7 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
             return new(OrderResponse.From(original), false);
         }
 
-        DiningLocks.RequireEntrance(restaurant, table);
+        DiningEntrance.Require(restaurant, table);
         if (!restaurant.OrderingEnabled)
             throw new ApiException(409, "ORDERING_PAUSED", "餐厅暂未接受扫码订单。");
         var lines = Validate(input);
@@ -91,7 +91,7 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
     {
         RequireTarget(guest, sessionId);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        await LockSessionAsync(guest, false, ct);
+        await LockSessionAsync(guest, RowLock.Share, ct);
         var order = await Orders(guest).SingleOrDefaultAsync(o => o.ClientRequestId == requestId, ct)
             ?? throw new ApiException(404, "ORDER_NOT_FOUND", "暂未查到这次提交，请继续核对，或使用原请求重试。");
         var result = OrderResponse.From(order);
@@ -105,7 +105,7 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
         Paging.EnsureLimit(limit);
         var after = Paging.Decode<OrderCursor>(cursor, c => c.SessionId == sessionId && Paging.IsPosition(c.CreatedAt, c.Id));
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        await LockSessionAsync(guest, false, ct);
+        await LockSessionAsync(guest, RowLock.Share, ct);
         var query = Orders(guest);
         if (after is not null)
             query = query.Where(o => EF.Functions.LessThan(ValueTuple.Create(o.CreatedAt, o.Id), ValueTuple.Create(after.CreatedAt, after.Id)));
@@ -120,10 +120,11 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
     private IQueryable<Order> Orders(GuestIdentity guest) => db.Orders.AsNoTracking().Include(o => o.Items)
         .Where(o => o.RestaurantId == guest.RestaurantId && o.DiningSessionId == guest.SessionId);
 
-    private async Task<DiningSession> LockSessionAsync(GuestIdentity guest, bool update, CancellationToken ct)
+    private async Task<DiningSession> LockSessionAsync(GuestIdentity guest, RowLock mode, CancellationToken ct)
     {
         // Reading needs only the session lock: no later restaurant/table locks are acquired.
-        var session = await DiningLocks.SessionAsync(db, guest.RestaurantId, guest.SessionId, update, ct);
+        var session = await RowLocks.SessionAsync(db, guest.RestaurantId, guest.SessionId, mode, ct)
+            ?? throw DiningErrors.SessionNotFound();
         if (session.Status != DiningSessionStatus.Active) throw DiningErrors.SessionClosed();
         if (session.TableId != guest.TableId) throw GuestErrors.SessionMismatch();
         return session;

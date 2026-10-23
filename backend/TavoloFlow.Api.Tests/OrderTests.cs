@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using TavoloFlow.Api.Billing;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Dining;
 using TavoloFlow.Api.Entities;
@@ -24,8 +25,8 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
     private const string Password = "Order-test-password-123";
     private sealed record Setup(RestaurantUser User, RestaurantTable Table, MenuItem Item, OpenSessionResponse Opened)
     {
-        public GuestIdentity Guest => new(User.RestaurantId, Table.Id, Opened.Session.Id);
-        public CreateOrderInput Input(int quantity = 2) => new(Opened.Session.Id, Guid.NewGuid(),
+        public GuestIdentity Guest => new(User.RestaurantId, Table.Id, Opened.Session.SessionId);
+        public CreateOrderInput Input(int quantity = 2) => new(Opened.Session.SessionId, Guid.NewGuid(),
             [new(Item.Id, quantity, Item.PriceCents, " 少盐 ")], " 一起上菜 ");
     }
     private static string ListPath(Setup s) => $"/api/public/sessions/{s.Guest.SessionId}/orders";
@@ -285,7 +286,7 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
         async Task Mutate()
         {
             if (kind == "close")
-                await new DiningService(mutationDb, host.Services.GetRequiredService<JoinCodes>(), host.Clock)
+                await new BillingService(mutationDb, host.Clock)
                     .CloseEmptyAsync(s.Guest.RestaurantId, s.Guest.SessionId, new(1, 0, true), default);
             else if (kind == "disabled") await new TableService(mutationDb, new CatalogDeletionService(mutationDb))
                     .SetEnabledAsync(s.Guest.RestaurantId, s.Table.Id, false, default);
@@ -353,10 +354,10 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
         await using var readDb = Intercepted(readFirst ? firstGate : secondGate);
         await using var closeDb = Intercepted(readFirst ? secondGate : firstGate);
         Task<OrderPage> Read() => new OrderService(readDb, host.Clock).ListAsync(s.Guest, s.Guest.SessionId, null, 50, default);
-        Task<SessionResponse> Close() => new DiningService(closeDb, host.Services.GetRequiredService<JoinCodes>(), host.Clock)
+        Task<BillSummaryResponse> Close() => new BillingService(closeDb, host.Clock)
             .CloseEmptyAsync(s.Guest.RestaurantId, s.Guest.SessionId, new(1, 0, true), default);
         Task<OrderPage>? reading = readFirst ? Read() : null;
-        Task<SessionResponse>? closing = readFirst ? null : Close();
+        Task<BillSummaryResponse>? closing = readFirst ? null : Close();
         try
         {
             await firstGate.Acquired.Task.WaitAsync(TimeSpan.FromSeconds(10));

@@ -22,7 +22,7 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
     private sealed record Setup(RestaurantUser Owner, RestaurantUser Staff, RestaurantTable Table, MenuItem Item, OpenSessionResponse Open)
     {
         public Guid RestaurantId => Owner.RestaurantId;
-        public Guid Id => Open.Session.Id;
+        public Guid Id => Open.Session.SessionId;
         public GuestIdentity Guest => new(RestaurantId, Table.Id, Id);
         public CreateOrderInput Input() => new(Id, Guid.NewGuid(), [new(Item.Id, 1, 700, "少盐")], "一起上菜");
     }
@@ -80,7 +80,7 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
         var repeated = (await (await PostAsync(owner, Checkout(s.Id), new CheckoutInput(4, 700))).Content.ReadFromJsonAsync<BillSummaryResponse>())!;
         Assert.Equal(saved, repeated);
         await AssertErrorAsync(await PostAsync(owner, Checkout(s.Id), new CheckoutInput(4, 800)), HttpStatusCode.Conflict, "SESSION_CLOSED");
-        await AssertErrorAsync(await PostAsync(owner, Void(s.Id), new CloseVoidInput(4, 0, true)), HttpStatusCode.Conflict, "SESSION_CLOSED");
+        await AssertErrorAsync(await PostAsync(owner, Void(s.Id), new CloseZeroBillInput(4, 0, true)), HttpStatusCode.Conflict, "SESSION_CLOSED");
         Assert.Null(await db.DiningSessions.Where(x => x.Id == s.Id).Select(x => x.JoinCodeCiphertext).SingleAsync());
         Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => kitchen.ReadyAsync(s.RestaurantId, a.Id, default))).Code);
         Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => kitchen.CancelAsync(s.RestaurantId, a.Id, RestaurantUserRole.Owner, new("READY", "错误"), default))).Code);
@@ -94,20 +94,20 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
     {
         using var host = new AccountTestHost(database); var s = await Seed(host);
         using var staff = await Login(host, s.Staff); using var owner = await Login(host, s.Owner);
-        await AssertErrorAsync(await PostAsync(staff, Void(s.Id), new CloseVoidInput(1, 0, true)), HttpStatusCode.Conflict, "SESSION_NOT_VOIDABLE");
+        await AssertErrorAsync(await PostAsync(staff, Void(s.Id), new CloseZeroBillInput(1, 0, true)), HttpStatusCode.Conflict, "SESSION_NOT_VOIDABLE");
         await AssertErrorAsync(await PostAsync(owner, Checkout(s.Id), new CheckoutInput(1, 0)), HttpStatusCode.Conflict, "SESSION_NOT_PAYABLE");
         var order = await Create(host, s);
         await using var db = database.CreateContext();
         await new KitchenService(db, host.Clock).CancelAsync(s.RestaurantId, order.Id, RestaurantUserRole.Staff, new("NEW", "退单"), default);
-        await AssertErrorAsync(await PostAsync(staff, $"/api/staff/sessions/{s.Id}/close-empty", new CloseEmptyInput(3, 0, true)), HttpStatusCode.Conflict, "SESSION_HAS_ORDERS");
-        await AssertErrorAsync(await PostAsync(staff, Void(s.Id), new CloseVoidInput(3, 0, false)), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
-        await AssertErrorAsync(await PostAsync(staff, Void(s.Id), new CloseVoidInput(2, 0, true)), HttpStatusCode.Conflict, "BILL_CHANGED");
-        var closed = (await (await PostAsync(staff, Void(s.Id), new CloseVoidInput(3, 0, true))).Content.ReadFromJsonAsync<BillSummaryResponse>())!;
+        await AssertErrorAsync(await PostAsync(staff, $"/api/staff/sessions/{s.Id}/close-empty", new CloseZeroBillInput(3, 0, true)), HttpStatusCode.Conflict, "SESSION_HAS_ORDERS");
+        await AssertErrorAsync(await PostAsync(staff, Void(s.Id), new CloseZeroBillInput(3, 0, false)), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
+        await AssertErrorAsync(await PostAsync(staff, Void(s.Id), new CloseZeroBillInput(2, 0, true)), HttpStatusCode.Conflict, "BILL_CHANGED");
+        var closed = (await (await PostAsync(staff, Void(s.Id), new CloseZeroBillInput(3, 0, true))).Content.ReadFromJsonAsync<BillSummaryResponse>())!;
         Assert.Equal("VOIDED", closed.CloseReason); Assert.Equal(3, closed.BillVersion); Assert.Equal(0, closed.TotalAmountCents);
-        Assert.Equal(closed, await (await PostAsync(staff, Void(s.Id), new CloseVoidInput(3, 0, true))).Content.ReadFromJsonAsync<BillSummaryResponse>());
+        Assert.Equal(closed, await (await PostAsync(staff, Void(s.Id), new CloseZeroBillInput(3, 0, true))).Content.ReadFromJsonAsync<BillSummaryResponse>());
         var empty = await Seed(host);
         using var emptyOwner = await Login(host, empty.Owner);
-        Assert.Equal(HttpStatusCode.OK, (await PostAsync(emptyOwner, $"/api/staff/sessions/{empty.Id}/close-empty", new CloseEmptyInput(1, 0, true))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await PostAsync(emptyOwner, $"/api/staff/sessions/{empty.Id}/close-empty", new CloseZeroBillInput(1, 0, true))).StatusCode);
         var historical = (await emptyOwner.GetFromJsonAsync<BillPage>($"/api/owner/history/{empty.Id}"))!;
         Assert.Equal("EMPTY", historical.Summary.CloseReason); Assert.Empty(historical.Orders);
     }
@@ -126,9 +126,9 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
         foreach (var path in new[] { Bill(s.Id), $"/api/owner/history/{s.Id}" })
             await AssertErrorAsync(await foreign.GetAsync(path), HttpStatusCode.NotFound, "SESSION_NOT_FOUND");
         await AssertErrorAsync(await PostAsync(foreign, Checkout(s.Id), new CheckoutInput(1, 0)), HttpStatusCode.NotFound, "SESSION_NOT_FOUND");
-        await AssertErrorAsync(await PostAsync(foreign, Void(s.Id), new CloseVoidInput(1, 0, true)), HttpStatusCode.NotFound, "SESSION_NOT_FOUND");
+        await AssertErrorAsync(await PostAsync(foreign, Void(s.Id), new CloseZeroBillInput(1, 0, true)), HttpStatusCode.NotFound, "SESSION_NOT_FOUND");
         await AssertErrorAsync(await owner.PostAsJsonAsync(Checkout(s.Id), new CheckoutInput(1, 0)), HttpStatusCode.BadRequest, "CSRF_VALIDATION_FAILED");
-        await AssertErrorAsync(await staff.PostAsJsonAsync(Void(s.Id), new CloseVoidInput(1, 0, true)), HttpStatusCode.BadRequest, "CSRF_VALIDATION_FAILED");
+        await AssertErrorAsync(await staff.PostAsJsonAsync(Void(s.Id), new CloseZeroBillInput(1, 0, true)), HttpStatusCode.BadRequest, "CSRF_VALIDATION_FAILED");
         foreach (var input in new object[] { new { }, new { expectedBillVersion = 0, confirmedTotalCents = 1 },
             new { expectedBillVersion = 1, confirmedTotalCents = -1 }, new { expectedBillVersion = 1, confirmedTotalCents = 9_007_199_254_740_992L },
             new { expectedBillVersion = 1, confirmedTotalCents = 1, restaurantId = s.RestaurantId } })
@@ -150,14 +150,14 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
         await new KitchenService(db, host.Clock).ReadyAsync(s.RestaurantId, order.Id, default);
         Assert.Equal(HttpStatusCode.OK, (await PostAsync(owner, Checkout(s.Id), new CheckoutInput(2, 700))).StatusCode);
         var reopened = await new DiningService(db, host.Services.GetRequiredService<JoinCodes>(), host.Clock).OpenAsync(s.RestaurantId, s.Table.Id, default);
-        Assert.NotEqual(s.Id, reopened.Session.Id); Assert.Equal(1, reopened.Session.BillVersion);
+        Assert.NotEqual(s.Id, reopened.Session.SessionId); Assert.Equal(1, reopened.Session.BillVersion);
         foreach (var suffix in new[] { "access", "orders", "join-code", $"orders/by-request/{input.ClientRequestId}" })
             Assert.False((await guest.GetAsync($"/api/public/sessions/{s.Id}/{suffix}")).IsSuccessStatusCode);
         var orderService = new OrderService(db, host.Clock);
         await Assert.ThrowsAsync<ApiException>(() => orderService.CreateAsync(s.Guest, input, default));
         await Assert.ThrowsAsync<ApiException>(() => orderService.CreateAsync(s.Guest, s.Input(), default));
         Assert.Equal(1, await db.Orders.CountAsync(o => o.DiningSessionId == s.Id));
-        Assert.Equal(0, await db.Orders.CountAsync(o => o.DiningSessionId == reopened.Session.Id));
+        Assert.Equal(0, await db.Orders.CountAsync(o => o.DiningSessionId == reopened.Session.SessionId));
     }
 
     [Theory]

@@ -1,13 +1,12 @@
 import { messages } from "./api-messages";
-import type { BillSummary } from "@/features/billing/state";
 
+// The backend's ApiError envelope. Some codes add top-level members, such as BILL_CHANGED "currentBill".
 type ErrorBody = {
   code?: string;
   message?: string;
   requestId?: string;
-  errors?: Record<string, string[]>;
-  changes?: { menuItemId: string; reason: string; currentUnitPriceCents: number | null; isAvailable: boolean | null }[];
-  currentBill?: BillSummary;
+  errors?: Record<string, string[]> | null;
+  [extension: string]: unknown;
 };
 
 export class ApiError extends Error {
@@ -16,16 +15,14 @@ export class ApiError extends Error {
   readonly retryAfter: number | null;
   readonly errors: Record<string, string[]>;
   readonly requestId?: string;
-  readonly changes: NonNullable<ErrorBody["changes"]>;
-  readonly currentBill?: BillSummary;
+  readonly body: ErrorBody;
 
   constructor(status: number, body: ErrorBody, retryAfter: string | null) {
     super(body.message ?? messages.genericError);
     this.status = status;
     this.errors = body.errors ?? {};
     this.requestId = body.requestId;
-    this.changes = body.changes ?? [];
-    this.currentBill = body.currentBill;
+    this.body = body;
     this.code = body.code ?? "UNKNOWN_ERROR";
     this.retryAfter = retryAfter ? Number(retryAfter) : null;
   }

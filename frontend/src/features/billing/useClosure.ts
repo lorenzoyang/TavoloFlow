@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { accountKey } from "@/features/accounts/queries";
-import { sessionKey, type DiningSession } from "@/features/dining/api";
+import { sessionKey } from "@/features/dining/api";
 import { ApiError, errorMessage, request, write } from "@/lib/api";
 import { money } from "@/features/orders/format";
 import { billingKey, historyKey } from "./api";
@@ -38,12 +38,12 @@ export function useClosure(account: CurrentAccount) {
       ["dining", account.restaurantId, account.userId], ["tables", account.restaurantId, account.userId], ["kitchen", account.restaurantId, account.userId]])
       void client.invalidateQueries({ queryKey: prefix });
   }, [account, client, scope]);
-  const acceptSession = useCallback(async (data: DiningSession, valid: () => boolean) => {
+  const acceptSession = useCallback(async (bill: BillSummary, valid: () => boolean) => {
     await client.cancelQueries({ queryKey: scope });
-    await client.cancelQueries({ queryKey: sessionKey(account, data.id) });
+    await client.cancelQueries({ queryKey: sessionKey(account, bill.sessionId) });
     if (!valid()) return;
-    client.setQueryData(sessionKey(account, data.id), data);
-    if (data.status === "CLOSED") client.removeQueries({ queryKey: [...scope, "active", data.id] });
+    client.setQueryData(sessionKey(account, bill.sessionId), bill);
+    if (bill.status === "CLOSED") client.removeQueries({ queryKey: [...scope, "active", bill.sessionId] });
     refresh();
   }, [account, client, scope, refresh]);
   const recover = useCallback(async (action: PendingClosure) => {
@@ -53,13 +53,13 @@ export function useClosure(account: CurrentAccount) {
     const current = () => canAcceptResult(mounted.current, generation, epoch.current, controller.signal.aborted, sameIdentity());
     setBusy(ids => [...ids, action.sessionId]);
     try {
-      const data = await request<DiningSession>(recoveryPath(action), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
+      const data = await request<BillSummary>(recoveryPath(action), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
       if (!current()) return;
       await acceptSession(data, current);
       if (!current()) return;
       forget(action.sessionId); setError(""); setConflict(null);
       setNotice(data.status === "CLOSED"
-        ? `${data.tableLabel} 桌已结束：${closeLabels[data.closeReason as keyof typeof closeLabels] ?? data.closeReason}，记录金额 ${money(data.totalAmountCents, "zh")}。请核对实际收款。`
+        ? `${data.tableLabel} 桌已结束：${closeLabels[data.closeReason!]}，记录金额 ${money(data.totalAmountCents, "zh")}。请核对实际收款。`
         : `${data.tableLabel} 桌原用餐仍在进行，请重新核对账单后决定是否关闭。系统不会自动重新提交。`);
     } catch (e) {
       if (!current()) return;
@@ -98,10 +98,9 @@ export function useClosure(account: CurrentAccount) {
     setError(""); setNotice(""); setConflict(null);
     const intent = closureRequest(confirmation);
     try {
-      const result = await write<BillSummary | DiningSession>(intent.path, "POST", intent.body,
+      const summary = await write<BillSummary>(intent.path, "POST", intent.body,
         AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]));
       if (!current()) return false;
-      const summary: DiningSession = "sessionId" in result ? { ...result, id: result.sessionId } : result;
       await acceptSession(summary, current);
       if (!current()) return false;
       forget(id); setNotice(`${summary.tableLabel} 桌已结束：${closeLabels[confirmation.kind]}，记录金额 ${money(summary.totalAmountCents, "zh")}。`);
@@ -109,7 +108,7 @@ export function useClosure(account: CurrentAccount) {
     } catch (e) {
       if (!current()) return false;
       if (e instanceof ApiError && e.status < 500) {
-        forget(id); setError(errorMessage(e)); setConflict(e.currentBill ?? null); refresh();
+        forget(id); setError(errorMessage(e)); setConflict((e.body.currentBill as BillSummary | undefined) ?? null); refresh();
       } else setError("关闭结果待确认。请核对原用餐，系统不会自动重新提交。");
       return false;
     } finally {

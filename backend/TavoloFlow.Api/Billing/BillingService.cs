@@ -18,10 +18,11 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         var after = Paging.Decode<BillCursor>(cursor, c => c.RestaurantId == restaurantId && c.SessionId == sessionId &&
             c.BillVersion >= 1 && c.History == history && Paging.IsPosition(c.At, c.Id));
         await using var tx = await db.Database.BeginTransactionAsync(ct);
-        var session = await DiningLocks.SessionAsync(db, restaurantId, sessionId, false, ct);
+        var session = await RowLocks.SessionAsync(db, restaurantId, sessionId, RowLock.Share, ct)
+            ?? throw DiningErrors.SessionNotFound();
         if (history && session.Status != DiningSessionStatus.Closed) throw DiningErrors.SessionNotFound();
         if (!history && session.Status != DiningSessionStatus.Active) throw DiningErrors.SessionClosed();
-        var summary = await SummaryAsync(restaurantId, sessionId, ct);
+        var summary = await SessionSummaries.ReadAsync(db, restaurantId, sessionId, ct);
         if (after is not null && after.BillVersion != session.BillVersion) throw BillingErrors.Changed(summary);
         var query = db.Orders.AsNoTracking().Include(o => o.Items).Include(o => o.DiningSession)
             .Where(o => o.RestaurantId == restaurantId && o.DiningSessionId == sessionId);
@@ -37,30 +38,45 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
     public Task<BillSummaryResponse> CheckoutAsync(Guid restaurantId, Guid id, CheckoutInput input, CancellationToken ct) =>
         CloseAsync(restaurantId, id, SessionCloseReason.Paid, input.ExpectedBillVersion, input.ConfirmedTotalCents, ct);
 
-    public Task<BillSummaryResponse> CloseVoidAsync(Guid restaurantId, Guid id, CloseVoidInput input, CancellationToken ct)
+    public Task<BillSummaryResponse> CloseEmptyAsync(Guid restaurantId, Guid id, CloseZeroBillInput input, CancellationToken ct) =>
+        CloseZeroBillAsync(restaurantId, id, SessionCloseReason.Empty, input, ct);
+
+    public Task<BillSummaryResponse> CloseVoidAsync(Guid restaurantId, Guid id, CloseZeroBillInput input, CancellationToken ct) =>
+        CloseZeroBillAsync(restaurantId, id, SessionCloseReason.Voided, input, ct);
+
+    private Task<BillSummaryResponse> CloseZeroBillAsync(Guid restaurantId, Guid id, SessionCloseReason reason,
+        CloseZeroBillInput input, CancellationToken ct)
     {
         if (input.GuestsLeftConfirmed != true || input.ConfirmedTotalCents != 0)
             throw ApiException.Validation("请核对零账单并确认顾客已离桌。");
-        return CloseAsync(restaurantId, id, SessionCloseReason.Voided, input.ExpectedBillVersion, input.ConfirmedTotalCents, ct);
+        return CloseAsync(restaurantId, id, reason, input.ExpectedBillVersion, input.ConfirmedTotalCents, ct);
     }
 
+    // PAID, VOIDED and EMPTY share one path. Order creation, kitchen transitions and closure all serialize
+    // on this session's UPDATE lock, so the bill checked here is exactly the bill that gets closed.
     private async Task<BillSummaryResponse> CloseAsync(Guid restaurantId, Guid id, SessionCloseReason reason,
         int? version, long? amount, CancellationToken ct)
     {
         if (version is null or <= 0 || amount is null or < 0 or > InputRules.MaxSafeCents)
             throw ApiException.Validation("请提供有效的账单版本和整数欧分金额。");
         await using var tx = await db.Database.BeginTransactionAsync(ct);
-        // All order writers and closure operations coordinate here. Never lock an entrance row afterwards.
-        var session = await DiningLocks.SessionAsync(db, restaurantId, id, true, ct);
-        var bill = await SummaryAsync(restaurantId, id, ct);
+        // Never lock an entrance (restaurant or table) row after this one.
+        var session = await RowLocks.SessionAsync(db, restaurantId, id, RowLock.Update, ct)
+            ?? throw DiningErrors.SessionNotFound();
+        var bill = await SessionSummaries.ReadAsync(db, restaurantId, id, ct);
         if (session.Status == DiningSessionStatus.Closed)
         {
+            // Repeating the identical closure returns the stored result; nothing can rewrite it.
             if (session.CloseReason != reason || session.BillVersion != version || session.ClosedTotalCents != amount)
                 throw DiningErrors.SessionClosed();
             await tx.CommitAsync(ct);
             return bill;
         }
-        if (bill.BillVersion != version || bill.TotalAmountCents != amount) throw BillingErrors.Changed(bill);
+        if (bill.BillVersion != version) throw BillingErrors.Changed(bill);
+        // EMPTY means no order was ever placed, not even a cancelled one; that check precedes the amount.
+        if (reason == SessionCloseReason.Empty && bill.OrderCount > 0)
+            throw BillingErrors.Conflict("SESSION_HAS_ORDERS", "本轮曾产生订单，不能按空桌关闭。", bill);
+        if (bill.TotalAmountCents != amount) throw BillingErrors.Changed(bill);
         if (bill.NewOrderCount > 0)
             throw BillingErrors.Conflict("ORDERS_PENDING", "仍有待处理订单，请先到厨房完成或按实际情况取消。", bill);
         if (reason == SessionCloseReason.Paid && bill.TotalAmountCents <= 0)
@@ -79,7 +95,7 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
                 .SetProperty(s => s.ClosedTotalCents, bill.TotalAmountCents)
                 .SetProperty(s => s.JoinCodeCiphertext, (string?)null), ct);
         if (changed != 1) throw DiningErrors.SessionClosed();
-        var result = await SummaryAsync(restaurantId, id, ct);
+        var result = await SessionSummaries.ReadAsync(db, restaurantId, id, ct);
         await tx.CommitAsync(ct);
         return result;
     }
@@ -115,8 +131,8 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         var total = await sessions.LongCountAsync(ct);
         if (after is not null)
             sessions = sessions.Where(s => EF.Functions.LessThan(ValueTuple.Create(s.ClosedAt!.Value, s.Id), ValueTuple.Create(after.At, after.Id)));
-        var rows = await Summaries(sessions.OrderByDescending(s => s.ClosedAt).ThenByDescending(s => s.Id))
-            .Take(limit + 1).ToArrayAsync(ct);
+        var rows = await SessionSummaries.Project(sessions.OrderByDescending(s => s.ClosedAt).ThenByDescending(s => s.Id)
+            .Take(limit + 1)).ToArrayAsync(ct);
         var (page, next) = Paging.Page(rows, limit, last =>
             new HistoryCursor(restaurantId, from, to, tableLabel, closeReason, last.ClosedAt!.Value, last.SessionId));
         await tx.CommitAsync(ct);
@@ -139,15 +155,6 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
             throw ApiException.Validation("日期范围无效。");
         return (from, to);
     }
-
-    private Task<BillSummaryResponse> SummaryAsync(Guid restaurantId, Guid id, CancellationToken ct) =>
-        Summaries(db.DiningSessions.AsNoTracking().Where(s => s.RestaurantId == restaurantId && s.Id == id)).SingleAsync(ct);
-
-    private static IQueryable<BillSummaryResponse> Summaries(IQueryable<DiningSession> sessions) => sessions.Select(s =>
-        new BillSummaryResponse(s.Id, s.TableId, s.TableLabelSnapshot, s.Status == DiningSessionStatus.Active ? "ACTIVE" : "CLOSED",
-            s.OpenedAt, s.ClosedAt, s.CloseReason == null ? null : s.CloseReason == SessionCloseReason.Paid ? "PAID" : s.CloseReason == SessionCloseReason.Empty ? "EMPTY" : "VOIDED",
-            s.BillVersion, s.Orders.Count, s.Orders.Count(o => o.Status == OrderStatus.New), s.Orders.Count(o => o.Status == OrderStatus.Cancelled),
-            s.ClosedTotalCents ?? s.Orders.Where(o => o.Status != OrderStatus.Cancelled).Sum(o => o.TotalAmountCents)));
 
     private sealed record BillCursor(Guid RestaurantId, Guid SessionId, bool History, int BillVersion, DateTime At, Guid Id);
     private sealed record HistoryCursor(Guid RestaurantId, DateOnly From, DateOnly To, string? TableLabel, string? CloseReason, DateTime At, Guid Id);

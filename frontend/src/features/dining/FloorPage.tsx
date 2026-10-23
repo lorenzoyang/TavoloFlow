@@ -12,7 +12,8 @@ import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { ActiveBillPanel } from "@/features/billing/BillViews";
 import { ApiError, errorMessage, request, write } from "@/lib/api";
-import { floorQuery, sessionQuery, sessionKey, type Floor, type FloorTable, type DiningSession, type CodeResult, type OpenResult } from "./api";
+import type { BillSummary } from "@/features/billing/state";
+import { floorQuery, sessionQuery, sessionKey, type Floor, type FloorTable, type CodeResult, type OpenResult } from "./api";
 import { parsePendingAction, pendingDiningKey, recoveredOpen, type PendingDiningAction } from "./state";
 
 type FloorProps = { sessionId?: string; select: (id: string) => void };
@@ -78,9 +79,9 @@ function FloorContent({ account, sessionId = "", select: setSelected }: FloorPro
         if (result.kind === "active") { setSelected(result.sessionId); setNotice("已查到本桌当前用餐，请核对桌号；可主动查看入桌码。"); }
         else { setSelected(""); setNotice(table ? "已核对：当前为空桌。如需开桌，请重新确认。" : "此桌已不存在，请联系老板核对。"); }
       } else {
-        const data = await request<DiningSession>(`/api/staff/sessions/${pending.sessionId}`, { signal: controller.signal });
+        const data = await request<BillSummary>(`/api/staff/sessions/${pending.sessionId}`, { signal: controller.signal });
         if (!mounted.current) return;
-        setSelected(data.id); client.setQueryData(sessionKey(account, data.id), data);
+        setSelected(data.sessionId); client.setQueryData(sessionKey(account, data.sessionId), data);
         setNotice(data.status === "CLOSED" ? "已核对：原用餐已经结束。" : "已核对：原用餐仍在进行；请重新核对后决定是否关闭。");
         void client.invalidateQueries({ queryKey: floorQuery(account).queryKey });
       }
@@ -106,8 +107,8 @@ function FloorContent({ account, sessionId = "", select: setSelected }: FloorPro
     try {
       const result = await write<OpenResult>(`/api/staff/tables/${action.tableId}/open`, "POST", {}, signal);
       if (!mounted.current) return;
-      setSelected(result.session.id); client.setQueryData(sessionKey(account, result.session.id), result.session);
-      if (document.visibilityState === "visible" && navigator.onLine) setCode({ sessionId: result.session.id, joinCode: result.joinCode });
+      setSelected(result.session.sessionId); client.setQueryData(sessionKey(account, result.session.sessionId), result.session);
+      if (document.visibilityState === "visible" && navigator.onLine) setCode({ sessionId: result.session.sessionId, joinCode: result.joinCode });
       setNotice("开桌成功，请将本轮入桌码告知顾客。");
       remember(null); void refresh();
     } catch (e) {

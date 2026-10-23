@@ -75,14 +75,20 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
     public async Task<RestaurantSummary> SetStatusAsync(Guid id, string status, Guid actor, CancellationToken ct)
     {
         if (!ApiEnum.TryParse(status, out RestaurantServiceStatus target)) throw ApiException.Validation("无效服务状态。");
+        var suspending = target == RestaurantServiceStatus.Suspended;
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        // This conflicts with opening/joining/ordering restaurant SHARE locks.
-        var restaurant = await db.Restaurants.FromSqlInterpolated($"SELECT * FROM restaurants WHERE id = {id} FOR UPDATE")
-            .SingleOrDefaultAsync(ct) ?? throw AdministrationErrors.RestaurantNotFound();
-        restaurant.ServiceStatus = target;
-        if (restaurant.ServiceStatus == RestaurantServiceStatus.Suspended) restaurant.OrderingEnabled = false;
-        await db.SaveChangesAsync(ct);
+        // UPDATE waits for the restaurant SHARE locks taken by opening, joining and ordering.
+        var restaurant = await RowLocks.RestaurantAsync(db, id, RowLock.Update, ct)
+            ?? throw AdministrationErrors.RestaurantNotFound();
+        await db.Restaurants.Where(r => r.Id == id).ExecuteUpdateAsync(update =>
+        {
+            update.SetProperty(r => r.ServiceStatus, target);
+            // Suspending also stops ordering; restoring ACTIVE leaves ordering off until the store enables it.
+            if (suspending) update.SetProperty(r => r.OrderingEnabled, false);
+        }, ct);
         await transaction.CommitAsync(ct);
+        restaurant.ServiceStatus = target;
+        if (suspending) restaurant.OrderingEnabled = false;
         logger.LogInformation("Platform {ActorId} set restaurant {RestaurantId} service to {ServiceStatus}.", actor, id, status);
         return RestaurantSummary.From(restaurant);
     }
@@ -109,7 +115,7 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
     public async Task<ManagedAccount> SetActiveAsync(Guid restaurantId, Guid userId, int version, bool active, Guid actor, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        var user = await db.RestaurantUsers.FromSqlInterpolated($"SELECT * FROM restaurant_users WHERE restaurant_id = {restaurantId} AND id = {userId} FOR UPDATE")
+        var user = await db.RestaurantUsers.FromSql($"SELECT * FROM restaurant_users WHERE restaurant_id = {restaurantId} AND id = {userId} FOR UPDATE")
             .SingleOrDefaultAsync(ct) ?? throw AdministrationErrors.AccountNotFound();
         if (user.CredentialVersion != version || version == int.MaxValue) throw AdministrationErrors.AccountChanged();
         if (user.IsActive != active)

@@ -27,8 +27,4 @@ public sealed class DiningController(DiningService dining, CurrentAccount curren
 
     [HttpGet("api/staff/sessions/{id:guid}/join-code")]
     public async Task<IActionResult> Code(Guid id, CancellationToken ct) => Ok(await dining.ReadCodeAsync(RestaurantId, id, ct));
-
-    [HttpPost("api/staff/sessions/{id:guid}/close-empty")]
-    public async Task<IActionResult> Close(Guid id, CloseEmptyInput input, CancellationToken ct) =>
-        Ok(await dining.CloseEmptyAsync(RestaurantId, id, input, ct));
 }

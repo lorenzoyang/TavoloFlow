@@ -20,8 +20,12 @@ public sealed class BillingController(BillingService billing, CurrentAccount cur
     public async Task<IActionResult> Checkout(Guid id, CheckoutInput input, CancellationToken ct) =>
         Ok(await billing.CheckoutAsync(RestaurantId, id, input, ct));
 
+    [HttpPost("api/staff/sessions/{id:guid}/close-empty")]
+    public async Task<IActionResult> CloseEmpty(Guid id, CloseZeroBillInput input, CancellationToken ct) =>
+        Ok(await billing.CloseEmptyAsync(RestaurantId, id, input, ct));
+
     [HttpPost("api/staff/sessions/{id:guid}/close-void")]
-    public async Task<IActionResult> CloseVoid(Guid id, CloseVoidInput input, CancellationToken ct) =>
+    public async Task<IActionResult> CloseVoid(Guid id, CloseZeroBillInput input, CancellationToken ct) =>
         Ok(await billing.CloseVoidAsync(RestaurantId, id, input, ct));
 
     [Authorize(Policy = StoreAuthentication.OwnerPolicy)]

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using TavoloFlow.Api.Billing;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Dining;
 using TavoloFlow.Api.Entities;
@@ -24,7 +25,7 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
         MenuItem Item, OpenSessionResponse Opened)
     {
         public Guid RestaurantId => Staff.RestaurantId;
-        public GuestIdentity Guest => new(RestaurantId, Table.Id, Opened.Session.Id);
+        public GuestIdentity Guest => new(RestaurantId, Table.Id, Opened.Session.SessionId);
         public CreateOrderInput Input() => new(Guest.SessionId, Guid.NewGuid(), [new(Item.Id, 1, 700, "少盐")], "一起上菜");
     }
 
@@ -106,7 +107,7 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
         Assert.Equal(HttpStatusCode.OK, (await PostAsync(staff, Path(b.Id) + "/cancel", new { expectedStatus = "NEW", reason = "重复点单" })).StatusCode);
         Assert.Equal(5, await VersionAsync(s));
         await AssertErrorAsync(await PostAsync(staff, $"/api/staff/sessions/{s.Guest.SessionId}/close-empty",
-            new CloseEmptyInput(5, 0, true)), HttpStatusCode.Conflict, "SESSION_HAS_ORDERS");
+            new CloseZeroBillInput(5, 0, true)), HttpStatusCode.Conflict, "SESSION_HAS_ORDERS");
         var queue = (await staff.GetFromJsonAsync<KitchenPage>(List + "?status=CANCELLED"))!;
         Assert.Equal(2, queue.TotalCount); Assert.Equal(0, queue.PendingCount); Assert.Equal(2, queue.CreatedOrderCount);
         Assert.Equal("顾客退单", (await staff.GetFromJsonAsync<KitchenOrderResponse>(Path(a.Id)))!.CancelReason);
@@ -245,7 +246,7 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
         async Task Close()
         {
             await using var tx = await closeDb.Database.BeginTransactionAsync();
-            await DiningLocks.SessionAsync(closeDb, s.RestaurantId, s.Guest.SessionId, true, default);
+            await RowLocks.SessionAsync(closeDb, s.RestaurantId, s.Guest.SessionId, RowLock.Update, default);
             await CloseForTest(closeDb, s, host.Clock);
             await tx.CommitAsync();
         }

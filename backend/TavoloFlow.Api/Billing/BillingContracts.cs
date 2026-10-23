@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using TavoloFlow.Api.Common;
+using TavoloFlow.Api.Dining;
 using TavoloFlow.Api.Kitchen;
 
 namespace TavoloFlow.Api.Billing;
@@ -9,13 +10,11 @@ namespace TavoloFlow.Api.Billing;
 public sealed record CheckoutInput([Required, Range(1, int.MaxValue)] int? ExpectedBillVersion,
     [Required] long? ConfirmedTotalCents);
 
+// EMPTY and VOIDED closures record no payment: staff confirm a zero bill and that the guests have left.
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record CloseVoidInput([Required, Range(1, int.MaxValue)] int? ExpectedBillVersion,
+public sealed record CloseZeroBillInput([Required, Range(1, int.MaxValue)] int? ExpectedBillVersion,
     [Required] long? ConfirmedTotalCents, [Required] bool? GuestsLeftConfirmed);
 
-public sealed record BillSummaryResponse(Guid SessionId, Guid? TableId, string TableLabel, string Status,
-    DateTime OpenedAt, DateTime? ClosedAt, string? CloseReason, int BillVersion, int OrderCount,
-    int NewOrderCount, int CancelledOrderCount, long TotalAmountCents);
 public sealed record BillPage(BillSummaryResponse Summary, KitchenOrderResponse[] Orders, string? NextCursor);
 public sealed record HistoryPage(BillSummaryResponse[] Items, string? NextCursor, long TotalCount,
     DateOnly FromDate, DateOnly ToDate, string TimeZone);

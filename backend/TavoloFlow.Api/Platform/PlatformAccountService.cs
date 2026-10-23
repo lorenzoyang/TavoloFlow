@@ -59,7 +59,7 @@ public sealed class PlatformBootstrap(ApplicationDbContext db, IPasswordHasher<P
             throw new InvalidOperationException("Configure PlatformBootstrap username (1–50) and password (12–128 nonblank characters).");
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(726186210008)", ct);
-        var users = await db.PlatformUsers.FromSqlRaw("SELECT * FROM platform_users FOR UPDATE").ToListAsync(ct);
+        var users = await db.PlatformUsers.FromSql($"SELECT * FROM platform_users FOR UPDATE").ToListAsync(ct);
         if (reset)
         {
             var user = users.SingleOrDefault(u => u.Username == username)

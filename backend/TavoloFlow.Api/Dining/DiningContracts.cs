@@ -7,18 +7,12 @@ namespace TavoloFlow.Api.Dining;
 public sealed record ActiveSessionResponse(Guid Id, DateTime OpenedAt, int OrderCount, int NewOrderCount, long TotalAmountCents);
 public sealed record FloorTableResponse(Guid Id, string TableLabel, bool IsEnabled, ActiveSessionResponse? Session);
 public sealed record FloorResponse(string ServiceStatus, bool OrderingEnabled, FloorTableResponse[] Tables);
-public sealed record SessionResponse(Guid Id, Guid? TableId, string TableLabel, string Status, DateTime OpenedAt,
-    DateTime? ClosedAt, string? CloseReason, int BillVersion, int OrderCount, long TotalAmountCents);
-public sealed record OpenSessionResponse(SessionResponse Session, string JoinCode);
+public sealed record OpenSessionResponse(BillSummaryResponse Session, string JoinCode);
 public sealed record JoinCodeResponse(Guid SessionId, string JoinCode);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record AcceptingOrdersInput([Required] bool? Enabled);
 public sealed record AcceptingOrdersResponse(bool OrderingEnabled);
-
-[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record CloseEmptyInput([Required, Range(1, int.MaxValue)] int? ExpectedBillVersion,
-    [Required] long? ConfirmedTotalCents, [Required] bool? GuestsLeftConfirmed);
 
 public static class DiningErrors
 {

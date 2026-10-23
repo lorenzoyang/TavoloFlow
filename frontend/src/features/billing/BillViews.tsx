@@ -95,7 +95,7 @@ export function ActiveBillPanel({ account, sessionId }: { account: CurrentAccoun
     {model.session.isError && <Alert variant="destructive"><AlertDescription>{errorMessage(model.session.error)}</AlertDescription></Alert>}
     {model.closed && model.session.data ? <Card><CardContent className="space-y-3 pt-6">
       <h2 className="text-xl font-semibold">{model.session.data.tableLabel} 桌 · 本轮已结束</h2>
-      <p>{closeLabels[model.session.data.closeReason as keyof typeof closeLabels]} · 记录金额 {money(model.session.data.totalAmountCents, "zh")}</p>
+      <p>{closeLabels[model.session.data.closeReason!]} · 记录金额 {money(model.session.data.totalAmountCents, "zh")}</p>
       <p className="text-sm text-muted-foreground">本轮顾客授权已失效。下一轮用餐须重新开桌。</p>
       {account.role === "OWNER" && <Link to="/staff/history" search={{ sessionId }} className={buttonVariants({ variant: "outline", className: "min-h-11" })}>查看历史账单</Link>}
     </CardContent></Card> : <>

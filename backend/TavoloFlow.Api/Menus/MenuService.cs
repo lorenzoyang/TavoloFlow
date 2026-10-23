@@ -37,14 +37,13 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
         }, ct);
     }
 
-    public Task<bool> DeleteCategoryAsync(Guid restaurantId, Guid id, CancellationToken ct) => WriteAsync(restaurantId, async () =>
+    public Task DeleteCategoryAsync(Guid restaurantId, Guid id, CancellationToken ct) => WriteAsync(restaurantId, async () =>
     {
         if (!await context.MenuCategories.AnyAsync(x => x.RestaurantId == restaurantId && x.Id == id, ct))
             throw MenuErrors.NotFound();
         if (await context.MenuItems.AnyAsync(x => x.RestaurantId == restaurantId && x.CategoryId == id, ct))
             throw new ApiException(409, "CATEGORY_NOT_EMPTY", "请先移走或删除分类中的菜品。");
         await context.MenuCategories.Where(x => x.RestaurantId == restaurantId && x.Id == id).ExecuteDeleteAsync(ct);
-        return true;
     }, ct);
 
     public Task<MenuItemResponse> SaveItemAsync(Guid restaurantId, Guid? id, MenuItemInput input, CancellationToken ct)
@@ -104,14 +103,15 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
         return new(language);
     }
 
+    private Task WriteAsync(Guid restaurantId, Func<Task> operation, CancellationToken ct) =>
+        WriteAsync(restaurantId, async () => { await operation(); return true; }, ct);
+
     private async Task<T> WriteAsync<T>(Guid restaurantId, Func<Task<T>> operation, CancellationToken ct)
     {
         await using var transaction = await context.Database.BeginTransactionAsync(ct);
-        // One lock order for all menu writes: restaurant, then category/item. No menu version column is needed.
-        var restaurant = await context.Restaurants.FromSqlInterpolated($"""
-            SELECT * FROM restaurants WHERE id = {restaurantId} FOR UPDATE
-            """).AsNoTracking().SingleOrDefaultAsync(ct);
-        if (restaurant is null) throw MenuErrors.NotFound();
+        // Every menu write locks the restaurant row first, then categories/items: last write wins without a
+        // menu version column, and order creation (restaurant SHARE) never sees a half-saved menu.
+        if (await RowLocks.RestaurantAsync(context, restaurantId, RowLock.Update, ct) is null) throw MenuErrors.NotFound();
         try
         {
             var result = await operation();

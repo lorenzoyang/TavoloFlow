@@ -44,7 +44,7 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
     {
         var sessionId = await SessionIdAsync(restaurantId, id, ct);
         await using var tx = await db.Database.BeginTransactionAsync(ct);
-        await LockActiveSessionAsync(restaurantId, sessionId, update: false, ct);
+        await LockActiveSessionAsync(restaurantId, sessionId, RowLock.Share, ct);
         var result = KitchenOrderResponse.From(await FindAsync(restaurantId, id, ct));
         await tx.CommitAsync(ct);
         return result;
@@ -74,7 +74,7 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
     {
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         // Same session UPDATE lock as ordering/closure. Never acquire restaurant or table locks afterwards.
-        var session = await LockActiveSessionAsync(restaurantId, sessionId, update: true, ct);
+        var session = await LockActiveSessionAsync(restaurantId, sessionId, RowLock.Update, ct);
         var order = await FindAsync(restaurantId, id, ct);
         if (order.Status != from) throw Changed();
         var cancelling = to == OrderStatus.Cancelled;
@@ -111,9 +111,10 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
         await db.Orders.Where(o => o.RestaurantId == restaurantId && o.Id == id)
             .Select(o => (Guid?)o.DiningSessionId).SingleOrDefaultAsync(ct) ?? throw Missing();
 
-    private async Task<DiningSession> LockActiveSessionAsync(Guid restaurantId, Guid sessionId, bool update, CancellationToken ct)
+    private async Task<DiningSession> LockActiveSessionAsync(Guid restaurantId, Guid sessionId, RowLock mode, CancellationToken ct)
     {
-        var session = await DiningLocks.SessionAsync(db, restaurantId, sessionId, update, ct);
+        var session = await RowLocks.SessionAsync(db, restaurantId, sessionId, mode, ct)
+            ?? throw DiningErrors.SessionNotFound();
         if (session.Status != DiningSessionStatus.Active) throw DiningErrors.SessionClosed();
         return session;
     }

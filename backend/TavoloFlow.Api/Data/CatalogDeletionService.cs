@@ -3,9 +3,17 @@ using TavoloFlow.Api.Entities;
 
 namespace TavoloFlow.Api.Data;
 
+public enum CatalogDeletionResult
+{
+    Deleted,
+    NotFound,
+    TableHasActiveSession
+}
+
 /// <summary>
-/// Deletes catalog rows while retaining historical snapshots. Use a fresh scope:
-/// bulk updates and deletes do not synchronize previously tracked entities.
+/// Deletes catalog rows while retaining historical snapshots. Each method owns its transaction, so never
+/// wrap a call in another one. Use a fresh scope: bulk updates and deletes do not synchronize previously
+/// tracked entities.
 /// </summary>
 public sealed class CatalogDeletionService(ApplicationDbContext context)
 {
@@ -16,20 +24,14 @@ public sealed class CatalogDeletionService(ApplicationDbContext context)
     {
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
 
-        // Match menu writers' lock order so deletion cannot race a content edit or category change.
-        var restaurant = await context.Restaurants.FromSqlInterpolated($"""
-            SELECT * FROM restaurants WHERE id = {restaurantId} FOR UPDATE
-            """).AsNoTracking().SingleOrDefaultAsync(cancellationToken);
-        if (restaurant is null) return CatalogDeletionResult.NotFound;
+        // Match the menu writers' lock order so deletion cannot race a content edit or a new order's snapshot.
+        if (await RowLocks.RestaurantAsync(context, restaurantId, RowLock.Update, cancellationToken) is null)
+        {
+            return CatalogDeletionResult.NotFound;
+        }
 
-        // the row lock also prevents new FK references while we detach existing lines.
-        var item = await context.MenuItems.FromSqlInterpolated($"""
-            SELECT * FROM menu_items
-            WHERE restaurant_id = {restaurantId} AND id = {menuItemId}
-            FOR UPDATE
-            """).AsNoTracking().SingleOrDefaultAsync(cancellationToken);
-
-        if (item is null)
+        // The row lock also prevents new FK references while we detach existing lines.
+        if (await RowLocks.MenuItemAsync(context, restaurantId, menuItemId, RowLock.Update, cancellationToken) is null)
         {
             return CatalogDeletionResult.NotFound;
         }
@@ -54,14 +56,8 @@ public sealed class CatalogDeletionService(ApplicationDbContext context)
     {
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
 
-        // the row lock also prevents new FK references while we detach existing lines.
-        var table = await context.RestaurantTables.FromSqlInterpolated($"""
-            SELECT * FROM restaurant_tables
-            WHERE restaurant_id = {restaurantId} AND id = {tableId}
-            FOR UPDATE
-            """).AsNoTracking().SingleOrDefaultAsync(cancellationToken);
-
-        if (table is null)
+        // The same table UPDATE lock as opening, so a table cannot be deleted while a session is being opened.
+        if (await RowLocks.TableAsync(context, restaurantId, tableId, RowLock.Update, cancellationToken) is null)
         {
             return CatalogDeletionResult.NotFound;
         }

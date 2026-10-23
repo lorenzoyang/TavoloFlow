@@ -47,11 +47,8 @@ public sealed class TableService(ApplicationDbContext context, CatalogDeletionSe
     private async Task<TableResponse> UpdateAsync(Guid restaurantId, Guid id, Func<Task<int>> update, CancellationToken ct)
     {
         await using var transaction = await context.Database.BeginTransactionAsync(ct);
-        // Opening/deleting the same table must acquire this row lock too.
-        var table = await context.RestaurantTables.FromSqlInterpolated($"""
-            SELECT * FROM restaurant_tables WHERE restaurant_id = {restaurantId} AND id = {id} FOR UPDATE
-            """).AsNoTracking().SingleOrDefaultAsync(ct);
-        if (table is null) throw TableErrors.NotFound();
+        // Opening and deleting the same table take this row lock too.
+        if (await RowLocks.TableAsync(context, restaurantId, id, RowLock.Update, ct) is null) throw TableErrors.NotFound();
         try
         {
             await update();

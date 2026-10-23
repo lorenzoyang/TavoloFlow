@@ -21,19 +21,16 @@ public sealed class GuestService(ApplicationDbContext db, JoinCodes codes)
             .Select(x => new { x.Id, x.RestaurantId }).SingleOrDefaultAsync(ct) ?? throw GuestErrors.QrNotFound();
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-
-        var restaurant = await DiningLocks.RestaurantAsync(db, entrance.RestaurantId, ct);
-        var table = await DiningLocks.TableAsync(db, entrance.RestaurantId, entrance.Id, false, ct);
+        var (restaurant, table) = await DiningEntrance.LockAsync(db, entrance.RestaurantId, entrance.Id, ct);
         if (table.QrToken != token) throw GuestErrors.QrNotFound();
-        DiningLocks.RequireEntrance(restaurant, table);
-        var session = await DiningLocks.SessionAsync(db, restaurant.Id, input.SessionId.Value, false, ct);
+        DiningEntrance.Require(restaurant, table);
+        var session = await RowLocks.SessionAsync(db, restaurant.Id, input.SessionId.Value, RowLock.Share, ct)
+            ?? throw DiningErrors.SessionNotFound();
         if (session.TableId != table.Id) throw DiningErrors.SessionNotFound();
         if (session.Status != DiningSessionStatus.Active) throw DiningErrors.SessionClosed();
         if (!codes.Matches(session, code))
             throw new ApiException(401, "JOIN_CODE_INCORRECT", "入桌码不正确，请向同桌顾客或工作人员确认。");
-        
         await transaction.CommitAsync(ct);
-        
         return new(restaurant.Id, table.Id, session.Id);
     }
 
@@ -55,12 +52,12 @@ public sealed class GuestService(ApplicationDbContext db, JoinCodes codes)
     {
         RequireTarget(guest, target);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        var restaurant = await DiningLocks.RestaurantAsync(db, guest.RestaurantId, ct);
-        var table = await DiningLocks.TableAsync(db, guest.RestaurantId, guest.TableId, false, ct);
-        var session = await DiningLocks.SessionAsync(db, guest.RestaurantId, target, false, ct);
+        var (restaurant, table) = await DiningEntrance.LockAsync(db, guest.RestaurantId, guest.TableId, ct);
+        var session = await RowLocks.SessionAsync(db, guest.RestaurantId, target, RowLock.Share, ct)
+            ?? throw DiningErrors.SessionNotFound();
         if (session.Status != DiningSessionStatus.Active) throw DiningErrors.SessionClosed();
         if (session.TableId != guest.TableId) throw GuestErrors.SessionMismatch();
-        DiningLocks.RequireEntrance(restaurant, table);
+        DiningEntrance.Require(restaurant, table);
         var result = new JoinCodeResponse(target, codes.Read(session));
         await transaction.CommitAsync(ct);
         return result;
