@@ -33,3 +33,23 @@ export function formatDateTime(
 ) {
   return new Date(value).toLocaleString(language === "zh" ? "zh-CN" : language, { timeZone });
 }
+
+// "19:05" in the restaurant's time zone, for compact rows where the date is implied.
+export function formatTime(
+  value: string | number,
+  language: Language = "zh",
+  timeZone = RESTAURANT_TIME_ZONE,
+) {
+  return new Date(value).toLocaleTimeString(language === "zh" ? "zh-CN" : language, {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+}
+
+// A short reference people can read out. Server IDs are UUIDv7, whose leading digits are a timestamp
+// shared by records created within the same minute, so the reference uses the random tail instead.
+export function shortId(id: string) {
+  return id.replaceAll("-", "").slice(-6).toUpperCase();
+}

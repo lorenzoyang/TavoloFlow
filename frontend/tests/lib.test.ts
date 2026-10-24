@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formatCents, formatMoney, parsePrice } from "../src/lib/format.ts";
+import { formatCents, formatMoney, formatTime, parsePrice, shortId } from "../src/lib/format.ts";
 import { isUuid, randomUuid } from "../src/lib/ids.ts";
 import { isLanguage } from "../src/lib/language.ts";
 
@@ -49,4 +49,19 @@ test("cents format without floating-point rounding; Italian uses a decimal comma
 test("only the three supported languages are accepted", () => {
   for (const value of ["zh", "it", "en"]) assert.equal(isLanguage(value), true);
   for (const value of ["ZH", "fr", "", null]) assert.equal(isLanguage(value), false);
+});
+
+test("compact times use the restaurant clock in 24-hour form", () => {
+  // 17:05 UTC is 19:05 in Rome during summer time and 18:05 in winter.
+  assert.equal(formatTime("2026-07-01T17:05:00Z"), "19:05");
+  assert.equal(formatTime("2026-12-01T17:05:00Z", "it"), "18:05");
+  assert.equal(formatTime("2026-12-01T17:05:00Z", "en"), "18:05");
+});
+
+test("short references come from the random tail, so records created together stay distinct", () => {
+  // Two UUIDv7 values from the same millisecond share their timestamp head.
+  const first = "019a1b2c-3d4e-7f00-8a1b-0c2d3e4f5a6b";
+  const second = "019a1b2c-3d4e-7f00-9c8d-7e6f5a4b3c2d";
+  assert.equal(shortId(first), "4F5A6B");
+  assert.equal(shortId(second), "4B3C2D");
 });
