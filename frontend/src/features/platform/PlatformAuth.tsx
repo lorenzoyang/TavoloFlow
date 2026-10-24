@@ -17,7 +17,7 @@ import { PlatformSubscriptionReminders } from "@/features/subscriptions/Subscrip
 export function PlatformLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh">
-      <header className="border-b bg-card pt-[env(safe-area-inset-top)]">
+      <header className="border-b bg-card pt-safe">
         <div className="mx-auto max-w-5xl px-4 py-3">
           <BrandMark caption="平台管理 · 餐厅开通与账号维护" />
         </div>

@@ -75,7 +75,7 @@ npm run dev
 `http://localhost:5093`，浏览器始终使用同一站点。端口占用时 Vite 明确失败，
 避免悄悄切换到不同端口。HTTP 开发模式只用于本机联调。
 
-首次用初始化密码登录会进入改密页面，完成后进入账号页。再次运行初始化命令不会重置密码。
+首次用初始化密码登录会进入改密页面，完成后进入首页。再次运行初始化命令不会重置密码。
 
 ## 3. 一次登录请求如何工作
 
@@ -173,7 +173,7 @@ Data Protection 应用名固定为 `TavoloFlow`。开发使用框架的用户密
 | `__root.tsx` | 根出口和页面不存在提示，不绑定店铺卡片布局 |
 | `index.tsx` | `/` 跳转 `/staff` |
 | `staff.tsx` | 店铺父路由，通过 `StaffLayout` 提供品牌、背景和宽内容区域 |
-| `staff.index.tsx` | `/staff` 账号页，校验 `passwordChanged` 搜索参数 |
+| `staff.index.tsx` | `/staff` 首页（工作入口与账号信息），校验 `passwordChanged` 搜索参数 |
 | `staff.login.tsx` | `/staff/login` 登录页 |
 | `staff.change-password.tsx` | `/staff/change-password` 首次或主动改密 |
 | `staff.menu.tsx` | `/staff/menu` 菜单管理，共用店铺布局与身份边界 |
