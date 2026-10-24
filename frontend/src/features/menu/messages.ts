@@ -8,7 +8,6 @@ export const messages = {
   title: "菜单管理",
   ownerHint: "维护分类、菜品和过敏原，调整菜单的供应状态。",
   staffHint: "查看本店菜单，将暂时无法供应的菜品设为售罄。",
-  back: "返回账号",
   refresh: "刷新菜单",
   loading: "正在加载菜单…",
   retry: "重新读取菜单并核对结果",
@@ -49,8 +48,6 @@ export const messages = {
   unreviewed: "未完成过敏原审核，请由老板编辑确认后再恢复供应。",
   available: "可供应",
   soldOut: "已售罄",
-  markSoldOut: "设为售罄",
-  restore: "恢复供应",
   defaultLanguage: "菜单默认语言",
   defaultHint:
     "设置菜单的首选语言，缺少翻译时逐条回退。菜单增删不会改变此设置；后台仍优先显示中文。",

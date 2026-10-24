@@ -1,17 +1,22 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import { ArrowLeft, Plus, RefreshCw, Utensils } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { buttonVariants } from "@/components/ui/button-variants";
-import { Card, CardContent } from "@/components/ui/card";
+import { Pencil, Plus, RefreshCw, Trash2, Utensils, X } from "lucide-react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { EmptyState } from "@/components/empty-state";
+import { FilterChips } from "@/components/filter-chips";
+import { LoadingState } from "@/components/loading-state";
+import { Notice } from "@/components/notice";
+import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import { isSameAccount, refreshAfterWrite } from "@/features/accounts/queries";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { ApiError, errorMessage } from "@/lib/api";
-import { formatCents } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   deleteMenuEntry,
@@ -45,7 +50,6 @@ function MenuContent({ account }: { account: CurrentAccount }) {
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [notice, setNotice] = useState("");
-  const editorRef = useRef<HTMLDivElement>(null);
   // Each mutation runs one request built by the menu API functions.
   const mutation = useMutation({
     mutationFn: (send: () => Promise<unknown>) => send(),
@@ -66,75 +70,64 @@ function MenuContent({ account }: { account: CurrentAccount }) {
     mutation.reset();
     setNotice("");
     setEditor(next);
-    requestAnimationFrame(() => {
-      editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      editorRef.current?.focus();
-    });
   }
   function cancel() {
     setEditor(null);
     mutation.reset();
   }
   const feedback = mutation.isError ? (
-    <Alert variant="destructive" role="alert">
-      <AlertDescription className="space-y-3">
-        <p>{errorMessage(mutation.error, m.unknown)}</p>
-        {(!(mutation.error instanceof ApiError) || mutation.error.status >= 500) && (
+    <Notice
+      tone="error"
+      action={
+        (!(mutation.error instanceof ApiError) || mutation.error.status >= 500) && (
           <Button
             variant="outline"
-            className="h-auto min-h-11 whitespace-normal"
             disabled={query.isFetching}
             onClick={() => void query.refetch()}
           >
             {m.retry}
           </Button>
-        )}
-      </AlertDescription>
-    </Alert>
+        )
+      }
+    >
+      {errorMessage(mutation.error, m.unknown)}
+    </Notice>
   ) : null;
   const menu = query.data;
   // A removed selection falls back to the full menu without discarding an open form.
   const selected = menu?.categories.find((value) => value.id === categoryId);
   const items = menu?.items.filter((item) => !selected || item.categoryId === selected.id) ?? [];
+  const categoryName = (id: string) =>
+    displayName(
+      menu!.categories.find((category) => category.id === id)!,
+      menu!.defaultLanguage,
+      "zh",
+    ).text;
+  const formOpen = editor?.kind === "category" || editor?.kind === "item";
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="mb-1 text-sm text-muted-foreground">{account.restaurantName}</p>
-          <h1 className="text-2xl font-semibold tracking-tight">{m.title}</h1>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            {owner ? m.ownerHint : m.staffHint}
-          </p>
-        </div>
-        <Link to="/staff" className={buttonVariants({ variant: "outline", className: "h-11" })}>
-          <ArrowLeft />
-          {m.back}
-        </Link>
-      </div>
-      {notice && (
-        <Alert role="status">
-          <AlertDescription>{notice}</AlertDescription>
-        </Alert>
-      )}
-      {query.isError && (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{m.readError}</AlertDescription>
-        </Alert>
-      )}
-      <div className="flex flex-wrap gap-3">
-        <Button
-          variant="outline"
-          className="h-11"
-          disabled={query.isFetching || busy}
-          onClick={() => void query.refetch()}
-        >
-          <RefreshCw className={cn(query.isFetching && "animate-spin")} />
-          {m.refresh}
-        </Button>
+    <div>
+      <PageHeader
+        title={m.title}
+        description={owner ? m.ownerHint : m.staffHint}
+        actions={
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label={m.refresh}
+            disabled={query.isFetching || busy}
+            onClick={() => void query.refetch()}
+          >
+            <RefreshCw className={cn(query.isFetching && "animate-spin")} />
+          </Button>
+        }
+      />
+      <div className="mb-5 space-y-3">
+        {notice && <Notice tone="success">{notice}</Notice>}
+        {query.isError && <Notice tone="error">{m.readError}</Notice>}
+        {!editor && feedback}
         {owner && menu && (
-          <>
+          <div className="grid grid-cols-2 gap-3 sm:flex">
             <Button
-              className="h-11"
               variant="outline"
               disabled={busy || editing}
               onClick={() => open({ kind: "category" })}
@@ -143,7 +136,6 @@ function MenuContent({ account }: { account: CurrentAccount }) {
               {m.addCategory}
             </Button>
             <Button
-              className="h-11"
               disabled={busy || editing || menu.categories.length === 0}
               onClick={() =>
                 open({
@@ -155,262 +147,264 @@ function MenuContent({ account }: { account: CurrentAccount }) {
               <Plus />
               {m.addItem}
             </Button>
-          </>
+          </div>
         )}
       </div>
       {!menu && query.isPending && (
-        <p role="status" className="py-12 text-center text-muted-foreground">
-          {query.fetchStatus === "paused" ? m.readError : m.loading}
-        </p>
+        <LoadingState label={query.fetchStatus === "paused" ? m.readError : m.loading} />
       )}
-      {!editor && feedback}
       {menu && (
-        <>
-          <Card>
-            <CardContent className="pt-6">
-              <DefaultLanguage
-                key={menu.defaultLanguage}
-                menu={menu}
-                owner={owner}
-                busy={busy || editing}
-                save={(language) => mutation.mutate(() => setDefaultLanguage(language))}
-              />
-            </CardContent>
-          </Card>
-          {editor && (
-            <Card>
-              <CardContent className="pt-6">
-                <div ref={editorRef} tabIndex={-1} className="scroll-mt-6 outline-none">
-                  {editor.kind === "category" && (
-                    <CategoryForm
-                      key={`category-${editor.value?.id ?? "new"}`}
-                      initial={editor.value}
-                      busy={busy}
-                      error={mutation.error}
-                      cancel={cancel}
-                      save={(body) => mutation.mutate(() => saveCategory(editor.value?.id, body))}
-                      feedback={feedback}
-                    />
-                  )}
-                  {editor.kind === "item" && (
-                    <ItemForm
-                      key={`item-${editor.value?.id ?? "new"}`}
-                      initial={editor.value}
-                      menu={menu}
-                      categoryId={editor.categoryId}
-                      busy={busy}
-                      error={mutation.error}
-                      cancel={cancel}
-                      save={(body) => mutation.mutate(() => saveItem(editor.value?.id, body))}
-                      feedback={feedback}
-                    />
-                  )}
-                  {editor.kind === "delete" && (
-                    <div className="space-y-4">
-                      <h2 className="wrap-break-word text-lg font-semibold">
-                        {m.remove}「{editor.name}」
-                      </h2>
-                      <p className="text-sm leading-6 text-muted-foreground">{m.deleteHint}</p>
-                      <div className="flex flex-wrap gap-3">
-                        <Button
-                          className="h-11"
-                          variant="destructive"
-                          disabled={busy}
-                          onClick={() =>
-                            mutation.mutate(() => deleteMenuEntry(editor.resource, editor.id))
-                          }
-                        >
-                          {busy ? m.saving : m.confirmDelete}
-                        </Button>
-                        <Button className="h-11" variant="outline" disabled={busy} onClick={cancel}>
-                          {m.cancel}
-                        </Button>
-                      </div>
-                      {feedback}
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          <div className="grid gap-6 lg:grid-cols-[15rem_1fr]">
-            <nav aria-label={m.categories} className="space-y-2">
-              <h2 className="mb-3 text-sm font-semibold">{m.categories}</h2>
-              <Button
-                variant={!selected ? "secondary" : "ghost"}
-                className="min-h-11 w-full justify-start"
-                onClick={() => setCategoryId(null)}
-                aria-pressed={!selected}
-              >
-                {m.all} ({menu.items.length})
-              </Button>
-              {menu.categories.map((category) => (
+        <div className="space-y-5">
+          <FilterChips
+            label={m.categories}
+            value={selected?.id ?? ""}
+            onChange={(id) => setCategoryId(id || null)}
+            items={[
+              { value: "", label: `${m.all} (${menu.items.length})` },
+              ...menu.categories.map((category) => ({
+                value: category.id,
+                label: `${displayName(category, menu.defaultLanguage, "zh").text} (${
+                  menu.items.filter((item) => item.categoryId === category.id).length
+                })`,
+              })),
+            ]}
+          />
+          {selected && owner && (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold wrap-break-word">
+                {displayName(selected, menu.defaultLanguage, "zh").text}
+              </h2>
+              <div className="flex gap-2">
                 <Button
-                  key={category.id}
-                  variant={selected?.id === category.id ? "secondary" : "ghost"}
-                  className="h-auto min-h-11 w-full justify-start whitespace-normal wrap-break-word text-left"
-                  onClick={() => setCategoryId(category.id)}
-                  aria-pressed={selected?.id === category.id}
+                  variant="outline"
+                  disabled={busy || editing}
+                  onClick={() => open({ kind: "category", value: selected })}
                 >
-                  {displayName(category, menu.defaultLanguage, "zh").text} (
-                  {menu.items.filter((item) => item.categoryId === category.id).length})
+                  <Pencil />
+                  {m.editCategory}
                 </Button>
-              ))}
-            </nav>
-            <section
-              className="min-w-0 space-y-4"
-              aria-label={selected ? displayName(selected, menu.defaultLanguage, "zh").text : m.all}
-            >
-              {selected && (
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h2 className="wrap-break-word text-lg font-semibold">
-                    {displayName(selected, menu.defaultLanguage, "zh").text}
-                  </h2>
-                  {owner && (
-                    <div className="flex gap-2">
-                      <Button
-                        className="h-11"
-                        variant="outline"
-                        disabled={busy || editing}
-                        onClick={() => open({ kind: "category", value: selected })}
+                <Button
+                  variant="ghost"
+                  disabled={busy || editing}
+                  onClick={() =>
+                    open({
+                      kind: "delete",
+                      resource: "categories",
+                      id: selected.id,
+                      name: displayName(selected, menu.defaultLanguage, "zh").text,
+                    })
+                  }
+                >
+                  <Trash2 />
+                  {m.remove}
+                </Button>
+              </div>
+            </div>
+          )}
+          {items.length === 0 && (
+            <EmptyState
+              icon={Utensils}
+              title={owner ? (menu.categories.length ? m.noItems : m.noCategories) : m.staffEmpty}
+            />
+          )}
+          <ul className="grid gap-3 lg:grid-cols-2">
+            {items.map((item) => {
+              const name = displayName(item, menu.defaultLanguage, "zh");
+              const description = {
+                zh: item.descriptionZh,
+                it: item.descriptionIt,
+                en: item.descriptionEn,
+              }[name.language];
+              return (
+                <li
+                  key={item.id}
+                  className="flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-xs"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-xs text-muted-foreground wrap-break-word">
+                        {categoryName(item.categoryId)}
+                        {item.itemCode ? ` · ${item.itemCode}` : ""}
+                      </p>
+                      <h3
+                        className={cn(
+                          "font-semibold wrap-break-word",
+                          !item.isAvailable && "text-muted-foreground",
+                        )}
                       >
-                        {m.editCategory}
-                      </Button>
-                      <Button
-                        className="h-11"
-                        variant="ghost"
-                        disabled={busy || editing}
-                        onClick={() =>
-                          open({
-                            kind: "delete",
-                            resource: "categories",
-                            id: selected.id,
-                            name: displayName(selected, menu.defaultLanguage, "zh").text,
-                          })
-                        }
-                      >
-                        {m.remove}
-                      </Button>
+                        {name.text}
+                      </h3>
+                      {description && (
+                        <p className="line-clamp-2 text-sm whitespace-pre-wrap text-muted-foreground wrap-break-word">
+                          {description}
+                        </p>
+                      )}
+                    </div>
+                    <span className="shrink-0 font-semibold tabular-nums">
+                      {formatMoney(item.priceCents)}
+                    </span>
+                  </div>
+                  {!item.allergenReviewed ? (
+                    <p className="text-sm text-destructive">{m.unreviewed}</p>
+                  ) : item.allergenCodes.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">{m.reviewedEmpty}</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {item.allergenCodes.map((code) => (
+                        <Badge variant="outline" key={code}>
+                          {menu.allergens.find((option) => option.code === code)?.label ?? code}
+                        </Badge>
+                      ))}
                     </div>
                   )}
-                </div>
-              )}
-              {items.length === 0 && (
-                <Card>
-                  <CardContent className="py-12 text-center text-sm leading-6 text-muted-foreground">
-                    <Utensils className="mx-auto mb-4 size-8" />
-                    {owner ? (menu.categories.length ? m.noItems : m.noCategories) : m.staffEmpty}
-                  </CardContent>
-                </Card>
-              )}
-              {items.map((item) => {
-                const name = displayName(item, menu.defaultLanguage, "zh");
-                const description = {
-                  zh: item.descriptionZh,
-                  it: item.descriptionIt,
-                  en: item.descriptionEn,
-                }[name.language];
-                return (
-                  <Card key={item.id}>
-                    <CardContent className="space-y-4 pt-6">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <p className="mb-1 wrap-break-word text-xs text-muted-foreground">
-                            {
-                              displayName(
-                                menu.categories.find(
-                                  (category) => category.id === item.categoryId,
-                                )!,
-                                menu.defaultLanguage,
-                                "zh",
-                              ).text
-                            }
-                            {item.itemCode ? ` · ${item.itemCode}` : ""}
-                          </p>
-                          <h3 className="wrap-break-word font-semibold">{name.text}</h3>
-                          {description && (
-                            <p className="mt-2 whitespace-pre-wrap wrap-break-word text-sm text-muted-foreground">
-                              {description}
-                            </p>
-                          )}
-                        </div>
-                        <span className="shrink-0 font-medium tabular-nums">
-                          €{formatCents(item.priceCents)}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant={item.isAvailable ? "secondary" : "outline"}>
-                          {item.isAvailable ? m.available : m.soldOut}
-                        </Badge>
-                        {item.allergenReviewed &&
-                          item.allergenCodes.map((code) => (
-                            <Badge variant="outline" key={code}>
-                              {menu.allergens.find((option) => option.code === code)?.label ?? code}
-                            </Badge>
-                          ))}
-                      </div>
-                      {!item.allergenReviewed ? (
-                        <p className="text-sm text-destructive">{m.unreviewed}</p>
-                      ) : (
-                        item.allergenCodes.length === 0 && (
-                          <p className="text-xs text-muted-foreground">{m.reviewedEmpty}</p>
-                        )
+                  <div className="mt-auto flex items-center gap-3 border-t pt-3">
+                    <Switch
+                      aria-label={`供应状态：${name.text}`}
+                      checked={item.isAvailable}
+                      disabled={busy || editing || (!item.isAvailable && !item.allergenReviewed)}
+                      onCheckedChange={() =>
+                        mutation.mutate(() => setItemAvailability(item.id, !item.isAvailable))
+                      }
+                    />
+                    <span
+                      className={cn(
+                        "text-sm font-medium",
+                        item.isAvailable ? "text-success" : "text-muted-foreground",
                       )}
-                      <div className="flex flex-wrap gap-2">
+                    >
+                      {item.isAvailable ? m.available : m.soldOut}
+                    </span>
+                    {owner && (
+                      <div className="ml-auto flex gap-1">
                         <Button
-                          className="h-11"
-                          variant="outline"
-                          disabled={
-                            busy || editing || (!item.isAvailable && !item.allergenReviewed)
-                          }
+                          variant="ghost"
+                          disabled={busy || editing}
+                          aria-label={`${m.edit}：${name.text}`}
                           onClick={() =>
-                            mutation.mutate(() => setItemAvailability(item.id, !item.isAvailable))
+                            open({
+                              kind: "item",
+                              value: item,
+                              categoryId: item.categoryId,
+                            })
                           }
                         >
-                          {item.isAvailable ? m.markSoldOut : m.restore}
+                          <Pencil />
+                          {m.edit}
                         </Button>
-                        {owner && (
-                          <>
-                            <Button
-                              className="h-11"
-                              variant="outline"
-                              disabled={busy || editing}
-                              onClick={() =>
-                                open({
-                                  kind: "item",
-                                  value: item,
-                                  categoryId: item.categoryId,
-                                })
-                              }
-                            >
-                              {m.edit}
-                            </Button>
-                            <Button
-                              className="h-11"
-                              variant="ghost"
-                              disabled={busy || editing}
-                              onClick={() =>
-                                open({
-                                  kind: "delete",
-                                  resource: "items",
-                                  id: item.id,
-                                  name: name.text,
-                                })
-                              }
-                            >
-                              {m.remove}
-                            </Button>
-                          </>
-                        )}
+                        <Button
+                          variant="ghost"
+                          disabled={busy || editing}
+                          aria-label={`${m.remove}：${name.text}`}
+                          onClick={() =>
+                            open({
+                              kind: "delete",
+                              resource: "items",
+                              id: item.id,
+                              name: name.text,
+                            })
+                          }
+                        >
+                          <Trash2 />
+                          {m.remove}
+                        </Button>
                       </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </section>
-          </div>
-        </>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          <section
+            aria-labelledby="menu-settings"
+            className="rounded-2xl border bg-card p-4 shadow-xs"
+          >
+            <h2 id="menu-settings" className="mb-3 font-semibold">
+              菜单设置
+            </h2>
+            <DefaultLanguage
+              key={menu.defaultLanguage}
+              menu={menu}
+              owner={owner}
+              busy={busy || editing}
+              save={(language) => mutation.mutate(() => setDefaultLanguage(language))}
+            />
+          </section>
+        </div>
       )}
+      <Sheet
+        open={formOpen}
+        onOpenChange={(next) => {
+          if (!next && !busy) cancel();
+        }}
+      >
+        <SheetContent
+          side="right"
+          showCloseButton={false}
+          className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-xl"
+        >
+          <SheetHeader className="flex-row items-center justify-between gap-3 border-b pt-[max(1rem,env(safe-area-inset-top))]">
+            <SheetTitle className="text-lg font-semibold">
+              {editor?.kind === "category"
+                ? editor.value
+                  ? m.editCategory
+                  : m.addCategory
+                : editor?.kind === "item" && editor.value
+                  ? m.editItem
+                  : m.addItem}
+            </SheetTitle>
+            <SheetClose
+              disabled={busy}
+              render={
+                <Button variant="ghost" size="icon" aria-label={m.cancel} className="-mr-2" />
+              }
+            >
+              <X />
+            </SheetClose>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto px-4 pt-4">
+            {menu && editor?.kind === "category" && (
+              <CategoryForm
+                key={`category-${editor.value?.id ?? "new"}`}
+                initial={editor.value}
+                busy={busy}
+                error={mutation.error}
+                cancel={cancel}
+                save={(body) => mutation.mutate(() => saveCategory(editor.value?.id, body))}
+                feedback={feedback}
+              />
+            )}
+            {menu && editor?.kind === "item" && (
+              <ItemForm
+                key={`item-${editor.value?.id ?? "new"}`}
+                initial={editor.value}
+                menu={menu}
+                categoryId={editor.categoryId}
+                busy={busy}
+                error={mutation.error}
+                cancel={cancel}
+                save={(body) => mutation.mutate(() => saveItem(editor.value?.id, body))}
+                feedback={feedback}
+              />
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+      <ConfirmDialog
+        open={editor?.kind === "delete"}
+        tone="destructive"
+        title={editor?.kind === "delete" ? `${m.remove}「${editor.name}」` : ""}
+        description={m.deleteHint}
+        confirmLabel={busy ? m.saving : m.confirmDelete}
+        cancelLabel={m.cancel}
+        busy={busy}
+        onConfirm={() => {
+          if (editor?.kind === "delete")
+            mutation.mutate(() => deleteMenuEntry(editor.resource, editor.id));
+        }}
+        onCancel={cancel}
+      >
+        {feedback}
+      </ConfirmDialog>
     </div>
   );
 }
@@ -440,21 +434,20 @@ function DefaultLanguage({
         </label>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">{m.defaultHint}</p>
       </div>
-      <select
+      <NativeSelect
         id="defaultLanguage"
         name="defaultLanguage"
         defaultValue={menu.defaultLanguage}
         disabled={!owner || busy}
-        className="h-11 rounded-lg border border-input bg-background px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
       >
         {languages.map((language) => (
-          <option value={language.code} key={language.code}>
+          <NativeSelectOption value={language.code} key={language.code}>
             {language.label}
-          </option>
+          </NativeSelectOption>
         ))}
-      </select>
+      </NativeSelect>
       {owner && (
-        <Button type="submit" className="h-11" variant="outline" disabled={busy}>
+        <Button type="submit" variant="outline" disabled={busy}>
           {m.setDefault}
         </Button>
       )}

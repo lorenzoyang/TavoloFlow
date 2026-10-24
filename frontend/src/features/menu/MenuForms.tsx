@@ -1,6 +1,9 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldLabel, FieldDescription, FieldError, FieldSet } from "@/components/ui/field";
 import { ApiError } from "@/lib/api";
 import { formatCents, parsePrice } from "@/lib/format";
@@ -31,6 +34,7 @@ function Errors({ error }: { error: unknown }) {
   );
 }
 
+// One block per language: its name and, for dishes, the description in that language.
 function NameFields({
   initial,
   descriptions = false,
@@ -42,18 +46,19 @@ function NameFields({
 }) {
   const errors = error instanceof ApiError ? error.errors : {};
   return (
-    <div className="grid gap-5 md:grid-cols-3">
+    <div className="space-y-4">
       {languages.map(({ code, suffix, label }) => (
-        <div key={code} className="space-y-3">
+        <fieldset key={code} className="space-y-3 rounded-xl border p-3">
+          <legend className="px-1 text-sm font-medium text-muted-foreground">{label}</legend>
           <Field>
             <FieldLabel htmlFor={`name${suffix}`}>
               {label}
               {m.name}
             </FieldLabel>
             <Input
-              className="h-11"
               id={`name${suffix}`}
               name={`name${suffix}`}
+              lang={code}
               maxLength={descriptions ? 150 : 100}
               defaultValue={initial?.[`name${suffix}`] ?? ""}
               aria-invalid={!!errors[`name${suffix}`]}
@@ -71,10 +76,11 @@ function NameFields({
                 {label}
                 {m.description}
               </FieldLabel>
-              <textarea
-                className="min-h-24 w-full rounded-lg border border-input bg-background p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              <Textarea
                 id={`description${suffix}`}
                 name={`description${suffix}`}
+                lang={code}
+                className="min-h-20"
                 defaultValue={initial?.[`description${suffix}`] ?? ""}
                 aria-invalid={!!errors[`description${suffix}`]}
                 aria-describedby={
@@ -88,7 +94,7 @@ function NameFields({
               )}
             </Field>
           )}
-        </div>
+        </fieldset>
       ))}
     </div>
   );
@@ -103,14 +109,15 @@ function namesFrom(data: FormData) {
   );
 }
 
+// Stays in view at the bottom of the editor sheet, however long the form is.
 function Actions({ busy, cancel }: Pick<FormProps, "busy" | "cancel">) {
   return (
-    <div className="flex flex-wrap gap-3">
-      <Button className="h-11" type="submit" disabled={busy}>
-        {busy ? m.saving : m.save}
-      </Button>
-      <Button className="h-11" type="button" variant="outline" onClick={cancel} disabled={busy}>
+    <div className="sticky bottom-0 -mx-4 grid grid-cols-2 gap-3 border-t bg-popover px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <Button type="button" variant="outline" onClick={cancel} disabled={busy}>
         {m.cancel}
+      </Button>
+      <Button type="submit" disabled={busy}>
+        {busy ? m.saving : m.save}
       </Button>
     </div>
   );
@@ -138,15 +145,14 @@ export function CategoryForm({
   }
   return (
     <form onSubmit={submit} className="space-y-5" aria-busy={busy}>
-      <h2 className="text-lg font-semibold">{initial ? m.editCategory : m.addCategory}</h2>
       <FieldDescription>{m.nameHint}</FieldDescription>
-      <FieldSet disabled={busy}>
+      <FieldSet disabled={busy} className="gap-5">
         <NameFields initial={initial} error={error} />
         <Errors error={error} />
         {validation && <FieldError>{validation}</FieldError>}
+        {feedback}
         <Actions busy={busy} cancel={cancel} />
       </FieldSet>
-      {feedback}
     </form>
   );
 }
@@ -201,40 +207,28 @@ export function ItemForm({
   }
   return (
     <form onSubmit={submit} className="space-y-5" aria-busy={busy}>
-      <h2 className="text-lg font-semibold">{initial ? m.editItem : m.addItem}</h2>
       <FieldDescription>{m.nameHint}</FieldDescription>
       <FieldSet disabled={busy} className="gap-6">
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field className="sm:col-span-2">
             <FieldLabel htmlFor="categoryId">{m.category}</FieldLabel>
-            <select
+            <NativeSelect
               id="categoryId"
               name="categoryId"
               defaultValue={initial?.categoryId ?? categoryId}
               required
-              className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring"
+              className="w-full"
             >
               {menu.categories.map((category) => (
-                <option key={category.id} value={category.id}>
+                <NativeSelectOption key={category.id} value={category.id}>
                   {displayName(category, menu.defaultLanguage, "zh").text}
-                </option>
+                </NativeSelectOption>
               ))}
-            </select>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="itemCode">{m.itemCode}</FieldLabel>
-            <Input
-              className="h-11"
-              id="itemCode"
-              name="itemCode"
-              defaultValue={initial?.itemCode ?? ""}
-              maxLength={40}
-            />
+            </NativeSelect>
           </Field>
           <Field>
             <FieldLabel htmlFor="price">{m.price}</FieldLabel>
             <Input
-              className="h-11"
               id="price"
               name="price"
               inputMode="decimal"
@@ -245,23 +239,31 @@ export function ItemForm({
             />
             <FieldDescription id="price-hint">{m.priceHint}</FieldDescription>
           </Field>
+          <Field>
+            <FieldLabel htmlFor="itemCode">{m.itemCode}</FieldLabel>
+            <Input
+              id="itemCode"
+              name="itemCode"
+              defaultValue={initial?.itemCode ?? ""}
+              maxLength={40}
+            />
+          </Field>
         </div>
         <NameFields initial={initial} descriptions error={error} />
-        <fieldset className="space-y-4">
+        <fieldset className="space-y-3">
           <legend className="mb-3 font-medium">{m.allergens}</legend>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-2">
             {menu.allergens.map((option) => (
               <label
                 key={option.code}
-                className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-border p-3 text-sm"
+                className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm transition-colors has-data-checked:border-primary/40 has-data-checked:bg-accent"
               >
-                <input
-                  type="checkbox"
-                  className="mt-0.5 size-4 shrink-0 accent-primary"
+                <Checkbox
+                  className="mt-0.5"
                   checked={codes.includes(option.code)}
-                  onChange={(event) => {
+                  onCheckedChange={(checked) => {
                     setCodes(
-                      event.target.checked
+                      checked
                         ? [...codes, option.code]
                         : codes.filter((code) => code !== option.code),
                     );
@@ -277,12 +279,11 @@ export function ItemForm({
               </label>
             ))}
           </div>
-          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg bg-muted p-3 text-sm font-medium">
-            <input
-              type="checkbox"
-              className="mt-0.5 size-4 shrink-0 accent-primary"
+          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-warning/60 bg-warning/12 p-3 text-sm font-medium">
+            <Checkbox
+              className="mt-0.5"
               checked={reviewed}
-              onChange={(event) => setReviewed(event.target.checked)}
+              onCheckedChange={(checked) => setReviewed(checked)}
             />
             {m.review}
           </label>
@@ -290,9 +291,9 @@ export function ItemForm({
         </fieldset>
         <Errors error={error} />
         {validation && <FieldError>{validation}</FieldError>}
+        {feedback}
         <Actions busy={busy} cancel={cancel} />
       </FieldSet>
-      {feedback}
     </form>
   );
 }

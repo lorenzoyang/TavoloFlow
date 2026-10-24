@@ -1,23 +1,30 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
-import { Copy, Download, ExternalLink, X } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Copy, Download, ExternalLink, Printer } from "lucide-react";
+import { LoadingState } from "@/components/loading-state";
+import { Notice } from "@/components/notice";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { RestaurantTable } from "./api";
 import { isLocalOnlyUrl, publicMenuUrl } from "./qr-url";
+import { renderTableCard } from "./table-card";
 
+function download(dataUrl: string, filename: string) {
+  const link = document.createElement("a");
+  link.href = dataUrl;
+  link.download = filename;
+  link.click();
+}
+
+// Body of the QR dialog: the code, its public link and the printable table card.
 export function TableQr({
   table,
   restaurantName,
-  close,
 }: {
   table: RestaurantTable;
   restaurantName: string;
-  close: () => void;
 }) {
   let url = "";
   let configurationError = "";
@@ -28,6 +35,7 @@ export function TableQr({
   }
   const [image, setImage] = useState<{ url: string; data?: string; error?: string }>();
   const [notice, setNotice] = useState("");
+  const [rendering, setRendering] = useState(false);
   useEffect(() => {
     if (!url) return;
     let cancelled = false;
@@ -57,92 +65,86 @@ export function TableQr({
       setNotice("无法自动复制，请选中下方链接手动复制。");
     }
   }
+  async function downloadCard(qrDataUrl: string) {
+    setRendering(true);
+    setNotice("");
+    try {
+      const card = await renderTableCard({
+        qrDataUrl,
+        restaurantName,
+        tableLabel: table.tableLabel,
+      });
+      download(card, `tavoloflow-table-card-${table.id}.png`);
+    } catch {
+      setNotice("桌卡生成失败，请稍后重试或改用二维码 PNG。");
+    } finally {
+      setRendering(false);
+    }
+  }
+  if (configurationError || current?.error)
+    return <Notice tone="error">{configurationError || current?.error}</Notice>;
   return (
-    <Card>
-      <CardContent className="space-y-4 pt-6">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-sm text-muted-foreground wrap-break-word">{restaurantName}</p>
-            <h2 className="text-xl font-semibold wrap-break-word">
-              {table.tableLabel} · 桌位二维码
-            </h2>
-          </div>
-          <Button
-            variant="ghost"
-            className="size-11 shrink-0"
-            aria-label="关闭二维码"
-            onClick={close}
-          >
-            <X />
-          </Button>
-        </div>
-        {configurationError || current?.error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{configurationError || current?.error}</AlertDescription>
-          </Alert>
-        ) : (
+    <div className="space-y-4">
+      {current?.data ? (
+        <img
+          src={current.data}
+          width={256}
+          height={256}
+          alt={`${table.tableLabel} 桌公开菜单二维码`}
+          className="mx-auto w-full max-w-60 rounded-xl border"
+        />
+      ) : (
+        <LoadingState label="正在生成二维码…" />
+      )}
+      {url && isLocalOnlyUrl(url) && (
+        <Notice tone="warning">
+          此链接使用本机地址，手机无法直接访问。请使用手机可访问的网站地址后再下载二维码，配置方法见桌位模块文档。
+        </Notice>
+      )}
+      <div className="space-y-2">
+        <Label htmlFor="qr-url">公开菜单链接</Label>
+        <Input id="qr-url" value={url} readOnly onFocus={(event) => event.target.select()} />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {current?.data && (
           <>
-            {current?.data ? (
-              <img
-                src={current.data}
-                width={256}
-                height={256}
-                alt={`${table.tableLabel} 桌公开菜单二维码`}
-                className="mx-auto w-full max-w-64"
-              />
-            ) : (
-              <p role="status">正在生成二维码…</p>
-            )}
-            {url && isLocalOnlyUrl(url) && (
-              <Alert>
-                <AlertDescription>
-                  此链接使用本机地址，手机无法直接访问。请使用手机可访问的网站地址后再下载二维码，配置方法见桌位模块文档。
-                </AlertDescription>
-              </Alert>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="qr-url">公开菜单链接</Label>
-              <Input
-                id="qr-url"
-                className="h-11"
-                value={url}
-                readOnly
-                onFocus={(event) => event.target.select()}
-              />
-            </div>
-            <div className="flex flex-wrap gap-3">
-              {current?.data && (
-                <a
-                  className={buttonVariants({ className: "h-11" })}
-                  href={current.data}
-                  download={`tavoloflow-table-${table.id}.png`}
-                >
-                  <Download />
-                  下载 PNG
-                </a>
-              )}
-              <Button variant="outline" className="h-11" onClick={() => void copy()}>
-                <Copy />
-                复制链接
-              </Button>
-              <a
-                className={buttonVariants({ variant: "outline", className: "h-11" })}
-                href={url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <ExternalLink />
-                打开菜单
-              </a>
-            </div>
-            {notice && (
-              <p role="status" className="text-sm">
-                {notice}
-              </p>
-            )}
+            <Button disabled={rendering} onClick={() => void downloadCard(current.data!)}>
+              <Printer />
+              {rendering ? "正在生成…" : "下载桌卡"}
+            </Button>
+            <a
+              className={buttonVariants({ variant: "outline" })}
+              href={current.data}
+              download={`tavoloflow-table-${table.id}.png`}
+            >
+              <Download />
+              下载二维码
+            </a>
           </>
         )}
-      </CardContent>
-    </Card>
+        <Button variant="outline" onClick={() => void copy()}>
+          <Copy />
+          复制链接
+        </Button>
+        <a
+          className={buttonVariants({ variant: "outline" })}
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <ExternalLink />
+          打开菜单
+        </a>
+      </div>
+      <p className="text-xs leading-5 text-muted-foreground">
+        桌卡包含店名、桌号、二维码和中意英三语“扫码点餐”提示，按 A6（10.5 × 14.8
+        厘米）打印即可摆桌。
+      </p>
+      {notice && (
+        <p role="status" className="text-sm">
+          {notice}
+        </p>
+      )}
+    </div>
   );
 }
