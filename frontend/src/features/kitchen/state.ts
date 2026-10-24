@@ -45,6 +45,12 @@ export function arrivals(previous: ArrivalBaseline, count: number, at: number) {
   return { baseline: { count, at }, added: continuous ? Math.max(0, count - previous.count) : 0 };
 }
 
+// How long a NEW order has waited, as a colour the cook can read across the kitchen. The thresholds
+// are a display choice only; nothing is blocked or reordered by them.
+export function waitLevel(minutes: number): "normal" | "late" | "overdue" {
+  return minutes >= 20 ? "overdue" : minutes >= 10 ? "late" : "normal";
+}
+
 export function canCancel(role: "OWNER" | "STAFF", status: OrderStatus) {
   return status === "NEW" || (role === "OWNER" && status === "READY");
 }

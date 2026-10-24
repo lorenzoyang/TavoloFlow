@@ -6,6 +6,7 @@ import {
   pendingKitchenKey,
   readPending,
   recoveryOutcome,
+  waitLevel,
   type PendingKitchenAction,
 } from "../src/features/kitchen/state.ts";
 import { syncIsFresh } from "../src/lib/live-view.ts";
@@ -68,4 +69,12 @@ test("stale and resumed views cannot authorize UI writes before a fresh successf
   assert.equal(syncIsFresh(1000, 2000, 1000, true, true), false);
   assert.equal(syncIsFresh(0, 2000, 0, true, false), false);
   assert.equal(isPrivateQuery({ queryKey: ["kitchen", "restaurant", "staff", "NEW"] }), true);
+});
+
+test("waiting orders turn amber at 10 minutes and red at 20", () => {
+  assert.equal(waitLevel(0), "normal");
+  assert.equal(waitLevel(9), "normal");
+  assert.equal(waitLevel(10), "late");
+  assert.equal(waitLevel(19), "late");
+  assert.equal(waitLevel(20), "overdue");
 });
