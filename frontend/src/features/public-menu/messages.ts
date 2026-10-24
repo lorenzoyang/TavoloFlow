@@ -22,6 +22,7 @@ type Messages = {
   unreviewed: string;
   reviewedEmpty: string;
   allergyHint: string;
+  scanToOrder: string;
 };
 
 export const languageLabels: Record<Language, string> = {
@@ -52,6 +53,7 @@ export const messages: Record<Language, Messages> = {
     unreviewed: "过敏原信息待餐厅确认，请咨询服务员。",
     reviewedEmpty: "餐厅已审核，未识别出需声明的过敏原。",
     allergyHint: "如有食物过敏，请告知餐厅。过敏原信息不代表不存在交叉接触风险。",
+    scanToOrder: "扫码点餐",
   },
   it: {
     menu: "Menu",
@@ -80,6 +82,7 @@ export const messages: Record<Language, Messages> = {
       "Il ristorante ha verificato il piatto e non ha identificato allergeni da dichiarare.",
     allergyHint:
       "In caso di allergie alimentari, informa il personale. Le informazioni sugli allergeni non escludono il rischio di contaminazione crociata.",
+    scanToOrder: "Scansiona per ordinare",
   },
   en: {
     menu: "Menu",
@@ -105,6 +108,7 @@ export const messages: Record<Language, Messages> = {
     reviewedEmpty: "Reviewed by the restaurant; no declarable allergens identified.",
     allergyHint:
       "Tell the staff about any food allergies. Allergen information does not exclude the risk of cross-contact.",
+    scanToOrder: "Scan to order",
   },
 };
 

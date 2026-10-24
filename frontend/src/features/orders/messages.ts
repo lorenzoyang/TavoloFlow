@@ -62,6 +62,10 @@ const en = {
   allergies: "Allergen information",
   pausedDraft:
     "You can keep editing your cart; ordering requires an active visit and an available service.",
+  viewCart: "View cart",
+  keepOrdering: "Keep ordering",
+  menuTab: "Menu",
+  close: "Close",
 };
 
 export const orderMessages: Record<Language, typeof en> = {
@@ -120,6 +124,10 @@ export const orderMessages: Record<Language, typeof en> = {
     updated: "最后更新",
     allergies: "过敏原信息",
     pausedDraft: "可继续编辑购物车；正式下单需要有效的本轮授权及可用的接单服务。",
+    viewCart: "查看购物车",
+    keepOrdering: "继续点菜",
+    menuTab: "点菜",
+    close: "关闭",
   },
   it: {
     add: "Aggiungi al carrello",
@@ -184,6 +192,10 @@ export const orderMessages: Record<Language, typeof en> = {
     allergies: "Informazioni sugli allergeni",
     pausedDraft:
       "Puoi modificare il carrello; per ordinare servono una visita autorizzata e il servizio disponibile.",
+    viewCart: "Vedi carrello",
+    keepOrdering: "Continua a ordinare",
+    menuTab: "Menu",
+    close: "Chiudi",
   },
 };
 export type OrderMessage = keyof typeof en;

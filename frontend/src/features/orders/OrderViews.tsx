@@ -1,210 +1,236 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Minus, Plus, RefreshCw } from "lucide-react";
+import { LoadingState } from "@/components/loading-state";
+import { Notice, type NoticeTone } from "@/components/notice";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { displayName, type Language } from "@/lib/language";
 import { allergenNames } from "@/features/public-menu/messages";
 import type { PublicMenu } from "@/features/public-menu/api";
 import type { useGuestVisit } from "@/features/guests/useGuestVisit";
 import { accessOutcome } from "@/features/guests/state";
 import { ApiError } from "@/lib/api";
-import { uniqueBy } from "@/lib/utils";
+import { cn, uniqueBy } from "@/lib/utils";
 import { ordersKey, readOrders, type Order } from "./api";
-import { orderMessages } from "./messages";
+import { orderMessages, type OrderMessage } from "./messages";
 import { totalCents } from "./state";
 import type { useCart } from "./useCart";
-import { formatDateTime, formatMoney } from "@/lib/format";
+import { formatDateTime, formatMoney, formatTime, shortId } from "@/lib/format";
+
+type Guest = ReturnType<typeof useGuestVisit>;
+
+const statusBadge = {
+  NEW: "secondary",
+  READY: "success",
+  CANCELLED: "outline",
+} as const satisfies Record<Order["status"], "secondary" | "success" | "outline">;
+
+// Success is the only good news; menu changes and pauses are recoverable, never alarming errors.
+const messageTone = (message: OrderMessage): NoticeTone =>
+  message === "success" ? "success" : message === "unverified" ? "info" : "warning";
 
 function OrderCard({ order, language }: { order: Order; language: Language }) {
   const m = orderMessages[language];
+  const cancelled = order.status === "CANCELLED";
   return (
-    <Card>
-      <CardContent className="space-y-4 pt-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs text-muted-foreground break-all">#{order.id}</p>
-            <p className="mt-1 text-sm">{formatDateTime(order.createdAt, language)}</p>
-          </div>
-          <Badge variant={order.status === "CANCELLED" ? "outline" : "secondary"}>
-            {m[order.status]}
-          </Badge>
+    <article className="space-y-3 rounded-2xl border bg-card p-4 shadow-xs">
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-medium tabular-nums">{formatTime(order.createdAt, language)}</p>
+          <p className="text-xs text-muted-foreground">#{shortId(order.id)}</p>
         </div>
-        <ul className="divide-y">
-          {order.items.map((line) => {
-            const name = displayName(line, order.defaultLanguage, language);
-            return (
-              <li key={line.id} className="space-y-2 py-3">
-                <div className="flex items-start justify-between gap-3">
-                  <p lang={name.language} className="min-w-0 wrap-break-word font-medium">
-                    {line.itemCode && (
-                      <span className="mr-2 text-xs text-muted-foreground">{line.itemCode}</span>
-                    )}
-                    {name.text} × {line.quantity}
-                  </p>
-                  <span className="shrink-0 tabular-nums">
-                    {formatMoney(line.unitPriceCents * line.quantity, language)}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {formatMoney(line.unitPriceCents, language)} × {line.quantity}
+        <Badge variant={statusBadge[order.status]}>{m[order.status]}</Badge>
+      </header>
+      <ul className="divide-y">
+        {order.items.map((line) => {
+          const name = displayName(line, order.defaultLanguage, language);
+          return (
+            <li key={line.id} className="space-y-1 py-2.5">
+              <div className="flex items-start justify-between gap-3">
+                <p lang={name.language} className="min-w-0 font-medium wrap-break-word">
+                  {line.itemCode && (
+                    <span className="mr-2 text-xs text-muted-foreground">{line.itemCode}</span>
+                  )}
+                  {line.quantity} × {name.text}
                 </p>
-                {line.remark && (
-                  <p className="whitespace-pre-wrap wrap-break-word text-sm">
-                    {m.remark}: {line.remark}
-                  </p>
-                )}
-                {line.allergenCodes.length > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    {m.allergies}:{" "}
-                    {line.allergenCodes.map((c) => allergenNames[language][c] ?? c).join(" · ")}
-                  </p>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-        {order.orderNote && (
-          <p className="whitespace-pre-wrap wrap-break-word text-sm">
-            {m.orderNote}: {order.orderNote}
-          </p>
-        )}
-        <p
-          className={`text-right font-semibold tabular-nums ${order.status === "CANCELLED" ? "line-through text-muted-foreground" : ""}`}
-        >
-          {m.total}: {formatMoney(order.totalAmountCents, language)}
+                <span className="shrink-0 tabular-nums">
+                  {formatMoney(line.unitPriceCents * line.quantity, language)}
+                </span>
+              </div>
+              {line.remark && (
+                <p className="text-sm whitespace-pre-wrap text-muted-foreground wrap-break-word">
+                  {m.remark}: {line.remark}
+                </p>
+              )}
+              {line.allergenCodes.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {m.allergies}:{" "}
+                  {line.allergenCodes.map((c) => allergenNames[language][c] ?? c).join(" · ")}
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {order.orderNote && (
+        <p className="rounded-lg bg-secondary p-3 text-sm whitespace-pre-wrap wrap-break-word">
+          {m.orderNote}: {order.orderNote}
         </p>
-      </CardContent>
-    </Card>
+      )}
+      <p
+        className={cn(
+          "text-right font-semibold tabular-nums",
+          cancelled && "text-muted-foreground line-through",
+        )}
+      >
+        {m.total}: {formatMoney(order.totalAmountCents, language)}
+      </p>
+    </article>
   );
 }
 
+// The cart, its review step and the receipt. Rendered once: a side column on wide screens, a bottom
+// sheet on phones, which adds its close button beside the title and closes itself through
+// onUnverified/onDone.
 export function CartPanel({
   cart: model,
   guest,
   data,
   language,
+  headerAction,
+  onUnverified,
+  onDone,
 }: {
   cart: ReturnType<typeof useCart>;
-  guest: ReturnType<typeof useGuestVisit>;
+  guest: Guest;
   data: PublicMenu;
   language: Language;
+  headerAction?: ReactNode;
+  onUnverified?: () => void;
+  onDone?: () => void;
 }) {
   const m = orderMessages[language];
   const frozen = model.busy || !!model.cart.pending || !!model.review;
   const lines = model.review?.cart.lines ?? model.cart.lines;
   const total = totalCents(lines);
   if (guest.visit.ended)
-    return model.message === "endedPending" ? (
-      <Alert>
-        <AlertDescription>{m.endedPending}</AlertDescription>
-      </Alert>
-    ) : null;
+    return model.message === "endedPending" ? <Notice>{m.endedPending}</Notice> : null;
   return (
-    <section id="cart" aria-labelledby="cart-title" className="scroll-mt-6 space-y-4">
-      <Card>
-        <CardContent className="space-y-5 pt-6">
-          <div>
-            <h2 id="cart-title" className="text-xl font-semibold">
-              {model.review ? m.confirming : m.cart}
-            </h2>
-            <p className="mt-2 text-sm text-muted-foreground">{m.cartHint}</p>
-          </div>
-          {model.message && (
-            <Alert role="status">
-              <AlertDescription>{m[model.message]}</AlertDescription>
-            </Alert>
-          )}
-          {model.blocked && model.message !== model.blocked && (
-            <Alert variant="destructive">
-              <AlertDescription>{m[model.blocked]}</AlertDescription>
-            </Alert>
-          )}
-          {model.cart.pending && (
-            <Alert role="status">
-              <AlertDescription className="space-y-3">
-                <p>{m.unknown}</p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    className="min-h-11 h-auto whitespace-normal"
-                    disabled={model.busy || !guest.verified}
-                    onClick={() => void model.recover()}
-                  >
-                    {m.lookup}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="min-h-11 h-auto whitespace-normal"
-                    disabled={model.busy || !guest.verified || !!model.blocked}
-                    onClick={() => void model.retry()}
-                  >
-                    {m.retry}
-                  </Button>
+    <section id="cart" aria-labelledby="cart-title" className="space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 id="cart-title" className="text-lg font-semibold">
+            {model.review ? m.confirming : m.cart}
+          </h2>
+          {!model.review && <p className="mt-1 text-sm text-muted-foreground">{m.cartHint}</p>}
+        </div>
+        {headerAction}
+      </div>
+      {model.message && <Notice tone={messageTone(model.message)}>{m[model.message]}</Notice>}
+      {model.blocked && model.message !== model.blocked && (
+        <Notice tone="error">{m[model.blocked]}</Notice>
+      )}
+      {model.cart.pending && (
+        <Notice
+          tone="warning"
+          action={
+            <>
+              <Button
+                variant="outline"
+                disabled={model.busy || !guest.verified}
+                onClick={() => void model.recover()}
+              >
+                {m.lookup}
+              </Button>
+              <Button
+                variant="outline"
+                disabled={model.busy || !guest.verified || !!model.blocked}
+                onClick={() => void model.retry()}
+              >
+                {m.retry}
+              </Button>
+            </>
+          }
+        >
+          {m.unknown}
+        </Notice>
+      )}
+      {model.review && (
+        <div className="space-y-1 rounded-xl bg-secondary p-4">
+          <p className="text-lg font-semibold wrap-break-word">
+            {data.restaurant.name} · {model.review.tableLabel}
+          </p>
+          <p className="text-sm leading-6">{m.reviewHint}</p>
+          {model.review.newVisit && <p className="text-sm font-medium">{m.newVisit}</p>}
+        </div>
+      )}
+      {!lines.length ? (
+        model.message !== "success" && (
+          <p className="py-6 text-center text-muted-foreground">{m.empty}</p>
+        )
+      ) : (
+        <ul className="divide-y">
+          {lines.map((line, index) => {
+            const name = displayName(line.item, data.restaurant.defaultLanguage, language);
+            const currentItem = data.menu.items.find((i) => i.id === line.item.id);
+            const available = currentItem?.isAvailable && currentItem.allergenReviewed;
+            return (
+              <li key={index} className="space-y-2.5 py-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <p lang={name.language} className="min-w-0 font-medium wrap-break-word">
+                    {model.review && `${line.quantity} × `}
+                    {name.text}
+                  </p>
+                  <p className="shrink-0 font-semibold tabular-nums">
+                    {formatMoney(line.item.priceCents * line.quantity, language)}
+                  </p>
                 </div>
-              </AlertDescription>
-            </Alert>
-          )}
-          {model.review && (
-            <Alert>
-              <AlertDescription className="space-y-2">
-                <p className="text-lg font-semibold">
-                  {data.restaurant.name} · {model.review.tableLabel}
-                </p>
-                <p>{m.reviewHint}</p>
-                {model.review.newVisit && <p>{m.newVisit}</p>}
-              </AlertDescription>
-            </Alert>
-          )}
-          {!lines.length ? (
-            <p className="py-4 text-muted-foreground">{m.empty}</p>
-          ) : (
-            <ul className="divide-y">
-              {lines.map((line, index) => {
-                const name = displayName(line.item, data.restaurant.defaultLanguage, language);
-                const currentItem = data.menu.items.find((i) => i.id === line.item.id);
-                const available = currentItem?.isAvailable && currentItem.allergenReviewed;
-                return (
-                  <li key={index} className="space-y-3 py-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <p lang={name.language} className="min-w-0 font-medium wrap-break-word">
-                        {name.text}
-                      </p>
-                      <p className="shrink-0 tabular-nums">
-                        {formatMoney(line.item.priceCents * line.quantity, language)}
-                      </p>
-                    </div>
-                    {!available && <p className="text-sm text-destructive">{m.unavailable}</p>}
-                    <div className="flex flex-wrap items-center gap-2">
+                {!available && <p className="text-sm text-destructive">{m.unavailable}</p>}
+                {model.review ? (
+                  line.remark && (
+                    <p className="text-sm whitespace-pre-wrap text-muted-foreground wrap-break-word">
+                      {m.remark}: {line.remark}
+                    </p>
+                  )
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
-                        className="size-11"
+                        size="icon"
+                        className="rounded-full"
                         aria-label={`${m.decrease}: ${name.text}`}
                         disabled={frozen}
                         onClick={() => model.line(index, { quantity: line.quantity - 1 })}
                       >
-                        −
+                        <Minus />
                       </Button>
-                      <span className="min-w-8 text-center tabular-nums" aria-label={m.quantity}>
+                      <span
+                        className="min-w-8 text-center text-lg font-semibold tabular-nums"
+                        aria-label={m.quantity}
+                      >
                         {line.quantity}
                       </span>
                       <Button
                         variant="outline"
-                        className="size-11"
+                        size="icon"
+                        className="rounded-full"
                         aria-label={`${m.increase}: ${name.text}`}
                         disabled={frozen || !available || line.quantity >= 20}
                         onClick={() => model.line(index, { quantity: line.quantity + 1 })}
                       >
-                        +
+                        <Plus />
                       </Button>
                       <span className="text-xs text-muted-foreground">
                         {formatMoney(line.item.priceCents, language)} / {m.portions}
                       </span>
                       <Button
                         variant="ghost"
-                        className="ml-auto min-h-11"
+                        size="sm"
+                        className="ml-auto"
                         disabled={frozen}
                         onClick={() => model.line(index, { quantity: 0 })}
                         aria-label={`${m.remove}: ${name.text}`}
@@ -212,74 +238,83 @@ export function CartPanel({
                         {m.remove}
                       </Button>
                     </div>
-                    <label className="block space-y-2 text-sm">
-                      <span>
-                        {m.remark} · {name.text}
-                      </span>
-                      <Input
-                        className="min-h-11"
-                        maxLength={200}
-                        value={line.remark}
-                        disabled={frozen}
-                        onChange={(event) => model.line(index, { remark: event.target.value })}
-                      />
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          {lines.length > 0 && (
-            <>
-              <div className="space-y-2 text-sm">
-                <label htmlFor="order-note">{m.orderNote}</label>
-                <textarea
-                  id="order-note"
-                  className="min-h-22 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-base outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-60"
-                  maxLength={500}
-                  value={model.cart.orderNote}
-                  disabled={frozen}
-                  onChange={(event) => model.note(event.target.value)}
-                />
-              </div>
-              <p className="flex justify-between gap-3 text-lg font-semibold">
-                <span>{m.total}</span>
-                <span className="tabular-nums">{formatMoney(total, language)}</span>
-              </p>
-              <div className="flex flex-wrap gap-3">
-                {model.review ? (
-                  <>
-                    <Button
-                      className="min-h-12 h-auto whitespace-normal"
-                      disabled={model.busy || !guest.verified || !!model.blocked}
-                      onClick={() => void model.confirm()}
-                    >
-                      {model.busy ? m.busy : m.confirm}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="min-h-12"
-                      disabled={model.busy}
-                      onClick={model.back}
-                    >
-                      {m.back}
-                    </Button>
+                    <Input
+                      maxLength={200}
+                      placeholder={m.remark}
+                      aria-label={`${m.remark} · ${name.text}`}
+                      value={line.remark}
+                      disabled={frozen}
+                      onChange={(event) => model.line(index, { remark: event.target.value })}
+                    />
                   </>
-                ) : (
-                  <Button
-                    className="min-h-12 h-auto whitespace-normal"
-                    disabled={model.busy || !!model.cart.pending || !!model.blocked || guest.stale}
-                    onClick={() => void model.prepare()}
-                  >
-                    {model.busy ? m.busy : m.review}
-                  </Button>
                 )}
-              </div>
-            </>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {lines.length > 0 && (
+        <>
+          {model.review ? (
+            model.review.cart.orderNote.trim() && (
+              <p className="rounded-lg bg-secondary p-3 text-sm whitespace-pre-wrap wrap-break-word">
+                {m.orderNote}: {model.review.cart.orderNote}
+              </p>
+            )
+          ) : (
+            <div className="space-y-2">
+              <label htmlFor="order-note" className="text-sm font-medium">
+                {m.orderNote}
+              </label>
+              <Textarea
+                id="order-note"
+                className="min-h-20"
+                maxLength={500}
+                value={model.cart.orderNote}
+                disabled={frozen}
+                onChange={(event) => model.note(event.target.value)}
+              />
+            </div>
           )}
-        </CardContent>
-      </Card>
+          <p className="flex items-baseline justify-between gap-3 border-t pt-4 text-lg font-semibold">
+            <span>{m.total}</span>
+            <span className="text-xl tabular-nums">{formatMoney(total, language)}</span>
+          </p>
+          {model.review ? (
+            <div className="grid gap-2">
+              <Button
+                size="lg"
+                disabled={model.busy || !guest.verified || !!model.blocked}
+                onClick={() => void model.confirm()}
+              >
+                {model.busy ? m.busy : m.confirm}
+              </Button>
+              <Button variant="outline" size="lg" disabled={model.busy} onClick={model.back}>
+                {m.back}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              size="lg"
+              className="w-full"
+              disabled={model.busy || !!model.cart.pending || !!model.blocked || guest.stale}
+              onClick={() => {
+                // Phones close the sheet first so the join-code field the page focuses is reachable.
+                if (!guest.verified && guest.visit.sessionId) onUnverified?.();
+                void model.prepare();
+              }}
+            >
+              {model.busy ? m.busy : m.review}
+            </Button>
+          )}
+        </>
+      )}
       {model.receipt && <OrderCard order={model.receipt} language={language} />}
+      {model.receipt && onDone && (
+        <Button variant="outline" size="lg" className="w-full" onClick={onDone}>
+          {m.keepOrdering}
+        </Button>
+      )}
     </section>
   );
 }
@@ -289,7 +324,7 @@ export function TableOrders({
   data,
   language,
 }: {
-  guest: ReturnType<typeof useGuestVisit>;
+  guest: Guest;
   data: PublicMenu;
   language: Language;
 }) {
@@ -319,50 +354,53 @@ export function TableOrders({
   );
   return (
     <section id="table-orders" aria-labelledby="orders-title" className="space-y-4">
-      <div>
-        <h2 id="orders-title" className="text-xl font-semibold">
-          {m.orders}
-        </h2>
-        <p className="mt-2 text-sm text-muted-foreground">{m.ordersHint}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 id="orders-title" className="text-lg font-semibold">
+            {m.orders}
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">{m.ordersHint}</p>
+        </div>
+        <Button
+          variant="outline"
+          size="icon"
+          aria-label={m.refresh}
+          disabled={query.isFetching}
+          onClick={() => void query.refetch()}
+        >
+          <RefreshCw className={cn(query.isFetching && "animate-spin")} />
+        </Button>
       </div>
-      <Button
-        variant="outline"
-        className="min-h-11"
-        disabled={query.isFetching}
-        onClick={() => void query.refetch()}
-      >
-        {m.refresh}
-      </Button>
-      {query.isPending && <p role="status">{m.busy}</p>}
-      {query.isError && (
-        <Alert variant="destructive">
-          <AlertDescription>{m.stale}</AlertDescription>
-        </Alert>
+      {pages.length > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl bg-secondary p-4">
+          <span className="text-sm leading-5">{m.effectiveTotal}</span>
+          <span className="shrink-0 text-xl font-semibold tabular-nums">
+            {formatMoney(pages[0].totalAmountCents, language)}
+          </span>
+        </div>
       )}
+      {query.isError && <Notice tone="warning">{m.stale}</Notice>}
       {query.dataUpdatedAt > 0 && (
         <p className="text-xs text-muted-foreground">
           {m.updated}: {formatDateTime(query.dataUpdatedAt, language)}
         </p>
       )}
-      {!query.isPending && !orders.length && !query.isError && <p>{m.noOrders}</p>}
+      {query.isPending && <LoadingState label={m.busy} />}
+      {!query.isPending && !orders.length && !query.isError && (
+        <p className="py-6 text-center text-muted-foreground">{m.noOrders}</p>
+      )}
       {orders.map((order) => (
         <OrderCard key={order.id} order={order} language={language} />
       ))}
       {query.hasNextPage && (
         <Button
           variant="outline"
-          className="min-h-11"
+          className="w-full"
           disabled={query.isFetching}
           onClick={() => void query.fetchNextPage()}
         >
           {m.more}
         </Button>
-      )}
-      {pages.length > 0 && (
-        <p className="rounded-xl border bg-card p-4 font-semibold">
-          {m.effectiveTotal}:{" "}
-          <span className="tabular-nums">{formatMoney(pages[0].totalAmountCents, language)}</span>
-        </p>
       )}
     </section>
   );

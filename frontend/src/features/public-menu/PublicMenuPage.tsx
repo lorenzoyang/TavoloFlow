@@ -1,118 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { RefreshCw, Utensils } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { RefreshCw, X } from "lucide-react";
+import { BrandMark } from "@/components/brand";
+import { Notice } from "@/components/notice";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { displayName, type Language } from "@/lib/language";
-import type { MenuItem } from "@/features/menu/api";
+import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { Language } from "@/lib/language";
+import { useMediaQuery, WIDE_SCREEN } from "@/lib/useMediaQuery";
 import { publicMenuQuery, type PublicMenu } from "./api";
 import { readLanguage, saveLanguage, selectedLanguage } from "./language";
-import { allergenNames, languageLabels, messages } from "./messages";
+import { messages } from "./messages";
+import { CartBar, LanguageToggle, MenuHeader, MenuList } from "./PublicMenuViews";
 import { GuestPanel } from "@/features/guests/GuestPanel";
 import { guestKeys } from "@/features/guests/api";
 import { useGuestVisit } from "@/features/guests/useGuestVisit";
 import { useCart } from "@/features/orders/useCart";
 import { CartPanel, TableOrders } from "@/features/orders/OrderViews";
-import { formatMoney } from "@/lib/format";
 import { orderMessages } from "@/features/orders/messages";
-import { cartKey, totalCents } from "@/features/orders/state";
+import { cartKey } from "@/features/orders/state";
 import { guestVisitKey } from "@/features/guests/state";
-
-function Languages({
-  language,
-  select,
-}: {
-  language: Language;
-  select: (value: Language) => void;
-}) {
-  return (
-    <div role="group" aria-label={messages[language].languages} className="flex flex-wrap gap-2">
-      {(["zh", "it", "en"] as const).map((value) => (
-        <Button
-          key={value}
-          className="h-11"
-          variant={value === language ? "default" : "outline"}
-          aria-pressed={value === language}
-          onClick={() => select(value)}
-          lang={value}
-        >
-          {languageLabels[value]}
-        </Button>
-      ))}
-    </div>
-  );
-}
-
-function Dish({
-  item,
-  language,
-  defaultLanguage,
-  add,
-  disabled,
-}: {
-  item: MenuItem;
-  language: Language;
-  defaultLanguage: Language;
-  add: () => void;
-  disabled: boolean;
-}) {
-  const m = messages[language];
-  const name = displayName(item, defaultLanguage, language);
-  const description = { zh: item.descriptionZh, it: item.descriptionIt, en: item.descriptionEn }[
-    name.language
-  ];
-  return (
-    <Card>
-      <CardContent className="space-y-3 pt-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            {item.itemCode && (
-              <p className="mb-1 text-xs text-muted-foreground wrap-break-word">{item.itemCode}</p>
-            )}
-            <h3 lang={name.language} className="text-lg font-semibold leading-7 wrap-break-word">
-              {name.text}
-            </h3>
-          </div>
-          <p className="shrink-0 font-semibold tabular-nums">
-            {formatMoney(item.priceCents, language)}
-          </p>
-        </div>
-        {!item.isAvailable && <Badge variant="secondary">{m.soldOut}</Badge>}
-        {description && (
-          <p
-            lang={name.language}
-            className="text-sm leading-6 text-muted-foreground whitespace-pre-wrap wrap-break-word"
-          >
-            {description}
-          </p>
-        )}
-        <div className="border-t pt-3 text-xs leading-5 text-muted-foreground">
-          <p className="mb-1 font-medium text-foreground">{m.allergens}</p>
-          {!item.allergenReviewed ? (
-            <p>{m.unreviewed}</p>
-          ) : item.allergenCodes.length === 0 ? (
-            <p>{m.reviewedEmpty}</p>
-          ) : (
-            <p>
-              {item.allergenCodes
-                .map((code) => allergenNames[language][code] ?? m.unreviewed)
-                .join(" · ")}
-            </p>
-          )}
-        </div>
-        <Button
-          className="min-h-11 h-auto whitespace-normal"
-          disabled={disabled || !item.isAvailable || !item.allergenReviewed}
-          onClick={add}
-        >
-          {orderMessages[language].add}
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
 
 function MenuContent({
   token,
@@ -145,7 +52,14 @@ function MenuContent({
   useEffect(() => {
     rememberLanguage(language);
   }, [language, rememberLanguage]);
+  const wide = useMediaQuery(WIDE_SCREEN);
+  const [categoryId, setCategoryId] = useState("");
+  const [view, setView] = useState<"menu" | "orders">("menu");
+  const [cartOpen, setCartOpen] = useState(false);
+  // Set when the phone cart closes to let the guest verify first: focus then goes to the code field.
+  const focusJoin = useRef(false);
   const m = messages[language];
+  const om = orderMessages[language];
   const serviceNotice =
     data.restaurant.serviceStatus === "SUSPENDED"
       ? m.suspended
@@ -156,9 +70,6 @@ function MenuContent({
           : !data.activeSessionId
             ? m.unopened
             : null;
-  const [categoryId, setCategoryId] = useState<string | null>(null);
-  const selected = data.menu.categories.find((category) => category.id === categoryId);
-  const categories = selected ? [selected] : data.menu.categories;
   function selectLanguage(value: Language) {
     setPreference(value);
     try {
@@ -167,140 +78,135 @@ function MenuContent({
       /* Storage can be unavailable. */
     }
   }
+  const cartPanel = (
+    <CartPanel
+      cart={cart}
+      guest={guest}
+      data={data}
+      language={language}
+      headerAction={
+        wide ? undefined : (
+          <SheetClose
+            render={
+              <Button variant="ghost" size="icon" aria-label={om.close} className="-mt-2 -mr-2" />
+            }
+          >
+            <X />
+          </SheetClose>
+        )
+      }
+      onUnverified={
+        wide
+          ? undefined
+          : () => {
+              focusJoin.current = true;
+              setCartOpen(false);
+            }
+      }
+      onDone={wide ? undefined : () => setCartOpen(false)}
+    />
+  );
+  const menu = (
+    <MenuList
+      data={data}
+      language={language}
+      cart={cart}
+      categoryId={categoryId}
+      selectCategory={setCategoryId}
+    />
+  );
   return (
-    <main
-      lang={language}
-      className="mx-auto w-full max-w-3xl space-y-6 px-4 pt-6 pb-32 sm:px-6 sm:pt-10"
-    >
-      <header className="space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="mb-2 flex items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
-              <Utensils className="size-4" />
-              TavoloFlow
-            </p>
-            <h1 className="text-2xl font-semibold wrap-break-word">{data.restaurant.name}</h1>
-            <p className="mt-2 text-lg font-medium wrap-break-word">
-              {m.table} · {data.table.tableLabel}
-            </p>
-          </div>
-          <Badge variant="secondary" className="shrink-0">
-            {m.menu}
-          </Badge>
-        </div>
-        <Languages language={language} select={selectLanguage} />
-      </header>
-      <GuestPanel guest={guest} language={language} />
-      <CartPanel cart={cart} guest={guest} data={data} language={language} />
-      {!guest.visit.ended && (
-        <>
-          <Alert>
-            <AlertDescription className="space-y-2">
-              {serviceNotice && <p>{serviceNotice}</p>}
-              {serviceNotice !== m.unopened && <p>{m.order}</p>}
-            </AlertDescription>
-          </Alert>
-          {error && (
-            <Alert variant="destructive" role="alert">
-              <AlertDescription>{m.stale}</AlertDescription>
-            </Alert>
-          )}
-          <Button variant="outline" className="h-11" disabled={refreshing} onClick={refresh}>
-            <RefreshCw className={refreshing ? "animate-spin" : ""} />
-            {m.retry}
-          </Button>
-          {data.menu.items.length === 0 ? (
-            <p className="rounded-xl border bg-card px-5 py-12 text-center text-muted-foreground">
-              {m.empty}
-            </p>
+    <div lang={language} className="min-h-dvh">
+      <MenuHeader
+        data={data}
+        language={language}
+        selectLanguage={selectLanguage}
+        refreshing={refreshing}
+        refresh={refresh}
+      />
+      <div className="mx-auto max-w-6xl px-4 pb-36 lg:grid lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start lg:gap-8 lg:pb-12">
+        <main className="min-w-0 space-y-5 pt-5">
+          <GuestPanel guest={guest} language={language} />
+          {guest.visit.ended ? (
+            cartPanel
           ) : (
             <>
-              <nav aria-label={m.menu} className="flex flex-wrap gap-2">
-                <Button
-                  variant={!selected ? "default" : "outline"}
-                  className="min-h-11 h-auto whitespace-normal"
-                  aria-pressed={!selected}
-                  onClick={() => setCategoryId(null)}
-                >
-                  {m.all}
-                </Button>
-                {data.menu.categories.map((category) => {
-                  const name = displayName(category, data.restaurant.defaultLanguage, language);
-                  return (
-                    <Button
-                      key={category.id}
-                      lang={name.language}
-                      variant={selected?.id === category.id ? "default" : "outline"}
-                      className="min-h-11 h-auto max-w-full whitespace-normal wrap-anywhere"
-                      aria-pressed={selected?.id === category.id}
-                      onClick={() => setCategoryId(category.id)}
-                    >
-                      {name.text}
+              {serviceNotice && (
+                <Notice tone={serviceNotice === m.unopened ? "info" : "warning"}>
+                  {serviceNotice}
+                </Notice>
+              )}
+              {!serviceNotice && !guest.verified && (
+                <p className="text-sm leading-6 text-muted-foreground">{m.order}</p>
+              )}
+              {error && (
+                <Notice
+                  tone="error"
+                  action={
+                    <Button variant="outline" disabled={refreshing} onClick={refresh}>
+                      <RefreshCw />
+                      {m.retry}
                     </Button>
-                  );
-                })}
-              </nav>
-              {categories.map((category) => {
-                const name = displayName(category, data.restaurant.defaultLanguage, language);
-                const items = data.menu.items.filter((item) => item.categoryId === category.id);
-                return (
-                  <section
-                    key={category.id}
-                    className="space-y-4"
-                    aria-labelledby={`category-${category.id}`}
-                  >
-                    <h2
-                      id={`category-${category.id}`}
-                      lang={name.language}
-                      className="text-xl font-semibold wrap-break-word"
-                    >
-                      {name.text}
-                    </h2>
-                    {items.length ? (
-                      <div className="grid gap-4">
-                        {items.map((item) => (
-                          <Dish
-                            key={item.id}
-                            item={item}
-                            language={language}
-                            defaultLanguage={data.restaurant.defaultLanguage}
-                            add={() => cart.add(item)}
-                            disabled={cart.busy || !!cart.cart.pending || !!cart.review}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">{m.emptyCategory}</p>
-                    )}
-                  </section>
-                );
-              })}
+                  }
+                >
+                  {m.stale}
+                </Notice>
+              )}
+              {guest.verified ? (
+                <Tabs
+                  value={view}
+                  onValueChange={(value: "menu" | "orders") => setView(value)}
+                  className="gap-5"
+                >
+                  <TabsList className="w-full">
+                    <TabsTrigger value="menu">{om.menuTab}</TabsTrigger>
+                    <TabsTrigger value="orders">{om.orders}</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="menu" keepMounted>
+                    {menu}
+                  </TabsContent>
+                  <TabsContent value="orders" keepMounted>
+                    <TableOrders guest={guest} data={data} language={language} />
+                  </TabsContent>
+                </Tabs>
+              ) : (
+                menu
+              )}
+              <footer className="border-t pt-5 text-xs leading-6 text-muted-foreground">
+                {m.allergyHint}
+              </footer>
             </>
           )}
-          <TableOrders guest={guest} data={data} language={language} />
-          <footer className="border-t pt-5 text-xs leading-6 text-muted-foreground">
-            {m.allergyHint}
-          </footer>
+        </main>
+        {wide && !guest.visit.ended && (
+          <aside className="sticky top-6 mt-5 max-h-[calc(100dvh-3rem)] overflow-y-auto rounded-2xl border bg-card p-5 shadow-xs">
+            {cartPanel}
+          </aside>
+        )}
+      </div>
+      {!wide && !guest.visit.ended && (
+        <>
           {cart.cart.lines.length > 0 && (
-            <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-lg">
-              <a
-                href="#cart"
-                className="mx-auto flex min-h-12 max-w-3xl items-center justify-between gap-3 rounded-lg bg-primary px-4 py-3 text-primary-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-              >
-                <span>
-                  {orderMessages[language].cart} ·{" "}
-                  {cart.cart.lines.reduce((n, line) => n + line.quantity, 0)}{" "}
-                  {orderMessages[language].portions}
-                </span>
-                <span className="shrink-0 font-semibold tabular-nums">
-                  {formatMoney(totalCents(cart.cart.lines), language)}
-                </span>
-              </a>
-            </div>
+            <CartBar cart={cart} language={language} open={() => setCartOpen(true)} />
           )}
+          <Sheet open={cartOpen} onOpenChange={setCartOpen}>
+            <SheetContent
+              side="bottom"
+              showCloseButton={false}
+              aria-labelledby="cart-title"
+              finalFocus={() => {
+                if (!focusJoin.current) return true;
+                focusJoin.current = false;
+                return document.getElementById("guest-join-code") ?? true;
+              }}
+              className="max-h-[90dvh] gap-0 rounded-t-3xl"
+            >
+              <div className="pb-safe overflow-y-auto px-4 pt-5">{cartPanel}</div>
+            </SheetContent>
+          </Sheet>
         </>
       )}
-    </main>
+    </div>
   );
 }
 
@@ -330,43 +236,35 @@ export function PublicMenuPage({ token }: { token: string }) {
   }, [query.data, token, client]);
   const [language, setLanguage] = useState<Language>("it");
   const m = messages[language];
+  if (query.data)
+    return (
+      <MenuContent
+        key={`${query.data.restaurant.id}:${query.data.table.id}:${token}`}
+        token={token}
+        data={query.data}
+        confirmedAt={query.isFetchedAfterMount && !query.isError ? query.dataUpdatedAt : 0}
+        error={query.isError || query.fetchStatus === "paused"}
+        refreshing={query.isFetching}
+        refresh={() => void query.refetch()}
+        rememberLanguage={setLanguage}
+      />
+    );
+  const failed = query.isError || query.fetchStatus === "paused";
   return (
-    <div className="min-h-svh bg-muted/30 text-foreground">
-      {query.data ? (
-        <MenuContent
-          key={`${query.data.restaurant.id}:${query.data.table.id}:${token}`}
-          token={token}
-          data={query.data}
-          confirmedAt={query.isFetchedAfterMount && !query.isError ? query.dataUpdatedAt : 0}
-          error={query.isError || query.fetchStatus === "paused"}
-          refreshing={query.isFetching}
-          refresh={() => void query.refetch()}
-          rememberLanguage={setLanguage}
-        />
-      ) : (
-        <main lang={language} className="mx-auto max-w-lg space-y-6 px-4 py-12">
-          <h1 className="text-2xl font-semibold">TavoloFlow · {m.menu}</h1>
-          <Languages language={language} select={setLanguage} />
-          <Alert role={query.isPending && query.fetchStatus !== "paused" ? "status" : "alert"}>
-            <AlertDescription>
-              {query.data === null
-                ? m.invalid
-                : query.isError || query.fetchStatus === "paused"
-                  ? m.error
-                  : m.loading}
-            </AlertDescription>
-          </Alert>
-          <Button
-            variant="outline"
-            className="h-11"
-            disabled={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            <RefreshCw />
-            {m.retry}
-          </Button>
-        </main>
-      )}
-    </div>
+    <main
+      lang={language}
+      className="mx-auto flex min-h-dvh max-w-md flex-col gap-6 px-4 pt-[max(2.5rem,env(safe-area-inset-top))] pb-10"
+    >
+      <BrandMark />
+      <h1 className="sr-only">TavoloFlow · {m.menu}</h1>
+      <LanguageToggle language={language} select={setLanguage} />
+      <Notice tone={query.data === null || failed ? "error" : "info"}>
+        {query.data === null ? m.invalid : failed ? m.error : m.loading}
+      </Notice>
+      <Button variant="outline" disabled={query.isFetching} onClick={() => void query.refetch()}>
+        <RefreshCw />
+        {m.retry}
+      </Button>
+    </main>
   );
 }
