@@ -41,32 +41,31 @@ public static class AccountServiceCollectionExtensions
             options.Cookie.Path = "/";
             options.ExpireTimeSpan = StoreAuthentication.Lifetime;
             options.SlidingExpiration = false;
+            // It requires services such as databases, and these services are scoped, 
+            // so this StoreCookieEvents also needs to be scoped. Therefore, 
+            // after registering it earlier, it is declared here.
             options.EventsType = typeof(StoreCookieEvents);
         });
-        services.AddAuthorization(options =>
-        {
-            var staff = new AuthorizationPolicyBuilder(StoreAuthentication.Scheme)
-                .RequireAuthenticatedUser()
-                .RequireRole("OWNER", "STAFF")
-                .AddRequirements(new PasswordChangedRequirement())
-                .Build();
+        var staff = new AuthorizationPolicyBuilder(StoreAuthentication.Scheme)
+            .RequireAuthenticatedUser()
+            .RequireRole("OWNER", "STAFF")
+            .AddRequirements(new PasswordChangedRequirement())
+            .Build();
 
+        services.AddAuthorizationBuilder()
             // Endpoints without an explicit policy are store-staff only, so nothing is public by accident.
-            options.DefaultPolicy = staff;
-            options.FallbackPolicy = staff;
-            options.AddPolicy(StoreAuthentication.StaffPolicy, staff);
-
-            options.AddPolicy(StoreAuthentication.AccountPolicy, policy =>
+            .SetDefaultPolicy(staff)
+            .SetFallbackPolicy(staff)
+            .AddPolicy(StoreAuthentication.StaffPolicy, staff)
+            .AddPolicy(StoreAuthentication.AccountPolicy, policy =>
                 policy.AddAuthenticationSchemes(StoreAuthentication.Scheme)
                     .RequireAuthenticatedUser()
-                    .RequireRole("OWNER", "STAFF"));
-
-            options.AddPolicy(StoreAuthentication.OwnerPolicy, policy =>
+                    .RequireRole("OWNER", "STAFF"))
+            .AddPolicy(StoreAuthentication.OwnerPolicy, policy =>
                 policy.AddAuthenticationSchemes(StoreAuthentication.Scheme)
                     .RequireAuthenticatedUser()
                     .RequireRole("OWNER")
                     .AddRequirements(new PasswordChangedRequirement()));
-        });
         return services;
     }
 }

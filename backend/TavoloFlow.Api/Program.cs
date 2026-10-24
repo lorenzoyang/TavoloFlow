@@ -20,7 +20,7 @@ if (args is ["--healthcheck"])
 
 var command = MaintenanceCommands.Parse(args, out var hostArgs);
 var builder = WebApplication.CreateBuilder(hostArgs);
-builder.Configuration.AddKeyPerFile("/run/secrets", optional: true);
+builder.Configuration.AddKeyPerFile("/run/secrets", optional: true); // to check
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddControllers(options =>
@@ -68,12 +68,16 @@ app.Use(async (context, next) =>
     }
     await next();
 });
+// Unified handling of unhandled exceptions.
 app.UseExceptionHandler(handler => handler.Run(async context =>
 {
     var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+
     app.Logger.LogError(exception, "Request {RequestId} failed.", context.TraceIdentifier);
+
     context.Response.StatusCode = StatusCodes.Status500InternalServerError;
     context.Response.Headers.CacheControl = "no-store";
+
     await context.Response.WriteAsJsonAsync(ApiError.Create(context, "INTERNAL_ERROR", "服务暂时不可用，请稍后重试。"));
 }));
 
@@ -85,6 +89,7 @@ else
 {
     app.UseForwardedHeaders();
     app.UseHsts();
+    
     // The internal container health probe uses HTTP; no sensitive data is returned.
     app.UseWhen(context => !context.Request.Path.StartsWithSegments("/api/health"), branch => branch.UseHttpsRedirection());
 }

@@ -21,6 +21,7 @@ public sealed class AccountRateLimiter(AccountRateLimitOptions options) : IDispo
     private readonly FixedWindowLimiter passwordChanges = new(options.PasswordChangesPerMinute, TimeSpan.FromMinutes(1));
 
     // The username window is consumed only after the IP window admits the attempt.
+    // Therefore, check login attempts first for the IP, then for the username.
     public void EnsureLoginAllowed(string ip, string username) =>
         ThrowIfLimited(ips.TryAcquire(ip) ?? usernames.TryAcquire(username));
 

@@ -30,7 +30,8 @@ public sealed class AccountService(
         string username, string password, CancellationToken cancellationToken)
     {
         var normalized = AccountInput.NormalizeUsername(username);
-        var user = await context.RestaurantUsers.AsNoTracking().Include(user => user.Restaurant)
+        var user = await context.RestaurantUsers.AsNoTracking()
+            .Include(user => user.Restaurant)
             .SingleOrDefaultAsync(user => user.Username == normalized, cancellationToken);
         var candidate = user ?? unknownAccount.User;
         var result = passwordHasher.VerifyHashedPassword(candidate, candidate.PasswordHash, password);

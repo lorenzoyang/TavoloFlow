@@ -71,7 +71,8 @@ public sealed class ApiExceptionFilter : IExceptionFilter
     // [ApiController] model-binding failures use the same envelope (see Program.cs).
     public static IActionResult InvalidModelState(ActionContext context)
     {
-        var errors = context.ModelState.Where(entry => entry.Value?.Errors.Count > 0)
+        var errors = context.ModelState
+            .Where(entry => entry.Value?.Errors.Count > 0)
             .ToDictionary(entry => entry.Key, entry => entry.Value!.Errors.Select(_ => "请检查字段格式和长度。").ToArray());
         return new BadRequestObjectResult(ApiError.Create(context.HttpContext, "VALIDATION_FAILED", "请检查输入内容。", errors));
     }

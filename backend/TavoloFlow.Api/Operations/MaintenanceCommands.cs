@@ -37,18 +37,20 @@ public static class MaintenanceCommands
 
     public static async Task RunAsync(WebApplication app, string command)
     {
+        // No HTTP request means no per-request scope. The seeder and bootstrap services are scoped
+        // (they depend on DbContext), so create a scope by hand; disposing it also releases the DbContext.
         await using var scope = app.Services.CreateAsyncScope();
         if (command == SeedDevelopmentAccounts)
         {
             var seed = app.Configuration.GetSection("DevelopmentSeed").Get<DevelopmentSeedOptions>() ?? new();
             var created = await scope.ServiceProvider.GetRequiredService<DevelopmentAccountSeeder>().SeedAsync(seed);
-            app.Logger.LogInformation(created ? "Development accounts created." : "Development accounts already exist; unchanged.");
+            app.Logger.LogInformation("Development accounts seeded (created: {Created}).", created);
             return;
         }
 
         var bootstrap = app.Configuration.GetSection("PlatformBootstrap").Get<PlatformBootstrapOptions>() ?? new();
         var changed = await scope.ServiceProvider.GetRequiredService<PlatformBootstrap>()
             .RunAsync(bootstrap, reset: command == ResetPlatformPassword);
-        app.Logger.LogInformation(changed ? "Platform command completed." : "Platform administrator already exists; unchanged.");
+        app.Logger.LogInformation("Platform command completed (changed: {Changed}).", changed);
     }
 }

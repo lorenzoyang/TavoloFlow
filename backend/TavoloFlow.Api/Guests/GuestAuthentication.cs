@@ -38,7 +38,10 @@ public static class GuestAuthentication
         ], Scheme);
         return http.SignInAsync(Scheme, new ClaimsPrincipal(identity), new AuthenticationProperties
         {
-            IsPersistent = false, AllowRefresh = false, IssuedUtc = now, ExpiresUtc = now + Lifetime
+            IsPersistent = false,
+            AllowRefresh = false,
+            IssuedUtc = now,
+            ExpiresUtc = now + Lifetime
         });
     }
 
@@ -59,14 +62,16 @@ public static class GuestAuthentication
             options.Cookie.SecurePolicy = BrowserSecurity.CookiePolicy(environment);
             options.ExpireTimeSpan = Lifetime;
             options.SlidingExpiration = false;
+            // It has no scoped dependencies, 
+            // so you can create one when starting up and share it.
             options.Events = new CookieAuthenticationEvents
             {
                 OnRedirectToLogin = ctx => ApiError.WriteAsync(ctx.HttpContext, 401, "GUEST_AUTH_REQUIRED", "请验证本轮入桌码。"),
                 OnRedirectToAccessDenied = ctx => ApiError.WriteAsync(ctx.HttpContext, 403, "GUEST_ACCESS_DENIED", "无法访问本轮用餐。")
             };
         });
-        services.AddAuthorization(options => options.AddPolicy(Policy, policy =>
-            policy.AddAuthenticationSchemes(Scheme).RequireAuthenticatedUser()));
+        services.AddAuthorizationBuilder().AddPolicy(Policy, policy =>
+            policy.AddAuthenticationSchemes(Scheme).RequireAuthenticatedUser());
         return services;
     }
 }

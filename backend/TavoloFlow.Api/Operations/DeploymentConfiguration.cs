@@ -28,6 +28,7 @@ public static class DeploymentConfiguration
         if (string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path))
             throw new InvalidOperationException("Production requires an absolute, persistent DataProtection:KeyRingPath.");
         Directory.CreateDirectory(path);
+        // Only used to confirm that writing to this directory is possible.
         var probe = Path.Combine(path, $".write-check-{Guid.NewGuid():N}");
         try { using var stream = new FileStream(probe, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1, FileOptions.DeleteOnClose); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)

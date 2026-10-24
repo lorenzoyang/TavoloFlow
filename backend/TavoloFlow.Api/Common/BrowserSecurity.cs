@@ -48,6 +48,7 @@ public static class BrowserSecurity
             options.Cookie.SecurePolicy = CookiePolicy(environment);
         });
         services.AddSingleton<IAntiforgeryAdditionalDataProvider, BrowserCsrfScope>();
+        
         return services;
     }
 }

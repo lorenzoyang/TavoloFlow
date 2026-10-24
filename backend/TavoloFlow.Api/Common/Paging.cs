@@ -5,6 +5,7 @@ namespace TavoloFlow.Api.Common;
 
 // Keyset pagination. A cursor is the Base64Url JSON of the last row's sort key plus the scope it was
 // issued for (tenant, session, filters...); each service checks that scope before trusting the position.
+// Unlike OFFSET, a value-based position stays correct when rows are added or leave the list.
 public static class Paging
 {
     public const int MaxLimit = 100;
@@ -19,6 +20,7 @@ public static class Paging
     }
 
     // Returns null when no cursor was sent. A malformed or out-of-scope cursor is a client error.
+    // isValid is the calling service's scope check; the cursor is client input and never trusted as sent.
     public static T? Decode<T>(string? cursor, Func<T, bool>? isValid = null) where T : class
     {
         if (cursor is null) return null;
@@ -43,6 +45,7 @@ public static class Paging
     public static bool IsPosition(DateTime at, Guid id) => at.Kind == DateTimeKind.Utc && id != Guid.Empty;
 
     // Callers read limit + 1 rows; the extra row only proves that another page exists.
+    // The cursor records the last returned row, since the next page starts strictly after it.
     public static (T[] Items, string? NextCursor) Page<T, TCursor>(T[] rows, int limit, Func<T, TCursor> cursorFor)
     {
         var items = rows.Take(limit).ToArray();

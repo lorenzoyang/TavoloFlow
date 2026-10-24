@@ -44,8 +44,8 @@ public static class PlatformAuthentication
             options.SlidingExpiration = false;
             options.EventsType = typeof(PlatformCookieEvents);
         });
-        services.AddAuthorization(options => options.AddPolicy(Policy, policy =>
-            policy.AddAuthenticationSchemes(Scheme).RequireAuthenticatedUser().RequireRole("PLATFORM_ADMIN")));
+        services.AddAuthorizationBuilder().AddPolicy(Policy, policy =>
+            policy.AddAuthenticationSchemes(Scheme).RequireAuthenticatedUser().RequireRole("PLATFORM_ADMIN"));
         return services;
     }
 
