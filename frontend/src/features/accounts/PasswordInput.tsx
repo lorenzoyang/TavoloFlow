@@ -48,7 +48,7 @@ export function PasswordInput({
           aria-invalid={!!error}
           aria-describedby={describedBy}
           onChange={onChange}
-          className="h-11 pr-12"
+          className="pr-12"
         />
         <Button
           type="button"
@@ -58,7 +58,7 @@ export function PasswordInput({
           onClick={() => setVisible(!visible)}
           aria-label={`${visible ? m.hidePassword : m.showPassword}：${label}`}
           aria-pressed={visible}
-          className="absolute right-0 top-0 size-11 text-muted-foreground"
+          className="absolute top-0 right-0 text-muted-foreground"
         >
           {visible ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
         </Button>
