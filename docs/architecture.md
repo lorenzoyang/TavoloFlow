@@ -57,9 +57,12 @@ flowchart TD
 
 | 身份 | 路径 | Cookie（Path、有效期） | 可信身份来源 |
 |---|---|---|---|
-| Store | 除下面两类之外的所有 `/api` | `TavoloFlow.Store`（`/`，固定 16 小时） | `CurrentAccount` |
+| Store | 除下面两类之外的所有 `/api` | `TavoloFlow.Store`（`/`，持久 Cookie，固定 30 天） | `CurrentAccount` |
 | Guest | `/api/public/*` | `TavoloFlow.Guest`（`/api/public`，固定 12 小时） | `GuestIdentity` |
-| Platform | `/api/platform/*` | `TavoloFlow.Platform`（`/api/platform`，固定 8 小时） | `CurrentPlatformAccount` |
+| Platform | `/api/platform/*` | `TavoloFlow.Platform`（`/api/platform`，持久 Cookie，固定 30 天） | `CurrentPlatformAccount` |
+
+Store/Platform 关闭浏览器后保留登录，三种身份均不滑动续期；Guest 保持浏览器会话 Cookie。
+Store/Platform 密码统一允许 6–128 个字符（包括六位纯数字），不能全部为空白。已有票据按原签发期限到期，新期限从重新登录或成功改密时生效。
 
 `Common/BrowserSecurity.SchemeFor(path)` 是唯一的“路径 → 身份”映射，有两个用途：
 
@@ -70,7 +73,7 @@ flowchart TD
 
 ## 4. 数据模型与不变量
 
-九张表的完整定义见 `er-diagram.dbml`。理解系统时最重要的是数据库保证的这些不变量：
+十张表的完整定义见 `er-diagram.dbml`，其中一张保存餐厅收费周期。理解系统时最重要的是数据库保证的这些不变量：
 
 | 不变量 | 实现方式 |
 |---|---|
@@ -81,7 +84,7 @@ flowchart TD
 | 历史不可改写 | 订单明细保存名称、价格和过敏原快照；删除菜品或桌位只断开可空引用，快照保留 |
 | 枚举文本 | 数据库与 JSON 都使用大写名称（`ApiEnum` + `UppercaseEnumConverter`），并有检查约束限制取值 |
 
-金额统一使用整数欧分（`long`），上限是 JavaScript 的安全整数 `InputRules.MaxSafeCents`，保证浏览器能精确表示。时间统一存储为 UTC `timestamptz`，界面按 Europe/Rome 显示。
+金额统一使用整数欧分（`long`），上限是 JavaScript 的安全整数 `InputRules.MaxSafeCents`，保证浏览器能精确表示。时间戳统一存储为 UTC `timestamptz`，界面按 Europe/Rome 显示；收费周期和付费日期使用餐厅当地 `date`，截止日不包含。服务期限和付款状态独立，收款不会移动期限，过期只提醒。详见 [收费周期](restaurant-subscriptions.md)。
 
 ## 5. 并发设计
 
@@ -189,11 +192,11 @@ flowchart TD
   G -->|仍是原状态| H[需要人重新确认才能再发 POST]
 ```
 
-唯一的例外是顾客下单：允许顾客手动点击“重试原订单”，但必须使用原 `client_request_id` 和完全相同的内容，由后端幂等保证不会重复下单。
+例外有两个。一是顾客下单：允许顾客手动点击“重试原订单”，但必须使用原 `client_request_id` 和完全相同的内容，由后端幂等保证不会重复下单。二是平台收费写入：不保存意图，每次写入都携带读取时的收费版本，同一版本最多一次成功；结果未知时只重新读取，由管理员核对后重新确认。
 
 ### 7.3 实时视图的新鲜度
 
-厨房和账单页面只在页面可见且在线时轮询（`isLive()`）。写操作要求最近一次成功同步发生在页面上次恢复之后，并且不超过 30 秒（`lib/live-view.ts` 的 `syncIsFresh`），否则禁止操作，避免依据过期数据做决定。异步请求通过 epoch 计数器和 `AbortController` 丢弃迟到的响应：页面隐藏、断网或身份变化后，旧请求的结果不再写入界面。
+厨房和账单页面只在页面可见且在线时轮询（`isLive()`）。写操作要求最近一次成功同步发生在页面上次恢复之后，并且不超过 30 秒（`lib/live-view.ts` 的 `syncIsFresh`），否则禁止操作，避免依据过期数据做决定。收费视图每 60 秒轮询，复用同一函数并把新鲜窗口放宽到 90 秒。异步请求通过 epoch 计数器和 `AbortController` 丢弃迟到的响应：页面隐藏、断网或身份变化后，旧请求的结果不再写入界面。
 
 ## 8. 设计取舍
 

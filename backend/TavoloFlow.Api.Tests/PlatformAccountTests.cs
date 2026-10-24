@@ -86,13 +86,57 @@ public sealed class PlatformAccountTests(PostgreSqlFixture database) : IClassFix
         Assert.Contains("path=/api/platform", cookie);
         Assert.Contains("httponly", cookie);
         Assert.Contains("secure", cookie);
-        Assert.DoesNotContain("expires=", cookie);
+        host.AssertPersistentTicket(response, PlatformAuthentication.Scheme, PlatformAuthentication.CookieName);
         var me = await browser.GetFromJsonAsync<PlatformIdentityResponse>("/api/platform/auth/me");
         Assert.Equal(user.Id, me!.UserId);
         await AssertErrorAsync(await browser.GetAsync("/api/test-accounts/owner"), HttpStatusCode.Unauthorized, "UNAUTHENTICATED");
         await AssertErrorAsync(await browser.GetAsync("/api/auth/me"), HttpStatusCode.Unauthorized, "UNAUTHENTICATED");
-        host.Clock.Advance(TimeSpan.FromHours(8) + TimeSpan.FromSeconds(1));
+        host.Clock.Advance(TimeSpan.FromDays(29));
+        var beforeExpiry = await browser.GetAsync("/api/platform/auth/me");
+        Assert.Equal(HttpStatusCode.OK, beforeExpiry.StatusCode);
+        Assert.False(beforeExpiry.Headers.Contains("Set-Cookie"));
+        host.Clock.Advance(TimeSpan.FromDays(1) + TimeSpan.FromSeconds(1));
         await AssertErrorAsync(await browser.GetAsync("/api/platform/auth/me"), HttpStatusCode.Unauthorized, "UNAUTHENTICATED");
+    }
+
+    [Fact]
+    public async Task ChangePassword_SixDigits_ReissuesPersistentTicketAndAllowsLogin()
+    {
+        var user = await SeedAsync(database);
+        using var host = new AccountTestHost(database);
+        using var browser = host.Browser();
+        await LoginAsync(browser, user);
+        host.Clock.Advance(TimeSpan.FromDays(10));
+        var changed = await WriteAsync(browser, "/api/platform/auth/change-password",
+            new ChangePasswordRequest(Password, "123456"));
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        host.AssertPersistentTicket(changed, PlatformAuthentication.Scheme, PlatformAuthentication.CookieName);
+        using var another = host.Browser();
+        Assert.Equal(HttpStatusCode.OK, (await WriteAsync(another, "/api/platform/auth/login",
+            new LoginRequest(user.Username, "123456"))).StatusCode);
+    }
+
+    [Fact]
+    public async Task ChangePassword_InvalidInputs_LeavesCredentialsUnchanged()
+    {
+        var user = await SeedAsync(database);
+        using var host = new AccountTestHost(database);
+        using var browser = host.Browser();
+        await LoginAsync(browser, user);
+        foreach (var (current, next, code) in new[]
+        {
+            ("incorrect", NewPassword, "CURRENT_PASSWORD_INCORRECT"),
+            (Password, Password, "PASSWORD_UNCHANGED"),
+            (Password, "12345", "VALIDATION_FAILED"),
+            (Password, new string('x', 129), "VALIDATION_FAILED"),
+            (Password, new string(' ', 6), "VALIDATION_FAILED")
+        })
+        {
+            await AssertErrorAsync(await WriteAsync(browser, "/api/platform/auth/change-password",
+                new ChangePasswordRequest(current, next)), HttpStatusCode.BadRequest, code);
+        }
+        await using var db = database.CreateContext();
+        Assert.Equal(1, (await db.PlatformUsers.FindAsync(user.Id))!.CredentialVersion);
     }
 
     [Fact]

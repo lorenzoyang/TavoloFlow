@@ -1,5 +1,4 @@
 import { useState, type FormEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,30 +11,76 @@ import { useManagement } from "./useManagement";
 import { randomUuid } from "@/lib/ids";
 import { createRestaurant, listRestaurants, RESTAURANTS_PAGE_SIZE } from "./api";
 import type { PlatformIdentity } from "./identity";
+import { PeriodFields } from "@/features/subscriptions/PeriodFields";
+import { periodFromForm } from "@/features/subscriptions/state";
+import { SubscriptionStatus } from "@/features/subscriptions/SubscriptionViews";
+import { useSubscriptionQuery } from "@/features/subscriptions/queries";
+import { formatMoney, parsePrice, RESTAURANT_TIME_ZONE } from "@/lib/format";
+import { useLiveView } from "@/lib/useLiveView";
 
 function Restaurants({ account }: { account: PlatformIdentity }) {
-  const [filter, setFilter] = useState({ search: "", status: "", page: 1 });
-  const actions = useManagement("platform", account.userId);
-  const query = useQuery({
-    queryKey: ["platform", "restaurants", account.userId, filter],
-    queryFn: ({ signal }) => listRestaurants(filter, signal),
+  const [filter, setFilter] = useState({
+    search: "",
+    status: "",
+    subscriptionStatus: "",
+    sort: "",
+    page: 1,
   });
+  const [annualInput, setAnnualInput] = useState("");
+  const [includePeriod, setIncludePeriod] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const live = useLiveView();
+  const today = new Intl.DateTimeFormat("sv-SE", { timeZone: RESTAURANT_TIME_ZONE }).format(
+    new Date(live.now),
+  );
+  const actions = useManagement("platform", account.userId);
+  const query = useSubscriptionQuery(
+    ["platform", "restaurants", account.userId, filter],
+    (signal) => listRestaurants(filter, signal),
+  );
   const create = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
     const id = actions.pending?.kind === "create" ? actions.pending.restaurantId : randomUuid();
+    const defaultAnnualFeeCents = annualInput.trim() ? parsePrice(annualInput, true) : null;
+    if (annualInput.trim() && defaultAnnualFeeCents === null) {
+      setCreateError("请填写最多两位小数的有效年费。");
+      return;
+    }
+    let initialPeriod = null;
+    try {
+      if (includePeriod) initialPeriod = periodFromForm(data, "create-period", randomUuid());
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : "请核对收费周期。");
+      return;
+    }
+    if (
+      initialPeriod &&
+      !window.confirm(
+        `确认登记 ${initialPeriod.startsOn} 至 ${initialPeriod.endsOn}，${initialPeriod.years} 年，总金额 ${formatMoney(initialPeriod.amountCents)}；${initialPeriod.paidOn ? `已付费，付费日期 ${initialPeriod.paidOn}` : "未付费"}？`,
+      )
+    )
+      return;
+    setCreateError("");
     const input = {
       id,
       name: String(data.get("name")),
       defaultLanguage: String(data.get("language")),
       ownerUsername: String(data.get("owner")),
       staffUsername: String(data.get("staff")),
+      ownerContact: String(data.get("ownerContact") ?? "").trim() || null,
+      defaultAnnualFeeCents,
+      initialPeriod,
     };
     const ok = await actions.run({ kind: "create", restaurantId: id }, (signal) =>
       createRestaurant(input, signal),
     );
-    if (ok) form.reset();
+    if (ok) {
+      form.reset();
+      setAnnualInput("");
+      setIncludePeriod(false);
+    }
   };
   return (
     <>
@@ -83,6 +128,48 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
                 <option value="en">English</option>
               </select>
             </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="create-contact">老板联系方式（可选）</Label>
+              <textarea
+                id="create-contact"
+                name="ownerContact"
+                maxLength={500}
+                rows={3}
+                className="min-h-24 w-full rounded-md border bg-background px-3 py-2 focus-visible:outline-2 focus-visible:outline-ring"
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="create-annual">默认年费（EUR，可选）</Label>
+              <Input
+                id="create-annual"
+                inputMode="decimal"
+                value={annualInput}
+                onChange={(event) => setAnnualInput(event.target.value)}
+                className="h-11"
+              />
+            </div>
+            <label className="flex min-h-11 items-center gap-3 sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={includePeriod}
+                onChange={(event) => setIncludePeriod(event.target.checked)}
+                className="size-5"
+              />
+              同时登记首个收费周期
+            </label>
+            {includePeriod && (
+              <PeriodFields
+                prefix="create-period"
+                annualFee={parsePrice(annualInput, true)}
+                startsOn={today}
+                today={today}
+              />
+            )}
+            {createError && (
+              <p role="alert" className="sm:col-span-2">
+                {createError}
+              </p>
+            )}
             <Button className="min-h-11 sm:col-span-2" type="submit">
               {actions.missingCreate ? "确认按原编号再次创建" : "创建餐厅与两个账号"}
             </Button>
@@ -111,6 +198,8 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
           setFilter({
             search: String(data.get("search")).trim(),
             status: String(data.get("status")),
+            subscriptionStatus: String(data.get("subscriptionStatus")),
+            sort: String(data.get("sort")),
             page: 1,
           });
         }}
@@ -129,6 +218,31 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
             <option value="">全部</option>
             <option value="ACTIVE">已启用</option>
             <option value="SUSPENDED">已停用</option>
+          </select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="restaurant-subscription">年费状态</Label>
+          <select
+            id="restaurant-subscription"
+            name="subscriptionStatus"
+            className="h-11 rounded-md border bg-background px-3"
+          >
+            <option value="">全部</option>
+            <option value="UNPAID">已开始待收款</option>
+            <option value="DUE_SOON">7 天内到期</option>
+            <option value="EXPIRED">已到期</option>
+            <option value="UNCONFIGURED">尚未登记</option>
+          </select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="restaurant-sort">排序</Label>
+          <select
+            id="restaurant-sort"
+            name="sort"
+            className="h-11 rounded-md border bg-background px-3"
+          >
+            <option value="">最新创建</option>
+            <option value="EXPIRY">截止日期从近到远</option>
           </select>
         </div>
         <Button type="submit" className="h-11">
@@ -153,6 +267,7 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
               {r.serviceStatus === "ACTIVE" ? "服务已启用" : "服务已停用"} ·{" "}
               {r.orderingEnabled ? "接单中" : "接单关闭"}
             </p>
+            {r.subscription && <SubscriptionStatus summary={r.subscription} />}
             <Link
               to="/platform/restaurants/$restaurantId"
               params={{ restaurantId: r.id }}

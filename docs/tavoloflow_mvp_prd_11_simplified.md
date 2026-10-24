@@ -79,7 +79,9 @@
 
 ## 2. 基本业务模型与状态
 
-### 2.1 九张数据表（与精简版 ER Diagram 对齐）
+### 2.1 核心九张表与收费周期扩展
+
+核心点餐模块沿用以下九张表；餐厅收费周期新增 `restaurant_subscription_periods`，当前完整模型共十张表。老板联系方式、默认年费、期限与付款的最新规则见 [收费周期](restaurant-subscriptions.md)。
 
 | 表 | 职责 |
 |---|---|
@@ -296,8 +298,8 @@ flowchart TD
 - `credential_version` 仅用于**账号凭据统一失效**：改密、后台重置密码或禁用账号后，旧认证票据下一次请求必须失效；验证依赖后端最新账号状态/版本。
 - 同一共享 STAFF 账号可以多设备登录。各设备退出只删除**当前浏览器 Cookie**，没有服务器持久化的设备会话列表，也不提供“只踢掉另一台设备”操作；重置密码可让全部旧票据失效。
 - 密码按成熟的 PasswordHasher 存储，生产账号不写入源码；首次登录强制修改临时密码。
-- 店铺登录票据最长有效 **16 小时**，不做闲置续期，不提供“记住我”；浏览器使用会话 Cookie。此约定替代原 PRD 的“闲置 2 小时”规则。
-- 首次及主动改密后，当前浏览器签发新的 16 小时票据并继续登录，其他设备的旧票据失效。新密码须为 12–128 个字符，与当前密码不同；密码不做首尾空白裁剪。
+- 店铺与平台登录票据固定有效 **30 天**，不单设闲置到期、不滑动续期；使用持久 Cookie，关闭浏览器后保留登录。此约定替代早期的店铺 16 小时、平台 8 小时及闲置到期规则，Guest 保持 12 小时会话 Cookie。
+- 首次及主动改密后，当前浏览器签发新的 30 天持久票据并继续登录，其他设备的旧票据失效。新密码须为 6–128 个字符，允许六位纯数字、不能全部为空白且与当前密码不同；密码不做首尾空白裁剪。已有票据仍按原期限到期，重新登录后使用新期限。
 - 首次改密前只允许查询自身身份、取得 CSRF token、改密和退出；业务访问由服务端返回 `403 PASSWORD_CHANGE_REQUIRED`。
 
 **当前实现状态**：店铺账号初始化、登录/退出、身份查询、首次及主动改密、角色策略和凭据版本校验已实现，页面先用中文。初始化只允许在 Development 显式执行，不随普通启动运行；顾客授权已在第四阶段实现；平台账号和老板重置 STAFF 密码仍待后续开发。运行与验收见 [店铺账号模块说明](store-accounts.md)。
@@ -378,7 +380,7 @@ flowchart TD
 | GET | `/api/owner/history/{id}` | **已实现**：已关闭账单摘要与分页订单快照，仅 OWNER |
 | 页面 / 已有接口 | `/staff/settings`、`/api/owner/menu/default-language` | 员工密码维护及菜单默认语言分别使用专用接口；本阶段没有通用基础设置 API |
 | GET / POST | `/api/owner/staff`、`/api/owner/staff/reset-password` | **已实现**：查询本店 STAFF；重置仅传 expectedCredentialVersion，目标由服务器解析 |
-| GET / POST | `/api/platform/auth/csrf`、`login`、`me`、`logout`、`change-password` | **已实现**：独立 Platform 身份、固定 8 小时、独立限流及 CSRF 用途 |
+| GET / POST | `/api/platform/auth/csrf`、`login`、`me`、`logout`、`change-password` | **已实现**：独立 Platform 身份、持久登录固定 30 天且不滑动续期、独立限流及 CSRF 用途 |
 | GET / POST | `/api/platform/restaurants` | **已实现**：分页/筛选；客户端指定 UUID 原子建店，成功响应一次性返回两个随机密码 |
 | GET / PATCH | `/api/platform/restaurants/{id}`、`/{id}/service-status` | **已实现**：餐厅与账号详情；明确 ACTIVE/SUSPENDED，停用同时关闭接单 |
 | PATCH / POST | `/api/platform/restaurants/{id}/users/{userId}/active`、`reset-password` | **已实现**：预期凭据版本保护账号启停/重置，冲突 ACCOUNT_CHANGED |

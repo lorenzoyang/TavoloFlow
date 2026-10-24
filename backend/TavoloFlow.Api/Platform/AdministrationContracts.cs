@@ -8,7 +8,8 @@ namespace TavoloFlow.Api.Platform;
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record CreateRestaurantInput(Guid Id, [Required, StringLength(150)] string Name,
     [Required, RegularExpression("^(zh|it|en)$")] string DefaultLanguage,
-    [Required, StringLength(50)] string OwnerUsername, [Required, StringLength(50)] string StaffUsername);
+    [Required, StringLength(50)] string OwnerUsername, [Required, StringLength(50)] string StaffUsername,
+    [StringLength(500)] string? OwnerContact = null, long? DefaultAnnualFeeCents = null, InitialSubscriptionPeriod? InitialPeriod = null);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record ServiceStatusInput([Required, RegularExpression("^(ACTIVE|SUSPENDED)$")] string Status);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -24,7 +25,7 @@ public sealed record ManagedAccount(Guid Id, string Username, string Role, bool 
         ApiEnum.Text(user.Role), user.IsActive, user.MustChangePassword, user.CredentialVersion);
 }
 public sealed record RestaurantSummary(Guid Id, string Name, string DefaultLanguage, string TimeZone,
-    string CurrencyCode, string ServiceStatus, bool OrderingEnabled, DateTime CreatedAt)
+    string CurrencyCode, string ServiceStatus, bool OrderingEnabled, DateTime CreatedAt, SubscriptionSummary? Subscription = null)
 {
     public static RestaurantSummary From(Restaurant restaurant) => new(restaurant.Id, restaurant.Name,
         restaurant.DefaultLanguage, restaurant.TimeZone, restaurant.CurrencyCode,

@@ -74,7 +74,7 @@ public sealed class OperationsTests(PostgreSqlFixture database) : IClassFixture<
         var cookie = Assert.Single(response.Headers.GetValues("Set-Cookie"), c => c.StartsWith("TavoloFlow.Platform="));
         Assert.Contains("path=/api/platform", cookie); Assert.Contains("secure", cookie); Assert.Contains("httponly", cookie);
         var options = host.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(PlatformAuthentication.Scheme);
-        Assert.False(options.SlidingExpiration); Assert.Equal(TimeSpan.FromHours(8), options.ExpireTimeSpan);
+        Assert.False(options.SlidingExpiration); Assert.Equal(TimeSpan.FromDays(30), options.ExpireTimeSpan);
     }
 
     [Fact]

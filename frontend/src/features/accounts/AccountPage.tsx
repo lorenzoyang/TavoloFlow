@@ -66,6 +66,12 @@ function AccountDetails({
             >
               员工账号设置
             </Link>
+            <Link
+              to="/staff/subscription"
+              className={buttonVariants({ variant: "outline", className: "h-11 w-full" })}
+            >
+              年费与收费周期
+            </Link>
           </>
         )}
         <Link to="/staff/menu" className={buttonVariants({ className: "h-11 w-full" })}>

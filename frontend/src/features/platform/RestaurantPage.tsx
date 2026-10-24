@@ -8,6 +8,7 @@ import { AccountActions, TemporaryPasswords } from "./ManagementViews";
 import { useManagement } from "./useManagement";
 import type { ManagedAccount } from "./state";
 import type { PlatformIdentity } from "./identity";
+import { PlatformSubscription } from "@/features/subscriptions/PlatformSubscription";
 
 type Confirmation =
   | { kind: "reset" | "active"; account: ManagedAccount }
@@ -141,6 +142,7 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
         </Button>
       )}
       <TemporaryPasswords credentials={actions.secrets} close={actions.clearSecrets} />
+      <PlatformSubscription userId={identity.userId} restaurantId={id} />
     </>
   );
 }

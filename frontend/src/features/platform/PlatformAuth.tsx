@@ -10,6 +10,7 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { ApiError, errorMessage } from "@/lib/api";
 import { changePlatformPassword, platformLogin, platformLogout } from "./api";
 import { platformQuery, replacePlatform, type PlatformIdentity } from "./identity";
+import { PlatformSubscriptionReminders } from "@/features/subscriptions/SubscriptionReminders";
 
 export function PlatformLayout({ children }: { children: ReactNode }) {
   return (
@@ -94,6 +95,7 @@ export function PlatformNavigation({ account }: { account: PlatformIdentity }) {
         </Button>
       </nav>
       {error && <p role="alert">{error}</p>}
+      <PlatformSubscriptionReminders userId={account.userId} />
     </div>
   );
 }
@@ -176,13 +178,15 @@ function PlatformForm({ password = false }: { password?: boolean }) {
                   autoComplete={complete}
                   required
                   maxLength={128}
-                  minLength={complete === "new-password" ? 12 : undefined}
+                  minLength={complete === "new-password" ? 6 : undefined}
                   className="h-11"
                 />
               </div>
             ))}
             {password && (
-              <p className="text-sm text-muted-foreground">12–128 个字符，不能全部为空白。</p>
+              <p className="text-sm text-muted-foreground">
+                6–128 个字符，可使用纯数字，不能全部为空白。
+              </p>
             )}
             <Button type="submit" className="h-11 w-full">
               {busy ? "正在提交…" : password ? "保存平台密码" : "登录平台"}

@@ -1,16 +1,26 @@
 import { platformRequest, platformWrite, request, write } from "@/lib/api";
 import type { PlatformIdentity } from "./identity";
+import type { PeriodInput } from "@/features/subscriptions/state";
 import type { ManagedAccount, Restaurant, RestaurantDetail, TemporaryCredential } from "./state";
 
 // Platform administration uses the platform identity; the owner's staff maintenance uses the store identity.
 export const RESTAURANTS_PAGE_SIZE = 20;
-export type RestaurantFilter = { search: string; status: string; page: number };
+export type RestaurantFilter = {
+  search: string;
+  status: string;
+  page: number;
+  subscriptionStatus?: string;
+  sort?: string;
+};
 export type CreateRestaurantInput = {
   id: string;
   name: string;
   defaultLanguage: string;
   ownerUsername: string;
   staffUsername: string;
+  ownerContact?: string | null;
+  defaultAnnualFeeCents?: number | null;
+  initialPeriod?: PeriodInput | null;
 };
 
 export const platformLogin = (username: string, password: string, signal: AbortSignal) =>
@@ -40,6 +50,8 @@ export function listRestaurants(filter: RestaurantFilter, signal: AbortSignal) {
   });
   if (filter.search) search.set("search", filter.search);
   if (filter.status) search.set("status", filter.status);
+  if (filter.subscriptionStatus) search.set("subscriptionStatus", filter.subscriptionStatus);
+  if (filter.sort) search.set("sort", filter.sort);
   return platformRequest<{ items: Restaurant[]; totalCount: number }>(
     `/api/platform/restaurants?${search}`,
     { signal },

@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
+using Microsoft.Net.Http.Headers;
 using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Guests;
@@ -86,6 +88,22 @@ public sealed class AccountTestHost(PostgreSqlFixture database, bool lowLimits =
         var error = await response.Content.ReadFromJsonAsync<ApiError>();
         Assert.Equal(code, error!.Code);
         Assert.False(string.IsNullOrWhiteSpace(error.RequestId));
+    }
+
+    // A persistent login: the cookie and its non-refreshing ticket both expire 30 days after issue.
+    public void AssertPersistentTicket(HttpResponseMessage response, string scheme, string cookieName)
+    {
+        var raw = response.Headers.GetValues("Set-Cookie").Single(value => value.StartsWith(cookieName + "="));
+        var cookie = SetCookieHeaderValue.Parse(raw);
+        Assert.NotNull(cookie.Expires);
+        var options = Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(scheme);
+        var ticket = options.TicketDataFormat.Unprotect(cookie.Value.ToString());
+        Assert.NotNull(ticket);
+        Assert.True(ticket.Properties.IsPersistent);
+        Assert.False(ticket.Properties.AllowRefresh);
+        var expected = Clock.GetUtcNow().AddDays(30);
+        Assert.InRange(ticket.Properties.ExpiresUtc!.Value, expected.AddSeconds(-1), expected);
+        Assert.Equal(ticket.Properties.ExpiresUtc, cookie.Expires);
     }
 
     private sealed record CsrfResponse(string Token);

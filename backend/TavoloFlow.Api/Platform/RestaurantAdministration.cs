@@ -11,24 +11,33 @@ using TavoloFlow.Api.Entities;
 namespace TavoloFlow.Api.Platform;
 
 public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordHasher<RestaurantUser> hasher,
-    ILogger<RestaurantAdministration> logger)
+    ILogger<RestaurantAdministration> logger, SubscriptionService subscriptions)
 {
-    public async Task<RestaurantPage> ListAsync(string? search, string? status, int page, int pageSize, CancellationToken ct)
+    public async Task<RestaurantPage> ListAsync(string? search, string? status, string? subscriptionStatus, string? sort,
+        int page, int pageSize, CancellationToken ct)
     {
         RestaurantServiceStatus? state = null;
         if (ApiEnum.TryParse(status, out RestaurantServiceStatus parsed)) state = parsed;
         if (page < 1 || page > 100000 || pageSize is < 1 or > 100 || search?.Length > 150 ||
-            (status is not null && state is null))
+            (status is not null && state is null) ||
+            (subscriptionStatus is not null && !SubscriptionSummary.Filters.Contains(subscriptionStatus)) ||
+            (sort is not null && sort != "EXPIRY"))
             throw ApiException.Validation("请检查分页、名称和状态筛选。");
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
         var query = db.Restaurants.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(search)) query = query.Where(r => r.Name.Contains(search.Trim()));
         if (state is { } filter) query = query.Where(r => r.ServiceStatus == filter);
-        var total = await query.CountAsync(ct);
-        var rows = await query.OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.Id)
-            .Skip((page - 1) * pageSize).Take(pageSize).ToArrayAsync(ct);
+        // Subscription filters use each restaurant's local day and contiguous service periods.
+        var restaurants = await query.OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.Id).ToArrayAsync(ct);
+        var summaries = await subscriptions.SummariesAsync(restaurants, ct);
+        IEnumerable<Restaurant> filtered = restaurants;
+        if (subscriptionStatus is not null) filtered = filtered.Where(r => summaries[r.Id].Matches(subscriptionStatus));
+        if (sort == "EXPIRY") filtered = filtered.OrderBy(r => summaries[r.Id].ExpiresOn ?? DateOnly.MaxValue).ThenBy(r => r.Id);
+        var selected = filtered.ToArray();
+        var rows = selected.Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(r => RestaurantSummary.From(r) with { Subscription = summaries[r.Id] }).ToArray();
         await transaction.CommitAsync(ct);
-        return new(rows.Select(RestaurantSummary.From).ToArray(), total, page, pageSize);
+        return new(rows, selected.Length, page, pageSize);
     }
 
     public async Task<RestaurantDetail> ReadAsync(Guid id, CancellationToken ct)
@@ -37,8 +46,9 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
         var restaurant = await db.Restaurants.AsNoTracking().SingleOrDefaultAsync(r => r.Id == id, ct)
             ?? throw AdministrationErrors.RestaurantNotFound();
         var users = await db.RestaurantUsers.AsNoTracking().Where(u => u.RestaurantId == id).OrderBy(u => u.Role).ToArrayAsync(ct);
+        var summary = (await subscriptions.SummariesAsync([restaurant], ct))[id];
         await transaction.CommitAsync(ct);
-        return new(RestaurantSummary.From(restaurant), users.Select(ManagedAccount.From).ToArray());
+        return new(RestaurantSummary.From(restaurant) with { Subscription = summary }, users.Select(ManagedAccount.From).ToArray());
     }
 
     public async Task<CreatedRestaurant> CreateAsync(CreateRestaurantInput input, Guid actor, CancellationToken ct)
@@ -64,6 +74,7 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
             credentials.Add(new(ManagedAccount.From(user), password));
         }
         db.Restaurants.Add(restaurant);
+        subscriptions.Initialize(restaurant, input.OwnerContact, input.DefaultAnnualFeeCents, input.InitialPeriod);
         try { await db.SaveChangesAsync(ct); }
         catch (DbUpdateException error) when (error.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         { throw new ApiException(409, "CREATE_CONFLICT", "餐厅标识或登录名已被使用，请核对原结果或修改登录名。"); }

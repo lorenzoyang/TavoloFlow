@@ -19,7 +19,7 @@ public static class StoreAuthentication
     public const string RestaurantClaim = "restaurant_id";
     public const string VersionClaim = "credential_version";
     public const string PasswordChangeClaim = "must_change_password";
-    public static readonly TimeSpan Lifetime = TimeSpan.FromHours(16);
+    public static readonly TimeSpan Lifetime = TimeSpan.FromDays(30);
 
     public static Task SignInAsync(HttpContext context, RestaurantUser user, TimeProvider timeProvider)
     {
@@ -36,7 +36,7 @@ public static class StoreAuthentication
 
         return context.SignInAsync(Scheme, new ClaimsPrincipal(identity), new AuthenticationProperties
         {
-            IsPersistent = false,
+            IsPersistent = true,
             AllowRefresh = false,
             IssuedUtc = now,
             ExpiresUtc = now + Lifetime

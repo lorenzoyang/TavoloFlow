@@ -10,7 +10,7 @@ public sealed record LoginRequest(
 
 public sealed record ChangePasswordRequest(
     [Required, StringLength(128)] string CurrentPassword,
-    [Required, StringLength(128, MinimumLength = 12)] string NewPassword);
+    [Required, StringLength(128, MinimumLength = 6)] string NewPassword);
 
 public sealed record CurrentAccountResponse(
     Guid UserId,
@@ -30,13 +30,13 @@ public static class AccountInput
     public static string NormalizeUsername(string username) => username.Trim().ToLowerInvariant();
 
     public static bool IsValidPassword(string password) =>
-        password.Length is >= 12 and <= 128 && !string.IsNullOrWhiteSpace(password);
+        password.Length is >= 6 and <= 128 && !string.IsNullOrWhiteSpace(password);
 
     public static void EnsureValidNewPassword(string password)
     {
         if (!IsValidPassword(password))
         {
-            throw ApiException.Validation("新密码须为 12–128 个字符。", "newPassword", "密码不能全部为空白。");
+            throw ApiException.Validation("新密码须为 6–128 个字符。", "newPassword", "密码不能全部为空白。");
         }
     }
 }

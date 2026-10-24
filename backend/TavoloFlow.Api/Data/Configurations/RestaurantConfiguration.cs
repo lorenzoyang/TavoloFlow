@@ -10,6 +10,8 @@ internal sealed class RestaurantConfiguration : IEntityTypeConfiguration<Restaur
     {
         builder.ToTable("restaurants", table =>
         {
+            table.HasCheckConstraint("ck_restaurant_subscription_version", "subscription_version > 0");
+            table.HasCheckConstraint("ck_restaurant_annual_fee", "default_annual_fee_cents IS NULL OR default_annual_fee_cents BETWEEN 0 AND 9007199254740991");
             table.HasCheckConstraint("ck_restaurant_default_language", "default_language IN ('zh', 'it', 'en')");
             table.HasCheckConstraint("ck_restaurant_currency", "currency_code = 'EUR'");
             table.HasCheckConstraint("ck_restaurant_service_status", "service_status IN ('ACTIVE', 'SUSPENDED')");
@@ -34,6 +36,10 @@ internal sealed class RestaurantConfiguration : IEntityTypeConfiguration<Restaur
 
         builder.Property(restaurant => restaurant.OrderingEnabled).HasColumnName("ordering_enabled").HasDefaultValue(false).ValueGeneratedNever();
         
+        builder.Property(restaurant => restaurant.OwnerContact).HasColumnName("owner_contact").HasMaxLength(500);
+        builder.Property(restaurant => restaurant.DefaultAnnualFeeCents).HasColumnName("default_annual_fee_cents");
+        builder.Property(restaurant => restaurant.SubscriptionVersion).HasColumnName("subscription_version").HasDefaultValue(1).ValueGeneratedNever();
+
         builder.Property(restaurant => restaurant.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz").HasDefaultValueSql("now()");
     }
 }

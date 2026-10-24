@@ -17,7 +17,7 @@ public static class PlatformAuthentication
     public const string Scheme = BrowserSecurity.PlatformScheme;
     public const string Policy = "PlatformAdmin";
     public const string CookieName = "TavoloFlow.Platform";
-    public static readonly TimeSpan Lifetime = TimeSpan.FromHours(8);
+    public static readonly TimeSpan Lifetime = TimeSpan.FromDays(30);
 
     public static IServiceCollection AddPlatformAccounts(this IServiceCollection services,
         IConfiguration configuration, IHostEnvironment environment)
@@ -59,7 +59,7 @@ public static class PlatformAuthentication
             new Claim(StoreAuthentication.VersionClaim, user.CredentialVersion.ToString(CultureInfo.InvariantCulture))
         ], Scheme);
         return http.SignInAsync(Scheme, new ClaimsPrincipal(identity), new AuthenticationProperties
-        { IsPersistent = false, AllowRefresh = false, IssuedUtc = now, ExpiresUtc = now + Lifetime });
+        { IsPersistent = true, AllowRefresh = false, IssuedUtc = now, ExpiresUtc = now + Lifetime });
     }
 }
 

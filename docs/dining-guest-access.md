@@ -54,7 +54,7 @@ sequenceDiagram
 
 顾客 Cookie 名为 `TavoloFlow.Guest`，Path 为 `/api/public`，采用 HttpOnly、SameSite=Lax，
 不指定 Domain；生产 Secure，Development 随请求协议。它是浏览器会话 Cookie，票据固定 12 小时，
-不滑动续期。与店铺的 `TavoloFlow.Store`、16 小时票据相互独立。
+不滑动续期。与店铺的 `TavoloFlow.Store`、固定 30 天的持久票据相互独立；店铺登录期限调整不会延长顾客本轮用餐授权。
 
 默认 `Browser` 认证方案将 `/api/public/*` 请求交给 `Guest`，其他请求交给 `Store`；
 店铺权限策略仍明确指定 Store，顾客权限策略明确指定 Guest。

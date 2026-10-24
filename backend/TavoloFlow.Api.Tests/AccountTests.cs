@@ -15,7 +15,7 @@ public sealed class AccountTests(PostgreSqlFixture database) : IClassFixture<Pos
     private const string NewPassword = "Changed-password-456";
 
     [Fact]
-    public async Task Login_NormalizedUsername_ReturnsCurrentIdentityAndSessionCookie()
+    public async Task Login_NormalizedUsername_ReturnsCurrentIdentityAndPersistentCookie()
     {
         var user = await SeedUserAsync();
         using var host = new AccountTestHost(database);
@@ -28,7 +28,7 @@ public sealed class AccountTests(PostgreSqlFixture database) : IClassFixture<Pos
         Assert.Contains("httponly", cookie, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("samesite=lax", cookie, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("secure", cookie, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("expires=", cookie, StringComparison.OrdinalIgnoreCase);
+        host.AssertPersistentTicket(login, StoreAuthentication.Scheme, StoreAuthentication.CookieName);
         Assert.DoesNotContain("domain=", cookie, StringComparison.OrdinalIgnoreCase);
         var me = await client.GetFromJsonAsync<CurrentAccountResponse>("/api/auth/me");
         Assert.Equal(user.Id, me!.UserId);
@@ -38,6 +38,26 @@ public sealed class AccountTests(PostgreSqlFixture database) : IClassFixture<Pos
         var json = await login.Content.ReadAsStringAsync();
         Assert.DoesNotContain("passwordHash", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("credentialVersion", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData(RestaurantUserRole.Owner)]
+    [InlineData(RestaurantUserRole.Staff)]
+    public async Task ChangePassword_SixDigits_ReissuesPersistentTicketAndAllowsLogin(RestaurantUserRole role)
+    {
+        var user = await SeedUserAsync(role);
+        using var host = new AccountTestHost(database);
+        using var client = host.Browser();
+        await LoginAsync(client, user);
+        host.Clock.Advance(TimeSpan.FromDays(10));
+        var changed = await PostAsync(client, "/api/auth/change-password",
+            new ChangePasswordRequest(InitialPassword, "123456"));
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        host.AssertPersistentTicket(changed, StoreAuthentication.Scheme, StoreAuthentication.CookieName);
+        Assert.False((await changed.Content.ReadFromJsonAsync<CurrentAccountResponse>())!.MustChangePassword);
+        using var another = host.Browser();
+        Assert.Equal(HttpStatusCode.OK, (await PostAsync(another, "/api/auth/login",
+            new LoginRequest(user.Username, "123456"))).StatusCode);
     }
 
     [Fact]
@@ -101,7 +121,7 @@ public sealed class AccountTests(PostgreSqlFixture database) : IClassFixture<Pos
             (InitialPassword, InitialPassword, "PASSWORD_UNCHANGED"),
             (InitialPassword, "short", "VALIDATION_FAILED"),
             (InitialPassword, new string('x', 129), "VALIDATION_FAILED"),
-            (InitialPassword, new string(' ', 12), "VALIDATION_FAILED")
+            (InitialPassword, new string(' ', 6), "VALIDATION_FAILED")
         })
         {
             await AssertErrorAsync(await PostAsync(client, "/api/auth/change-password",
@@ -186,11 +206,11 @@ public sealed class AccountTests(PostgreSqlFixture database) : IClassFixture<Pos
         using var host = new AccountTestHost(database);
         using var client = host.Browser();
         await LoginAsync(client, user);
-        host.Clock.Advance(TimeSpan.FromHours(15));
+        host.Clock.Advance(TimeSpan.FromDays(29));
         var beforeExpiry = await client.GetAsync("/api/auth/me");
         Assert.Equal(HttpStatusCode.OK, beforeExpiry.StatusCode);
         Assert.False(beforeExpiry.Headers.Contains("Set-Cookie"));
-        host.Clock.Advance(TimeSpan.FromHours(1) + TimeSpan.FromSeconds(1));
+        host.Clock.Advance(TimeSpan.FromDays(1) + TimeSpan.FromSeconds(1));
         await AssertErrorAsync(await client.GetAsync("/api/auth/me"), HttpStatusCode.Unauthorized, "UNAUTHENTICATED");
     }
 

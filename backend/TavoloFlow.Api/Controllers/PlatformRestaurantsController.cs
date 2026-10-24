@@ -11,8 +11,9 @@ public sealed class PlatformRestaurantsController(RestaurantAdministration servi
 {
     private Guid Actor => current.RequireUser().Id;
     [HttpGet]
-    public async Task<IActionResult> List(string? search, string? status, int page = 1, int pageSize = 20, CancellationToken ct = default) =>
-        Ok(await service.ListAsync(search, status, page, pageSize, ct));
+    public async Task<IActionResult> List(string? search, string? status, string? subscriptionStatus, string? sort,
+        int page = 1, int pageSize = 20, CancellationToken ct = default) =>
+        Ok(await service.ListAsync(search, status, subscriptionStatus, sort, page, pageSize, ct));
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Detail(Guid id, CancellationToken ct) => Ok(await service.ReadAsync(id, ct));
     [HttpPost]

@@ -465,6 +465,10 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasDefaultValue("EUR")
                         .HasColumnName("currency_code");
 
+                    b.Property<long?>("DefaultAnnualFeeCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("default_annual_fee_cents");
+
                     b.Property<string>("DefaultLanguage")
                         .IsRequired()
                         .HasMaxLength(2)
@@ -482,12 +486,22 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("ordering_enabled");
 
+                    b.Property<string>("OwnerContact")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("owner_contact");
+
                     b.Property<string>("ServiceStatus")
                         .IsRequired()
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)")
                         .HasDefaultValue("SUSPENDED")
                         .HasColumnName("service_status");
+
+                    b.Property<int>("SubscriptionVersion")
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("subscription_version");
 
                     b.Property<string>("TimeZone")
                         .IsRequired()
@@ -500,11 +514,64 @@ namespace TavoloFlow.Api.Data.Migrations
 
                     b.ToTable("restaurants", null, t =>
                         {
+                            t.HasCheckConstraint("ck_restaurant_annual_fee", "default_annual_fee_cents IS NULL OR default_annual_fee_cents BETWEEN 0 AND 9007199254740991");
+
                             t.HasCheckConstraint("ck_restaurant_currency", "currency_code = 'EUR'");
 
                             t.HasCheckConstraint("ck_restaurant_default_language", "default_language IN ('zh', 'it', 'en')");
 
                             t.HasCheckConstraint("ck_restaurant_service_status", "service_status IN ('ACTIVE', 'SUSPENDED')");
+
+                            t.HasCheckConstraint("ck_restaurant_subscription_version", "subscription_version > 0");
+                        });
+                });
+
+            modelBuilder.Entity("TavoloFlow.Api.Entities.RestaurantSubscriptionPeriod", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<long>("AmountCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("amount_cents");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateOnly>("EndsOn")
+                        .HasColumnType("date")
+                        .HasColumnName("ends_on");
+
+                    b.Property<DateOnly?>("PaidOn")
+                        .HasColumnType("date")
+                        .HasColumnName("paid_on");
+
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("restaurant_id");
+
+                    b.Property<DateOnly>("StartsOn")
+                        .HasColumnType("date")
+                        .HasColumnName("starts_on");
+
+                    b.Property<int>("Years")
+                        .HasColumnType("integer")
+                        .HasColumnName("years");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RestaurantId", "StartsOn");
+
+                    b.ToTable("restaurant_subscription_periods", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_subscription_period_amount", "amount_cents BETWEEN 1 AND 9007199254740991");
+
+                            t.HasCheckConstraint("ck_subscription_period_dates", "ends_on > starts_on");
+
+                            t.HasCheckConstraint("ck_subscription_period_years", "years BETWEEN 1 AND 9998");
                         });
                 });
 
@@ -719,6 +786,17 @@ namespace TavoloFlow.Api.Data.Migrations
                     b.Navigation("MenuItem");
 
                     b.Navigation("Order");
+
+                    b.Navigation("Restaurant");
+                });
+
+            modelBuilder.Entity("TavoloFlow.Api.Entities.RestaurantSubscriptionPeriod", b =>
+                {
+                    b.HasOne("TavoloFlow.Api.Entities.Restaurant", "Restaurant")
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Restaurant");
                 });

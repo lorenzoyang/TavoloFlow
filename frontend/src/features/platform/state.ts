@@ -1,5 +1,6 @@
 import { isUuid } from "../../lib/ids.ts";
 import type { Language } from "../../lib/language.ts";
+import type { SubscriptionSummary } from "../subscriptions/state.ts";
 
 export type ManagedAccount = {
   id: string;
@@ -18,6 +19,7 @@ export type Restaurant = {
   serviceStatus: "ACTIVE" | "SUSPENDED";
   orderingEnabled: boolean;
   createdAt: string;
+  subscription?: SubscriptionSummary | null;
 };
 export type RestaurantDetail = { restaurant: Restaurant; accounts: ManagedAccount[] };
 export type TemporaryCredential = { account: ManagedAccount; temporaryPassword: string };

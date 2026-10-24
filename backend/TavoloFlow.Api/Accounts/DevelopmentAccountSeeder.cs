@@ -41,7 +41,7 @@ public sealed class DevelopmentAccountSeeder(
         {
             throw new InvalidOperationException(
                 "Provide DevelopmentSeed restaurant ID/name, distinct usernames (1–50 characters), " +
-                "and passwords (12–128 characters) through local configuration.");
+                "and passwords (6–128 characters) through local configuration.");
         }
 
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);

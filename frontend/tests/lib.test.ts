@@ -30,6 +30,14 @@ test("prices parse decimal text into exact integer cents and reject unsafe or am
     assert.equal(parsePrice(value), null);
 });
 
+test("amounts that may be waived admit zero but keep every other price rule", () => {
+  assert.equal(parsePrice("0", true), 0);
+  assert.equal(parsePrice("0,00", true), 0);
+  assert.equal(parsePrice("500,50", true), 50050);
+  for (const value of ["-1", "1.234", "", "90071992547409.92"])
+    assert.equal(parsePrice(value, true), null);
+});
+
 test("cents format without floating-point rounding; Italian uses a decimal comma", () => {
   assert.equal(formatCents(1250), "12.50");
   assert.equal(formatCents(Number.MAX_SAFE_INTEGER), "90071992547409.91");

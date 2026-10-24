@@ -49,7 +49,7 @@ function PasswordForm({ account }: { account: CurrentAccount }) {
       reject("confirmPassword", m.passwordMismatch);
       return;
     }
-    if (newPassword.length < 12 || newPassword.length > 128 || !newPassword.trim()) {
+    if (newPassword.length < 6 || newPassword.length > 128 || !newPassword.trim()) {
       reject("newPassword", m.invalidPassword);
       return;
     }
@@ -92,7 +92,7 @@ function PasswordForm({ account }: { account: CurrentAccount }) {
               name="newPassword"
               label={m.newPassword}
               autoComplete="new-password"
-              minimum={12}
+              minimum={6}
               description={m.passwordHint}
               disabled={mutation.isPending}
               error={validationError?.field === "newPassword" ? validationError.message : undefined}
@@ -102,7 +102,7 @@ function PasswordForm({ account }: { account: CurrentAccount }) {
               name="confirmPassword"
               label={m.confirmPassword}
               autoComplete="new-password"
-              minimum={12}
+              minimum={6}
               disabled={mutation.isPending}
               error={
                 validationError?.field === "confirmPassword" ? validationError.message : undefined

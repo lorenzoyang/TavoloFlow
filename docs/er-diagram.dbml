@@ -1,8 +1,9 @@
 Project TavoloFlow_MVP_V1 {
   database_type: 'PostgreSQL'
   Note: '''
-    TavoloFlow MVP (simplified): 9 tables, one menu per restaurant.
-    Removed optimistic version columns except session bill_version.
+    TavoloFlow: 10 tables, one menu per restaurant, offline service subscriptions.
+    Credential versions revoke account tickets; subscription_version guards
+    service administration and bill_version guards session bill confirmation.
     No join-code/QR reset in V1; closing a session invalidates guest cookies.
     EF Core Migrations create the real PostgreSQL schema.
     Cross-table rules, filtered unique indexes, and transaction locks
@@ -39,12 +40,17 @@ Table restaurants {
   currency_code char(3) [not null, default: 'EUR']
   service_status varchar(16) [not null, default: 'SUSPENDED']
   ordering_enabled boolean [not null, default: false]
+  owner_contact varchar(500)
+  default_annual_fee_cents bigint
+  subscription_version int [not null, default: 1]
   created_at timestamptz [not null, default: `now()`]
 
   Checks {
     `default_language IN ('zh', 'it', 'en')` [name: 'ck_restaurant_default_language']
     `currency_code = 'EUR'` [name: 'ck_restaurant_currency']
     `service_status IN ('ACTIVE', 'SUSPENDED')` [name: 'ck_restaurant_service_status']
+    `subscription_version > 0` [name: 'ck_restaurant_subscription_version']
+    `default_annual_fee_cents IS NULL OR default_annual_fee_cents BETWEEN 0 AND 9007199254740991` [name: 'ck_restaurant_annual_fee']
   }
 }
 
@@ -71,6 +77,28 @@ Table restaurant_users {
   }
 
   Note: 'At most one OWNER and STAFF account per restaurant. Create both in the restaurant bootstrap transaction.'
+}
+
+// Service periods; service state is independent of payment.
+Table restaurant_subscription_periods {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  starts_on date [not null]
+  ends_on date [not null, note: 'Exclusive: this date is the next renewal date']
+  years int [not null]
+  amount_cents bigint [not null, note: 'Agreed total for this whole period']
+  paid_on date [note: 'NULL means unpaid; one full payment per period']
+  created_at timestamptz [not null]
+
+  Indexes {
+    (restaurant_id, starts_on)
+  }
+  Checks {
+    `ends_on > starts_on` [name: 'ck_subscription_period_dates']
+    `years BETWEEN 1 AND 9998` [name: 'ck_subscription_period_years']
+    `amount_cents BETWEEN 1 AND 9007199254740991` [name: 'ck_subscription_period_amount']
+  }
+  Note: 'Non-overlap is enforced while holding the restaurant UPDATE lock. Collection never shifts the agreed dates. Paid amount and date are frozen; only the expiry endpoint changes a paid period. Every write requires the restaurant subscription_version.'
 }
 
 // 02 - Restaurant tables and one menu hierarchy
@@ -272,6 +300,7 @@ Table order_items {
 
 // Restaurant ownership: a permanent restaurant DELETE removes the entire tenant.
 Ref: restaurant_users.restaurant_id > restaurants.id [delete: cascade]
+Ref: restaurant_subscription_periods.restaurant_id > restaurants.id [delete: cascade]
 Ref: restaurant_tables.restaurant_id > restaurants.id [delete: cascade]
 Ref: menu_categories.restaurant_id > restaurants.id [delete: cascade]
 Ref: menu_items.restaurant_id > restaurants.id [delete: cascade]
@@ -291,6 +320,7 @@ TableGroup platform_and_accounts {
   platform_users
   restaurants
   restaurant_users
+  restaurant_subscription_periods
 }
 
 TableGroup tables_and_menu {

@@ -56,7 +56,7 @@ public sealed class PlatformBootstrap(ApplicationDbContext db, IPasswordHasher<P
     {
         var username = AccountInput.NormalizeUsername(options.Username);
         if (username.Length is < 1 or > 50 || !AccountInput.IsValidPassword(options.Password))
-            throw new InvalidOperationException("Configure PlatformBootstrap username (1–50) and password (12–128 nonblank characters).");
+            throw new InvalidOperationException("Configure PlatformBootstrap username (1–50) and password (6–128 nonblank characters).");
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(726186210008)", ct);
         var users = await db.PlatformUsers.FromSql($"SELECT * FROM platform_users FOR UPDATE").ToListAsync(ct);

@@ -1,16 +1,19 @@
 # 第八阶段：平台管理与试运营准备
 
+后续新增的餐厅联系方式、收费周期和线下年费见 [收费周期](restaurant-subscriptions.md)。当前数据库共十张表；下文试运营验收数据保留其执行时的历史版本。
+
 ## 第一步：平台初始化与身份
 
 平台是独立于店铺和顾客的身份。先显式迁移数据库，再通过本地 user-secrets 或部署秘密配置设置
-`PlatformBootstrap:Username`、`PlatformBootstrap:Password`（12–128 字符，不能全部为空白）。
+`PlatformBootstrap:Username`、`PlatformBootstrap:Password`（6–128 字符，允许六位纯数字，不能全部为空白）。
 执行 `dotnet run --project backend/TavoloFlow.Api --launch-profile http -- --seed-platform-admin`。
 它只创建首个平台管理员，完成后退出；再次执行不会覆盖密码或改变启用状态。
 恢复密码使用单独的 `--reset-platform-password`，必须匹配已有用户名；这会使旧票据失效，但不会启用已禁用账号。
 两条命令可在生产使用，不提供匿名 HTTP 初始化入口。密码配置不写入 Git、不放命令行参数。
 
 从 `/platform/login` 登录。请求链路为：表单 → 平台 CSRF → 登录接口 → PasswordHasher → Platform Cookie。
-平台票据固定 8 小时；Store 仍为 16 小时，Guest 仍为 12 小时。
+平台与 Store 均使用固定 30 天的持久 Cookie，关闭浏览器后保留登录，不滑动续期；Guest 仍使用固定 12 小时的浏览器会话 Cookie。
+已有票据按原签发期限到期，重新登录或成功改密后签发新的 30 天票据。
 每次平台请求检查当前数据库状态和凭据版本；平台身份不具有店铺账单权限。
 三个入口共享 CSRF 设施，但 token 额外绑定 store/platform/guest 用途，即使尚未登录也不能混用。
 
@@ -76,6 +79,8 @@ npm run test:e2e
 浏览器测试会保留一轮空的 ACTIVE 用餐供密钥恢复演练，不能将演练账号/数据当作真实开业配置。正式试运营流程与待填写联系方式、数据保存约定见 [试运营手册](pilot-operations.md)。
 
 ### 本地验证记录（2026-10-23）
+
+以下是当日版本的实际验收记录，保留原有规则和测试数量，不代表后续 30 天登录及收费周期功能已完成同样的部署演练。
 
 | 检查 | 实际结果 |
 |---|---|

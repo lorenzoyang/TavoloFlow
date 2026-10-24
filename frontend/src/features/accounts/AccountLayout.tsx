@@ -3,6 +3,7 @@ import { Utensils } from "lucide-react";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { messages as m } from "./messages";
+import { OwnerSubscriptionReminder } from "@/features/subscriptions/SubscriptionReminders";
 
 // The store layout sets the available width; each page chooses its own content width.
 export function StaffLayout({ children }: { children: ReactNode }) {
@@ -17,7 +18,10 @@ export function StaffLayout({ children }: { children: ReactNode }) {
           <p className="text-sm text-muted-foreground">{m.brandCaption}</p>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-6xl px-4 pb-6 sm:px-6 sm:pt-6">{children}</main>
+      <main className="mx-auto w-full max-w-6xl px-4 pb-6 sm:px-6 sm:pt-6">
+        <OwnerSubscriptionReminder />
+        {children}
+      </main>
       <footer className="mx-auto max-w-6xl px-4 pb-8 text-center text-xs leading-6 text-muted-foreground">
         {m.sessionNote}
       </footer>

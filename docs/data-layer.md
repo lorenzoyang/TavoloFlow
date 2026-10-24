@@ -1,6 +1,6 @@
 # Data layer
 
-The nine entity classes live in `backend/TavoloFlow.Api/Entities`. Individual
+The ten entity classes live in `backend/TavoloFlow.Api/Entities`. Individual
 Fluent API configurations, `ApplicationDbContext`, and EF migrations live in
 `backend/TavoloFlow.Api/Data`. A fresh database contains no accounts or sample
 records. Development account initialization is an explicit application command;
@@ -64,6 +64,11 @@ generating SQL do not require a running database.
   timestamps use database `now()` defaults. Do not supply local or unspecified
   `DateTime` values. Categories, menu items, and tables have no creation timestamps
   or soft-delete markers. Menu queries use ID ordering for a stable order.
+- Subscription service starts/ends and payment dates use `DateOnly`/PostgreSQL
+  `date` in the restaurant's time zone. End dates are exclusive. Periods also
+  cascade when their restaurant is deleted.
+  Payment state is derived from nullable `paid_on`; see
+  [Restaurant subscriptions](restaurant-subscriptions.md).
 - Composite alternate keys and foreign keys enforce same-restaurant
   relationships. Restaurant ownership, session-to-order, and order-to-line
   relationships use `ON DELETE CASCADE`. The remaining composite references use

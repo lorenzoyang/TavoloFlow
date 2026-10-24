@@ -89,7 +89,7 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
             "SELECT tablename AS \"Value\" FROM pg_tables WHERE schemaname = 'public' AND tablename <> '__EFMigrationsHistory'")
             .ToListAsync();
         Assert.Equal(
-            new[] { "dining_sessions", "menu_categories", "menu_items", "order_items", "orders", "platform_users", "restaurant_tables", "restaurant_users", "restaurants" },
+            new[] { "dining_sessions", "menu_categories", "menu_items", "order_items", "orders", "platform_users", "restaurant_subscription_periods", "restaurant_tables", "restaurant_users", "restaurants" },
             tables.Order());
     }
 
@@ -500,7 +500,7 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
         await using var context = await database.CreateIsolatedContextAsync();
         var migrator = context.GetService<IMigrator>();
         await migrator.MigrateAsync(previousMigration);
-        var visit = await SeedVisitAsync(context);
+        var visit = await SeedVisitAsync(context, legacyRestaurant: true);
         var closed = NewSession(visit);
         closed.Status = DiningSessionStatus.Closed;
         closed.OpenedAt = DateTime.UtcNow.AddMinutes(-5);
@@ -568,7 +568,7 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
         await using var context = await database.CreateIsolatedContextAsync();
         var migrator = context.GetService<IMigrator>();
         await migrator.MigrateAsync(previousMigration);
-        var visit = await SeedVisitAsync(context);
+        var visit = await SeedVisitAsync(context, legacyRestaurant: true);
         if (tableLabel)
         {
             await context.Database.ExecuteSqlInterpolatedAsync($"""
@@ -685,9 +685,16 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
         return await SeedVisitAsync(context, useFalseFlags);
     }
 
-    private static async Task<VisitData> SeedVisitAsync(ApplicationDbContext context, bool useFalseFlags = false)
+    private static async Task<VisitData> SeedVisitAsync(ApplicationDbContext context, bool useFalseFlags = false, bool legacyRestaurant = false)
     {
         var restaurant = new Restaurant { Name = "Test restaurant", DefaultLanguage = "it", ServiceStatus = RestaurantServiceStatus.Active };
+        if (legacyRestaurant)
+        {
+            // Upgrade fixtures target a schema that predates the current Restaurant fields.
+            restaurant.Id = Guid.NewGuid();
+            await context.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO restaurants (id, name, default_language, service_status) VALUES ({restaurant.Id}, {restaurant.Name}, {restaurant.DefaultLanguage}, 'ACTIVE')");
+            context.Attach(restaurant);
+        }
         var user = new RestaurantUser
         {
             Restaurant = restaurant,
