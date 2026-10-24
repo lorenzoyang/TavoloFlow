@@ -1,19 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, RefreshCw } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { LayoutGrid, RefreshCw } from "lucide-react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { EmptyState } from "@/components/empty-state";
+import { LoadingState } from "@/components/loading-state";
+import { MasterDetail } from "@/components/master-detail";
+import { Notice } from "@/components/notice";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { ActiveBillPanel } from "@/features/billing/BillViews";
 import { tablesKey } from "@/features/tables/api";
 import { ApiError, errorMessage, withTimeout } from "@/lib/api";
-import { formatDateTime } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import {
   floorQuery,
   openTable,
@@ -31,6 +35,7 @@ import {
   recoveredOpen,
   type PendingDiningAction,
 } from "./state";
+import { SessionSummary, TableTile } from "./FloorViews";
 
 type FloorProps = { sessionId?: string; select: (id: string) => void };
 function FloorContent({
@@ -250,218 +255,158 @@ function FloorContent({
     }
   }
 
+  const tables = floor.data?.tables ?? [];
+  const dining = tables.filter((table) => table.session).length;
+  const waiting = tables.reduce((n, table) => n + (table.session?.newOrderCount ?? 0), 0);
+  const writeLocked = busy || !!pending || !!confirmation;
   return (
-    <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="mb-1 text-sm text-muted-foreground">{account.restaurantName}</p>
-          <h1 className="text-2xl font-semibold">开桌工作台</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            核对桌号后开桌，将本轮入桌码告知顾客。
-          </p>
-        </div>
-        <Link to="/staff" className={buttonVariants({ variant: "outline", className: "h-11" })}>
-          <ArrowLeft />
-          返回账号
-        </Link>
-      </header>
-      {floor.data?.serviceStatus === "SUSPENDED" && (
-        <Alert>
-          <AlertDescription>
-            餐厅服务已暂停，暂不能开新桌。已有用餐仍可核对并关闭空桌。
-          </AlertDescription>
-        </Alert>
-      )}
-      {notice && (
-        <Alert role="status">
-          <AlertDescription>{notice}</AlertDescription>
-        </Alert>
-      )}
-      {(error || floor.isError || session.isError || floor.fetchStatus === "paused") && (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{error || "无法更新状态，请检查连接后重新读取。"}</AlertDescription>
-        </Alert>
-      )}
-      {pending && (
-        <Alert role="status">
-          <AlertDescription className="space-y-3">
-            <p>
-              {pending.kind === "accepting" ? "接单设置结果待确认" : "开桌结果待确认"}
-              ，核对完成前暂停新的操作。
-            </p>
-            <Button className="h-11" disabled={busy} onClick={() => void recover()}>
-              核对操作结果
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-      <div className="flex flex-wrap gap-3">
-        <Button
-          variant="outline"
-          className="h-11"
-          disabled={busy || floor.isFetching}
-          onClick={() => void refresh()}
-        >
-          <RefreshCw />
-          重新读取状态
-        </Button>
-        <Link
-          to="/staff/tables"
-          className={buttonVariants({ variant: "outline", className: "h-11" })}
-        >
-          桌位管理
-        </Link>
-        <Link
-          to="/staff/kitchen"
-          className={buttonVariants({ variant: "outline", className: "h-11" })}
-        >
-          厨房工作台
-        </Link>
-        {account.role === "OWNER" && (
-          <Link
-            to="/staff/orders"
-            search={{ sessionId: selected || undefined }}
-            className={buttonVariants({ variant: "outline", className: "h-11" })}
+    <div>
+      <PageHeader
+        title="桌台"
+        description={account.restaurantName}
+        actions={
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="重新读取状态"
+            disabled={busy || floor.isFetching}
+            onClick={() => void refresh()}
           >
-            结账工作台
-          </Link>
+            <RefreshCw className={cn(floor.isFetching && "animate-spin")} />
+          </Button>
+        }
+      />
+      <div className="mb-5 space-y-3">
+        {floor.data?.serviceStatus === "SUSPENDED" && (
+          <Notice tone="warning">餐厅服务已暂停，暂不能开新桌。已有用餐仍可核对并关闭空桌。</Notice>
         )}
-      </div>
-      {floor.data && (
-        <Card>
-          <CardContent className="flex flex-wrap items-center justify-between gap-4 pt-6">
-            <div>
-              <h2 className="font-semibold">
-                扫码接单：{floor.data.orderingEnabled ? "已开启" : "已暂停"}
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                暂停不结束用餐，已提交的订单仍可核对。
+        {notice && <Notice>{notice}</Notice>}
+        {(error || floor.isError || session.isError || floor.fetchStatus === "paused") && (
+          <Notice tone="error">{error || "无法更新状态，请检查连接后重新读取。"}</Notice>
+        )}
+        {pending && (
+          <Notice
+            tone="warning"
+            action={
+              <Button disabled={busy} onClick={() => void recover()}>
+                核对操作结果
+              </Button>
+            }
+          >
+            {pending.kind === "accepting" ? "接单设置结果待确认" : "开桌结果待确认"}
+            ，核对完成前暂停新的操作。
+          </Notice>
+        )}
+        {floor.data && (
+          <div className="flex items-center justify-between gap-4 rounded-2xl border bg-card p-4 shadow-xs">
+            <div className="min-w-0">
+              <p id="accepting-orders" className="font-medium">
+                扫码接单
+              </p>
+              <p className="text-sm leading-5 text-muted-foreground">
+                {floor.data.orderingEnabled
+                  ? "已开启：顾客可以扫码下单。"
+                  : "已暂停：不再接收新订单，已提交的订单仍可核对。"}
               </p>
             </div>
-            <Button
-              className="min-h-11"
-              variant={floor.data.orderingEnabled ? "outline" : "default"}
-              disabled={
-                busy ||
-                !!pending ||
-                !!confirmation ||
-                floor.isError ||
-                floor.fetchStatus === "paused"
-              }
-              onClick={() => void setAccepting()}
-            >
-              {floor.data.orderingEnabled ? "暂停接单" : "开始接单"}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-      {confirmation && (
-        <Card>
-          <CardContent className="space-y-4 pt-6">
-            <h2 className="text-lg font-semibold">确认开桌 · {confirmation.table.tableLabel}</h2>
-            <div className="flex gap-3">
-              <Button className="h-11" disabled={busy || !!pending} onClick={() => void submit()}>
-                确认开桌
-              </Button>
-              <Button
-                variant="outline"
-                className="h-11"
-                disabled={busy}
-                onClick={() => setConfirmation(null)}
-              >
-                取消
-              </Button>
+            <div className="flex shrink-0 items-center gap-2">
+              {busy && pending?.kind === "accepting" && <Spinner />}
+              <Switch
+                aria-labelledby="accepting-orders"
+                checked={floor.data.orderingEnabled}
+                disabled={writeLocked || floor.isError || floor.fetchStatus === "paused"}
+                onCheckedChange={() => void setAccepting()}
+              />
             </div>
-          </CardContent>
-        </Card>
-      )}
-      {selected && session.data && (
-        <Card>
-          <CardContent className="space-y-4 pt-6">
-            <h2 className="text-xl font-semibold">本轮用餐 · {session.data.tableLabel}</h2>
-            <p className="text-sm text-muted-foreground">
-              开桌时间：{formatDateTime(session.data.openedAt)}
-            </p>
-            <Badge variant="secondary">
-              {session.data.status === "ACTIVE" ? "用餐中" : "本轮已结束"}
-            </Badge>
-            {session.data.status === "ACTIVE" && (
-              <>
-                <p>已提交订单：{session.data.orderCount} 笔</p>
-                <div className="flex flex-wrap gap-3">
-                  <Button
-                    className="h-11"
-                    variant="outline"
-                    disabled={busy || !!pending}
-                    onClick={() => void viewCode()}
-                  >
-                    查看入桌码
-                  </Button>
-                </div>
-              </>
-            )}
-            {code?.sessionId === selected && session.data.status === "ACTIVE" && (
-              <div className="space-y-2">
-                <label htmlFor="staff-join-code" className="text-sm font-medium">
-                  本轮入桌码 · 仅告知本桌顾客
-                </label>
-                <Input
-                  id="staff-join-code"
-                  readOnly
-                  value={code.joinCode}
-                  className="h-14 max-w-xs text-center text-2xl tracking-widest"
-                  onFocus={(e) => e.target.select()}
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-      {selected && (
-        <ActiveBillPanel
-          key={`${account.restaurantId}:${account.userId}:${selected}`}
-          account={account}
-          sessionId={selected}
-        />
-      )}
-      {floor.isPending && <p role="status">正在读取桌位…</p>}
-      {floor.data?.tables.length === 0 && <p>还没有桌位，请先到桌位管理添加。</p>}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {floor.data?.tables.map((table) => (
-          <Card key={table.id}>
-            <CardContent className="space-y-4 pt-6">
-              <h2 className="text-xl font-semibold wrap-break-word">{table.tableLabel}</h2>
-              <div className="flex gap-2">
-                <Badge variant="secondary">{table.session ? "用餐中" : "空桌"}</Badge>
-                {!table.isEnabled && <Badge variant="outline">已停用</Badge>}
-              </div>
-              {table.session && (
-                <p className="text-sm text-muted-foreground">
-                  {formatDateTime(table.session.openedAt)}
-                </p>
-              )}
-              <Button
-                className="h-11"
-                disabled={
-                  busy ||
-                  !!pending ||
-                  !!confirmation ||
-                  (!table.session && (!table.isEnabled || floor.data.serviceStatus !== "ACTIVE"))
-                }
-                onClick={() => {
-                  setCode(null);
-                  setError("");
-                  setNotice("");
-                  if (table.session) setSelected(table.session.id);
-                  else setConfirmation({ kind: "open", table });
-                }}
-              >
-                {table.session ? "查看本轮用餐" : "开桌"}
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
+          </div>
+        )}
       </div>
+      <MasterDetail
+        open={!!selected}
+        title={session.data ? `${session.data.tableLabel} 桌` : "本轮用餐"}
+        onClose={() => setSelected("")}
+        detail={
+          selected && (
+            <div className="space-y-6">
+              <SessionSummary
+                session={session.data}
+                code={code}
+                disabled={busy || !!pending}
+                viewCode={() => void viewCode()}
+              />
+              <ActiveBillPanel
+                key={`${account.restaurantId}:${account.userId}:${selected}`}
+                account={account}
+                sessionId={selected}
+              />
+            </div>
+          )
+        }
+      >
+        {floor.isPending && <LoadingState label="正在读取桌位…" />}
+        {floor.data?.tables.length === 0 && (
+          <EmptyState
+            icon={LayoutGrid}
+            title="还没有桌位"
+            description="请先到「桌位与二维码」添加桌位。"
+            action={
+              <Link to="/staff/tables" className={buttonVariants({ variant: "outline" })}>
+                桌位与二维码
+              </Link>
+            }
+          />
+        )}
+        {tables.length > 0 && (
+          <div className="@container space-y-3">
+            <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <span className="size-2.5 rounded-full bg-primary" />
+                用餐中 {dining}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="size-2.5 rounded-full border bg-card" />
+                空桌 {tables.filter((table) => !table.session && table.isEnabled).length}
+              </span>
+              {waiting > 0 && (
+                <span className="flex items-center gap-1.5">
+                  <span className="size-2.5 rounded-full bg-warning" />
+                  待出餐 {waiting} 笔
+                </span>
+              )}
+            </p>
+            <div className="grid grid-cols-3 gap-3 @md:grid-cols-4 @2xl:grid-cols-5 @4xl:grid-cols-6">
+              {tables.map((table) => (
+                <TableTile
+                  key={table.id}
+                  table={table}
+                  selected={!!table.session && table.session.id === selected}
+                  disabled={
+                    writeLocked ||
+                    (!table.session && (!table.isEnabled || floor.data?.serviceStatus !== "ACTIVE"))
+                  }
+                  onSelect={() => {
+                    setCode(null);
+                    setError("");
+                    setNotice("");
+                    if (table.session) setSelected(table.session.id);
+                    else setConfirmation({ kind: "open", table });
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </MasterDetail>
+      <ConfirmDialog
+        open={!!confirmation}
+        title={`确认开桌 · ${confirmation?.table.tableLabel ?? ""}`}
+        description="开桌后会生成本轮入桌码，请告知本桌顾客。"
+        confirmLabel="确认开桌"
+        busy={busy}
+        confirmDisabled={!!pending}
+        onConfirm={() => void submit()}
+        onCancel={() => setConfirmation(null)}
+      />
     </div>
   );
 }

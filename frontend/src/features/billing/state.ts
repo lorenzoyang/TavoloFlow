@@ -24,6 +24,7 @@ export const closeLabels: Record<CloseKind, string> = {
   EMPTY: "空桌关闭",
   VOIDED: "全部取消后关闭",
 };
+export const closeBadges = { PAID: "success", EMPTY: "outline", VOIDED: "outline" } as const;
 
 export function closureKind(bill: BillSummary, role: "OWNER" | "STAFF"): CloseKind | null {
   if (bill.status !== "ACTIVE" || bill.newOrderCount > 0) return null;

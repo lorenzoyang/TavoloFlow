@@ -1,29 +1,34 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Receipt, RefreshCw } from "lucide-react";
+import { EmptyState } from "@/components/empty-state";
+import { LoadingState } from "@/components/loading-state";
+import { MasterDetail } from "@/components/master-detail";
+import { Notice } from "@/components/notice";
+import { PageHeader } from "@/components/page-header";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { Card, CardContent } from "@/components/ui/card";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { floorQuery } from "@/features/dining/api";
-import { formatDateTime, formatMoney } from "@/lib/format";
+import { formatMoney, formatTime } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { ActiveBillPanel } from "./BillViews";
 import { useLiveView } from "@/lib/useLiveView";
 
 export function OwnerOnlyNotice() {
   return (
-    <Alert>
-      <AlertDescription className="space-y-3">
-        <p>此页面仅老板可访问。</p>
-        <Link
-          to="/staff/floor"
-          className={buttonVariants({ variant: "outline", className: "min-h-11" })}
-        >
-          返回开桌工作台
+    <Notice
+      tone="warning"
+      action={
+        <Link to="/staff/floor" className={buttonVariants({ variant: "outline" })}>
+          返回桌台
         </Link>
-      </AlertDescription>
-    </Alert>
+      }
+    >
+      此页面仅老板可访问。
+    </Notice>
   );
 }
 type Props = { sessionId?: string; select: (id: string) => void };
@@ -35,75 +40,86 @@ function BillingContent({ account, sessionId, select }: Props & { account: Curre
     refetchInterval: view.active ? 30_000 : false,
   });
   const active = floor.data?.tables.filter((t) => t.session) ?? [];
+  const selected = active.find((t) => t.session!.id === sessionId);
   return (
-    <div className="space-y-6">
-      <header className="space-y-2">
-        <p className="text-sm text-muted-foreground">{account.restaurantName}</p>
-        <h1 className="text-2xl font-semibold">结账工作台</h1>
-        <p className="text-sm text-muted-foreground">核对整桌账单，在线下收款后结束本轮用餐。</p>
-      </header>
-      <nav className="flex flex-wrap gap-3">
-        <Link
-          to="/staff/floor"
-          className={buttonVariants({ variant: "outline", className: "min-h-11" })}
-        >
-          开桌工作台
-        </Link>
-        <Link
-          to="/staff/history"
-          className={buttonVariants({ variant: "outline", className: "min-h-11" })}
-        >
-          历史账单
-        </Link>
-        <Link to="/staff" className={buttonVariants({ variant: "outline", className: "min-h-11" })}>
-          返回账号
-        </Link>
-        <Button
-          variant="outline"
-          className="min-h-11"
-          disabled={!view.active || floor.isFetching}
-          onClick={() => void floor.refetch()}
-        >
-          刷新桌位
-        </Button>
-      </nav>
+    <div>
+      <PageHeader
+        title="结账"
+        description="核对整桌账单，在线下收款后结束本轮用餐。"
+        actions={
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="刷新桌位"
+            disabled={!view.active || floor.isFetching}
+            onClick={() => void floor.refetch()}
+          >
+            <RefreshCw className={cn(floor.isFetching && "animate-spin")} />
+          </Button>
+        }
+      />
       {floor.isError && (
-        <Alert variant="destructive">
-          <AlertDescription>桌位列表暂时无法更新，请恢复连接后刷新。</AlertDescription>
-        </Alert>
+        <Notice tone="error" className="mb-5">
+          桌位列表暂时无法更新，请恢复连接后刷新。
+        </Notice>
       )}
-      {floor.isPending && <p role="status">正在读取活动桌位…</p>}
-      {floor.data && active.length === 0 && <p>当前没有活动用餐。</p>}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {active.map((table) => (
-          <Card key={table.id}>
-            <CardContent className="space-y-3 pt-6">
-              <h2 className="text-xl font-semibold wrap-break-word">{table.tableLabel} 桌</h2>
-              <p className="text-xl tabular-nums">{formatMoney(table.session!.totalAmountCents)}</p>
-              <p className="text-sm text-muted-foreground">
-                共 {table.session!.orderCount} 笔 · 待处理 {table.session!.newOrderCount} 笔
-              </p>
-              <p className="text-xs text-muted-foreground">
-                开桌：{formatDateTime(table.session!.openedAt)}
-              </p>
-              <Button
-                className="min-h-11"
-                variant={sessionId === table.session!.id ? "secondary" : "outline"}
-                onClick={() => select(table.session!.id)}
-              >
-                查看账单 · {table.tableLabel}
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-      {sessionId && (
-        <ActiveBillPanel
-          key={`${account.restaurantId}:${account.userId}:${sessionId}`}
-          account={account}
-          sessionId={sessionId}
-        />
-      )}
+      <MasterDetail
+        open={!!sessionId}
+        title={selected ? `${selected.tableLabel} 桌` : "本轮账单"}
+        onClose={() => select("")}
+        detail={
+          sessionId && (
+            <ActiveBillPanel
+              key={`${account.restaurantId}:${account.userId}:${sessionId}`}
+              account={account}
+              sessionId={sessionId}
+            />
+          )
+        }
+      >
+        {floor.isPending && <LoadingState label="正在读取活动桌位…" />}
+        {floor.data && active.length === 0 && (
+          <EmptyState
+            icon={Receipt}
+            title="当前没有活动用餐"
+            description="开桌后，用餐中的桌会出现在这里。"
+          />
+        )}
+        <div className="@container">
+          <div className="grid gap-3 @lg:grid-cols-2 @4xl:grid-cols-3">
+            {active.map((table) => {
+              const session = table.session!;
+              return (
+                <button
+                  key={table.id}
+                  type="button"
+                  aria-pressed={sessionId === session.id}
+                  onClick={() => select(session.id)}
+                  className={cn(
+                    "space-y-2 rounded-2xl border bg-card p-4 text-left shadow-xs transition-colors outline-none hover:border-primary/40 focus-visible:ring-3 focus-visible:ring-ring/50",
+                    sessionId === session.id && "ring-2 ring-primary",
+                  )}
+                >
+                  <span className="flex items-start justify-between gap-3">
+                    <span className="text-xl font-semibold wrap-break-word">
+                      {table.tableLabel} 桌
+                    </span>
+                    {session.newOrderCount > 0 && (
+                      <Badge variant="warning">待处理 {session.newOrderCount}</Badge>
+                    )}
+                  </span>
+                  <span className="block text-2xl font-semibold tabular-nums">
+                    {formatMoney(session.totalAmountCents)}
+                  </span>
+                  <span className="block text-sm text-muted-foreground">
+                    共 {session.orderCount} 笔 · {formatTime(session.openedAt)} 开桌
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </MasterDetail>
     </div>
   );
 }
