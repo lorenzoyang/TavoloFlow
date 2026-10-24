@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { Notice } from "@/components/notice";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { accountQuery } from "@/features/accounts/queries";
 import type { CurrentAccount } from "@/features/accounts/api";
@@ -10,30 +11,39 @@ import {
   subscriptionRemindersKey,
 } from "./api";
 import { useSubscriptionQuery } from "./queries";
-import { SubscriptionStatus } from "./SubscriptionViews";
 
+// One compact line above every owner page; the details live on /staff/subscription.
 function OwnerReminder({ account }: { account: CurrentAccount }) {
   const detail = useSubscriptionQuery(ownerSubscriptionKey(account), getOwnerSubscription);
   if (!detail.data)
     return detail.isError ? (
-      <p role="status" className="mb-4">
+      <p role="status" className="mb-4 text-sm text-muted-foreground">
         年费提醒暂时无法更新。
       </p>
     ) : null;
   const summary = detail.data.summary;
-  if (!summary.unpaidPeriodCount && !summary.dueSoon && summary.serviceState !== "EXPIRED")
-    return null;
+  const reminders = [
+    summary.serviceState === "EXPIRED" && "约定服务期限已到期，请安排续费。",
+    summary.unpaidPeriodCount > 0 && `有 ${summary.unpaidPeriodCount} 个已开始的周期待付费。`,
+    summary.dueSoon && "服务将在 7 天内到期，请安排续费。",
+  ].filter(Boolean);
+  if (!reminders.length) return null;
   return (
-    <aside aria-label="年费提醒" className="mb-5 space-y-3 rounded-xl border bg-card p-4">
-      <SubscriptionStatus summary={summary} />
-      {detail.stale && <p className="text-sm text-muted-foreground">提醒待刷新。</p>}
-      <Link
-        to="/staff/subscription"
-        className={buttonVariants({ variant: "outline", className: "min-h-11" })}
-      >
-        查看年费与收费周期
-      </Link>
-    </aside>
+    <Notice
+      tone="warning"
+      className="mb-5"
+      action={
+        <Link
+          to="/staff/subscription"
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+        >
+          查看年费与收费周期
+        </Link>
+      }
+    >
+      {reminders.join(" ")}
+      {detail.stale && " 提醒待刷新。"}
+    </Notice>
   );
 }
 export function OwnerSubscriptionReminder() {
@@ -45,19 +55,17 @@ export function OwnerSubscriptionReminder() {
 }
 export function PlatformSubscriptionReminders({ userId }: { userId: string }) {
   const reminders = useSubscriptionQuery(subscriptionRemindersKey(userId), getReminders);
+  if (!reminders.data)
+    return (
+      <p role="status" className="text-sm text-muted-foreground">
+        {reminders.isError ? "年费提醒暂时无法更新。" : "正在读取年费提醒…"}
+      </p>
+    );
+  const { unpaidCount, dueSoonCount, expiredCount } = reminders.data;
   return (
-    <aside aria-label="平台年费提醒" className="space-y-2 rounded-lg border bg-card p-4">
-      {reminders.data ? (
-        <p>
-          年费提醒：已开始待收款 {reminders.data.unpaidCount} 家 · 7 天内到期{" "}
-          {reminders.data.dueSoonCount} 家 · 已到期 {reminders.data.expiredCount} 家
-        </p>
-      ) : (
-        <p role="status">{reminders.isError ? "年费提醒暂时无法更新。" : "正在读取年费提醒…"}</p>
-      )}
-      {reminders.data && reminders.stale && (
-        <p className="text-sm text-muted-foreground">提醒待刷新，以上为上次读取结果。</p>
-      )}
-    </aside>
+    <Notice tone={unpaidCount || dueSoonCount || expiredCount ? "warning" : "info"}>
+      年费提醒：已开始待收款 {unpaidCount} 家 · 7 天内到期 {dueSoonCount} 家 · 已到期 {expiredCount}{" "}
+      家{reminders.stale && <span className="block text-xs">提醒待刷新，以上为上次读取结果。</span>}
+    </Notice>
   );
 }

@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCents } from "@/lib/format";
@@ -39,7 +41,6 @@ export function PeriodFields({
           required
           value={start}
           onChange={(e) => setStart(e.target.value)}
-          className="h-11"
         />
       </div>
       <div className="space-y-2">
@@ -54,7 +55,6 @@ export function PeriodFields({
           required
           value={years}
           onChange={(e) => setYears(e.target.value)}
-          className="h-11"
         />
       </div>
       <div className="space-y-2">
@@ -67,16 +67,16 @@ export function PeriodFields({
           min={start || undefined}
           value={endOverride ?? defaultEnd}
           onChange={(e) => setEndOverride(e.target.value)}
-          className="h-11"
         />
         {endOverride !== null && (
-          <button
+          <Button
             type="button"
-            className="min-h-11 text-sm underline"
+            variant="link"
+            className="h-auto px-0"
             onClick={() => setEndOverride(null)}
           >
             按开始日期和年数重新计算
-          </button>
+          </Button>
         )}
       </div>
       <div className="space-y-2">
@@ -88,27 +88,27 @@ export function PeriodFields({
           required
           value={amountOverride ?? (defaultAmount === null ? "" : formatCents(defaultAmount))}
           onChange={(e) => setAmountOverride(e.target.value)}
-          className="h-11"
         />
         {amountOverride !== null && annualFee !== null && (
-          <button
+          <Button
             type="button"
-            className="min-h-11 text-sm underline"
+            variant="link"
+            className="h-auto px-0"
             onClick={() => setAmountOverride(null)}
           >
             按年费 × 年数重新计算
-          </button>
+          </Button>
         )}
       </div>
       {allowPaid && (
         <>
           <label className="flex min-h-11 items-center gap-3 sm:col-span-2">
-            <input
-              type="checkbox"
+            {/* value="on" keeps the native checkbox form value that periodFromForm reads. */}
+            <Checkbox
               name={`${prefix}-paid`}
+              value="on"
               checked={paid}
-              onChange={(e) => setPaid(e.target.checked)}
-              className="size-5"
+              onCheckedChange={(checked) => setPaid(checked)}
             />
             已收到整个周期的全款
           </label>
@@ -122,7 +122,6 @@ export function PeriodFields({
                 required
                 defaultValue={initial?.paidOn ?? today ?? ""}
                 max={today}
-                className="h-11"
               />
             </div>
           )}

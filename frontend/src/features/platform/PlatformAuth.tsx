@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { BrandMark } from "@/components/brand";
+import { LoadingState } from "@/components/loading-state";
+import { Notice } from "@/components/notice";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { ApiError, errorMessage } from "@/lib/api";
 import { changePlatformPassword, platformLogin, platformLogout } from "./api";
@@ -14,12 +16,13 @@ import { PlatformSubscriptionReminders } from "@/features/subscriptions/Subscrip
 
 export function PlatformLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-svh bg-muted/30 text-foreground">
-      <header className="mx-auto max-w-6xl px-4 py-8">
-        <p className="text-lg font-semibold">TavoloFlow · 平台管理</p>
-        <p className="text-sm text-muted-foreground">餐厅开通与账号维护</p>
+    <div className="min-h-dvh">
+      <header className="border-b bg-card pt-[env(safe-area-inset-top)]">
+        <div className="mx-auto max-w-5xl px-4 py-3">
+          <BrandMark caption="平台管理 · 餐厅开通与账号维护" />
+        </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 pb-10">{children}</main>
+      <main className="mx-auto max-w-5xl px-4 pt-6 pb-12">{children}</main>
     </div>
   );
 }
@@ -32,28 +35,33 @@ export function PlatformBoundary({
   children: (identity: PlatformIdentity | null) => ReactNode;
 }) {
   const query = useQuery(platformQuery);
+  const failed = query.isError || query.fetchStatus === "paused";
   if (query.isPending || (query.isError && !query.data))
-    return (
-      <div className="space-y-3">
-        <p role="status">
-          {query.isError || query.fetchStatus === "paused"
-            ? "无法确认平台身份，请检查网络。"
-            : "正在确认平台身份…"}
-        </p>
-        {(query.isError || query.fetchStatus === "paused") && (
-          <Button onClick={() => void query.refetch()}>重新读取</Button>
-        )}
-      </div>
+    return failed ? (
+      <Notice tone="error" action={<Button onClick={() => void query.refetch()}>重新读取</Button>}>
+        无法确认平台身份，请检查网络。
+      </Notice>
+    ) : (
+      <LoadingState label="正在确认平台身份…" />
     );
   if (login && query.data) return <Navigate to="/platform/restaurants" replace />;
   if (!login && !query.data) return <Navigate to="/platform/login" replace />;
   return (
     <>
-      {query.isError && <p role="alert">平台身份更新失败，请刷新后再操作。</p>}
+      {query.isError && (
+        <Notice tone="error" className="mb-5">
+          平台身份更新失败，请刷新后再操作。
+        </Notice>
+      )}
       {children(query.data ?? null)}
     </>
   );
 }
+
+const navLink = buttonVariants({
+  variant: "ghost",
+  className: "aria-[current=page]:bg-accent aria-[current=page]:text-accent-foreground",
+});
 
 export function PlatformNavigation({ account }: { account: PlatformIdentity }) {
   const [error, setError] = useState("");
@@ -76,25 +84,22 @@ export function PlatformNavigation({ account }: { account: PlatformIdentity }) {
   };
   return (
     <div className="mb-6 space-y-3">
-      <nav aria-label="平台导航" className="flex flex-wrap items-center gap-3">
-        <span>{account.username}</span>
-        <Link
-          to="/platform/restaurants"
-          className={buttonVariants({ variant: "outline", className: "h-11" })}
-        >
+      <nav
+        aria-label="平台导航"
+        className="flex flex-wrap items-center gap-2 rounded-2xl border bg-card p-2 shadow-xs"
+      >
+        <Link to="/platform/restaurants" className={navLink}>
           餐厅管理
         </Link>
-        <Link
-          to="/platform/change-password"
-          className={buttonVariants({ variant: "outline", className: "h-11" })}
-        >
+        <Link to="/platform/change-password" className={navLink}>
           修改平台密码
         </Link>
-        <Button variant="outline" className="h-11" disabled={busy} onClick={() => void logout()}>
+        <span className="ml-auto px-2 text-sm text-muted-foreground">{account.username}</span>
+        <Button variant="outline" disabled={busy} onClick={() => void logout()}>
           退出平台
         </Button>
       </nav>
-      {error && <p role="alert">{error}</p>}
+      {error && <Notice tone="error">{error}</Notice>}
       <PlatformSubscriptionReminders userId={account.userId} />
     </div>
   );
@@ -143,9 +148,11 @@ function PlatformForm({ password = false }: { password?: boolean }) {
     }
   };
   return (
-    <Card className="mx-auto max-w-md">
-      <CardContent className="space-y-5 pt-6">
-        <h1 className="text-2xl font-semibold">{password ? "修改平台密码" : "平台管理员登录"}</h1>
+    <Card className="mx-auto max-w-md [--card-spacing:--spacing(6)]">
+      <CardContent className="space-y-5">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {password ? "修改平台密码" : "平台管理员登录"}
+        </h1>
         <form onSubmit={submit} className="space-y-4">
           <fieldset disabled={busy} className="space-y-4">
             {!password && (
@@ -157,7 +164,6 @@ function PlatformForm({ password = false }: { password?: boolean }) {
                   autoComplete="username"
                   required
                   maxLength={50}
-                  className="h-11"
                 />
               </div>
             )}
@@ -179,7 +185,6 @@ function PlatformForm({ password = false }: { password?: boolean }) {
                   required
                   maxLength={128}
                   minLength={complete === "new-password" ? 6 : undefined}
-                  className="h-11"
                 />
               </div>
             ))}
@@ -188,16 +193,12 @@ function PlatformForm({ password = false }: { password?: boolean }) {
                 6–128 个字符，可使用纯数字，不能全部为空白。
               </p>
             )}
-            <Button type="submit" className="h-11 w-full">
+            <Button type="submit" size="lg" className="w-full">
               {busy ? "正在提交…" : password ? "保存平台密码" : "登录平台"}
             </Button>
           </fieldset>
         </form>
-        {message && (
-          <Alert>
-            <AlertDescription>{message}</AlertDescription>
-          </Alert>
-        )}
+        {message && <Notice>{message}</Notice>}
       </CardContent>
     </Card>
   );

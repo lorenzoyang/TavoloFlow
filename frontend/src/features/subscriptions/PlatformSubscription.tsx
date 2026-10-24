@@ -1,10 +1,15 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { RefreshCw } from "lucide-react";
+import { LoadingState } from "@/components/loading-state";
+import { Notice } from "@/components/notice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { errorMessage } from "@/lib/api";
 import { formatCents, formatMoney, parsePrice } from "@/lib/format";
 import { randomUuid } from "@/lib/ids";
+import { cn } from "@/lib/utils";
 import { onLifecycleChange } from "@/lib/useLiveView";
 import {
   adjustExpiry,
@@ -139,47 +144,59 @@ export function PlatformSubscription({
     if (await actions.run(selected.send)) setEditor(null);
   };
   return (
-    <section className="my-6 space-y-5 rounded-xl border bg-card p-5" aria-label="餐厅年费管理">
-      <h2 className="text-xl font-semibold">年费与收费周期</h2>
-      {detail.isPending && <p role="status">正在读取年费资料…</p>}
-      {detail.error && <p role="alert">{errorMessage(detail.error)}</p>}
+    <section
+      className="my-6 space-y-5 rounded-2xl border bg-card p-4 shadow-xs sm:p-5"
+      aria-label="餐厅年费管理"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-xl font-semibold">年费与收费周期</h2>
+        <Button
+          variant="outline"
+          size="icon"
+          aria-label="刷新年费资料"
+          onClick={() => void detail.refetch()}
+        >
+          <RefreshCw className={cn(detail.isFetching && "animate-spin")} />
+        </Button>
+      </div>
+      {detail.isPending && <LoadingState label="正在读取年费资料…" />}
+      {detail.error && <Notice tone="error">{errorMessage(detail.error)}</Notice>}
       {summary && (
-        <>
+        <div className="space-y-4">
           <SubscriptionStatus summary={summary} />
-          <p className="whitespace-pre-wrap wrap-break-word">
-            老板联系方式：{summary.ownerContact || "尚未登记"}
-          </p>
-          <p>
-            下次新建周期的默认年费：
-            {summary.defaultAnnualFeeCents === null
-              ? "尚未设置"
-              : formatMoney(summary.defaultAnnualFeeCents)}
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <Button
-              variant="outline"
-              className="min-h-11"
-              disabled={locked}
-              onClick={() => open("metadata")}
-            >
-              编辑联系方式与年费
-            </Button>
-            <Button className="min-h-11" disabled={locked} onClick={() => open("create")}>
+          <dl className="grid gap-x-4 gap-y-2 border-t pt-4 text-sm sm:grid-cols-[10rem_1fr]">
+            <dt className="text-muted-foreground">老板联系方式</dt>
+            <dd className="font-medium whitespace-pre-wrap wrap-break-word">
+              {summary.ownerContact || "尚未登记"}
+            </dd>
+            <dt className="text-muted-foreground">下次新建周期的默认年费</dt>
+            <dd className="font-medium">
+              {summary.defaultAnnualFeeCents === null
+                ? "尚未设置"
+                : formatMoney(summary.defaultAnnualFeeCents)}
+            </dd>
+          </dl>
+          <div className="flex flex-wrap gap-2">
+            <Button disabled={locked} onClick={() => open("create")}>
               登记新收费周期
             </Button>
-            <Button variant="outline" className="min-h-11" onClick={() => void detail.refetch()}>
-              刷新年费资料
+            <Button variant="outline" disabled={locked} onClick={() => open("metadata")}>
+              编辑联系方式与年费
             </Button>
           </div>
-          {detail.stale && <p role="status">当前资料待刷新；读取成功后可继续修改。</p>}
-        </>
+          {detail.stale && (
+            <p role="status" className="text-sm">
+              当前资料待刷新；读取成功后可继续修改。
+            </p>
+          )}
+        </div>
       )}
-      {actions.message && <p role="status">{actions.message}</p>}
+      {actions.message && <Notice>{actions.message}</Notice>}
       {editor && (
         <form
           key={`${editor.kind}:${editor.period?.id ?? "new"}:${editor.summary.version}`}
           onSubmit={submitEditor}
-          className="space-y-4 rounded-lg border p-4"
+          className="space-y-4 rounded-xl border bg-background p-4"
         >
           <h3 className="font-semibold">
             {
@@ -197,13 +214,12 @@ export function PlatformSubscription({
               <>
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="subscription-contact">老板联系方式</Label>
-                  <textarea
+                  <Textarea
                     id="subscription-contact"
                     name="ownerContact"
                     maxLength={500}
                     defaultValue={editor.summary.ownerContact ?? ""}
                     rows={3}
-                    className="min-h-24 w-full rounded-md border bg-background px-3 py-2 focus-visible:outline-2 focus-visible:outline-ring"
                   />
                 </div>
                 <div className="space-y-2 sm:col-span-2">
@@ -217,7 +233,6 @@ export function PlatformSubscription({
                         ? ""
                         : formatCents(editor.summary.defaultAnnualFeeCents)
                     }
-                    className="h-11"
                   />
                 </div>
               </>
@@ -241,7 +256,6 @@ export function PlatformSubscription({
                   required
                   defaultValue={editor.period!.endsOn}
                   min={editor.period!.startsOn}
-                  className="h-11"
                 />
               </div>
             ) : (
@@ -258,18 +272,16 @@ export function PlatformSubscription({
                     required
                     defaultValue={editor.summary.localToday}
                     max={editor.summary.localToday}
-                    className="h-11"
                   />
                 </div>
               </>
             )}
-            <Button type="submit" className="min-h-11" disabled={locked}>
+            <Button type="submit" disabled={locked}>
               核对并继续
             </Button>
             <Button
               type="button"
               variant="outline"
-              className="min-h-11"
               onClick={() => {
                 setEditor(null);
                 setValidation("");
@@ -279,63 +291,51 @@ export function PlatformSubscription({
             </Button>
           </fieldset>
           {editor.summary.version !== summary?.version && (
-            <p role="alert">资料已被更新，请关闭编辑后重新核对最新资料。</p>
+            <Notice tone="error">资料已被更新，请关闭编辑后重新核对最新资料。</Notice>
           )}
-          {validation && <p role="alert">{validation}</p>}
+          {validation && <Notice tone="error">{validation}</Notice>}
         </form>
       )}
       {confirmation && (
-        <section className="space-y-4 rounded-lg border p-4" aria-label="收费操作确认">
+        <section
+          className="space-y-4 rounded-xl border border-primary/30 bg-accent/40 p-4"
+          aria-label="收费操作确认"
+        >
           <h3 className="font-semibold">确认本次操作</h3>
-          <p>{confirmation.description}</p>
+          <p className="text-sm leading-6">{confirmation.description}</p>
           {confirmation.version !== summary?.version && (
-            <p role="alert">资料版本已变化，请取消后重新读取。</p>
+            <Notice tone="error">资料版本已变化，请取消后重新读取。</Notice>
           )}
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2">
             <Button
-              className="min-h-11"
               disabled={locked || confirmation.version !== summary?.version}
               onClick={() => void commit()}
             >
               确认执行
             </Button>
-            <Button variant="outline" className="min-h-11" onClick={() => setConfirmation(null)}>
+            <Button variant="outline" onClick={() => setConfirmation(null)}>
               返回修改
             </Button>
           </div>
         </section>
       )}
       <h3 className="font-semibold">收费周期与付款历史</h3>
-      {periods?.length === 0 && <p>尚未登记收费周期。</p>}
+      {periods?.length === 0 && <p className="text-sm text-muted-foreground">尚未登记收费周期。</p>}
       {periods?.map((period) => (
-        <article className="space-y-3 rounded-lg border p-4" key={period.id}>
+        <article className="space-y-3 rounded-xl border p-4" key={period.id}>
           <PeriodDetails period={period} />
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2">
             {!period.paidOn && (
               <>
-                <Button
-                  className="min-h-11"
-                  disabled={locked}
-                  onClick={() => open("payment", period)}
-                >
+                <Button disabled={locked} onClick={() => open("payment", period)}>
                   确认收到全款
                 </Button>
-                <Button
-                  className="min-h-11"
-                  variant="outline"
-                  disabled={locked}
-                  onClick={() => open("edit", period)}
-                >
+                <Button variant="outline" disabled={locked} onClick={() => open("edit", period)}>
                   修改约定
                 </Button>
               </>
             )}
-            <Button
-              className="min-h-11"
-              variant="outline"
-              disabled={locked}
-              onClick={() => open("expiry", period)}
-            >
+            <Button variant="outline" disabled={locked} onClick={() => open("expiry", period)}>
               单独调整期限
             </Button>
           </div>

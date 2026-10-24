@@ -1,7 +1,14 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { RefreshCw } from "lucide-react";
+import { LoadingState } from "@/components/loading-state";
+import { Notice } from "@/components/notice";
+import { PageHeader } from "@/components/page-header";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { errorMessage } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { readRestaurant, resetAccountPassword, setAccountActive, setServiceStatus } from "./api";
 import { PlatformBoundary, PlatformNavigation } from "./PlatformAuth";
 import { AccountActions, TemporaryPasswords } from "./ManagementViews";
@@ -20,6 +27,7 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
   });
   const actions = useManagement("platform", identity.userId);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const panel = useRef<HTMLElement>(null);
   const current =
     confirmation && confirmation.kind !== "status"
       ? query.data?.accounts.find((a) => a.id === confirmation.account.id)
@@ -35,6 +43,13 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
     query.isError ||
     !query.data ||
     query.isFetching;
+  // The confirmation may open far below the button that asked for it on a phone.
+  const open = !!confirmation;
+  useEffect(() => {
+    if (!open) return;
+    panel.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    panel.current?.focus({ preventScroll: true });
+  }, [open]);
   const submit = async () => {
     if (!confirmation || locked || changed) return;
     const c = confirmation;
@@ -58,38 +73,90 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
       );
     }
   };
+  const restaurant = query.data?.restaurant;
+  const accounts = query.data?.accounts ?? [];
   return (
     <>
       <PlatformNavigation account={identity} />
-      <h1 className="mb-5 text-2xl font-semibold">{query.data?.restaurant.name ?? "餐厅详情"}</h1>
-      <Button className="mb-5 min-h-11" variant="outline" onClick={() => void query.refetch()}>
-        刷新餐厅状态
-      </Button>
-      {query.isPending && <p role="status">正在读取…</p>}
-      {query.error && <p role="alert">{errorMessage(query.error)}</p>}
-      {query.data && (
-        <>
-          <section className="mb-5 space-y-3 rounded-xl border bg-card p-5">
-            <p>
-              {query.data.restaurant.serviceStatus === "ACTIVE" ? "服务已启用" : "服务已停用"} ·{" "}
-              {query.data.restaurant.orderingEnabled ? "接单中" : "接单关闭"}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {query.data.restaurant.currencyCode} · {query.data.restaurant.timeZone} · 默认菜单语言{" "}
-              {query.data.restaurant.defaultLanguage}
-            </p>
-            <Button
-              className="min-h-11"
-              disabled={locked || !!confirmation}
-              onClick={() =>
-                setConfirmation({ kind: "status", status: query.data.restaurant.serviceStatus })
-              }
+      <PageHeader
+        title={restaurant?.name ?? "餐厅详情"}
+        back={{ to: "/platform/restaurants", label: "返回餐厅列表" }}
+        actions={
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="刷新餐厅状态"
+            onClick={() => void query.refetch()}
+          >
+            <RefreshCw className={cn(query.isFetching && "animate-spin")} />
+          </Button>
+        }
+      />
+      {query.isPending && <LoadingState label="正在读取…" />}
+      {query.error && <Notice tone="error">{errorMessage(query.error)}</Notice>}
+      {restaurant && (
+        <div className="space-y-4">
+          <Card>
+            <CardContent className="flex flex-wrap items-center justify-between gap-4">
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant={restaurant.serviceStatus === "ACTIVE" ? "success" : "outline"}>
+                    {restaurant.serviceStatus === "ACTIVE" ? "服务已启用" : "服务已停用"}
+                  </Badge>
+                  <Badge variant={restaurant.orderingEnabled ? "secondary" : "outline"}>
+                    {restaurant.orderingEnabled ? "接单中" : "接单关闭"}
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {restaurant.currencyCode} · {restaurant.timeZone} · 默认菜单语言{" "}
+                  {restaurant.defaultLanguage}
+                </p>
+              </div>
+              <Button
+                variant={restaurant.serviceStatus === "ACTIVE" ? "outline" : "default"}
+                disabled={locked || !!confirmation}
+                onClick={() =>
+                  setConfirmation({ kind: "status", status: restaurant.serviceStatus })
+                }
+              >
+                {restaurant.serviceStatus === "ACTIVE" ? "停用餐厅服务" : "启用餐厅服务"}
+              </Button>
+            </CardContent>
+          </Card>
+          {confirmation && (
+            <section
+              ref={panel}
+              tabIndex={-1}
+              aria-label="管理操作确认"
+              className="space-y-4 rounded-2xl border border-primary/30 bg-card p-4 shadow-xs outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
-              {query.data.restaurant.serviceStatus === "ACTIVE" ? "停用餐厅服务" : "启用餐厅服务"}
-            </Button>
-          </section>
+              <h2 className="font-semibold">确认操作 · {restaurant.name}</h2>
+              <p className="text-sm leading-6">
+                {confirmation.kind === "status"
+                  ? confirmation.status === "ACTIVE"
+                    ? "停用服务将同时关闭接单，既有订单和账单仍可处理。"
+                    : "启用服务后，店铺仍须手动开启接单。"
+                  : `${confirmation.account.role} · ${confirmation.account.username}：${
+                      confirmation.kind === "reset"
+                        ? "重置后所有旧登录失效，须交付新临时密码并首次改密。账号启用状态不变。"
+                        : confirmation.account.isActive
+                          ? "禁用后所有旧登录失效。"
+                          : "重新启用账号，原有旧登录仍然失效。"
+                    }`}
+              </p>
+              {changed && <Notice tone="error">状态已变化，请取消后重新核对。</Notice>}
+              <div className="flex flex-wrap gap-2">
+                <Button disabled={locked || changed} onClick={() => void submit()}>
+                  确认执行
+                </Button>
+                <Button variant="outline" onClick={() => setConfirmation(null)}>
+                  取消
+                </Button>
+              </div>
+            </section>
+          )}
           <div className="grid gap-4 md:grid-cols-2">
-            {query.data.accounts.map((a) => (
+            {accounts.map((a) => (
               <AccountActions
                 key={a.id}
                 account={a}
@@ -99,41 +166,12 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
               />
             ))}
           </div>
-        </>
+        </div>
       )}
-      {confirmation && (
-        <section className="my-5 space-y-4 rounded-xl border bg-card p-5" aria-label="管理操作确认">
-          <h2 className="font-semibold">确认操作 · {query.data?.restaurant.name}</h2>
-          <p>
-            {confirmation.kind === "status"
-              ? confirmation.status === "ACTIVE"
-                ? "停用服务将同时关闭接单，既有订单和账单仍可处理。"
-                : "启用服务后，店铺仍须手动开启接单。"
-              : `${confirmation.account.role} · ${confirmation.account.username}：${
-                  confirmation.kind === "reset"
-                    ? "重置后所有旧登录失效，须交付新临时密码并首次改密。账号启用状态不变。"
-                    : confirmation.account.isActive
-                      ? "禁用后所有旧登录失效。"
-                      : "重新启用账号，原有旧登录仍然失效。"
-                }`}
-          </p>
-          {changed && <p role="alert">状态已变化，请取消后重新核对。</p>}
-          <Button className="min-h-11" disabled={locked || changed} onClick={() => void submit()}>
-            确认执行
-          </Button>
-          <Button className="ml-3 min-h-11" variant="outline" onClick={() => setConfirmation(null)}>
-            取消
-          </Button>
-        </section>
-      )}
-      {actions.message && (
-        <p role="status" className="my-4">
-          {actions.message}
-        </p>
-      )}
+      {actions.message && <Notice className="my-4">{actions.message}</Notice>}
       {actions.pending && (
         <Button
-          className="my-4 min-h-11"
+          className="my-4"
           variant="outline"
           disabled={actions.busy}
           onClick={() => void actions.recover()}
