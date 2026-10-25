@@ -26,8 +26,8 @@ public static class BrowserSecurity
     public static IServiceCollection AddBrowserSecurity(this IServiceCollection services,
         IConfiguration configuration, IHostEnvironment environment)
     {
-        // Protects cookies, antiforgery tokens and join codes. Production requires a persistent key
-        // directory (DeploymentConfiguration.ValidateKeyRing).
+        // Protects cookies, antiforgery tokens and join codes. Without DataProtection:KeyRingPath the keys
+        // live in the framework's per-user directory; losing them invalidates logins and active join codes.
         var protection = services.AddDataProtection().SetApplicationName("TavoloFlow");
         var keyRingPath = configuration["DataProtection:KeyRingPath"];
         if (!string.IsNullOrWhiteSpace(keyRingPath))

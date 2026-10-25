@@ -9,7 +9,7 @@ flowchart LR
   G[顾客手机<br>/q/{token}] --> C
   S[店铺设备<br>/staff/*] --> C
   P[平台管理员<br>/platform/*] --> C
-  C[Caddy<br>HTTPS · 静态前端] -->|/api/*| A[ASP.NET Core API]
+  C[同源入口<br>静态前端 · 开发时为 Vite 代理] -->|/api/*| A[ASP.NET Core API]
   A --> D[(PostgreSQL)]
   A --> K[Data Protection 密钥目录]
 ```
@@ -24,7 +24,7 @@ flowchart LR
 
 | 层 | 位置 | 职责 |
 |---|---|---|
-| 入口 | `Program.cs` | 注册服务、配置中间件；`Operations/MaintenanceCommands.cs` 提供一次性命令行（初始化账号、恢复平台密码、健康探测） |
+| 入口 | `Program.cs` | 注册服务、配置中间件；`Operations/MaintenanceCommands.cs` 提供一次性命令行（初始化账号、恢复平台密码） |
 | 横切 | `Common/` | 错误信封与全局异常过滤器、浏览器身份与 CSRF、分页游标、枚举文本、输入规则、限流器 |
 | 控制器 | `Controllers/` | 只做三件事：声明授权策略、取可信身份、调用服务 |
 | 业务模块 | `Accounts/` `Menus/` `Tables/` `Dining/` `Guests/` `Ordering/` `Kitchen/` `Billing/` `Platform/` | 每个模块包含 `XxxContracts.cs`（DTO 与错误工厂）和 `XxxService.cs`（事务与规则） |
@@ -38,7 +38,7 @@ flowchart LR
 flowchart TD
   R[HTTP 请求] --> N[no-store：所有 /api 响应禁止缓存]
   N --> X[UseExceptionHandler：未处理异常统一为 500 INTERNAL_ERROR]
-  X --> F[生产环境：转发头、HSTS、HTTPS 重定向]
+  X --> F[生产环境：HSTS、HTTPS 重定向]
   F --> AU[UseAuthentication：Browser 方案按路径选择身份]
   AU --> AZ[UseAuthorization：端点策略；默认和兜底策略都是 Store Staff]
   AZ --> CS[CsrfValidationFilter：写请求必须携带本身份的 CSRF token]
@@ -217,7 +217,7 @@ flowchart TD
 - **限流在进程内**：多实例或重启后计数会重置。入桌码只有约 20 位熵，因此按 IP 和按 session 两层限流，正式公网运营前需要重新评估。
 - **自定义错误信封而不是 ProblemDetails**：前端已经按 `code` 处理错误；统一由一个过滤器生成，比切换标准格式的成本低。
 - **原始 SQL 行锁**：EF Core 没有 LINQ 形式的 `FOR UPDATE`。`RowLocks` 把所有锁语句集中在一个文件里，并在文件头写明锁顺序。
-- **前端没有组件测试**：可测试的逻辑都放在纯模块（`state.ts`、`lib/*.ts`）中，用 `node --test` 验证；完整流程由 Playwright 试运营用例覆盖。
+- **前端没有组件测试**：可测试的逻辑都放在纯模块（`state.ts`、`lib/*.ts`）中，用 `node --test` 验证；完整流程靠手动验证。
 
 ## 9. 本次重构记录（2026-10）
 
@@ -288,7 +288,7 @@ throw DiningErrors.SessionClosed();   // 返回 ApiException
 2. **一次下单的完整路径**：`Controllers/OrderController.cs` → `Ordering/OrderService.cs` → `Dining/DiningEntrance.cs` → `Data/RowLocks.cs`
 3. **关桌事务**：`Billing/BillingService.cs` 的 `CloseAsync`，配合 `BillingTests.cs`
 4. **前端主干**：`lib/api.ts` → `lib/query-scope.ts` → `features/accounts/queries.ts` → `features/orders/useCart.ts`（结果未知模式最完整的实现）
-5. 各阶段细节：[店铺账号](store-accounts.md)、[菜单](menu-management.md)、[桌位与公开菜单](tables-public-menu.md)、[开桌与顾客授权](dining-guest-access.md)、[购物车与下单](cart-ordering.md)、[厨房与取消](kitchen-cancellation.md)、[结账与历史](billing-history.md)、[平台与试运营](platform-pilot.md)、[数据层](data-layer.md)
+5. 各阶段细节：[店铺账号](store-accounts.md)、[菜单](menu-management.md)、[桌位与公开菜单](tables-public-menu.md)、[开桌与顾客授权](dining-guest-access.md)、[购物车与下单](cart-ordering.md)、[厨房与取消](kitchen-cancellation.md)、[结账与历史](billing-history.md)、[平台管理](platform-pilot.md)、[数据层](data-layer.md)
 
 **练习**（请在临时分支上做，做完丢弃）：
 

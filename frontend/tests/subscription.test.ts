@@ -7,7 +7,6 @@ import {
   renewalStart,
 } from "../src/features/subscriptions/state.ts";
 import { randomUuid } from "../src/lib/ids.ts";
-import { syncIsFresh } from "../src/lib/live-view.ts";
 
 test("agreed term uses start date and years, independent of payment date", () => {
   assert.equal(addCalendarYears("2026-11-01", 1), "2027-11-01");
@@ -61,10 +60,4 @@ test("a renewal starts at the latest agreed end, then the service expiry, then t
   assert.equal(renewalStart(latest, summary), "2029-11-01");
   assert.equal(renewalStart(undefined, summary), "2027-11-01");
   assert.equal(renewalStart(undefined, { ...summary, expiresOn: null }), "2026-10-24");
-});
-
-test("subscription views poll every minute and stay fresh for 90 seconds", () => {
-  assert.equal(syncIsFresh(1000, 90_999, 1000, true, false, 90_000), true);
-  assert.equal(syncIsFresh(1000, 91_000, 1000, true, false, 90_000), false);
-  assert.equal(syncIsFresh(1000, 31_000, 1000, true, false), false);
 });

@@ -19,7 +19,7 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
 
     public async Task<ApplicationDbContext> CreateIsolatedContextAsync()
     {
-        // A separate database in the same disposable container lets upgrade tests seed an older schema.
+        // A separate database in the same disposable container, for tests that need their own schema state.
         var databaseName = $"upgrade_{Guid.NewGuid():N}";
         await using var connection = new NpgsqlConnection(container.GetConnectionString());
         await connection.OpenAsync();

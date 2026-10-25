@@ -16,7 +16,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage } from "@/lib/api";
 import { PlatformBoundary, PlatformNavigation } from "./PlatformAuth";
-import { TemporaryPasswords } from "./ManagementViews";
+import { MapLink, TemporaryPasswords } from "./ManagementViews";
 import { useManagement } from "./useManagement";
 import { randomUuid } from "@/lib/ids";
 import { createRestaurant, listRestaurants, RESTAURANTS_PAGE_SIZE } from "./api";
@@ -80,6 +80,7 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
       ownerUsername: String(data.get("owner")),
       staffUsername: String(data.get("staff")),
       ownerContact: String(data.get("ownerContact") ?? "").trim() || null,
+      googleMapsUrl: String(data.get("googleMapsUrl") ?? "").trim() || null,
       defaultAnnualFeeCents,
       initialPeriod,
     };
@@ -144,6 +145,18 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="create-contact">老板联系方式（可选）</Label>
                 <Textarea id="create-contact" name="ownerContact" maxLength={500} rows={3} />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="create-maps">Google 地图链接（可选）</Label>
+                <Input
+                  id="create-maps"
+                  name="googleMapsUrl"
+                  type="url"
+                  inputMode="url"
+                  maxLength={2048}
+                  placeholder="https://maps.app.goo.gl/…"
+                  autoComplete="off"
+                />
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="create-annual">默认年费（EUR，可选）</Label>
@@ -266,13 +279,16 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
               </Badge>
             </div>
             {r.subscription && <SubscriptionStatus summary={r.subscription} />}
-            <Link
-              to="/platform/restaurants/$restaurantId"
-              params={{ restaurantId: r.id }}
-              className={buttonVariants({ variant: "outline", className: "mt-auto" })}
-            >
-              管理 {r.name}
-            </Link>
+            <div className="mt-auto flex flex-wrap gap-2">
+              <Link
+                to="/platform/restaurants/$restaurantId"
+                params={{ restaurantId: r.id }}
+                className={buttonVariants({ variant: "outline", className: "flex-1" })}
+              >
+                管理 {r.name}
+              </Link>
+              {r.googleMapsUrl && <MapLink url={r.googleMapsUrl} name={r.name} />}
+            </div>
           </article>
         ))}
       </div>

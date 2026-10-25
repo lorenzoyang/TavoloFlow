@@ -12,15 +12,8 @@ using TavoloFlow.Api.Ordering;
 using TavoloFlow.Api.Platform;
 using TavoloFlow.Api.Tables;
 
-if (args is ["--healthcheck"])
-{
-    Environment.ExitCode = await MaintenanceCommands.ProbeHealthAsync();
-    return;
-}
-
 var command = MaintenanceCommands.Parse(args, out var hostArgs);
 var builder = WebApplication.CreateBuilder(hostArgs);
-builder.Configuration.AddKeyPerFile("/run/secrets", optional: true); // to check
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddControllers(options =>
@@ -31,7 +24,6 @@ builder.Services.AddControllers(options =>
 }).ConfigureApiBehaviorOptions(options => options.InvalidModelStateResponseFactory = ApiExceptionFilter.InvalidModelState);
 builder.Services.AddOpenApi();
 builder.Services.AddDataLayer(builder.Configuration);
-builder.Services.AddDeployment(builder.Configuration);
 
 // Three independent browser identities share one path-based authentication selector.
 builder.Services.AddBrowserSecurity(builder.Configuration, builder.Environment);
@@ -58,8 +50,6 @@ if (command is not null)
     await MaintenanceCommands.RunAsync(app, command);
     return;
 }
-
-DeploymentConfiguration.ValidateKeyRing(builder.Configuration, app.Environment);
 
 app.Use(async (context, next) =>
 {
@@ -88,11 +78,8 @@ if (app.Environment.IsDevelopment())
 }
 else
 {
-    app.UseForwardedHeaders();
     app.UseHsts();
-    
-    // The internal container health probe uses HTTP; no sensitive data is returned.
-    app.UseWhen(context => !context.Request.Path.StartsWithSegments("/api/health"), branch => branch.UseHttpsRedirection());
+    app.UseHttpsRedirection();
 }
 
 app.UseAuthentication();

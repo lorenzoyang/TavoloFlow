@@ -21,6 +21,7 @@ export type CreateRestaurantInput = {
   ownerContact?: string | null;
   defaultAnnualFeeCents?: number | null;
   initialPeriod?: PeriodInput | null;
+  googleMapsUrl?: string | null;
 };
 
 export const platformLogin = (username: string, password: string, signal: AbortSignal) =>
@@ -73,6 +74,14 @@ export const setServiceStatus = (id: string, status: "ACTIVE" | "SUSPENDED", sig
     `/api/platform/restaurants/${id}/service-status`,
     "PATCH",
     { status },
+    signal,
+  );
+// Platform-only: the map link is kept for a future public restaurant list. null clears it.
+export const setGoogleMapsUrl = (id: string, googleMapsUrl: string | null, signal: AbortSignal) =>
+  platformWrite<Restaurant>(
+    `/api/platform/restaurants/${id}/google-maps-url`,
+    "PATCH",
+    { googleMapsUrl },
     signal,
   );
 

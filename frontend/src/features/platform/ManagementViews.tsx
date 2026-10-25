@@ -1,9 +1,26 @@
 import { useState } from "react";
-import { Copy, KeyRound } from "lucide-react";
+import { Copy, KeyRound, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
 import type { TemporaryCredential, ManagedAccount } from "./state";
+
+// The restaurant name keeps every map link's accessible name unique in the restaurant list.
+export function MapLink({ url, name }: { url: string; name: string }) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`在 Google 地图中打开 ${name}`}
+      className={buttonVariants({ variant: "outline" })}
+    >
+      <MapPin />
+      Google 地图
+    </a>
+  );
+}
 
 // Shown once: the passwords live only in this component's memory and vanish when it closes.
 export function TemporaryPasswords({
@@ -36,10 +53,7 @@ export function TemporaryPasswords({
           <p className="text-sm font-medium">
             {c.account.role} · {c.account.username}
           </p>
-          <code
-            className="block font-mono text-lg font-semibold break-all select-all"
-            data-testid={`temporary-${c.account.role}`}
-          >
+          <code className="block font-mono text-lg font-semibold break-all select-all">
             {c.temporaryPassword}
           </code>
           <Button

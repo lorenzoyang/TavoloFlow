@@ -11,21 +11,6 @@ public static class MaintenanceCommands
     private const string ResetPlatformPassword = "--reset-platform-password";
     private static readonly string[] Flags = [SeedDevelopmentAccounts, SeedPlatformAdmin, ResetPlatformPassword];
 
-    // The container healthcheck runs this inside the API container against the running server.
-    public static async Task<int> ProbeHealthAsync()
-    {
-        try
-        {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-            using var response = await client.GetAsync("http://127.0.0.1:8080/api/health/ready");
-            return response.IsSuccessStatusCode ? 0 : 1;
-        }
-        catch (Exception error) when (error is HttpRequestException or TaskCanceledException)
-        {
-            return 1;
-        }
-    }
-
     // Returns the requested command, if any, and the remaining arguments for the web host.
     public static string? Parse(string[] args, out string[] hostArgs)
     {

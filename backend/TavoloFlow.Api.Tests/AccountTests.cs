@@ -280,17 +280,6 @@ public sealed class AccountTests(PostgreSqlFixture database) : IClassFixture<Pos
         Assert.NotNull(response.Headers.RetryAfter);
     }
 
-    [Fact]
-    public async Task Login_Production_SetsSecureCookie()
-    {
-        var user = await SeedUserAsync();
-        using var host = new AccountTestHost(database, production: true);
-        using var client = host.Browser();
-        var response = await LoginAsync(client, user);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("secure", AuthCookie(response), StringComparison.OrdinalIgnoreCase);
-    }
-
     private async Task<RestaurantUser> SeedUserAsync(
         RestaurantUserRole role = RestaurantUserRole.Owner, bool mustChange = true)
     {

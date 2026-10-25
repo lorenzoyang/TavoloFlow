@@ -7,7 +7,6 @@ import {
   selectedLanguage,
 } from "../src/features/public-menu/language.ts";
 import { publicMenuUrl, isLocalOnlyUrl } from "../src/features/tables/qr-url.ts";
-import { isPrivateQuery } from "../src/lib/query-scope.ts";
 
 test("guest language uses the owner's preference unless a valid explicit choice exists", () => {
   assert.equal(selectedLanguage(null, "it"), "it");
@@ -87,11 +86,4 @@ test("local-only QR links can be distinguished from phone-reachable addresses", 
     assert.equal(isLocalOnlyUrl(`http://${host}:5173/q/token`), true);
   assert.equal(isLocalOnlyUrl("http://192.168.1.5:5173/q/token"), false);
   assert.equal(isLocalOnlyUrl("https://menu.example.com/q/token"), false);
-});
-
-test("staff identity changes clear private tables/menu queries but preserve public browsing", () => {
-  assert.equal(isPrivateQuery({ queryKey: ["tables", "restaurant", "user"] }), true);
-  assert.equal(isPrivateQuery({ queryKey: ["menu", "restaurant", "user"] }), true);
-  assert.equal(isPrivateQuery({ queryKey: ["auth", "me"] }), false);
-  assert.equal(isPrivateQuery({ queryKey: ["public", "qr", "token"] }), false);
 });

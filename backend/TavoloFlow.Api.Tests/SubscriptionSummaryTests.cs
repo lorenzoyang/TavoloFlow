@@ -28,6 +28,7 @@ public sealed class SubscriptionSummaryTests
     }
 
     [Theory]
+    [InlineData(366, "UPCOMING", false)]
     [InlineData(8, "ACTIVE", false)]
     [InlineData(7, "ACTIVE", true)]
     [InlineData(1, "ACTIVE", true)]

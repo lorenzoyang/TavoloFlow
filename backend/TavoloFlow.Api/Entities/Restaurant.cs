@@ -16,6 +16,7 @@ public sealed class Restaurant
     public RestaurantServiceStatus ServiceStatus { get; set; } = RestaurantServiceStatus.Suspended;
     public bool OrderingEnabled { get; set; }
     public DateTime CreatedAt { get; set; }
+    public string? GoogleMapsUrl { get; set; }
     public string? OwnerContact { get; set; }
     public long? DefaultAnnualFeeCents { get; set; }
     public int SubscriptionVersion { get; set; } = 1;

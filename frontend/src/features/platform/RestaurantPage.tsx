@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { LoadingState } from "@/components/loading-state";
@@ -7,11 +7,19 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { readRestaurant, resetAccountPassword, setAccountActive, setServiceStatus } from "./api";
+import {
+  readRestaurant,
+  resetAccountPassword,
+  setAccountActive,
+  setGoogleMapsUrl,
+  setServiceStatus,
+} from "./api";
 import { PlatformBoundary, PlatformNavigation } from "./PlatformAuth";
-import { AccountActions, TemporaryPasswords } from "./ManagementViews";
+import { AccountActions, MapLink, TemporaryPasswords } from "./ManagementViews";
 import { useManagement } from "./useManagement";
 import type { ManagedAccount } from "./state";
 import type { PlatformIdentity } from "./identity";
@@ -27,6 +35,7 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
   });
   const actions = useManagement("platform", identity.userId);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const [editingMap, setEditingMap] = useState(false);
   const panel = useRef<HTMLElement>(null);
   const current =
     confirmation && confirmation.kind !== "status"
@@ -73,6 +82,16 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
       );
     }
   };
+  // Neither money nor irreversible: the link saves without the inline confirmation, and a blank value clears it.
+  const saveMap = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (locked) return;
+    const value = String(new FormData(event.currentTarget).get("googleMapsUrl") ?? "").trim();
+    const saved = await actions.run({ kind: "maps", restaurantId: id }, (signal) =>
+      setGoogleMapsUrl(id, value || null, signal),
+    );
+    if (saved) setEditingMap(false);
+  };
   const restaurant = query.data?.restaurant;
   const accounts = query.data?.accounts ?? [];
   return (
@@ -111,6 +130,20 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
                   {restaurant.currencyCode} · {restaurant.timeZone} · 默认菜单语言{" "}
                   {restaurant.defaultLanguage}
                 </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {restaurant.googleMapsUrl ? (
+                    <MapLink url={restaurant.googleMapsUrl} name={restaurant.name} />
+                  ) : (
+                    <span className="text-sm text-muted-foreground">尚未登记 Google 地图链接</span>
+                  )}
+                  <Button
+                    variant="ghost"
+                    disabled={locked || !!confirmation || editingMap}
+                    onClick={() => setEditingMap(true)}
+                  >
+                    编辑地图链接
+                  </Button>
+                </div>
               </div>
               <Button
                 variant={restaurant.serviceStatus === "ACTIVE" ? "outline" : "default"}
@@ -123,6 +156,35 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
               </Button>
             </CardContent>
           </Card>
+          {editingMap && (
+            <form
+              onSubmit={saveMap}
+              className="space-y-4 rounded-2xl border bg-card p-4 shadow-xs"
+              aria-label="编辑 Google 地图链接"
+            >
+              <div className="space-y-2">
+                <Label htmlFor="restaurant-maps">Google 地图链接（留空保存即清除）</Label>
+                <Input
+                  id="restaurant-maps"
+                  name="googleMapsUrl"
+                  type="url"
+                  inputMode="url"
+                  maxLength={2048}
+                  defaultValue={restaurant.googleMapsUrl ?? ""}
+                  placeholder="https://maps.app.goo.gl/…"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" disabled={locked}>
+                  保存地图链接
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setEditingMap(false)}>
+                  取消
+                </Button>
+              </div>
+            </form>
+          )}
           {confirmation && (
             <section
               ref={panel}

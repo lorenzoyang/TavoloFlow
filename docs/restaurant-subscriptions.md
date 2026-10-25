@@ -61,12 +61,12 @@ OWNER 只读 `GET /api/owner/subscription`，由 `CurrentAccount` 决定餐厅�
 ## 迁移和验收
 
 新增 `restaurant_subscription_periods` 一张表，连同原表共十张。
-迁移通过现有 EF bundle 显式执行；备份是整库导出，新表自动纳入。
+迁移需显式执行，见 [数据层](data-layer.md)。
 
-后端 `SubscriptionTests` 使用 disposable PostgreSQL 验证周期、按版本防重复、并发、日期、
-权限和升级兼容；前端纯逻辑测试验证日历计算、金额和视图新鲜度。
+后端 `SubscriptionTests` 使用 disposable PostgreSQL 验证周期、按版本防重复、并发、日期和
+权限，`SubscriptionSummaryTests` 验证状态计算；前端纯逻辑测试验证日历计算和金额。
 UI 验收至少走一遍未付开户、两年优惠价、提前/延后收款、续费、改价、独立延期，
-以及断网后重新读取核对。浏览器测试使用既有隔离环境条件。
+以及断网后重新读取核对。
 
 ### 2026-10-24 验证记录（删除业务事件表后）
 

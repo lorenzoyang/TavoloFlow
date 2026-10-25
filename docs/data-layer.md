@@ -265,7 +265,7 @@ Tests cover schema creation/model alignment, graph persistence and explicit
 defaults, all five remaining composite tenant relationships, critical
 uniqueness/concurrent insert cases, lifecycle checks, snapshot/history
 preservation, catalog deletion conflicts and tenant isolation, session/order
-cascades with loaded and unloaded dependents, complete restaurant deletion,
-and upgrade/preflight checks. Application workflow tests are covered separately
+cascades with loaded and unloaded dependents, and complete restaurant
+deletion. Application workflow tests are covered separately
 by the ordering, kitchen and billing integration tests, including lock contention,
 atomic rollback and closed-session access rejection.

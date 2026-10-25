@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 @AGENTS.md
 
-AGENTS.md (imported above) is the authoritative source for layout, style and the per-area domain rules (lock order, state gates, recovery, limits). Put new domain rules there, not here. This file adds commands and the cross-cutting architecture that AGENTS.md assumes. The README, `docs/` and `deploy/README.md` are written in Chinese. Backend error messages and the staff/platform UI copy are also Chinese. Guest-facing copy (`public-menu`, `guests`, `orders`) has zh/it/en variants.
+AGENTS.md (imported above) is the authoritative source for layout, style and the per-area domain rules (lock order, state gates, recovery, limits). Put new domain rules there, not here. This file adds commands and the cross-cutting architecture that AGENTS.md assumes. The README and `docs/` are written in Chinese. Backend error messages and the staff/platform UI copy are also Chinese. Guest-facing copy (`public-menu`, `guests`, `orders`) has zh/it/en variants.
 
 ## Commands not covered in AGENTS.md
 
@@ -13,7 +13,7 @@ Backend (repository root):
 - One-time setup: `dotnet tool restore` (pins `dotnet-ef`). Then `dotnet user-secrets set 'ConnectionStrings:Default' '<conn>' --project backend/TavoloFlow.Api` and `dotnet ef database update --project backend/TavoloFlow.Api`. Compose does not configure the API connection string.
 - Single test class or method: `dotnet test TavoloFlow.slnx --filter "FullyQualifiedName~KitchenTests"` (append `.MethodName` for one test). Each test class takes its own `IClassFixture<PostgreSqlFixture>` and starts its own `postgres:18-alpine` container, so Docker must be running.
 - Schema change: `dotnet ef migrations add <Name> --project backend/TavoloFlow.Api --output-dir Data/Migrations`, then check with `dotnet ef migrations has-pending-model-changes --project backend/TavoloFlow.Api`. Migrations are forward-only and never run at startup. Deployment applies a reviewed `dotnet ef migrations script --idempotent` output. See `docs/data-layer.md`.
-- `Program.cs` also acts as a one-shot CLI (`Operations/MaintenanceCommands.cs`). Pass exactly one of `--seed-dev-accounts`, `--seed-platform-admin` or `--reset-platform-password`; it runs the command and exits without serving. `--healthcheck` is the container probe.
+- `Program.cs` also acts as a one-shot CLI (`Operations/MaintenanceCommands.cs`). Pass exactly one of `--seed-dev-accounts`, `--seed-platform-admin` or `--reset-platform-password`; it runs the command and exits without serving.
 
 Frontend (`frontend/`):
 

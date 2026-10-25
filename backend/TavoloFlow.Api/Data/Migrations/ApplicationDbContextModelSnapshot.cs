@@ -475,6 +475,11 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("character varying(2)")
                         .HasColumnName("default_language");
 
+                    b.Property<string>("GoogleMapsUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("google_maps_url");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -519,6 +524,8 @@ namespace TavoloFlow.Api.Data.Migrations
                             t.HasCheckConstraint("ck_restaurant_currency", "currency_code = 'EUR'");
 
                             t.HasCheckConstraint("ck_restaurant_default_language", "default_language IN ('zh', 'it', 'en')");
+
+                            t.HasCheckConstraint("ck_restaurant_google_maps_url", "google_maps_url IS NULL OR google_maps_url LIKE 'https://%'");
 
                             t.HasCheckConstraint("ck_restaurant_service_status", "service_status IN ('ACTIVE', 'SUSPENDED')");
 

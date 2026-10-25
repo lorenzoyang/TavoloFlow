@@ -74,10 +74,8 @@ node_modules
 dist
 dist-ssr
 *.local
-deploy/secrets*/
-deploy/backups/
-frontend/test-results/
-frontend/playwright-report/
+# TanStack Router plugin scratch space
+.tanstack
 
 # Editor directories and files
 .vscode/*

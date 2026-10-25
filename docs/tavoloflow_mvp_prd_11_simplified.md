@@ -384,7 +384,8 @@ flowchart TD
 | GET / POST | `/api/platform/restaurants` | **已实现**：分页/筛选；客户端指定 UUID 原子建店，成功响应一次性返回两个随机密码 |
 | GET / PATCH | `/api/platform/restaurants/{id}`、`/{id}/service-status` | **已实现**：餐厅与账号详情；明确 ACTIVE/SUSPENDED，停用同时关闭接单 |
 | PATCH / POST | `/api/platform/restaurants/{id}/users/{userId}/active`、`reset-password` | **已实现**：预期凭据版本保护账号启停/重置，冲突 ACCOUNT_CHANGED |
-| GET | `/api/health/live`、`/api/health/ready` | **已实现**：最小存活/数据库与迁移就绪状态 |
+| PATCH | `/api/platform/restaurants/{id}/google-maps-url` | **已实现**：平台专用的 HTTPS Google 地图链接，为官网餐厅列表预留；店铺与顾客接口不返回 |
+| GET | `/api/health/live`、`/api/health/ready` | **已移除**：随部署模板一并删除，正式部署时重新设计 |
 
 **部分请求 / 响应样例（仅核心字段）**
 
@@ -587,7 +588,7 @@ DBML 注释本身不会生成所有 PostgreSQL 部分索引；使用 **EF Core M
 5. **购物车和下单（已实现）**：最新价确认、`client_request_id`、历史快照、自动 GET 恢复/手动原请求重试、整桌订单和接单开关；无新迁移。含任何订单的用餐不能 EMPTY 关闭，由第七阶段 PAID/VOIDED 关闭接续。
 6. **厨房与取消（已实现）**：活动订单分页、10 秒轮询、主动声音提醒、READY/取消条件更新、版本递增、冲突确认和未知结果 GET 核对；无新迁移。
 7. **结账与历史（已实现）**：活动账单、PAID/VOIDED 关闭、EMPTY 共用界面、冻结确认值、只 GET 恢复、关闭后保护和 OWNER 历史筛选/分页；无新迁移。学习步骤见 [第七阶段文档](billing-history.md)。
-8. **平台管理与试运营准备（已实现）**：独立平台身份、原子建店、账号启停/重置、OWNER 员工维护、服务与接单协调、GET 恢复；单机 Compose/Caddy、显式迁移、健康检查和隔离备份恢复。沿用九张表，无新迁移。学习与本地验收见 [第八阶段](platform-pilot.md)，正式启用前填写 [试运营手册](pilot-operations.md)。
+8. **平台管理与试运营准备（已实现）**：独立平台身份、原子建店、账号启停/重置、OWNER 员工维护、服务与接单协调、GET 恢复；显式迁移。沿用九张表，无新迁移。学习见 [第八阶段](platform-pilot.md)。部署、健康检查与备份恢复模板已移除，正式部署时重新编写。
 
 **MVP 完成标准**：单店能执行“建店 → 设置菜单 → 建桌并打印码 → 开桌 → 多人扫码验证/多次下单 → 厨房处理 → 老板按准确账单线下收款清桌 → 查询历史”的完整闭环；关键的网络中断、重复下单、并发取消、结账竞争和权限检查都通过集成测试。
 

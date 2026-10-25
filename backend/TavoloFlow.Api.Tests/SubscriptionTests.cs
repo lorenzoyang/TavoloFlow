@@ -2,8 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
 using TavoloFlow.Api.Platform;
 using static TavoloFlow.Api.Tests.AccountTestHost;
 using static TavoloFlow.Api.Tests.PlatformAccountTests;
@@ -182,25 +180,6 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
         Assert.Equal(50_000, period.GetProperty("amountCents").GetInt64());
     }
 
-    [Theory]
-    [InlineData(-1, "UPCOMING", false, 0)]
-    [InlineData(0, "ACTIVE", false, 1)]
-    [InlineData(358, "ACTIVE", true, 1)]
-    [InlineData(364, "ACTIVE", true, 1)]
-    [InlineData(365, "EXPIRED", false, 1)]
-    public async Task Summary_DateBoundaries_SeparatesServiceAndPayment(int days, string state, bool dueSoon, int unpaid)
-    {
-        using var host = new AccountTestHost(database);
-        SetTime(host, new DateTimeOffset(2026, 11, 1, 12, 0, 0, TimeSpan.Zero).AddDays(days));
-        using var admin = await Admin(host);
-        var created = await Create(admin, Period(Guid.NewGuid(), new(2026, 11, 1), new(2027, 11, 1)));
-        var summary = (await Read(admin, Path(created.Restaurant.Id))).GetProperty("summary");
-        Assert.Equal(state, summary.GetProperty("serviceState").GetString());
-        Assert.Equal(dueSoon, summary.GetProperty("dueSoon").GetBoolean());
-        Assert.Equal(unpaid, summary.GetProperty("unpaidPeriodCount").GetInt32());
-        Assert.Equal("UNPAID", summary.GetProperty("paymentState").GetString());
-    }
-
     [Fact]
     public async Task Summary_AdjacentRenewal_UsesFinalExpiryAndAcceptsAdvancePayment()
     {
@@ -331,23 +310,5 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
         Assert.Equal(1, await db.Restaurants.Where(r => r.Id == a.Restaurant.Id).ExecuteDeleteAsync());
         Assert.False(await db.RestaurantSubscriptionPeriods.AnyAsync(p => p.RestaurantId == a.Restaurant.Id));
         Assert.True(await db.RestaurantSubscriptionPeriods.AnyAsync(p => p.RestaurantId == b.Restaurant.Id));
-    }
-
-    [Fact]
-    public async Task Migrate_ExistingRestaurant_PreservesDataAndLeavesSubscriptionUnconfigured()
-    {
-        await using var db = await database.CreateIsolatedContextAsync();
-        var migrator = db.GetService<IMigrator>();
-        await migrator.MigrateAsync("20261020084841_SimplifyCatalogAndCascadeOrders");
-        var id = Guid.NewGuid();
-        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO restaurants (id, name, default_language, service_status, ordering_enabled) VALUES ({id}, 'existing', 'it', 'ACTIVE', true)");
-        await migrator.MigrateAsync();
-        var row = await db.Restaurants.SingleAsync(r => r.Id == id);
-        Assert.Equal("existing", row.Name);
-        Assert.True(row.OrderingEnabled);
-        Assert.Null(row.OwnerContact);
-        Assert.Null(row.DefaultAnnualFeeCents);
-        Assert.Equal(1, row.SubscriptionVersion);
-        Assert.False(db.Database.HasPendingModelChanges());
     }
 }

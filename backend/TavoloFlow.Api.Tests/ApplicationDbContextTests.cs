@@ -1,6 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Entities;
@@ -9,73 +7,6 @@ namespace TavoloFlow.Api.Tests;
 
 public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : IClassFixture<PostgreSqlFixture>
 {
-    [Fact]
-    public async Task Migrate_RemoveDiningSessionActors_PreservesExistingSessions()
-    {
-        const string previousMigration = "20261019175449_CascadeRestaurantDeletion";
-        await using var context = await database.CreateIsolatedContextAsync();
-        var migrator = context.GetService<IMigrator>();
-        await migrator.MigrateAsync(previousMigration);
-
-        var restaurantId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var tableId = Guid.NewGuid();
-        var activeSessionId = Guid.NewGuid();
-        var closedSessionId = Guid.NewGuid();
-        var username = $"upgrade_{Guid.NewGuid():N}";
-        var qrToken = Guid.NewGuid().ToString("N");
-        var openedAt = new DateTime(2026, 10, 19, 10, 0, 0, DateTimeKind.Utc);
-        var closedAt = openedAt.AddHours(2);
-
-        // The previous schema requires actor IDs. Seed it directly before applying their removal.
-        await context.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO restaurants (id, name, default_language)
-            VALUES ({restaurantId}, 'Upgrade test', 'it');
-            INSERT INTO restaurant_users (id, restaurant_id, username, password_hash, role)
-            VALUES ({userId}, {restaurantId}, {username}, 'test-only-hash', 'OWNER');
-            INSERT INTO restaurant_tables (id, restaurant_id, table_label, qr_token)
-            VALUES ({tableId}, {restaurantId}, '1', {qrToken});
-            INSERT INTO dining_sessions
-                (id, restaurant_id, table_id, status, join_code_ciphertext, bill_version,
-                 table_label_snapshot, opened_by_user_id, opened_at, closed_at,
-                 closed_by_user_id, close_reason, closed_total_cents)
-            VALUES
-                ({activeSessionId}, {restaurantId}, {tableId}, 'ACTIVE', 'test-only-ciphertext',
-                 3, 'Original table', {userId}, {openedAt}, NULL, NULL, NULL, NULL),
-                ({closedSessionId}, {restaurantId}, {tableId}, 'CLOSED', NULL,
-                 7, 'Original table', {userId}, {openedAt}, {closedAt}, {userId}, 'PAID', 2400);
-            """);
-
-        var sessions = context.DiningSessions.AsNoTracking().OrderBy(session => session.Id)
-            .Select(session => new
-            {
-                session.Id,
-                session.RestaurantId,
-                session.TableId,
-                session.Status,
-                session.JoinCodeCiphertext,
-                session.BillVersion,
-                session.TableLabelSnapshot,
-                session.OpenedAt,
-                session.ClosedAt,
-                session.CloseReason,
-                session.ClosedTotalCents
-            });
-        var before = await sessions.ToListAsync();
-        Assert.Equal(2, before.Count);
-        await migrator.MigrateAsync();
-        Assert.Equal(before, await sessions.ToListAsync());
-
-        var columns = await context.Database.SqlQueryRaw<string>("""
-            SELECT column_name AS "Value" FROM information_schema.columns
-            WHERE table_schema = 'public' AND table_name = 'dining_sessions'
-            """).ToListAsync();
-        Assert.DoesNotContain("opened_by_user_id", columns);
-        Assert.DoesNotContain("closed_by_user_id", columns);
-        Assert.Empty(await context.Database.GetPendingMigrationsAsync());
-        await Assert.ThrowsAsync<NotSupportedException>(() => migrator.MigrateAsync(previousMigration));
-    }
-
     [Fact]
     public async Task Migrate_EmptyDatabase_CreatesSchemaMatchingModel()
     {
@@ -448,153 +379,6 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
         Assert.True(await context.PlatformUsers.AnyAsync(user => user.Id == platformUserId));
     }
 
-    [Fact]
-    public async Task DeleteRestaurantTable_ActiveSession_RejectsWithoutDetachingHistory()
-    {
-        var visit = await SeedVisitAsync();
-        await CloseSessionAsync(visit);
-        await using (var setup = database.CreateContext())
-        {
-            setup.Add(NewSession(visit));
-            await setup.SaveChangesAsync();
-        }
-
-        await using var context = database.CreateContext();
-        var result = await new CatalogDeletionService(context).DeleteRestaurantTableAsync(visit.RestaurantId, visit.TableId);
-        Assert.Equal(CatalogDeletionResult.TableHasActiveSession, result);
-        Assert.True(await context.RestaurantTables.AnyAsync(table => table.Id == visit.TableId));
-        Assert.Equal(2, await context.DiningSessions.CountAsync(session => session.TableId == visit.TableId));
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task SaveChanges_CancelledOrder_PreservesOptionalReadyTimestamp(bool wasReady)
-    {
-        var visit = await SeedVisitAsync();
-        await using var context = database.CreateContext();
-        var order = NewOrder(visit);
-        context.Add(order);
-        await context.SaveChangesAsync();
-        if (wasReady)
-        {
-            order.Status = OrderStatus.Ready;
-            order.ReadyAt = DateTime.UtcNow;
-            await context.SaveChangesAsync();
-        }
-
-        order.Status = OrderStatus.Cancelled;
-        order.CancelledAt = DateTime.UtcNow;
-        order.CancelReason = "Guest changed their order";
-        await context.SaveChangesAsync();
-        await context.Entry(order).ReloadAsync();
-        Assert.Equal(OrderStatus.Cancelled, order.Status);
-        Assert.Equal(wasReady, order.ReadyAt.HasValue);
-        Assert.NotNull(order.CancelledAt);
-    }
-
-    [Fact]
-    public async Task Migrate_SimplifyCatalog_PreservesExistingRecordsAndSnapshots()
-    {
-        const string previousMigration = "20261019200450_RemoveDiningSessionActors";
-        await using var context = await database.CreateIsolatedContextAsync();
-        var migrator = context.GetService<IMigrator>();
-        await migrator.MigrateAsync(previousMigration);
-        var visit = await SeedVisitAsync(context, legacyRestaurant: true);
-        var closed = NewSession(visit);
-        closed.Status = DiningSessionStatus.Closed;
-        closed.OpenedAt = DateTime.UtcNow.AddMinutes(-5);
-        closed.ClosedAt = DateTime.UtcNow;
-        closed.CloseReason = SessionCloseReason.Voided;
-        closed.ClosedTotalCents = 0;
-        closed.JoinCodeCiphertext = null;
-        context.Add(closed);
-        var order = NewOrder(visit);
-        order.DiningSessionId = closed.Id;
-        context.AddRange(order, NewOrderItem(visit, order));
-        await context.SaveChangesAsync();
-        // Old deletion markers and cancellation attribution are intentionally removed by this upgrade.
-        await context.Database.ExecuteSqlInterpolatedAsync($"""
-            UPDATE orders SET status = 'CANCELLED', cancelled_at = now(),
-                cancelled_by_user_id = {visit.UserId}, cancel_reason = 'Guest changed their order'
-                WHERE id = {order.Id};
-            UPDATE menu_items SET deleted_at = now() WHERE id = {visit.MenuItemId};
-            UPDATE menu_categories SET deleted_at = now() WHERE id = {visit.CategoryId};
-            UPDATE restaurant_tables SET deleted_at = now() WHERE id = {visit.TableId};
-            """);
-        context.ChangeTracker.Clear();
-        var before = await context.Orders.AsNoTracking().SingleAsync(saved => saved.Id == order.Id);
-        await migrator.MigrateAsync();
-
-        var after = await context.Orders.AsNoTracking().Include(saved => saved.Items)
-            .Include(saved => saved.DiningSession).SingleAsync(saved => saved.Id == order.Id);
-        Assert.Equal(before.RestaurantId, after.RestaurantId);
-        Assert.Equal(before.DiningSessionId, after.DiningSessionId);
-        Assert.Equal(before.TotalAmountCents, after.TotalAmountCents);
-        Assert.Equal(before.CreatedAt, after.CreatedAt);
-        Assert.Equal(before.CancelledAt, after.CancelledAt);
-        Assert.Equal(before.CancelReason, after.CancelReason);
-        Assert.Equal(OrderStatus.Cancelled, after.Status);
-        Assert.Equal(visit.TableId, after.DiningSession.TableId);
-        Assert.Equal(DiningSessionStatus.Closed, after.DiningSession.Status);
-        var line = Assert.Single(after.Items);
-        Assert.Equal(visit.MenuItemId, line.MenuItemId);
-        Assert.Equal(visit.RestaurantId, line.RestaurantId);
-        Assert.Equal("Dumplings", line.NameEnSnapshot);
-        Assert.Equal(1200, line.UnitPriceCents);
-        Assert.Equal(new[] { "GLUTEN", "SOY" }, line.AllergenCodesSnapshot);
-        Assert.True(await context.DiningSessions.AnyAsync(session => session.Id == visit.SessionId && session.Status == DiningSessionStatus.Active));
-        Assert.True(await context.MenuItems.AnyAsync(item => item.Id == visit.MenuItemId && item.ItemCode == "D1" && item.PriceCents == 1200));
-        Assert.True(await context.MenuCategories.AnyAsync(category => category.Id == visit.CategoryId));
-
-        var removedColumns = await context.Database.SqlQueryRaw<string>("""
-            SELECT table_name || '.' || column_name AS "Value" FROM information_schema.columns
-            WHERE table_schema = 'public' AND (
-                (table_name IN ('menu_categories', 'menu_items', 'restaurant_tables')
-                    AND column_name IN ('created_at', 'deleted_at'))
-                OR (table_name = 'orders' AND column_name = 'cancelled_by_user_id'))
-            """).ToListAsync();
-        Assert.Empty(removedColumns);
-        Assert.Empty(await context.Database.GetPendingMigrationsAsync());
-        await Assert.ThrowsAsync<NotSupportedException>(() => migrator.MigrateAsync(previousMigration));
-    }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Migrate_DuplicateCatalogIdentifiers_FailsBeforeRemovingColumns(bool tableLabel)
-    {
-        const string previousMigration = "20261019200450_RemoveDiningSessionActors";
-        await using var context = await database.CreateIsolatedContextAsync();
-        var migrator = context.GetService<IMigrator>();
-        await migrator.MigrateAsync(previousMigration);
-        var visit = await SeedVisitAsync(context, legacyRestaurant: true);
-        if (tableLabel)
-        {
-            await context.Database.ExecuteSqlInterpolatedAsync($"""
-                INSERT INTO restaurant_tables (id, restaurant_id, table_label, qr_token, deleted_at)
-                VALUES ({Guid.NewGuid()}, {visit.RestaurantId}, '1', {Guid.NewGuid().ToString("N")}, now())
-                """);
-        }
-        else
-        {
-            await context.Database.ExecuteSqlInterpolatedAsync($"""
-                INSERT INTO menu_items (id, restaurant_id, category_id, item_code, name_en, price_cents, deleted_at)
-                VALUES ({Guid.NewGuid()}, {visit.RestaurantId}, {visit.CategoryId}, 'D1', 'Archived dish', 1500, now())
-                """);
-        }
-
-        var error = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync());
-        Assert.Equal(PostgresErrorCodes.UniqueViolation, error.SqlState);
-        Assert.Contains(tableLabel ? "duplicate restaurant table labels" : "duplicate menu item codes", error.MessageText);
-        Assert.Contains("including soft-deleted rows", error.Hint);
-        Assert.Equal(previousMigration, (await context.Database.GetAppliedMigrationsAsync()).Last());
-        Assert.True(await context.Database.SqlQueryRaw<bool>("""
-            SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                WHERE table_schema = 'public' AND table_name = 'restaurant_tables' AND column_name = 'created_at') AS "Value"
-            """).SingleAsync());
-    }
-
     [Theory]
     [InlineData(true, false)]
     [InlineData(false, false)]
@@ -682,19 +466,7 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
     private async Task<VisitData> SeedVisitAsync(bool useFalseFlags = false)
     {
         await using var context = database.CreateContext();
-        return await SeedVisitAsync(context, useFalseFlags);
-    }
-
-    private static async Task<VisitData> SeedVisitAsync(ApplicationDbContext context, bool useFalseFlags = false, bool legacyRestaurant = false)
-    {
         var restaurant = new Restaurant { Name = "Test restaurant", DefaultLanguage = "it", ServiceStatus = RestaurantServiceStatus.Active };
-        if (legacyRestaurant)
-        {
-            // Upgrade fixtures target a schema that predates the current Restaurant fields.
-            restaurant.Id = Guid.NewGuid();
-            await context.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO restaurants (id, name, default_language, service_status) VALUES ({restaurant.Id}, {restaurant.Name}, {restaurant.DefaultLanguage}, 'ACTIVE')");
-            context.Attach(restaurant);
-        }
         var user = new RestaurantUser
         {
             Restaurant = restaurant,

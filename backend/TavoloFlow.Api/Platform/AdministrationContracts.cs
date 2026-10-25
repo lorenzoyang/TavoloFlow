@@ -9,9 +9,12 @@ namespace TavoloFlow.Api.Platform;
 public sealed record CreateRestaurantInput(Guid Id, [Required, StringLength(150)] string Name,
     [Required, RegularExpression("^(zh|it|en)$")] string DefaultLanguage,
     [Required, StringLength(50)] string OwnerUsername, [Required, StringLength(50)] string StaffUsername,
-    [StringLength(500)] string? OwnerContact = null, long? DefaultAnnualFeeCents = null, InitialSubscriptionPeriod? InitialPeriod = null);
+    [StringLength(500)] string? OwnerContact = null, long? DefaultAnnualFeeCents = null, InitialSubscriptionPeriod? InitialPeriod = null,
+    [StringLength(2048)] string? GoogleMapsUrl = null);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record ServiceStatusInput([Required, RegularExpression("^(ACTIVE|SUSPENDED)$")] string Status);
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record GoogleMapsUrlInput([StringLength(2048)] string? GoogleMapsUrl);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record ResetAccountInput([Required, Range(1, int.MaxValue - 1)] int? ExpectedCredentialVersion);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -24,12 +27,14 @@ public sealed record ManagedAccount(Guid Id, string Username, string Role, bool 
     public static ManagedAccount From(RestaurantUser user) => new(user.Id, user.Username,
         ApiEnum.Text(user.Role), user.IsActive, user.MustChangePassword, user.CredentialVersion);
 }
+// Platform-only: store and guest responses never carry the map link.
 public sealed record RestaurantSummary(Guid Id, string Name, string DefaultLanguage, string TimeZone,
-    string CurrencyCode, string ServiceStatus, bool OrderingEnabled, DateTime CreatedAt, SubscriptionSummary? Subscription = null)
+    string CurrencyCode, string ServiceStatus, bool OrderingEnabled, DateTime CreatedAt, string? GoogleMapsUrl,
+    SubscriptionSummary? Subscription = null)
 {
     public static RestaurantSummary From(Restaurant restaurant) => new(restaurant.Id, restaurant.Name,
         restaurant.DefaultLanguage, restaurant.TimeZone, restaurant.CurrencyCode,
-        ApiEnum.Text(restaurant.ServiceStatus), restaurant.OrderingEnabled, restaurant.CreatedAt);
+        ApiEnum.Text(restaurant.ServiceStatus), restaurant.OrderingEnabled, restaurant.CreatedAt, restaurant.GoogleMapsUrl);
 }
 public sealed record RestaurantDetail(RestaurantSummary Restaurant, ManagedAccount[] Accounts);
 public sealed record RestaurantPage(RestaurantSummary[] Items, int TotalCount, int Page, int PageSize);

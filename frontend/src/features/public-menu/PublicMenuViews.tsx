@@ -71,7 +71,7 @@ export function MenuHeader({
 }) {
   const m = messages[language];
   return (
-    <header className="border-b bg-card pt-[env(safe-area-inset-top)]">
+    <header className="border-b bg-card pt-safe">
       <div className="mx-auto flex max-w-6xl flex-wrap items-start justify-between gap-3 px-4 py-4">
         <div className="min-w-0 flex-1 basis-48">
           <h1 className="font-display text-2xl leading-tight font-semibold wrap-break-word">

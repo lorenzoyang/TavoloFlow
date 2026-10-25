@@ -6,7 +6,6 @@ import {
   recoveredOpen,
 } from "../src/features/dining/state.ts";
 import { readVisit, reconcileVisit, accessOutcome } from "../src/features/guests/state.ts";
-import { isPrivateQuery } from "../src/lib/query-scope.ts";
 
 test("unknown opening survives reload as a read-only recovery intent, scoped to the signed-in account", () => {
   const saved = JSON.stringify({ kind: "open", tableId: "table-8" });
@@ -53,14 +52,4 @@ test("expired or replaced credentials require verification without falsely closi
   assert.equal(accessOutcome("GUEST_SESSION_MISMATCH"), "unverified");
   assert.equal(accessOutcome("SESSION_CLOSED"), "ended");
   assert.equal(accessOutcome("INTERNAL_ERROR"), null);
-});
-
-test("staff identity changes preserve guest authorization queries and anonymous menu data", () => {
-  assert.equal(
-    isPrivateQuery({ queryKey: ["guest", "restaurant", "table", "session", "access"] }),
-    false,
-  );
-  assert.equal(isPrivateQuery({ queryKey: ["public", "qr", "token"] }), false);
-  assert.equal(isPrivateQuery({ queryKey: ["floor", "restaurant", "staff"] }), true);
-  assert.equal(isPrivateQuery({ queryKey: ["dining", "restaurant", "staff", "session"] }), true);
 });

@@ -155,12 +155,9 @@ Cookie 持久保存到固定的 30 天到期时间，关闭浏览器后仍保留
 `LoginPerIpPerMinute`、`LoginPerUsernamePerFiveMinutes`、`PasswordChangesPerMinute`。
 限制为单实例内存状态，重启后重置，部署多实例时需要共享或边缘限制。
 
-Data Protection 应用名固定为 `TavoloFlow`。开发使用框架的用户密钥目录；
-生产通过 `DataProtection:KeyRingPath` 指定持久目录并限制文件访问。
-密钥不写入仓库，重启后保留，容器部署应挂载持久卷。
-生产保留 HTTPS 跳转，并采用框架默认的回环代理信任范围处理
-`X-Forwarded-For` / `X-Forwarded-Proto`；Caddy 不在本机回环地址时，
-应显式配置可信代理地址，不能信任任意转发头。
+Data Protection 应用名固定为 `TavoloFlow`。默认使用框架的用户密钥目录；
+也可以通过 `DataProtection:KeyRingPath` 指定持久目录并限制文件访问。
+密钥不写入仓库，重启后保留。非 Development 环境启用 HSTS 和 HTTPS 跳转。
 
 ## 5. 前端结构与请求链路
 

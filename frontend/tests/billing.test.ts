@@ -12,7 +12,6 @@ import {
   type BillSummary,
   type Confirmation,
 } from "../src/features/billing/state.ts";
-import { isPrivateQuery } from "../src/lib/query-scope.ts";
 
 const id = "11111111-1111-4111-8111-111111111111";
 const bill: BillSummary = {
@@ -126,9 +125,7 @@ test("history URL keeps exact filter values and validates session identifiers", 
   assert.equal(invalid.closeReason, undefined);
   assert.equal(invalid.fromDate, undefined);
 });
-test("billing caches and pending metadata are private and account scoped", () => {
+test("pending closure metadata is scoped to the account and restaurant", () => {
   assert.notEqual(closureKey("restaurant", "owner"), closureKey("restaurant", "staff"));
   assert.notEqual(closureKey("restaurant", "owner"), closureKey("other", "owner"));
-  for (const key of ["billing", "history"])
-    assert.equal(isPrivateQuery({ queryKey: [key, "restaurant", "owner"] }), true);
 });

@@ -15,6 +15,7 @@ internal sealed class RestaurantConfiguration : IEntityTypeConfiguration<Restaur
             table.HasCheckConstraint("ck_restaurant_default_language", "default_language IN ('zh', 'it', 'en')");
             table.HasCheckConstraint("ck_restaurant_currency", "currency_code = 'EUR'");
             table.HasCheckConstraint("ck_restaurant_service_status", "service_status IN ('ACTIVE', 'SUSPENDED')");
+            table.HasCheckConstraint("ck_restaurant_google_maps_url", "google_maps_url IS NULL OR google_maps_url LIKE 'https://%'");
         });
 
         builder.HasKey(restaurant => restaurant.Id);
@@ -41,5 +42,7 @@ internal sealed class RestaurantConfiguration : IEntityTypeConfiguration<Restaur
         builder.Property(restaurant => restaurant.SubscriptionVersion).HasColumnName("subscription_version").HasDefaultValue(1).ValueGeneratedNever();
 
         builder.Property(restaurant => restaurant.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz").HasDefaultValueSql("now()");
+
+        builder.Property(restaurant => restaurant.GoogleMapsUrl).HasColumnName("google_maps_url").HasMaxLength(2048);
     }
 }

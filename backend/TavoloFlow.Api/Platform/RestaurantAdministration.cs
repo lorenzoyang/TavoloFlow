@@ -59,10 +59,12 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
             owner.Length is < 1 or > 50 || staff.Length is < 1 or > 50 || owner == staff ||
             !InputRules.IsLanguage(input.DefaultLanguage))
             throw ApiException.Validation("请填写餐厅名称、语言和两个不同的登录名。");
+        var mapsUrl = MapsUrl(input.GoogleMapsUrl);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         if (await db.Restaurants.AnyAsync(r => r.Id == input.Id, ct))
             throw new ApiException(409, "RESTAURANT_EXISTS", "此创建标识已存在，请核对原餐厅。");
-        var restaurant = new Restaurant { Id = input.Id, Name = input.Name.Trim(), DefaultLanguage = input.DefaultLanguage };
+        var restaurant = new Restaurant { Id = input.Id, Name = input.Name.Trim(), DefaultLanguage = input.DefaultLanguage,
+            GoogleMapsUrl = mapsUrl };
         var credentials = new List<TemporaryAccount>();
         foreach (var (name, role) in new[] { (owner, RestaurantUserRole.Owner), (staff, RestaurantUserRole.Staff) })
         {
@@ -104,6 +106,16 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
         return RestaurantSummary.From(restaurant);
     }
 
+    // Only this column changes, so the write never races status or subscription updates of the same row.
+    public async Task<RestaurantSummary> SetGoogleMapsUrlAsync(Guid id, string? url, Guid actor, CancellationToken ct)
+    {
+        var value = MapsUrl(url);
+        if (await db.Restaurants.Where(r => r.Id == id).ExecuteUpdateAsync(u => u.SetProperty(r => r.GoogleMapsUrl, value), ct) == 0)
+            throw AdministrationErrors.RestaurantNotFound();
+        logger.LogInformation("Platform {ActorId} set restaurant {RestaurantId} map link.", actor, id);
+        return RestaurantSummary.From(await db.Restaurants.AsNoTracking().SingleAsync(r => r.Id == id, ct));
+    }
+
     public async Task<ManagedAccount> StaffAsync(Guid restaurantId, CancellationToken ct) => ManagedAccount.From(
         await db.RestaurantUsers.AsNoTracking().SingleOrDefaultAsync(u => u.RestaurantId == restaurantId && u.Role == RestaurantUserRole.Staff, ct)
             ?? throw AdministrationErrors.AccountNotFound());
@@ -142,6 +154,14 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
     private async Task<RestaurantUser> FindAsync(Guid restaurantId, Guid userId, CancellationToken ct) =>
         await db.RestaurantUsers.AsNoTracking().SingleOrDefaultAsync(u => u.Id == userId && u.RestaurantId == restaurantId, ct)
             ?? throw AdministrationErrors.AccountNotFound();
+
+    private static string? MapsUrl(string? input)
+    {
+        var value = InputRules.TrimToNull(input);
+        if (value is not null && !InputRules.IsGoogleMapsUrl(value))
+            throw ApiException.Validation("请填写以 https:// 开头的 Google 地图链接。");
+        return value;
+    }
 
     private static string NewPassword() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(18))
         .Replace('+', '-').Replace('/', '_');

@@ -169,4 +169,31 @@ public sealed class PlatformManagementTests(PostgreSqlFixture database) : IClass
         var next = (await admin.GetFromJsonAsync<RestaurantPage>($"/api/platform/restaurants?search={prefix}&status=SUSPENDED&pageSize=2&page=2"))!;
         Assert.Single(next.Items); Assert.DoesNotContain(next.Items[0].Id, page.Items.Select(r => r.Id));
     }
+
+    [Fact]
+    public async Task GoogleMapsUrl_CreateUpdateAndClear_AcceptsOnlyGoogleHttpsLinks()
+    {
+        using var host = new AccountTestHost(database); using var admin = await Admin(host);
+        await AssertErrorAsync(await WriteAsync(admin, "/api/platform/restaurants", Input() with { GoogleMapsUrl = "http://maps.google.com/?q=Roma" }),
+            HttpStatusCode.BadRequest, "VALIDATION_FAILED");
+        var created = await Create(admin, Input() with { GoogleMapsUrl = " https://maps.app.goo.gl/AbC123 " });
+        Assert.Equal("https://maps.app.goo.gl/AbC123", created.Restaurant.GoogleMapsUrl);
+        var path = $"/api/platform/restaurants/{created.Restaurant.Id}/google-maps-url";
+        foreach (var invalid in new[] { "javascript:alert(1)", "http://maps.google.com/?q=Roma", "https://example.com/maps/place/Roma",
+            "https://www.google.com/search?q=Roma", "https://user@maps.app.goo.gl/AbC123" })
+            await AssertErrorAsync(await WriteAsync(admin, path, new { googleMapsUrl = invalid }, HttpMethod.Patch), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
+        const string place = "https://www.google.it/maps/place/Colosseo";
+        var updated = await WriteAsync(admin, path, new { googleMapsUrl = place }, HttpMethod.Patch);
+        Assert.Equal(place, (await updated.Content.ReadFromJsonAsync<RestaurantSummary>())!.GoogleMapsUrl);
+        Assert.Equal(place, (await admin.GetFromJsonAsync<RestaurantDetail>($"/api/platform/restaurants/{created.Restaurant.Id}"))!.Restaurant.GoogleMapsUrl);
+        // The link is reserved for platform pages: the store identity never receives it.
+        using var owner = host.Browser();
+        await StoreLogin(owner, created.Credentials.Single(c => c.Account.Role == "OWNER"));
+        foreach (var storePath in new[] { "/api/auth/me", "/api/owner/subscription" })
+            Assert.DoesNotContain("googleMapsUrl", await owner.GetStringAsync(storePath));
+        var cleared = await WriteAsync(admin, path, new { googleMapsUrl = (string?)null }, HttpMethod.Patch);
+        Assert.Null((await cleared.Content.ReadFromJsonAsync<RestaurantSummary>())!.GoogleMapsUrl);
+        await AssertErrorAsync(await WriteAsync(admin, $"/api/platform/restaurants/{Guid.NewGuid()}/google-maps-url",
+            new { googleMapsUrl = place }, HttpMethod.Patch), HttpStatusCode.NotFound, "RESTAURANT_NOT_FOUND");
+    }
 }

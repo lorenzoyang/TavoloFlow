@@ -10,7 +10,6 @@ import {
   type PendingKitchenAction,
 } from "../src/features/kitchen/state.ts";
 import { syncIsFresh } from "../src/lib/live-view.ts";
-import { isPrivateQuery } from "../src/lib/query-scope.ts";
 
 const action: PendingKitchenAction = {
   orderId: "00000000-0000-4000-8000-000000000001",
@@ -68,7 +67,6 @@ test("stale and resumed views cannot authorize UI writes before a fresh successf
   assert.equal(syncIsFresh(1000, 2000, 1000, false, false), false);
   assert.equal(syncIsFresh(1000, 2000, 1000, true, true), false);
   assert.equal(syncIsFresh(0, 2000, 0, true, false), false);
-  assert.equal(isPrivateQuery({ queryKey: ["kitchen", "restaurant", "staff", "NEW"] }), true);
 });
 
 test("waiting orders turn amber at 10 minutes and red at 20", () => {

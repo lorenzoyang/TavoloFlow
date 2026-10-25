@@ -16,6 +16,7 @@ test("store and platform invalidation preserve the other identities", () => {
     ["platform", "me"],
     ["guest", "restaurant"],
     ["public", "qr"],
+    ["auth", "me"],
   ])
     assert.equal(isPrivateQuery({ queryKey }), false);
   assert.equal(isPrivateQuery({ queryKey: ["staff-account", "restaurant", "owner"] }), true);
@@ -38,6 +39,12 @@ test("pending management state stores only identifiers and a version, never temp
     }),
   )!;
   assert.deepEqual(pending, { kind: "reset", restaurantId, userId, expectedVersion: 3 });
+  assert.deepEqual(readPending(JSON.stringify({ kind: "maps", restaurantId })), {
+    kind: "maps",
+    restaurantId,
+    userId: undefined,
+    expectedVersion: undefined,
+  });
   assert.equal(recoveryUrl("platform", pending), `/api/platform/restaurants/${restaurantId}`);
   assert.equal(recoveryUrl("store", pending), "/api/owner/staff");
   assert.notEqual(managementKey("platform", "admin"), managementKey("store", "admin"));

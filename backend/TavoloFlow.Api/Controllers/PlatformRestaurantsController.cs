@@ -22,6 +22,9 @@ public sealed class PlatformRestaurantsController(RestaurantAdministration servi
     [HttpPatch("{id:guid}/service-status")]
     public async Task<IActionResult> Status(Guid id, ServiceStatusInput input, CancellationToken ct) =>
         Ok(await service.SetStatusAsync(id, input.Status, Actor, ct));
+    [HttpPatch("{id:guid}/google-maps-url")]
+    public async Task<IActionResult> MapsUrl(Guid id, GoogleMapsUrlInput input, CancellationToken ct) =>
+        Ok(await service.SetGoogleMapsUrlAsync(id, input.GoogleMapsUrl, Actor, ct));
     [HttpPatch("{id:guid}/users/{userId:guid}/active")]
     public async Task<IActionResult> Active(Guid id, Guid userId, AccountActiveInput input, CancellationToken ct) =>
         Ok(await service.SetActiveAsync(id, userId, input.ExpectedCredentialVersion!.Value, input.IsActive!.Value, Actor, ct));
