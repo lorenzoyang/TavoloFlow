@@ -211,7 +211,7 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
               className={toggleStyle}
               aria-pressed={model.sound}
               aria-label="声音提醒"
-              onClick={() => void model.toggleSound()}
+              onClick={model.toggleSound}
             >
               {model.sound ? <Volume2 /> : <VolumeX />}
               <span className="hidden sm:inline">声音提醒</span>
@@ -242,15 +242,24 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
       />
       <div className="mb-5 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-2xl border bg-card px-4 py-3 shadow-xs">
-          <p className="font-semibold">全店待处理 {model.head?.pendingCount ?? "—"} 笔</p>
+          <p className="font-semibold">全店待处理 {model.summary?.pendingCount ?? "—"} 笔</p>
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <span
-              className={cn("size-2.5 rounded-full", model.fresh ? "bg-success" : "bg-destructive")}
+              className={cn(
+                "size-2.5 rounded-full",
+                model.stalled
+                  ? "bg-destructive"
+                  : model.summary
+                    ? "bg-success"
+                    : "bg-muted-foreground/40",
+              )}
             />
-            {model.head ? `最后成功同步：${formatDateTime(model.head.receivedAt)}` : "尚未同步"}
+            {model.summary
+              ? `最后成功同步：${formatDateTime(model.summary.receivedAt)}`
+              : "尚未同步"}
           </p>
         </div>
-        {!model.fresh && (
+        {model.stalled && (
           <Notice tone="error">
             {!model.active
               ? "连接已断开或页面暂停。"
@@ -263,6 +272,19 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
         {model.notice && <Notice>{model.notice}</Notice>}
         {(model.error || model.query.isError) && (
           <Notice tone="error">{model.error || "无法更新订单，请检查连接后刷新。"}</Notice>
+        )}
+        {model.soundBlocked && (
+          <Notice
+            tone="warning"
+            action={
+              <Button variant="outline" onClick={model.unlockSound}>
+                <Volume2 />
+                开启声音
+              </Button>
+            }
+          >
+            浏览器要求先点按一次页面才能播放提醒声。点按页面任意位置即可开启。
+          </Notice>
         )}
         {model.soundError && <Notice tone="warning">{model.soundError}</Notice>}
         {wakeLock.failed && (
@@ -308,9 +330,9 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
           {(["NEW", "READY", "CANCELLED"] as const).map((status) => (
             <TabsTrigger key={status} value={status}>
               {labels[status]}
-              {status === "NEW" && !!model.head?.pendingCount && (
+              {status === "NEW" && !!model.summary?.pendingCount && (
                 <Badge variant="warning" className="h-5 px-1.5">
-                  {model.head.pendingCount}
+                  {model.summary.pendingCount}
                 </Badge>
               )}
             </TabsTrigger>

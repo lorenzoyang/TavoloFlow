@@ -280,7 +280,7 @@ export function ActiveBillPanel({
         </div>
       ) : (
         <>
-          {!model.fresh && (
+          {model.stalled && (
             <Notice tone="warning">
               账单正在同步或已过期，暂不能关闭。恢复连接并成功同步后继续。
             </Notice>

@@ -1,28 +1,63 @@
-// Created/resumed only by the user's button click. No autoplay or background notification dependency.
+// A device preference like keep-screen-on: on unless this device turned it off.
+const preferenceKey = "tavoloflow:kitchen-sound";
+
+export function readSoundPreference() {
+  try {
+    return localStorage.getItem(preferenceKey) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+export function saveSoundPreference(on: boolean) {
+  try {
+    if (on) localStorage.removeItem(preferenceKey);
+    else localStorage.setItem(preferenceKey, "off");
+  } catch {
+    /* The switch still works for this page without storage. */
+  }
+}
+
+// Browsers let a page start audio only after a user gesture, and phones suspend it in the background,
+// so start() is called again on every tap until the context runs. No background notification dependency.
 export class KitchenAudio {
   private context: AudioContext | null = null;
-  async enable() {
-    this.context ??= new AudioContext();
-    await this.context.resume();
-    if (this.context.state !== "running") throw new Error("Audio is unavailable");
+  onChange: (() => void) | null = null;
+  get running() {
+    return this.context?.state === "running";
   }
+  // Throws only where Web Audio is unavailable; a refused resume just leaves the context suspended.
+  start() {
+    if (!this.context) {
+      this.context = new AudioContext();
+      this.context.onstatechange = () => this.onChange?.();
+    }
+    if (this.context.state !== "running") void this.context.resume().catch(() => undefined);
+  }
+  // Two rising tones, loud and long enough to carry across a kitchen.
   play() {
     const context = this.context;
-    if (!context || context.state !== "running") throw new Error("Audio is unavailable");
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.frequency.value = 880;
-    gain.gain.setValueAtTime(0, context.currentTime);
-    gain.gain.linearRampToValueAtTime(0.15, context.currentTime + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.3);
-    oscillator.onended = () => {
-      oscillator.disconnect();
-      gain.disconnect();
-    };
-    oscillator.start();
-    oscillator.stop(context.currentTime + 0.35);
+    if (!context || context.state !== "running") return;
+    for (const [offset, frequency] of [
+      [0, 880],
+      [0.22, 1320],
+    ]) {
+      const at = context.currentTime + offset;
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.frequency.value = frequency;
+      gain.gain.setValueAtTime(0, at);
+      gain.gain.linearRampToValueAtTime(0.35, at + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, at + 0.4);
+      oscillator.onended = () => {
+        oscillator.disconnect();
+        gain.disconnect();
+      };
+      oscillator.start(at);
+      oscillator.stop(at + 0.45);
+    }
   }
   close() {
     void this.context?.close().catch(() => undefined);

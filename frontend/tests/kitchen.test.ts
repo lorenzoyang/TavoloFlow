@@ -9,7 +9,7 @@ import {
   waitLevel,
   type PendingKitchenAction,
 } from "../src/features/kitchen/state.ts";
-import { syncIsFresh } from "../src/lib/live-view.ts";
+import { syncIsFresh, syncIsStalled } from "../src/lib/live-view.ts";
 
 const action: PendingKitchenAction = {
   orderId: "00000000-0000-4000-8000-000000000001",
@@ -56,7 +56,7 @@ test("arrival detection works beyond the displayed page and does not alarm on pr
   assert.equal(incoming.added, 3); // One chime for the batch, even when none are on the oldest page.
   assert.equal(arrivals(incoming.baseline, 123, 11_000).added, 0); // Page append / repeated render.
   assert.equal(arrivals(incoming.baseline, 130, 41_000).added, 0); // Stale connection establishes a baseline.
-  assert.equal(arrivals(null, 150, 42_000).added, 0); // Sound enable, foreground resume or identity change.
+  assert.equal(arrivals(null, 150, 42_000).added, 0); // Foreground resume, reconnect or identity change.
   assert.equal(arrivals(incoming.baseline, 10, 21_000).added, 0); // A counter decrease also resets safely.
 });
 
@@ -67,6 +67,15 @@ test("stale and resumed views cannot authorize UI writes before a fresh successf
   assert.equal(syncIsFresh(1000, 2000, 1000, false, false), false);
   assert.equal(syncIsFresh(1000, 2000, 1000, true, true), false);
   assert.equal(syncIsFresh(0, 2000, 0, true, false), false);
+});
+
+test("a first poll after loading, resuming or switching tabs is not reported until the grace ends", () => {
+  assert.equal(syncIsStalled(false, 1500, 1000, true, false), false); // Still syncing: no warning flash.
+  assert.equal(syncIsStalled(false, 900, 1000, true, false), false); // The 1-second clock lags the switch.
+  assert.equal(syncIsStalled(false, 4000, 1000, true, false), true); // Syncing too long, or aged out.
+  assert.equal(syncIsStalled(false, 1500, 1000, false, false), true); // Offline or hidden: at once.
+  assert.equal(syncIsStalled(false, 1500, 1000, true, true), true); // Failed poll: at once.
+  assert.equal(syncIsStalled(true, 99_000, 1000, true, false), false);
 });
 
 test("waiting orders turn amber at 10 minutes and red at 20", () => {

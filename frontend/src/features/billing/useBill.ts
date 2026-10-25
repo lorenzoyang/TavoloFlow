@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { floorKey, sessionQuery } from "@/features/dining/api";
-import { syncIsFresh } from "@/lib/live-view";
+import { syncIsFresh, syncIsStalled } from "@/lib/live-view";
 import { ApiError } from "@/lib/api";
 import { useLiveView } from "@/lib/useLiveView";
 import { uniqueBy } from "@/lib/utils";
@@ -11,6 +11,8 @@ import { billingKey, readBill } from "./api";
 export function useBill(account: CurrentAccount, id: string, history = false) {
   const client = useQueryClient();
   const view = useLiveView();
+  // Callers mount one panel per selected bill, so this is when the bill was opened.
+  const [openedAt] = useState(Date.now);
   const key = useMemo(
     () => [...billingKey(account), history ? "closed" : "active", id],
     [account, history, id],
@@ -63,9 +65,19 @@ export function useBill(account: CurrentAccount, id: string, history = false) {
     !closed &&
     !session.isError &&
     syncIsFresh(head?.receivedAt ?? 0, view.now, view.resumeAfter, view.active, query.isError);
+  // Opening a bill reads its session and then its orders; only a wait beyond the grace is reported.
+  const stalled =
+    !closed &&
+    syncIsStalled(
+      fresh,
+      view.now,
+      Math.max(view.resumeAfter, openedAt),
+      view.active,
+      query.isError || session.isError,
+    );
   const orders = uniqueBy(
     (query.data?.pages ?? []).flatMap((p) => p.orders),
     (o) => o.id,
   );
-  return { query, session, closed, head, orders, fresh, view, refresh };
+  return { query, session, closed, head, orders, fresh, stalled, view, refresh };
 }

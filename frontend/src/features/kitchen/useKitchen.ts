@@ -4,7 +4,7 @@ import type { CurrentAccount } from "@/features/accounts/api";
 import { isSameAccount } from "@/features/accounts/queries";
 import { diningKey } from "@/features/dining/api";
 import { ApiError, errorMessage, withTimeout } from "@/lib/api";
-import { syncIsFresh } from "@/lib/live-view";
+import { syncIsFresh, syncIsStalled } from "@/lib/live-view";
 import { isLive, onLifecycleChange } from "@/lib/useLiveView";
 import { uniqueBy } from "@/lib/utils";
 import {
@@ -16,7 +16,7 @@ import {
   type KitchenOrder,
   type KitchenPage,
 } from "./api";
-import { KitchenAudio } from "./audio";
+import { KitchenAudio, readSoundPreference, saveSoundPreference } from "./audio";
 import {
   arrivals,
   pendingKitchenKey,
@@ -27,17 +27,24 @@ import {
   type PendingKitchenAction,
 } from "./state";
 
+// Activation-triggering events: a mouse press counts on pointerdown, a touch on pointerup.
+const gestures = ["pointerdown", "pointerup", "keydown"] as const;
+const noAudio = "此浏览器不支持声音提醒；订单仍会正常更新。";
+
 export function useKitchen(account: CurrentAccount) {
   const client = useQueryClient();
   const [status, setStatus] = useState<OrderStatus>("NEW");
   const [active, setActive] = useState(isLive);
   const [resumeAfter, setResumeAfter] = useState(Date.now);
+  const [switchedAt, setSwitchedAt] = useState(0);
   const [now, setNow] = useState(Date.now);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [storageWarning, setStorageWarning] = useState(false);
   const [busy, setBusy] = useState<string[]>([]);
-  const [sound, setSound] = useState(false);
+  const [writing, setWriting] = useState<string[]>([]);
+  const [sound, setSound] = useState(readSoundPreference);
+  const [audible, setAudible] = useState(true);
   const [soundError, setSoundError] = useState("");
   const { restaurantId, userId, role } = account;
   const storageKey = pendingKitchenKey(restaurantId, userId);
@@ -54,7 +61,6 @@ export function useKitchen(account: CurrentAccount) {
   const operations = useRef(new Map<string, AbortController>());
   const baseline = useRef<ArrivalBaseline>(null);
   const audio = useRef<KitchenAudio | null>(null);
-  const soundOn = useRef(false);
   const [latest, setLatest] = useState<Record<string, KitchenOrder>>({});
   const scope = useMemo(() => kitchenKey({ restaurantId, userId }), [restaurantId, userId]);
   const query = useInfiniteQuery({
@@ -68,6 +74,17 @@ export function useKitchen(account: CurrentAccount) {
   });
   const head = query.data?.pages[0];
   const fresh = syncIsFresh(head?.receivedAt ?? 0, now, resumeAfter, active, query.isError);
+  const stalled = syncIsStalled(
+    fresh,
+    now,
+    Math.max(resumeAfter, switchedAt),
+    active,
+    query.isError,
+  );
+  // Restaurant-wide figures (pending count, last sync) come from the newest poll of any tab, so they
+  // stay in place while a newly selected tab loads.
+  const [summary, setSummary] = useState(head);
+  if (head && head.receivedAt > (summary?.receivedAt ?? 0)) setSummary(head);
 
   const sameAccount = useCallback(
     () => isSameAccount(client, { restaurantId, userId, role }),
@@ -175,6 +192,7 @@ export function useKitchen(account: CurrentAccount) {
       controllers.forEach((controller) => controller.abort());
       controllers.clear();
       setBusy([]);
+      setWriting([]);
       const online = isLive();
       setActive(online);
       setResumeAfter(Date.now());
@@ -201,9 +219,6 @@ export function useKitchen(account: CurrentAccount) {
       epoch.current++;
       controllers.forEach((c) => c.abort());
       controllers.clear();
-      audio.current?.close();
-      audio.current = null;
-      soundOn.current = false;
       baseline.current = null;
       window.clearTimeout(initial);
       window.clearInterval(recoveryTimer);
@@ -222,45 +237,74 @@ export function useKitchen(account: CurrentAccount) {
 
   useEffect(() => {
     if (!head || !active || head.receivedAt < resumeAfter) return;
-    if (baseline.current?.at === head.receivedAt) return; // Loading another page is not a fresh head poll.
+    // The created count is restaurant-wide, so the polls of every tab share one baseline. A cached tab's
+    // older head, or another loaded page, is not a new poll.
+    if (baseline.current && head.receivedAt <= baseline.current.at) return;
     const result = arrivals(baseline.current, head.createdOrderCount, head.receivedAt);
     baseline.current = result.baseline;
     if (result.added > 0) {
       // Server arrivals are an external event, announced even when audio is disabled.
       setNotice(`收到 ${result.added} 笔新订单；当前待处理 ${head.pendingCount} 笔。`);
-      if (soundOn.current) {
-        try {
-          audio.current?.play();
-        } catch {
-          soundOn.current = false;
-          setSound(false);
-          setSoundError("声音暂不可用，请点击重新开启；订单仍会正常更新。");
-        }
-      }
+      audio.current?.play();
     }
   }, [head, active, resumeAfter]);
 
-  async function toggleSound() {
-    if (soundOn.current) {
-      soundOn.current = false;
-      setSound(false);
-      return;
-    }
-    const generation = epoch.current;
+  useEffect(() => {
+    if (!sound) return;
+    const player = (audio.current ??= new KitchenAudio());
+    let timer = 0;
+    // Reported as blocked only if audio is still not running shortly after an attempt in the foreground,
+    // so a start the browser allows, or a phone's suspension in the background, never flashes the notice.
+    const settle = () => {
+      window.clearTimeout(timer);
+      if (player.running) setAudible(true);
+      else
+        timer = window.setTimeout(
+          () => setAudible(player.running || document.visibilityState !== "visible"),
+          1500,
+        );
+    };
+    // Retried on every tap and on returning to the foreground until the browser lets audio run.
+    const wake = () => {
+      if (player.running || document.visibilityState !== "visible") return;
+      try {
+        player.start();
+      } catch {
+        setSoundError(noAudio);
+        return;
+      }
+      settle();
+    };
+    player.onChange = settle;
+    wake();
+    for (const type of gestures) window.addEventListener(type, wake, true);
+    const stopListening = onLifecycleChange(wake);
+    return () => {
+      window.clearTimeout(timer);
+      for (const type of gestures) window.removeEventListener(type, wake, true);
+      stopListening();
+      player.onChange = null;
+      player.close();
+      audio.current = null;
+    };
+  }, [sound]);
+
+  // Called inside a click, where every browser lets audio start.
+  function unlockSound() {
     try {
       audio.current ??= new KitchenAudio();
-      await audio.current.enable();
-      if (!mounted.current || generation !== epoch.current || !sameAccount()) return;
-      baseline.current = null;
-      soundOn.current = true;
-      setSound(true);
-      setSoundError("");
+      audio.current.start();
     } catch {
-      if (mounted.current) {
-        setSoundError("此浏览器未能开启声音，请检查声音权限或使用其他浏览器。");
-        setSound(false);
-      }
+      setSoundError(noAudio);
     }
+  }
+
+  function toggleSound() {
+    saveSoundPreference(!sound);
+    setSound(!sound);
+    setAudible(true);
+    setSoundError("");
+    if (!sound) unlockSound();
   }
 
   async function perform(order: KitchenOrder, kind: "ready" | "cancel", reason?: string) {
@@ -287,9 +331,8 @@ export function useKitchen(account: CurrentAccount) {
       !controller.signal.aborted &&
       sameAccount();
     setBusy((ids) => [...ids, order.id]);
+    setWriting((ids) => [...ids, order.id]);
     remember([...pendingRef.current, action]);
-    setError("");
-    setNotice("");
     try {
       const signal = withTimeout(controller.signal);
       const result =
@@ -300,12 +343,15 @@ export function useKitchen(account: CurrentAccount) {
       await acceptOrder(result, current);
       if (!current()) return;
       forget(order.id);
+      // Feedback is replaced when the result arrives, not cleared on tap, so it does not flicker.
+      setError("");
       setNotice(
         `${result.tableLabel} 桌：${kind === "ready" ? "整单已完成。" : "整单已取消，账单金额已更新。"}`,
       );
       return result;
     } catch (e) {
       if (!current()) return;
+      setNotice("");
       if (e instanceof ApiError && e.status < 500) {
         forget(order.id);
         setError(errorMessage(e));
@@ -321,8 +367,10 @@ export function useKitchen(account: CurrentAccount) {
       } else setError("操作结果待确认。请核对原订单，系统不会自动重新提交。");
     } finally {
       if (operations.current.get(order.id) === controller) operations.current.delete(order.id);
-      if (mounted.current && generation === epoch.current)
+      if (mounted.current && generation === epoch.current) {
         setBusy((ids) => ids.filter((id) => id !== order.id));
+        setWriting((ids) => ids.filter((id) => id !== order.id));
+      }
     }
   }
 
@@ -332,27 +380,34 @@ export function useKitchen(account: CurrentAccount) {
   ).filter((order) => order.status === status);
   return {
     status,
+    // A tab's cached orders stay writable while younger than 30 seconds, like any poll; the switch only
+    // restarts the grace period before an unfinished first load is reported.
     setStatus: (next: OrderStatus) => {
       if (next === status) return;
-      baseline.current = null;
-      setResumeAfter(Date.now());
+      setSwitchedAt(Date.now());
       setStatus(next);
       setError("");
     },
     query,
     orders,
     head,
+    summary,
     fresh,
+    stalled,
     active,
     now,
     notice,
     error,
     busy,
-    pending,
+    // Each marker is persisted before its POST, but shown only once the result is unknown (a failed or
+    // timed-out request, or a reload); while the request is in flight only its ticket is locked.
+    pending: pending.filter((p) => !writing.includes(p.orderId)),
     storageWarning,
     sound,
+    soundBlocked: sound && !audible && !soundError,
     soundError,
     latest,
+    unlockSound,
     toggleSound,
     perform,
     recover,
