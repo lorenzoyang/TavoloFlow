@@ -1,4 +1,6 @@
-# TavoloFlow 前端
+# Qiao TavoloFlow 前端
+
+产品名称为 **Qiao TavoloFlow**，技术项目名称仍为 **TavoloFlow**，现有文件名与内部标识保持不变。
 
 React 19 + TypeScript + Vite，路由与数据请求使用 TanStack Router / Query，界面组件基于 shadcn（Base UI，base-nova）。
 
@@ -9,6 +11,24 @@ React 19 + TypeScript + Vite，路由与数据请求使用 TanStack Router / Que
 - `npm run build`：生成路由树、构建，并做 TypeScript 检查。
 - `npm run lint`、`npm run format`：Oxlint 检查与 Prettier 格式化。
 - `node --test --test-isolation=none tests/*.test.ts`：运行纯逻辑单元测试（需 Node 24）。
+
+## 正式域名与二维码
+
+正式主地址为 `https://qiaotavoloflow.it`。在本目录准备生产构建：
+
+```bash
+cp .env.production.example .env.production
+npm run build
+```
+
+示例包含 `VITE_PUBLIC_BASE_URL=https://qiaotavoloflow.it`，只控制生成的公开菜单链接和二维码。
+该值在构建时写入前端产物，修改后需要重新构建；`.env.production` 不提交到 Git。
+顾客 `/q/{token}`、店铺 `/staff/*`、平台 `/platform/*` 和 `/api` 沿用同源路径。
+
+开发模式不读取 `.env.production`；未配置时使用当前浏览器 origin，手机访问可在 `.env.local`
+设置局域网地址，见 [桌位与公开菜单说明](../docs/tables-public-menu.md)。
+已有纸质二维码仍指向旧地址，更换地址后需重新打印或维护旧地址跳转。
+服务器部署、HTTPS 和 OVHcloud DNS 接入在上线时配置。
 
 ## 目录
 

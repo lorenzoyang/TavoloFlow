@@ -1,8 +1,10 @@
-# TavoloFlow — MVP 产品需求文档（精简版 V1）
+# Qiao TavoloFlow — MVP 产品需求文档（精简版 V1）
 
 > **文档定位**：第一版可实际开发、测试并在单店试运营的产品与前后端协作约定。  
-> **日期**：2026-10-21<br>
-> **依据**：原《TavoloFlow — 餐厅二维码点单系统项目需求文档》、`TavoloFlow_ER_Simplified_V1.dbml`，以及本轮对数据库简化、断网、账单、Cookie 与并发控制的讨论。  
+> **产品名称**：Qiao TavoloFlow；技术项目名称仍为 TavoloFlow，现有文件名和内部标识保持不变。<br>
+> **正式主地址**：https://qiaotavoloflow.it<br>
+> **日期**：2026-10-25<br>
+> **依据**：原《Qiao TavoloFlow — 餐厅二维码点单系统项目需求文档》、`TavoloFlow_ER_Simplified_V1.dbml`，以及本轮对数据库简化、断网、账单、Cookie 与并发控制的讨论。<br>
 > **优先级**：本文件描述精简版 MVP 的目标。与旧 PRD 冲突时，以本文件和最终 DBML 为准；最终 DBML 定义数据字段，本文定义行为与前后端契约。具体 API 路径是**建议实现接口**，代码实施时可以做等价调整，但不能改变行为规则。
 
 ---

@@ -6,6 +6,7 @@ import { Notice } from "@/components/notice";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PRODUCT_NAME } from "@/lib/brand";
 import type { Language } from "@/lib/language";
 import { useMediaQuery, WIDE_SCREEN } from "@/lib/useMediaQuery";
 import { publicMenuQuery, type PublicMenu } from "./api";
@@ -256,7 +257,9 @@ export function PublicMenuPage({ token }: { token: string }) {
       className="mx-auto flex min-h-dvh max-w-md flex-col gap-6 px-4 pt-[max(2.5rem,env(safe-area-inset-top))] pb-10"
     >
       <BrandMark />
-      <h1 className="sr-only">TavoloFlow · {m.menu}</h1>
+      <h1 className="sr-only">
+        {PRODUCT_NAME} · {m.menu}
+      </h1>
       <LanguageToggle language={language} select={setLanguage} />
       <Notice tone={query.data === null || failed ? "error" : "info"}>
         {query.data === null ? m.invalid : failed ? m.error : m.loading}

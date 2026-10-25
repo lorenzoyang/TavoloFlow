@@ -1,4 +1,5 @@
 import { UtensilsCrossed } from "lucide-react";
+import { PRODUCT_NAME } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 // The same mark as public/favicon.svg.
@@ -9,7 +10,9 @@ export function BrandMark({ caption, className }: { caption?: string; className?
         <UtensilsCrossed aria-hidden="true" className="size-5" />
       </span>
       <span className="min-w-0 leading-tight">
-        <span className="block font-display text-xl font-semibold tracking-tight">TavoloFlow</span>
+        <span className="block font-display text-xl font-semibold tracking-tight">
+          {PRODUCT_NAME}
+        </span>
         {caption && <span className="block text-xs text-muted-foreground">{caption}</span>}
       </span>
     </div>

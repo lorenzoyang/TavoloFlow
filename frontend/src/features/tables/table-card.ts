@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from "@/lib/brand";
 import { LANGUAGES } from "@/lib/language";
 import { messages } from "@/features/public-menu/messages";
 
@@ -123,6 +124,6 @@ export async function renderTableCard({
   lines.forEach((line, index) => context.fillText(line, center, boxY + box + 170 + index * 52));
   context.fillStyle = MUTED;
   context.font = `600 32px ${DISPLAY}`;
-  context.fillText("TavoloFlow", center, HEIGHT - 100);
+  context.fillText(PRODUCT_NAME, center, HEIGHT - 100);
   return canvas.toDataURL("image/png");
 }

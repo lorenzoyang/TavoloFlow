@@ -1,7 +1,9 @@
-# TavoloFlow — 餐厅二维码点单系统项目需求文档
+# Qiao TavoloFlow — 餐厅二维码点单系统项目需求文档
 
+- 产品名称：Qiao TavoloFlow
 - 项目名称：TavoloFlow
-- 修改日期：2026-10-16
+- 正式主地址：https://qiaotavoloflow.it
+- 修改日期：2026-10-25
 - 作者：Lorenzo Yang
 - 文档定位：产品需求文档（PRD），描述业务目标、功能、规则及验收要求，不规定具体后端或基础设施实现
 

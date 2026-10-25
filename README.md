@@ -1,4 +1,7 @@
-# TavoloFlow
+# Qiao TavoloFlow
+
+对外产品名称为 **Qiao TavoloFlow**，正式主地址为 `https://qiaotavoloflow.it`。
+技术项目名称仍为 **TavoloFlow**：仓库、目录、文件名、命名空间及内部标识沿用原名。
 
 面向餐厅的堂食二维码点单 MVP：菜单/桌位、开桌与顾客验证、点单、厨房处理、线下收款确认与历史账单，以及平台建店和账号维护。ASP.NET Core 10 + EF Core + PostgreSQL 18；React / TypeScript + TanStack Router / Query。共十张业务表，不处理在线支付。
 
@@ -23,6 +26,15 @@ npm run dev
 ```
 
 账号初始化见 [店铺账号](docs/store-accounts.md) 和 [平台初始化](docs/platform-pilot.md)。入口：`/platform/login`、`/staff/login`、`/q/{token}`。Vite 代理 `/api` 到 5093。
+
+## 正式域名配置
+
+在 `frontend/` 中复制 `.env.production.example` 为 `.env.production`，然后运行 `npm run build`，
+使新生成的二维码指向 `https://qiaotavoloflow.it/q/{token}`。顾客、店铺、平台及 `/api` 沿用同源路径。
+本地开发继续使用当前浏览器地址或局域网配置；配置步骤见 [前端说明](frontend/README.md)。
+
+此配置只设置二维码的公开地址；服务器部署、HTTPS 和 OVHcloud DNS 接入在上线时处理。
+已有纸质二维码保留旧地址，更换地址后需重新打印或为旧地址维护跳转。
 
 ## 验证
 

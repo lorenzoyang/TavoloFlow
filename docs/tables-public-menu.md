@@ -162,6 +162,24 @@ npm run dev -- --host 0.0.0.0
 配置错误时界面拒绝生成链接。留空时使用当前浏览器 origin；生产构建后改变该值需要重新构建。
 如果域名/端口更换，已有纸质二维码仍指向旧地址，需自行维护跳转或重新打印。
 
+### 正式域名配置
+
+产品对外名称为 **Qiao TavoloFlow**，正式主地址为 `https://qiaotavoloflow.it`；
+技术项目仍名为 **TavoloFlow**，现有文件名、接口路径、二维码 token 和内部标识保持不变。
+在 `frontend/` 中执行：
+
+```bash
+cp .env.production.example .env.production
+npm run build
+```
+
+示例设置 `VITE_PUBLIC_BASE_URL=https://qiaotavoloflow.it`，生成的公开链接为
+`https://qiaotavoloflow.it/q/{token}`。该配置只改变二维码公开地址，不会建立 DNS 记录或部署服务器。
+顾客、店铺、平台与 `/api` 继续同源；HTTPS 和 OVHcloud DNS 接入在上线时配置。
+`.env.production` 只在生产构建中读取，本地开发仍可使用上面的 `.env.local` 局域网配置。
+
+### 局域网与上线注意事项
+
 WSL 场景先在 Windows 浏览器确认 Vite 可访问，再在同一局域网手机手动打开上述地址。
 若 Windows 能访问而手机不能，检查 Windows 防火墙、WSL 网络模式以及是否需要端口转发；
 具体取决于本机配置。只通过 Vite 暴露前端和 `/api` 代理即可，后端仍可绑定 localhost。
