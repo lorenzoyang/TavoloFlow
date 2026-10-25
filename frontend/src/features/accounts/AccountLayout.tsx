@@ -6,12 +6,15 @@ import { OwnerSubscriptionReminder } from "@/features/subscriptions/Subscription
 import { accountQuery } from "./queries";
 import { messages as m } from "./messages";
 import { StaffNav } from "./StaffNav";
+import { useInstallableStaffApp } from "./useInstallApp";
 
 // Observes the same identity query as AuthBoundary (no extra request). Signed-out, loading and
 // first-password states show only the brand, because navigation would lead nowhere yet.
 // The shell sets the available width; each page chooses its own content width.
+// Every staff page, sign-in included, makes the staff app installable.
 export function StaffLayout({ children }: { children: ReactNode }) {
   const account = useQuery(accountQuery).data;
+  useInstallableStaffApp();
   if (!account || account.mustChangePassword)
     return (
       <div className="flex min-h-dvh flex-col items-center px-4 pt-[max(3rem,env(safe-area-inset-top))] pb-10">

@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, KeyRound } from "lucide-react";
+import { ChevronRight, Download, KeyRound } from "lucide-react";
 import { Notice } from "@/components/notice";
 import { PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
 import type { CurrentAccount } from "./api";
@@ -9,6 +10,7 @@ import { messages as m } from "./messages";
 import { staffManagementItems, staffNavItems, type StaffDestination } from "./navigation";
 import { AuthBoundary } from "./AuthBoundary";
 import { LogoutButton } from "./LogoutButton";
+import { useInstallOffer } from "./useInstallApp";
 
 const linkFocus = "outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 
@@ -46,6 +48,41 @@ function ManagementRow({ item }: { item: StaffDestination }) {
       </span>
       <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
     </Link>
+  );
+}
+
+// Hidden inside the installed app. Chromium offers a one-tap installation once the site has seen
+// some use (a tap and about 30 seconds); until then, and in other browsers, the steps per device
+// are listed.
+function InstallSection() {
+  const { standalone, installed, canInstall, install } = useInstallOffer();
+  if (standalone) return null;
+  return (
+    <section aria-labelledby="home-install" className="space-y-3">
+      <h2 id="home-install" className="text-sm font-medium text-muted-foreground">
+        {m.installSection}
+      </h2>
+      <Card>
+        <CardContent className="space-y-4">
+          <p className="text-sm leading-6">{m.installDescription}</p>
+          {installed ? (
+            <Notice tone="success">{m.installed}</Notice>
+          ) : canInstall ? (
+            <Button className="w-full sm:w-auto" onClick={install}>
+              <Download aria-hidden="true" />
+              {m.install}
+            </Button>
+          ) : (
+            <ul className="space-y-2 text-sm leading-6">
+              {[m.installIos, m.installAndroid, m.installDesktop].map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ul>
+          )}
+          <p className="text-xs leading-5 text-muted-foreground">{m.installKitchenSound}</p>
+        </CardContent>
+      </Card>
+    </section>
   );
 }
 
@@ -112,6 +149,7 @@ function Home({ account, passwordChanged }: { account: CurrentAccount; passwordC
           </CardContent>
         </Card>
       </section>
+      <InstallSection />
     </div>
   );
 }

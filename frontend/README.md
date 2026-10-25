@@ -30,6 +30,11 @@ npm run build
 已有纸质二维码仍指向旧地址，更换地址后需重新打印或维护旧地址跳转。
 服务器部署、HTTPS 和 OVHcloud DNS 接入在上线时配置。
 
+## 安装为应用（PWA）
+
+店铺端 `/staff` 可安装到主屏幕或桌面，安装需要 HTTPS 或 localhost。开发模式不注册 service worker，
+请用 `npm run build && npm run preview`（http://localhost:4173）测试安装和离线页。见 [PWA 说明](../docs/pwa.md)。
+
 ## 目录
 
 - `src/routes/`：文件路由，只负责 URL 和搜索参数。
@@ -37,5 +42,6 @@ npm run build
 - `src/components/ui/`：shadcn 生成的基础组件。
 - `src/components/`：全站共用的页面组件，包括页头、提示、确认对话框、主从视图、筛选标签和空状态。
 - `src/lib/`：HTTP 请求、格式化、语言和共享 hook。
+- `public/`：favicon、店铺端 manifest、service worker 和应用图标。
 
-界面约定（配色语义、控件尺寸、导航、主从视图、确认方式、PWA 预备）见仓库根目录 `AGENTS.md` 的 “UI Conventions”，以及 `docs/architecture.md` 第 7 节。
+界面约定（配色语义、控件尺寸、导航、主从视图、确认方式、PWA）见仓库根目录 `AGENTS.md` 的 “UI Conventions”，以及 `docs/architecture.md` 第 7 节。

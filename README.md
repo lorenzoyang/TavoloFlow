@@ -34,6 +34,7 @@ npm run dev
 本地开发继续使用当前浏览器地址或局域网配置；配置步骤见 [前端说明](frontend/README.md)。
 
 此配置只设置二维码的公开地址；服务器部署、HTTPS 和 OVHcloud DNS 接入在上线时处理。
+店铺端可安装为应用（PWA），手机安装同样需要 HTTPS 正式地址，部署要求见 [PWA 说明](docs/pwa.md)。
 已有纸质二维码保留旧地址，更换地址后需重新打印或为旧地址维护跳转。
 
 ## 验证
@@ -56,3 +57,4 @@ npm run format:check
 - [账号](docs/store-accounts.md) → [菜单](docs/menu-management.md) → [桌位和公开菜单](docs/tables-public-menu.md)
 - [开桌与顾客授权](docs/dining-guest-access.md) → [购物车和下单](docs/cart-ordering.md) → [厨房](docs/kitchen-cancellation.md) → [结账与历史](docs/billing-history.md)
 - [平台管理](docs/platform-pilot.md) → [收费周期](docs/restaurant-subscriptions.md)
+- [店铺端 PWA](docs/pwa.md)：安装到主屏幕、离线页、各平台差异与部署要求

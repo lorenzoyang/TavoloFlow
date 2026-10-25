@@ -43,4 +43,15 @@ export const messages = {
   loginUnknown: "登录结果暂时无法确认，请重新核对登录状态。",
   notFound: "页面不存在",
   goToAccount: "返回首页",
+  installSection: "安装到本设备",
+  installDescription:
+    "安装后可从主屏幕或桌面图标直接打开，不用再找网址。已安装的设备请从图标打开。",
+  install: "安装应用",
+  installed: "已安装，之后请从主屏幕或桌面图标打开。",
+  installIos:
+    "iPhone / iPad：在 Safari 中点按「分享」（新版位于「⋯」菜单内），选择「添加到主屏幕」。首次从图标打开需要重新登录。",
+  installAndroid: "Android：在 Chrome 菜单中选择「添加到主屏幕」或「安装应用」。",
+  installDesktop: "电脑：在 Chrome 或 Edge 中点按地址栏的安装图标，或在菜单中选择安装。",
+  installKitchenSound:
+    "厨房提醒声：在 Android 和电脑上从图标打开即可直接播放；iPhone / iPad 仍需先点按一次页面。",
 } as const;
