@@ -24,6 +24,7 @@ builder.Services.AddControllers(options =>
 }).ConfigureApiBehaviorOptions(options => options.InvalidModelStateResponseFactory = ApiExceptionFilter.InvalidModelState);
 builder.Services.AddOpenApi();
 builder.Services.AddDataLayer(builder.Configuration);
+builder.Services.AddDeploymentHosting(builder.Configuration);
 
 // Three independent browser identities share one path-based authentication selector.
 builder.Services.AddBrowserSecurity(builder.Configuration, builder.Environment);
@@ -50,6 +51,10 @@ if (command is not null)
     await MaintenanceCommands.RunAsync(app, command);
     return;
 }
+
+app.UseForwardedHeaders();
+// The container probes over HTTP. Caddy blocks this path at the public edge.
+app.UseHealthChecks("/health/ready");
 
 app.Use(async (context, next) =>
 {

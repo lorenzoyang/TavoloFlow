@@ -1,0 +1,64 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# Automatic HTTPS inserts the business host's redirect ahead of this fallback.
+# Reject other HTTP hosts instead of redirecting them as if this VPS owned them.
+:80 {
+	respond 404
+}
+
+# Serve only the business hostname. Apex/www belong to the separate marketing site.
+{$DOMAIN} {
+	encode zstd gzip
+
+	@api path /api /api/*
+	handle @api {
+		header Cache-Control "no-store"
+		reverse_proxy api:8080
+	}
+
+	@private path /health /health/*
+	handle @private {
+		respond 404
+	}
+
+	# Shared immutable pool: an old open PWA may still request an earlier chunk.
+	handle /assets/* {
+		root * /srv
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
+	handle /sw.js {
+		root * /srv/current
+		header Cache-Control "no-cache"
+		header Content-Type "text/javascript; charset=utf-8"
+		file_server
+	}
+
+	handle /staff.webmanifest {
+		root * /srv/current
+		header Cache-Control "no-cache"
+		header Content-Type "application/manifest+json"
+		file_server
+	}
+
+	# Restrict SPA fallback to real route prefixes. Missing static files must be 404s.
+	@page {
+		path / /staff /staff/* /platform /platform/* /q /q/*
+		not path_regexp extension \.[^/]+$
+	}
+	handle @page {
+		root * /srv/current
+		header Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+
+	handle {
+		root * /srv/current
+		header Cache-Control "no-cache"
+		file_server
+	}
+}

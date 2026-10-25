@@ -1,0 +1,22 @@
+# Explicit build inputs only. In particular, never send local .env files or credentials to Docker.
+**
+!global.json
+!.config/
+!.config/dotnet-tools.json
+!backend/
+!backend/TavoloFlow.Api/
+!backend/TavoloFlow.Api/**
+!frontend/
+!frontend/**
+!deploy/
+!deploy/Dockerfile.*
+**/bin
+**/obj
+**/node_modules
+**/dist
+**/.tanstack
+**/.env
+**/.env.*
+**/*.local
+**/*.log
+**/*.tsbuildinfo

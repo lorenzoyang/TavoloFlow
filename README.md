@@ -1,6 +1,7 @@
 # Qiao TavoloFlow
 
-对外产品名称为 **Qiao TavoloFlow**，正式主地址为 `https://qiaotavoloflow.it`。
+对外产品名称为 **Qiao TavoloFlow**，业务系统正式地址为 `https://app.qiaotavoloflow.it`。
+`https://qiaotavoloflow.it` 预留给独立 GitHub 仓库中的 Astro 官网，由 Cloudflare 托管；本仓库只部署业务系统到 netcup VPS。
 技术项目名称仍为 **TavoloFlow**：仓库、目录、文件名、命名空间及内部标识沿用原名。
 
 面向餐厅的堂食二维码点单 MVP：菜单/桌位、开桌与顾客验证、点单、厨房处理、线下收款确认与历史账单，以及平台建店和账号维护。ASP.NET Core 10 + EF Core + PostgreSQL 18；React / TypeScript + TanStack Router / Query。共十张业务表，不处理在线支付。
@@ -30,10 +31,12 @@ npm run dev
 ## 正式域名配置
 
 在 `frontend/` 中复制 `.env.production.example` 为 `.env.production`，然后运行 `npm run build`，
-使新生成的二维码指向 `https://qiaotavoloflow.it/q/{token}`。顾客、店铺、平台及 `/api` 沿用同源路径。
+使新生成的二维码指向 `https://app.qiaotavoloflow.it/q/{token}`。顾客、店铺、平台及 `/api` 都在业务子域名下使用同源路径。
 本地开发继续使用当前浏览器地址或局域网配置；配置步骤见 [前端说明](frontend/README.md)。
 
-此配置只设置二维码的公开地址；服务器部署、HTTPS 和 OVHcloud DNS 接入在上线时处理。
+首次上线请从 [netcup 中文部署教程](docs/deployment-netcup.md) 开始：在 WSL 构建发布包，
+部署到 VPS，由 Cloudflare 提供 DNS、Caddy 管理 HTTPS。生产模板和运维脚本位于 `deploy/`，与本地 Compose 分开。
+域名仍在 OVHcloud 续费；委派到 Cloudflare 后添加灰云 `A app` 记录指向 VPS 即可，无需购买第二个域名。官网未上线也可以先部署业务系统。
 店铺端可安装为应用（PWA），手机安装同样需要 HTTPS 正式地址，部署要求见 [PWA 说明](docs/pwa.md)。
 已有纸质二维码保留旧地址，更换地址后需重新打印或为旧地址维护跳转。
 
@@ -58,3 +61,5 @@ npm run format:check
 - [开桌与顾客授权](docs/dining-guest-access.md) → [购物车和下单](docs/cart-ordering.md) → [厨房](docs/kitchen-cancellation.md) → [结账与历史](docs/billing-history.md)
 - [平台管理](docs/platform-pilot.md) → [收费周期](docs/restaurant-subscriptions.md)
 - [店铺端 PWA](docs/pwa.md)：安装到主屏幕、离线页、各平台差异与部署要求
+- [netcup 部署](docs/deployment-netcup.md)：首次上线、更新、备份与恢复
+- [部署验证与清理记录](docs/deployment-validation.md)：清理范围、验证命令与人工验收边界

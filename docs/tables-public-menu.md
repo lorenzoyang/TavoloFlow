@@ -164,7 +164,8 @@ npm run dev -- --host 0.0.0.0
 
 ### 正式域名配置
 
-产品对外名称为 **Qiao TavoloFlow**，正式主地址为 `https://qiaotavoloflow.it`；
+产品对外名称为 **Qiao TavoloFlow**，业务系统正式地址为 `https://app.qiaotavoloflow.it`；
+`https://qiaotavoloflow.it` 留给独立仓库的 Astro 官网，不作为二维码入口。
 技术项目仍名为 **TavoloFlow**，现有文件名、接口路径、二维码 token 和内部标识保持不变。
 在 `frontend/` 中执行：
 
@@ -173,9 +174,10 @@ cp .env.production.example .env.production
 npm run build
 ```
 
-示例设置 `VITE_PUBLIC_BASE_URL=https://qiaotavoloflow.it`，生成的公开链接为
-`https://qiaotavoloflow.it/q/{token}`。该配置只改变二维码公开地址，不会建立 DNS 记录或部署服务器。
-顾客、店铺、平台与 `/api` 继续同源；HTTPS 和 OVHcloud DNS 接入在上线时配置。
+示例设置 `VITE_PUBLIC_BASE_URL=https://app.qiaotavoloflow.it`，生成的公开链接为
+`https://app.qiaotavoloflow.it/q/{token}`。该配置只改变二维码公开地址，不会建立 DNS 记录或部署服务器。
+顾客、店铺、平台与 `/api` 继续同源；域名在 OVHcloud 注册、DNS 委派到 Cloudflare，灰云 `A app` 指向 netcup VPS，
+Caddy 提供 HTTPS。步骤见 [netcup 部署教程](deployment-netcup.md)。
 `.env.production` 只在生产构建中读取，本地开发仍可使用上面的 `.env.local` 局域网配置。
 
 ### 局域网与上线注意事项

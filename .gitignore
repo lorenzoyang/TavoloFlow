@@ -21,6 +21,7 @@ nupkg/
 # Visual Studio Code
 .vscode/*
 !.vscode/settings.json
+!.vscode/extensions.json
 
 # Rider
 .idea/
@@ -78,14 +79,12 @@ dist-ssr
 .tanstack
 
 # Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-
-
+# Local release archives, never production secrets or backups in Git.
+/artifacts/
+/deploy/web/
+/deploy/backups/
+/deploy/state/

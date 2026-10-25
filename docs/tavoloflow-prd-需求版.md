@@ -2,7 +2,8 @@
 
 - 产品名称：Qiao TavoloFlow
 - 项目名称：TavoloFlow
-- 正式主地址：https://qiaotavoloflow.it
+- 业务系统正式地址：https://app.qiaotavoloflow.it
+- 官方宣传网站：https://qiaotavoloflow.it（独立 Astro 仓库，由 Cloudflare 托管，另行开发）
 - 修改日期：2026-10-25
 - 作者：Lorenzo Yang
 - 文档定位：产品需求文档（PRD），描述业务目标、功能、规则及验收要求，不规定具体后端或基础设施实现

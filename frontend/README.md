@@ -14,25 +14,28 @@ React 19 + TypeScript + Vite，路由与数据请求使用 TanStack Router / Que
 
 ## 正式域名与二维码
 
-正式主地址为 `https://qiaotavoloflow.it`。在本目录准备生产构建：
+业务系统正式地址为 `https://app.qiaotavoloflow.it`。根域名留给独立仓库、独立部署的 Astro 官网。
+在本目录准备生产构建：
 
 ```bash
 cp .env.production.example .env.production
 npm run build
 ```
 
-示例包含 `VITE_PUBLIC_BASE_URL=https://qiaotavoloflow.it`，只控制生成的公开菜单链接和二维码。
+示例包含 `VITE_PUBLIC_BASE_URL=https://app.qiaotavoloflow.it`，只控制生成的公开菜单链接和二维码。
 该值在构建时写入前端产物，修改后需要重新构建；`.env.production` 不提交到 Git。
-顾客 `/q/{token}`、店铺 `/staff/*`、平台 `/platform/*` 和 `/api` 沿用同源路径。
+顾客 `/q/{token}`、店铺 `/staff/*`、平台 `/platform/*` 和 `/api` 都位于业务子域名，继续使用同源路径。
+业务根路径 `/` 仍跳转到 `/staff`；Cookie 限定于业务主机，无需与官网共享 Cookie 或配置跨域 API。
 
 开发模式不读取 `.env.production`；未配置时使用当前浏览器 origin，手机访问可在 `.env.local`
 设置局域网地址，见 [桌位与公开菜单说明](../docs/tables-public-menu.md)。
 已有纸质二维码仍指向旧地址，更换地址后需重新打印或维护旧地址跳转。
-服务器部署、HTTPS 和 OVHcloud DNS 接入在上线时配置。
+生产发布使用根目录 `deploy/build-release.sh` 在 Docker 中构建，显式设置正式域名，不读取本机环境文件。
+完整流程见 [netcup 部署教程](../docs/deployment-netcup.md)。
 
 ## 安装为应用（PWA）
 
-店铺端 `/staff` 可安装到主屏幕或桌面，安装需要 HTTPS 或 localhost。开发模式不注册 service worker，
+正式安装入口为 `https://app.qiaotavoloflow.it/staff`，可安装到主屏幕或桌面，安装需要 HTTPS 或 localhost。开发模式不注册 service worker，
 请用 `npm run build && npm run preview`（http://localhost:4173）测试安装和离线页。见 [PWA 说明](../docs/pwa.md)。
 
 ## 目录

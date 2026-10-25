@@ -1,6 +1,7 @@
 # 店铺端 PWA：安装到主屏幕
 
 店铺端 `/staff` 可以安装到手机主屏幕或电脑桌面，从图标直接打开独立窗口，不用再找网址。
+正式安装入口为 `https://app.qiaotavoloflow.it/staff`；根域名官网由另一个 Astro 仓库独立部署。
 顾客页 `/q/*` 和平台管理 `/platform` 仍是普通网页。本次没有做推送通知（见第 8 节）。
 
 ## 1. 文件与作用
@@ -27,6 +28,7 @@ manifest 的 `id`、`start_url`、`scope` 都是 `/staff`，**不带结尾斜杠
 
 应用身份由域名和 manifest `id` 共同决定。正式域名上线后再让门店安装；在 localhost 或其他地址装的测试应用
 是另一个应用，测试后卸载即可。
+manifest 和 worker 中的路径仍使用相对业务 origin 的 `/staff`、`/sw.js` 等地址；不将作用域扩展到官网，也不共享父域名 Cookie。
 
 ## 3. Service worker 做什么、不做什么
 
@@ -64,14 +66,14 @@ manifest 的 `id`、`start_url`、`scope` 都是 `/staff`，**不带结尾斜杠
 
 ## 5. 部署要求
 
-正式部署（尚未配置）时需要满足：
+`deploy/Caddyfile` 和发布脚本已实现以下生产要求；首次上线按 [netcup 部署教程](deployment-netcup.md) 操作：
 
 1. **HTTPS**。安装、service worker 和屏幕常亮都要求安全上下文。在局域网用 `http://` 测试时，浏览器不提供安装，
    首页只显示手动步骤，添加到主屏幕的只是普通书签。
 2. `/sw.js` 和 `/staff.webmanifest` 加 `Cache-Control: no-cache`，让更新及时生效；manifest 的 MIME 类型为
    `application/manifest+json`，`sw.js` 为 `text/javascript`。
 3. 前端深链接（`/staff/*`、`/q/*`）回退到 SPA 入口 `index.html`（原有要求）。
-4. 带哈希的 `/assets/*` 可以长期缓存。发布新版本后，把上一版的文件保留一段时间（例如一周）：已安装的应用
+4. 带哈希的 `/assets/*` 长期缓存。发布脚本保留共享资源池中的历史文件；至少保留一周且保留上一版。已安装的应用
    可能连续开着好几天，仍在运行旧版本的页面切换路由时还会加载旧文件。新版本在应用重新打开或刷新后生效。
 
 ## 6. 本地测试

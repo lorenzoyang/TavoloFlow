@@ -1,0 +1,12 @@
+[Unit]
+Description=Qiao TavoloFlow database and key-ring backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/opt/tavoloflow
+ExecStart=/bin/bash /opt/tavoloflow/backup.sh
+UMask=0077

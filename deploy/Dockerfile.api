@@ -1,0 +1,24 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY global.json ./
+COPY .config/dotnet-tools.json .config/
+COPY backend/TavoloFlow.Api/TavoloFlow.Api.csproj backend/TavoloFlow.Api/
+RUN dotnet restore backend/TavoloFlow.Api && dotnet tool restore
+COPY backend/TavoloFlow.Api/ backend/TavoloFlow.Api/
+RUN dotnet publish backend/TavoloFlow.Api -c Release --no-restore -o /publish /p:UseAppHost=false
+# EF constructs the host during bundle generation, but does not connect to this dummy database.
+RUN ConnectionStrings__Default='Host=localhost;Database=build;Username=build;Password=build' \
+    dotnet ef migrations bundle --project backend/TavoloFlow.Api --configuration Release \
+    --no-build --target-runtime linux-x64 --output /publish/efbundle
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /var/tavoloflow/keys && chown "$APP_UID:$APP_UID" /var/tavoloflow/keys
+WORKDIR /app
+COPY --from=build /publish/ ./
+ENV ASPNETCORE_HTTP_PORTS=8080 ASPNETCORE_ENVIRONMENT=Production
+USER $APP_UID
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "TavoloFlow.Api.dll"]

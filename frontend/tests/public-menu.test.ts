@@ -52,8 +52,8 @@ test("QR URL uses the configured origin or current origin and retains the fixed 
     "https://menu.example.com/q/fixed",
   );
   assert.equal(
-    publicMenuUrl("/q/fixed_-123", "http://localhost:5173", "https://qiaotavoloflow.it"),
-    "https://qiaotavoloflow.it/q/fixed_-123",
+    publicMenuUrl("/q/fixed_-123", "http://localhost:5173", "https://app.qiaotavoloflow.it"),
+    "https://app.qiaotavoloflow.it/q/fixed_-123",
   );
   assert.equal(
     publicMenuUrl("/q/fixed", "http://192.168.1.5:5173", " "),
@@ -90,5 +90,5 @@ test("local-only QR links can be distinguished from phone-reachable addresses", 
     assert.equal(isLocalOnlyUrl(`http://${host}:5173/q/token`), true);
   assert.equal(isLocalOnlyUrl("http://192.168.1.5:5173/q/token"), false);
   assert.equal(isLocalOnlyUrl("https://menu.example.com/q/token"), false);
-  assert.equal(isLocalOnlyUrl("https://qiaotavoloflow.it/q/token"), false);
+  assert.equal(isLocalOnlyUrl("https://app.qiaotavoloflow.it/q/token"), false);
 });

@@ -1,0 +1,4 @@
+# The installer enforces root ownership. Run it in an isolated Linux filesystem,
+# not as root on the developer's WSL filesystem. The test daemon is disposable.
+FROM docker:29-dind
+RUN apk add --no-cache bash python3 curl coreutils findutils openssl util-linux tar gzip

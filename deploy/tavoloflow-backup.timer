@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Qiao TavoloFlow backup at 03:30 Europe/Rome
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 Europe/Rome
+Persistent=true
+RandomizedDelaySec=300
+Unit=tavoloflow-backup.service
+
+[Install]
+WantedBy=timers.target
