@@ -31,7 +31,7 @@ npm run build
 设置局域网地址，见 [桌位与公开菜单说明](../docs/tables-public-menu.md)。
 已有纸质二维码仍指向旧地址，更换地址后需重新打印或维护旧地址跳转。
 生产发布使用根目录 `deploy/build-release.sh` 在 Docker 中构建，显式设置正式域名，不读取本机环境文件。
-完整流程见 [netcup 部署教程](../docs/deployment-netcup.md)。
+完整流程见 [netcup 部署教程](../docs/zh-CN/deployment-guide.md)。
 
 ## 安装为应用（PWA）
 

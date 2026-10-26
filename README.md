@@ -34,7 +34,7 @@ npm run dev
 使新生成的二维码指向 `https://app.qiaotavoloflow.it/q/{token}`。顾客、店铺、平台及 `/api` 都在业务子域名下使用同源路径。
 本地开发继续使用当前浏览器地址或局域网配置；配置步骤见 [前端说明](frontend/README.md)。
 
-首次上线请从 [netcup 中文部署教程](docs/deployment-netcup.md) 开始：在 WSL 构建发布包，
+首次上线请从 [netcup 中文部署教程](docs/zh-CN/deployment-guide.md) 开始：在 WSL 构建发布包，
 部署到 VPS，由 Cloudflare 提供 DNS、Caddy 管理 HTTPS。生产模板和运维脚本位于 `deploy/`，与本地 Compose 分开。
 域名仍在 OVHcloud 续费；委派到 Cloudflare 后添加灰云 `A app` 记录指向 VPS 即可，无需购买第二个域名。官网未上线也可以先部署业务系统。
 店铺端可安装为应用（PWA），手机安装同样需要 HTTPS 正式地址，部署要求见 [PWA 说明](docs/pwa.md)。
@@ -61,5 +61,6 @@ npm run format:check
 - [开桌与顾客授权](docs/dining-guest-access.md) → [购物车和下单](docs/cart-ordering.md) → [厨房](docs/kitchen-cancellation.md) → [结账与历史](docs/billing-history.md)
 - [平台管理](docs/platform-pilot.md) → [收费周期](docs/restaurant-subscriptions.md)
 - [店铺端 PWA](docs/pwa.md)：安装到主屏幕、离线页、各平台差异与部署要求
-- [netcup 部署](docs/deployment-netcup.md)：首次上线、更新、备份与恢复
+- [netcup 部署教程](docs/zh-CN/deployment-guide.md)：首次上线、更新、备份与恢复
+- [部署笔记](docs/zh-CN/deployment-notes.md)：做过什么、为什么这样做，以及日常维护备忘
 - [部署验证与清理记录](docs/deployment-validation.md)：清理范围、验证命令与人工验收边界

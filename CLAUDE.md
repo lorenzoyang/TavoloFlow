@@ -12,7 +12,7 @@ Backend (repository root):
 
 - One-time setup: `dotnet tool restore` (pins `dotnet-ef`). Then `dotnet user-secrets set 'ConnectionStrings:Default' '<conn>' --project backend/TavoloFlow.Api` and `dotnet ef database update --project backend/TavoloFlow.Api`. Compose does not configure the API connection string.
 - Single test class or method: `dotnet test TavoloFlow.slnx --filter "FullyQualifiedName~KitchenTests"` (append `.MethodName` for one test). Each test class takes its own `IClassFixture<PostgreSqlFixture>` and starts its own `postgres:18-alpine` container, so Docker must be running.
-- Schema change: `dotnet ef migrations add <Name> --project backend/TavoloFlow.Api --output-dir Data/Migrations`, then check with `dotnet ef migrations has-pending-model-changes --project backend/TavoloFlow.Api`. Migrations are forward-only and never run at startup. Deployment applies a reviewed `dotnet ef migrations script --idempotent` output. See `docs/data-layer.md`.
+- Schema change: `dotnet ef migrations add <Name> --project backend/TavoloFlow.Api --output-dir Data/Migrations`, then check with `dotnet ef migrations has-pending-model-changes --project backend/TavoloFlow.Api`. Migrations are forward-only and never run at startup. Deployment applies them explicitly with the EF migrations bundle (`efbundle`) that `deploy/Dockerfile.api` builds into the API image and `deploy/install-release.sh` runs after its backup and before starting the new API. See `docs/data-layer.md`.
 - `Program.cs` also acts as a one-shot CLI (`Operations/MaintenanceCommands.cs`). Pass exactly one of `--seed-dev-accounts`, `--seed-platform-admin` or `--reset-platform-password`; it runs the command and exits without serving.
 
 Frontend (`frontend/`):

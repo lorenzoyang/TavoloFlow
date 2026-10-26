@@ -244,8 +244,12 @@ dotnet ef migrations add ChangeName --project backend/TavoloFlow.Api --output-di
 dotnet ef migrations has-pending-model-changes --project backend/TavoloFlow.Api
 ```
 
-For deployment, generate and review an idempotent SQL script and apply it as a
-separate deployment step using schema-change credentials:
+Production deployment applies migrations as a separate, explicit step:
+`deploy/Dockerfile.api` builds an EF migrations bundle (`efbundle`) into the API
+image, and `deploy/install-release.sh` runs it after backing up the database and
+before starting the new API. The bundle skips migrations already recorded in
+`__EFMigrationsHistory`, so it is safe to run on every release. To review the
+SQL a release may apply, generate an idempotent script:
 
 ```bash
 dotnet ef migrations script --idempotent --project backend/TavoloFlow.Api --output /tmp/tavoloflow-migrations.sql
