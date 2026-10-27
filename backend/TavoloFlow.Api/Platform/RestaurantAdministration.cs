@@ -60,11 +60,12 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
             !InputRules.IsLanguage(input.DefaultLanguage))
             throw ApiException.Validation("请填写餐厅名称、语言和两个不同的登录名。");
         var mapsUrl = MapsUrl(input.GoogleMapsUrl);
+        var theme = Theme(input.Theme);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         if (await db.Restaurants.AnyAsync(r => r.Id == input.Id, ct))
             throw new ApiException(409, "RESTAURANT_EXISTS", "此创建标识已存在，请核对原餐厅。");
         var restaurant = new Restaurant { Id = input.Id, Name = input.Name.Trim(), DefaultLanguage = input.DefaultLanguage,
-            GoogleMapsUrl = mapsUrl, JoinCodeRequired = input.JoinCodeRequired };
+            GoogleMapsUrl = mapsUrl, JoinCodeRequired = input.JoinCodeRequired, Theme = theme };
         var credentials = new List<TemporaryAccount>();
         foreach (var (name, role) in new[] { (owner, RestaurantUserRole.Owner), (staff, RestaurantUserRole.Staff) })
         {
@@ -126,6 +127,16 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
         return RestaurantSummary.From(await db.Restaurants.AsNoTracking().SingleAsync(r => r.Id == id, ct));
     }
 
+    // Colours only: neither ordering nor billing reads the theme, so the single-column write needs no lock.
+    public async Task<RestaurantSummary> SetThemeAsync(Guid id, string? theme, Guid actor, CancellationToken ct)
+    {
+        var value = Theme(theme);
+        if (await db.Restaurants.Where(r => r.Id == id).ExecuteUpdateAsync(u => u.SetProperty(r => r.Theme, value), ct) == 0)
+            throw AdministrationErrors.RestaurantNotFound();
+        logger.LogInformation("Platform {ActorId} set restaurant {RestaurantId} theme to {Theme}.", actor, id, theme);
+        return RestaurantSummary.From(await db.Restaurants.AsNoTracking().SingleAsync(r => r.Id == id, ct));
+    }
+
     public async Task<ManagedAccount> StaffAsync(Guid restaurantId, CancellationToken ct) => ManagedAccount.From(
         await db.RestaurantUsers.AsNoTracking().SingleOrDefaultAsync(u => u.RestaurantId == restaurantId && u.Role == RestaurantUserRole.Staff, ct)
             ?? throw AdministrationErrors.AccountNotFound());
@@ -172,6 +183,9 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
             throw ApiException.Validation("请填写以 https:// 开头的 Google 地图链接。");
         return value;
     }
+
+    private static RestaurantTheme Theme(string? input) =>
+        ApiEnum.TryParse(input, out RestaurantTheme theme) ? theme : throw AdministrationErrors.InvalidTheme();
 
     private static string NewPassword() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(18))
         .Replace('+', '-').Replace('/', '_');

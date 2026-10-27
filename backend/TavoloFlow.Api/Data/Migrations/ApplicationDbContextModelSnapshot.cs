@@ -535,6 +535,13 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasDefaultValue(1)
                         .HasColumnName("subscription_version");
 
+                    b.Property<string>("Theme")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("TERRACOTTA")
+                        .HasColumnName("theme");
+
                     b.Property<string>("TimeZone")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -557,6 +564,8 @@ namespace TavoloFlow.Api.Data.Migrations
                             t.HasCheckConstraint("ck_restaurant_service_status", "service_status IN ('ACTIVE', 'SUSPENDED')");
 
                             t.HasCheckConstraint("ck_restaurant_subscription_version", "subscription_version > 0");
+
+                            t.HasCheckConstraint("ck_restaurant_theme", "theme IN ('TERRACOTTA', 'LACQUER', 'INDIGO', 'INK', 'TARO')");
                         });
                 });
 

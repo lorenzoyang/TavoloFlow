@@ -18,11 +18,12 @@ public sealed record CurrentAccountResponse(
     string Role,
     Guid RestaurantId,
     string RestaurantName,
+    string RestaurantTheme,
     bool MustChangePassword)
 {
     public static CurrentAccountResponse From(RestaurantUser user) => new(
         user.Id, user.Username, ApiEnum.Text(user.Role),
-        user.RestaurantId, user.Restaurant.Name, user.MustChangePassword);
+        user.RestaurantId, user.Restaurant.Name, ApiEnum.Text(user.Restaurant.Theme), user.MustChangePassword);
 }
 
 public static class AccountInput

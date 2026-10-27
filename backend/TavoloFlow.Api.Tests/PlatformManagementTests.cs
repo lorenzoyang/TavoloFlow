@@ -223,4 +223,38 @@ public sealed class PlatformManagementTests(PostgreSqlFixture database) : IClass
         await using var db = database.CreateContext();
         Assert.True(await db.Restaurants.Where(r => r.Id == id).Select(r => r.JoinCodeRequired).SingleAsync());
     }
+
+    [Fact]
+    public async Task Theme_CreateAndChange_ReachesStoreAndGuestPagesAndOnlyPlatformWrites()
+    {
+        using var host = new AccountTestHost(database); using var admin = await Admin(host);
+        Assert.Equal("TERRACOTTA", (await Create(admin)).Restaurant.Theme);
+        foreach (var invalid in new[] { "ocean", "lacquer", " INK", "" })
+            await AssertErrorAsync(await WriteAsync(admin, "/api/platform/restaurants", Input() with { Theme = invalid }),
+                HttpStatusCode.BadRequest, "VALIDATION_FAILED");
+        var created = await Create(admin, Input() with { Theme = "LACQUER" });
+        Assert.Equal("LACQUER", created.Restaurant.Theme);
+        var id = created.Restaurant.Id;
+        var path = $"/api/platform/restaurants/{id}/theme";
+        foreach (var invalid in new object[] { new { }, new { theme = "TARO", extra = 1 }, new { theme = "1" }, new { theme = "Taro" } })
+            await AssertErrorAsync(await WriteAsync(admin, path, invalid, HttpMethod.Patch), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
+        var changed = await WriteAsync(admin, path, new { theme = "TARO" }, HttpMethod.Patch);
+        Assert.Equal(created.Restaurant with { Theme = "TARO" }, await changed.Content.ReadFromJsonAsync<RestaurantSummary>());
+        Assert.Equal("TARO", (await admin.GetFromJsonAsync<RestaurantDetail>($"/api/platform/restaurants/{id}"))!.Restaurant.Theme);
+        await AssertErrorAsync(await WriteAsync(admin, $"/api/platform/restaurants/{Guid.NewGuid()}/theme",
+            new { theme = "INK" }, HttpMethod.Patch), HttpStatusCode.NotFound, "RESTAURANT_NOT_FOUND");
+
+        // The signed-in store pages and the anonymous QR menu both read it.
+        using var owner = host.Browser();
+        await StoreLogin(owner, created.Credentials.Single(c => c.Account.Role == "OWNER"));
+        Assert.Equal("TARO", (await owner.GetFromJsonAsync<CurrentAccountResponse>("/api/auth/me"))!.RestaurantTheme);
+        await using var db = database.CreateContext();
+        var table = new RestaurantTable { RestaurantId = id, TableLabel = "1", QrToken = Guid.NewGuid().ToString("N") };
+        db.RestaurantTables.Add(table); await db.SaveChangesAsync();
+        using var guest = host.Browser();
+        Assert.Equal("TARO", (await guest.GetFromJsonAsync<Menus.PublicMenuResponse>($"/api/public/qr/{table.QrToken}/bootstrap"))!.Restaurant.Theme);
+        await AssertErrorAsync(await WriteAsync(owner, path, new { theme = "INK" }, HttpMethod.Patch),
+            HttpStatusCode.Unauthorized, "UNAUTHENTICATED");
+        Assert.Equal(RestaurantTheme.Taro, await db.Restaurants.Where(r => r.Id == id).Select(r => r.Theme).SingleAsync());
+    }
 }

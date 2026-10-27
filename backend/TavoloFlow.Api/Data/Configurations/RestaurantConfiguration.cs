@@ -16,6 +16,7 @@ internal sealed class RestaurantConfiguration : IEntityTypeConfiguration<Restaur
             table.HasCheckConstraint("ck_restaurant_currency", "currency_code = 'EUR'");
             table.HasCheckConstraint("ck_restaurant_service_status", "service_status IN ('ACTIVE', 'SUSPENDED')");
             table.HasCheckConstraint("ck_restaurant_google_maps_url", "google_maps_url IS NULL OR google_maps_url LIKE 'https://%'");
+            table.HasCheckConstraint("ck_restaurant_theme", "theme IN ('TERRACOTTA', 'LACQUER', 'INDIGO', 'INK', 'TARO')");
         });
 
         builder.HasKey(restaurant => restaurant.Id);
@@ -38,6 +39,10 @@ internal sealed class RestaurantConfiguration : IEntityTypeConfiguration<Restaur
         builder.Property(restaurant => restaurant.OrderingEnabled).HasColumnName("ordering_enabled").HasDefaultValue(false).ValueGeneratedNever();
 
         builder.Property(restaurant => restaurant.JoinCodeRequired).HasColumnName("join_code_required").HasDefaultValue(true).ValueGeneratedNever();
+
+        builder.Property(restaurant => restaurant.Theme).HasColumnName("theme").HasMaxLength(16)
+            .HasConversion<UppercaseEnumConverter<RestaurantTheme>>()
+            .HasDefaultValue(RestaurantTheme.Terracotta).ValueGeneratedNever();
         
         builder.Property(restaurant => restaurant.OwnerContact).HasColumnName("owner_contact").HasMaxLength(500);
         builder.Property(restaurant => restaurant.DefaultAnnualFeeCents).HasColumnName("default_annual_fee_cents");

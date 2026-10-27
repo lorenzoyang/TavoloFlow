@@ -1,4 +1,5 @@
 import { ApiError, request, write } from "@/lib/api";
+import type { RestaurantTheme } from "@/lib/theme";
 
 export type CurrentAccount = {
   userId: string;
@@ -6,6 +7,7 @@ export type CurrentAccount = {
   role: "OWNER" | "STAFF";
   restaurantId: string;
   restaurantName: string;
+  restaurantTheme: RestaurantTheme;
   mustChangePassword: boolean;
 };
 

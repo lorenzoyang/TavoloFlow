@@ -10,13 +10,15 @@ public sealed record CreateRestaurantInput(Guid Id, [Required, StringLength(150)
     [Required, RegularExpression("^(zh|it|en)$")] string DefaultLanguage,
     [Required, StringLength(50)] string OwnerUsername, [Required, StringLength(50)] string StaffUsername,
     [StringLength(500)] string? OwnerContact = null, long? DefaultAnnualFeeCents = null, InitialSubscriptionPeriod? InitialPeriod = null,
-    [StringLength(2048)] string? GoogleMapsUrl = null, bool JoinCodeRequired = true);
+    [StringLength(2048)] string? GoogleMapsUrl = null, bool JoinCodeRequired = true, string Theme = "TERRACOTTA");
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record ServiceStatusInput([Required, RegularExpression("^(ACTIVE|SUSPENDED)$")] string Status);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record GoogleMapsUrlInput([StringLength(2048)] string? GoogleMapsUrl);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record JoinCodeRequiredInput([Required] bool? JoinCodeRequired);
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record ThemeInput([Required] string? Theme);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record ResetAccountInput([Required, Range(1, int.MaxValue - 1)] int? ExpectedCredentialVersion);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -32,12 +34,12 @@ public sealed record ManagedAccount(Guid Id, string Username, string Role, bool 
 // Platform-only: store and guest responses never carry the map link.
 public sealed record RestaurantSummary(Guid Id, string Name, string DefaultLanguage, string TimeZone,
     string CurrencyCode, string ServiceStatus, bool OrderingEnabled, DateTime CreatedAt, string? GoogleMapsUrl,
-    bool JoinCodeRequired, SubscriptionSummary? Subscription = null)
+    bool JoinCodeRequired, string Theme, SubscriptionSummary? Subscription = null)
 {
     public static RestaurantSummary From(Restaurant restaurant) => new(restaurant.Id, restaurant.Name,
         restaurant.DefaultLanguage, restaurant.TimeZone, restaurant.CurrencyCode,
         ApiEnum.Text(restaurant.ServiceStatus), restaurant.OrderingEnabled, restaurant.CreatedAt, restaurant.GoogleMapsUrl,
-        restaurant.JoinCodeRequired);
+        restaurant.JoinCodeRequired, ApiEnum.Text(restaurant.Theme));
 }
 public sealed record RestaurantDetail(RestaurantSummary Restaurant, ManagedAccount[] Accounts);
 public sealed record RestaurantPage(RestaurantSummary[] Items, int TotalCount, int Page, int PageSize);
@@ -48,5 +50,6 @@ public static class AdministrationErrors
 {
     public static ApiException RestaurantNotFound() => new(404, "RESTAURANT_NOT_FOUND", "餐厅不存在。");
     public static ApiException AccountNotFound() => new(404, "ACCOUNT_NOT_FOUND", "账号不存在或不属于此餐厅。");
+    public static ApiException InvalidTheme() => ApiException.Validation("请选择有效的主题。", "theme", "主题不存在。");
     public static ApiException AccountChanged() => new(409, "ACCOUNT_CHANGED", "目标账号已变化，请重新读取并确认。");
 }

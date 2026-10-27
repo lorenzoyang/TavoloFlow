@@ -1,6 +1,7 @@
 import { platformRequest, platformWrite, request, write } from "@/lib/api";
 import type { PlatformIdentity } from "./identity";
 import type { PeriodInput } from "@/features/subscriptions/state";
+import type { RestaurantTheme } from "@/lib/theme";
 import type { ManagedAccount, Restaurant, RestaurantDetail, TemporaryCredential } from "./state";
 
 // Platform administration uses the platform identity; the owner's staff maintenance uses the store identity.
@@ -23,6 +24,7 @@ export type CreateRestaurantInput = {
   initialPeriod?: PeriodInput | null;
   googleMapsUrl?: string | null;
   joinCodeRequired: boolean;
+  theme: RestaurantTheme;
 };
 
 export const platformLogin = (username: string, password: string, signal: AbortSignal) =>
@@ -94,6 +96,10 @@ export const setJoinCodeRequired = (id: string, joinCodeRequired: boolean, signa
     { joinCodeRequired },
     signal,
   );
+
+// Colours only; like the map link, the target value makes a repeated request harmless.
+export const setTheme = (id: string, theme: RestaurantTheme, signal: AbortSignal) =>
+  platformWrite<Restaurant>(`/api/platform/restaurants/${id}/theme`, "PATCH", { theme }, signal);
 
 // Account writes carry the credential version the administrator saw; a mismatch returns ACCOUNT_CHANGED.
 export const setAccountActive = (

@@ -16,7 +16,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage } from "@/lib/api";
 import { PlatformBoundary, PlatformNavigation } from "./PlatformAuth";
-import { MapLink, TemporaryPasswords } from "./ManagementViews";
+import { MapLink, TemporaryPasswords, ThemeBadge, ThemeChoices } from "./ManagementViews";
 import { useManagement } from "./useManagement";
 import { randomUuid } from "@/lib/ids";
 import { createRestaurant, listRestaurants, RESTAURANTS_PAGE_SIZE } from "./api";
@@ -27,6 +27,7 @@ import { SubscriptionStatus } from "@/features/subscriptions/SubscriptionViews";
 import { useSubscriptionQuery } from "@/features/subscriptions/queries";
 import { formatMoney, parsePrice, RESTAURANT_TIME_ZONE } from "@/lib/format";
 import { useLiveView } from "@/lib/useLiveView";
+import { DEFAULT_THEME, isTheme } from "@/lib/theme";
 
 function Restaurants({ account }: { account: PlatformIdentity }) {
   const [filter, setFilter] = useState({
@@ -74,6 +75,7 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
     )
       return;
     setCreateError("");
+    const theme = data.get("theme");
     const input = {
       id,
       name: String(data.get("name")),
@@ -85,6 +87,7 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
       defaultAnnualFeeCents,
       initialPeriod,
       joinCodeRequired: requireCode,
+      theme: isTheme(theme) ? theme : DEFAULT_THEME,
     };
     const ok = await actions.run({ kind: "create", restaurantId: id }, (signal) =>
       createRestaurant(input, signal),
@@ -144,6 +147,9 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
                   <NativeSelectOption value="it">Italiano</NativeSelectOption>
                   <NativeSelectOption value="en">English</NativeSelectOption>
                 </NativeSelect>
+              </div>
+              <div className="sm:col-span-2">
+                <ThemeChoices name="theme" defaultValue={DEFAULT_THEME} />
               </div>
               <label className="flex min-h-11 items-center gap-3 sm:col-span-2">
                 <Checkbox
@@ -293,6 +299,7 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
                 {r.orderingEnabled ? "接单中" : "接单关闭"}
               </Badge>
               {!r.joinCodeRequired && <Badge variant="outline">免入桌码</Badge>}
+              <ThemeBadge theme={r.theme} />
             </div>
             {r.subscription && <SubscriptionStatus summary={r.subscription} />}
             <div className="mt-auto flex flex-wrap gap-2">

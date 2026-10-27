@@ -75,6 +75,78 @@
   --radius: 0.75rem;
 }
 
+/* Restaurant themes (lib/theme.ts) replace only the brand palette: surfaces, text, primary, accent and
+   borders. success, warning and destructive keep their meaning in every theme and are never redefined
+   here. Any element may carry data-theme, so the platform's previews use these blocks too.
+   tests/theme.test.ts checks contrast and that each primary stays apart from those state colours. */
+[data-theme="lacquer"] {
+  --background: oklch(0.979 0.008 70); /* ivory */
+  --foreground: oklch(0.25 0.02 25);
+  --card-foreground: oklch(0.25 0.02 25);
+  --popover-foreground: oklch(0.25 0.02 25);
+  --primary: oklch(0.44 0.145 18); /* lacquer red, darker than tomato */
+  --secondary: oklch(0.948 0.013 60);
+  --secondary-foreground: oklch(0.25 0.02 25);
+  --muted: oklch(0.948 0.013 60);
+  --muted-foreground: oklch(0.5 0.022 30);
+  --accent: oklch(0.94 0.025 18);
+  --accent-foreground: oklch(0.42 0.13 18);
+  --border: oklch(0.908 0.017 60);
+  --input: oklch(0.869 0.021 60);
+  --ring: oklch(0.44 0.145 18);
+}
+
+[data-theme="indigo"] {
+  --background: oklch(0.982 0.005 250); /* cool paper */
+  --foreground: oklch(0.25 0.03 262);
+  --card-foreground: oklch(0.25 0.03 262);
+  --popover-foreground: oklch(0.25 0.03 262);
+  --primary: oklch(0.43 0.12 264); /* indigo */
+  --secondary: oklch(0.952 0.01 255);
+  --secondary-foreground: oklch(0.25 0.03 262);
+  --muted: oklch(0.952 0.01 255);
+  --muted-foreground: oklch(0.5 0.028 258);
+  --accent: oklch(0.942 0.024 262);
+  --accent-foreground: oklch(0.41 0.115 264);
+  --border: oklch(0.912 0.012 255);
+  --input: oklch(0.872 0.016 255);
+  --ring: oklch(0.43 0.12 264);
+}
+
+[data-theme="ink"] {
+  --background: oklch(0.975 0.01 85); /* washi */
+  --foreground: oklch(0.24 0.008 70);
+  --card-foreground: oklch(0.24 0.008 70);
+  --popover-foreground: oklch(0.24 0.008 70);
+  --primary: oklch(0.28 0.01 60); /* sumi ink */
+  --secondary: oklch(0.945 0.01 85);
+  --secondary-foreground: oklch(0.24 0.008 70);
+  --muted: oklch(0.945 0.01 85);
+  --muted-foreground: oklch(0.5 0.012 70);
+  --accent: oklch(0.932 0.009 80);
+  --accent-foreground: oklch(0.28 0.01 60);
+  --border: oklch(0.905 0.012 85);
+  --input: oklch(0.865 0.014 85);
+  --ring: oklch(0.28 0.01 60);
+}
+
+[data-theme="taro"] {
+  --background: oklch(0.982 0.008 310); /* lavender milk */
+  --foreground: oklch(0.26 0.03 305);
+  --card-foreground: oklch(0.26 0.03 305);
+  --popover-foreground: oklch(0.26 0.03 305);
+  --primary: oklch(0.5 0.13 305); /* taro purple */
+  --secondary: oklch(0.952 0.014 310);
+  --secondary-foreground: oklch(0.26 0.03 305);
+  --muted: oklch(0.952 0.014 310);
+  --muted-foreground: oklch(0.51 0.03 305);
+  --accent: oklch(0.945 0.03 310);
+  --accent-foreground: oklch(0.43 0.13 305);
+  --border: oklch(0.912 0.018 310);
+  --input: oklch(0.872 0.022 310);
+  --ring: oklch(0.5 0.13 305);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

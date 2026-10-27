@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PRODUCT_NAME } from "@/lib/brand";
 import type { Language } from "@/lib/language";
 import { useMediaQuery, WIDE_SCREEN } from "@/lib/useMediaQuery";
+import { useDocumentTheme } from "@/lib/useDocumentTheme";
 import { publicMenuQuery, type PublicMenu } from "./api";
 import { readLanguage, saveLanguage, selectedLanguage } from "./language";
 import { messages } from "./messages";
@@ -47,6 +48,8 @@ function MenuContent({
     }
   });
   const language = selectedLanguage(preference, data.restaurant.defaultLanguage);
+  // Only a loaded menu is themed: loading and invalid-QR screens keep the default palette.
+  useDocumentTheme(data.restaurant.theme);
   const guest = useGuestVisit(token, data, confirmedAt, error);
   const cart = useCart(token, data, guest, confirmedAt);
   // Keep error/invalid-QR messages in the viewer's language after the menu disappears.

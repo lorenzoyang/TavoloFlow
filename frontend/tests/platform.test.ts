@@ -39,7 +39,7 @@ test("pending management state stores only identifiers and a version, never temp
     }),
   )!;
   assert.deepEqual(pending, { kind: "reset", restaurantId, userId, expectedVersion: 3 });
-  for (const kind of ["maps", "joinCode"])
+  for (const kind of ["maps", "joinCode", "theme"])
     assert.deepEqual(readPending(JSON.stringify({ kind, restaurantId })), {
       kind,
       restaurantId,

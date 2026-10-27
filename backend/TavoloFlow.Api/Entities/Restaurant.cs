@@ -6,6 +6,16 @@ public enum RestaurantServiceStatus
     Active
 }
 
+// Colour presets for the guest and staff pages; the platform chooses one per restaurant.
+public enum RestaurantTheme
+{
+    Terracotta,
+    Lacquer,
+    Indigo,
+    Ink,
+    Taro
+}
+
 public sealed class Restaurant
 {
     public Guid Id { get; set; }
@@ -16,6 +26,7 @@ public sealed class Restaurant
     public RestaurantServiceStatus ServiceStatus { get; set; } = RestaurantServiceStatus.Suspended;
     public bool OrderingEnabled { get; set; }
     public bool JoinCodeRequired { get; set; } = true;
+    public RestaurantTheme Theme { get; set; } = RestaurantTheme.Terracotta;
     public DateTime CreatedAt { get; set; }
     public string? GoogleMapsUrl { get; set; }
     public string? OwnerContact { get; set; }

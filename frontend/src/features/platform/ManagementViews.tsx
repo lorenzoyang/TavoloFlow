@@ -4,7 +4,60 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
+import { THEMES, themeAttribute, themeLabels, type RestaurantTheme } from "@/lib/theme";
 import type { TemporaryCredential, ManagedAccount } from "./state";
+
+// Each choice renders in its own palette (data-theme), so the radio card is also the preview.
+export function ThemeChoices({
+  name,
+  defaultValue,
+  disabled,
+}: {
+  name: string;
+  defaultValue: RestaurantTheme;
+  disabled?: boolean;
+}) {
+  return (
+    <fieldset className="space-y-2" disabled={disabled}>
+      <legend className="mb-2 text-sm font-medium">餐厅主题（顾客菜单与店铺页面的配色）</legend>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        {THEMES.map((theme) => (
+          <label
+            key={theme}
+            data-theme={themeAttribute(theme) ?? undefined}
+            className="flex min-h-14 cursor-pointer items-center gap-2.5 rounded-xl border bg-background p-2.5 text-foreground has-checked:border-primary has-checked:ring-2 has-checked:ring-primary/40 has-focus-visible:ring-3 has-focus-visible:ring-ring/50 has-disabled:cursor-not-allowed has-disabled:opacity-50"
+          >
+            <input
+              type="radio"
+              name={name}
+              value={theme}
+              defaultChecked={theme === defaultValue}
+              className="sr-only"
+            />
+            <span aria-hidden="true" className="size-7 shrink-0 rounded-full bg-primary" />
+            <span className="min-w-0">
+              <span className="block text-sm font-medium">{themeLabels[theme].name}</span>
+              <span className="block text-xs text-muted-foreground">{themeLabels[theme].hint}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+export function ThemeBadge({ theme }: { theme: RestaurantTheme }) {
+  return (
+    <Badge variant="outline">
+      <span
+        aria-hidden="true"
+        data-theme={themeAttribute(theme) ?? undefined}
+        className="size-2.5 rounded-full bg-primary"
+      />
+      主题 · {themeLabels[theme]?.name ?? theme}
+    </Badge>
+  );
+}
 
 // The restaurant name keeps every map link's accessible name unique in the restaurant list.
 export function MapLink({ url, name }: { url: string; name: string }) {

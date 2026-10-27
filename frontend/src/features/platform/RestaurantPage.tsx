@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/api";
+import { isTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import {
   readRestaurant,
@@ -18,9 +19,16 @@ import {
   setGoogleMapsUrl,
   setJoinCodeRequired,
   setServiceStatus,
+  setTheme,
 } from "./api";
 import { PlatformBoundary, PlatformNavigation } from "./PlatformAuth";
-import { AccountActions, MapLink, TemporaryPasswords } from "./ManagementViews";
+import {
+  AccountActions,
+  MapLink,
+  TemporaryPasswords,
+  ThemeBadge,
+  ThemeChoices,
+} from "./ManagementViews";
 import { useManagement } from "./useManagement";
 import type { ManagedAccount } from "./state";
 import type { PlatformIdentity } from "./identity";
@@ -56,6 +64,7 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
   const actions = useManagement("platform", identity.userId);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [editingMap, setEditingMap] = useState(false);
+  const [editingTheme, setEditingTheme] = useState(false);
   const panel = useRef<HTMLElement>(null);
   const current =
     confirmation?.kind === "reset" || confirmation?.kind === "active"
@@ -118,6 +127,16 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
     );
     if (saved) setEditingMap(false);
   };
+  // Colours only, so no inline confirmation either; the next page load or poll applies it.
+  const saveTheme = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const theme = new FormData(event.currentTarget).get("theme");
+    if (locked || !isTheme(theme)) return;
+    const saved = await actions.run({ kind: "theme", restaurantId: id }, (signal) =>
+      setTheme(id, theme, signal),
+    );
+    if (saved) setEditingTheme(false);
+  };
   const restaurant = query.data?.restaurant;
   const accounts = query.data?.accounts ?? [];
   return (
@@ -168,6 +187,16 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
                     onClick={() => setEditingMap(true)}
                   >
                     编辑地图链接
+                  </Button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <ThemeBadge theme={restaurant.theme} />
+                  <Button
+                    variant="ghost"
+                    disabled={locked || !!confirmation || editingTheme}
+                    onClick={() => setEditingTheme(true)}
+                  >
+                    更换主题
                   </Button>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -222,6 +251,27 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
                   保存地图链接
                 </Button>
                 <Button type="button" variant="outline" onClick={() => setEditingMap(false)}>
+                  取消
+                </Button>
+              </div>
+            </form>
+          )}
+          {editingTheme && (
+            <form
+              onSubmit={saveTheme}
+              className="space-y-4 rounded-2xl border bg-card p-4 shadow-xs"
+              aria-label="更换餐厅主题"
+            >
+              <ThemeChoices name="theme" defaultValue={restaurant.theme} />
+              <p className="text-sm text-muted-foreground">
+                只改变颜色，不影响布局和数据。顾客菜单约 30
+                秒内更新，店铺页面在重新打开或切回前台时更新。
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" disabled={locked}>
+                  保存主题
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setEditingTheme(false)}>
                   取消
                 </Button>
               </div>

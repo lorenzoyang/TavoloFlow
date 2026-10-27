@@ -28,6 +28,9 @@ public sealed class PlatformRestaurantsController(RestaurantAdministration servi
     [HttpPatch("{id:guid}/join-code-required")]
     public async Task<IActionResult> JoinCodeRequired(Guid id, JoinCodeRequiredInput input, CancellationToken ct) =>
         Ok(await service.SetJoinCodeRequiredAsync(id, input.JoinCodeRequired!.Value, Actor, ct));
+    [HttpPatch("{id:guid}/theme")]
+    public async Task<IActionResult> Theme(Guid id, ThemeInput input, CancellationToken ct) =>
+        Ok(await service.SetThemeAsync(id, input.Theme, Actor, ct));
     [HttpPatch("{id:guid}/users/{userId:guid}/active")]
     public async Task<IActionResult> Active(Guid id, Guid userId, AccountActiveInput input, CancellationToken ct) =>
         Ok(await service.SetActiveAsync(id, userId, input.ExpectedCredentialVersion!.Value, input.IsActive!.Value, Actor, ct));

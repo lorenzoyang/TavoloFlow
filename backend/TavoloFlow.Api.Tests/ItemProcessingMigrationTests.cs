@@ -14,7 +14,11 @@ public sealed class ItemProcessingMigrationTests(PostgreSqlFixture database) : I
         await using var db = await database.CreateIsolatedContextAsync();
         var migrator = db.GetService<IMigrator>();
         await migrator.MigrateAsync("20261027070937_AddRestaurantJoinCodeRequired");
-        var restaurant = new Restaurant { Name = "Migration", DefaultLanguage = "it" };
+        var restaurant = new Restaurant { Id = Guid.NewGuid(), Name = "Migration", DefaultLanguage = "it" };
+        // The old schema lacks restaurant columns added later, so the row is written without the current model.
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO restaurants (id, name, default_language) VALUES ({restaurant.Id}, {restaurant.Name}, 'it')");
+        db.Restaurants.Attach(restaurant);
         var table = new RestaurantTable { Restaurant = restaurant, TableLabel = "8", QrToken = Guid.NewGuid().ToString("N") };
         var createdAt = new DateTime(2026, 10, 25, 12, 0, 0, DateTimeKind.Utc);
         var readyAt = createdAt.AddMinutes(5);
