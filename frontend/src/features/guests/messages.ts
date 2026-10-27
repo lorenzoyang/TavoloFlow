@@ -1,7 +1,7 @@
 export const guestMessages = {
   zh: {
     title: "加入本轮用餐",
-    hint: "请输入工作人员或同桌顾客告知的四位入桌码。",
+    hint: "请输入工作人员或同桌顾客告知的四位入桌码，不区分大小写。",
     code: "入桌码",
     join: "验证入桌码",
     skip: "先看菜单",
@@ -32,7 +32,7 @@ export const guestMessages = {
   },
   it: {
     title: "Unisciti al tavolo",
-    hint: "Inserisci il codice di quattro caratteri comunicato dal personale o dai tuoi commensali.",
+    hint: "Inserisci il codice di quattro caratteri comunicato dal personale o dai tuoi commensali. Maiuscole e minuscole sono equivalenti.",
     code: "Codice del tavolo",
     join: "Verifica codice",
     skip: "Guarda prima il menu",
@@ -67,7 +67,7 @@ export const guestMessages = {
   },
   en: {
     title: "Join this visit",
-    hint: "Enter the four-character code shared by staff or someone at your table.",
+    hint: "Enter the four-character code shared by staff or someone at your table. Uppercase or lowercase is fine.",
     code: "Table join code",
     join: "Verify code",
     skip: "Browse menu first",

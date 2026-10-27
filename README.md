@@ -28,6 +28,8 @@ npm run dev
 
 账号初始化见 [店铺账号](docs/store-accounts.md) 和 [平台初始化](docs/platform-pilot.md)。入口：`/platform/login`、`/staff/login`、`/q/{token}`。Vite 代理 `/api` 到 5093。
 
+Windows + WSL 环境下用手机扫码测试，见 [本地手机测试流程](docs/zh-CN/local-wsl-testing.md)。
+
 ## 正式域名配置
 
 在 `frontend/` 中复制 `.env.production.example` 为 `.env.production`，然后运行 `npm run build`，

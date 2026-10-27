@@ -181,14 +181,16 @@ export function GuestPanel({ guest, language }: { guest: Guest; language: Langua
           <label htmlFor="guest-join-code" className="text-sm font-medium">
             {m.code}
           </label>
+          {/* Keep IME text unchanged while editing; the API normalizes case on submission. */}
           <Input
             id="guest-join-code"
             autoComplete="off"
             autoCapitalize="characters"
+            autoCorrect="off"
             spellCheck={false}
             maxLength={4}
             value={guest.input}
-            onChange={(e) => guest.setInput(e.target.value.toUpperCase())}
+            onChange={(e) => guest.setInput(e.target.value)}
             className="h-16 pl-[0.5em] text-center font-mono text-3xl font-semibold tracking-[0.5em]"
             aria-describedby="guest-feedback"
             disabled={guest.busy || !guest.entranceAllowed}

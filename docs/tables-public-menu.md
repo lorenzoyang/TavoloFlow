@@ -187,6 +187,8 @@ WSL 场景先在 Windows 浏览器确认 Vite 可访问，再在同一局域网�
 具体取决于本机配置。只通过 Vite 暴露前端和 `/api` 代理即可，后端仍可绑定 localhost。
 工具不会自动改防火墙或端口转发。正式部署使用 HTTPS，并让服务器为 `/q/{token}` 等前端深链接返回 SPA 入口。
 
+Windows + WSL 的手机扫码操作步骤，见 [本地手机测试流程](zh-CN/local-wsl-testing.md)。
+
 ## 5. 验证记录（2026-10-22）
 
 - `dotnet test TavoloFlow.slnx --no-restore --verbosity minimal -m:1 /p:UseSharedCompilation=false`：

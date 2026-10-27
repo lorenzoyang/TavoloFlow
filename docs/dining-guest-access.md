@@ -52,6 +52,9 @@ sequenceDiagram
 输入去除首尾空白并转大写。Data Protection 的用途链固定前缀加餐厅、桌位和 Session ID，
 不能将一轮的密文搬到另一轮使用。密文无法解密时返回 `503 JOIN_CODE_UNAVAILABLE`，不生成新码覆盖。
 
+顾客输入框关闭自动纠错，编辑时原样保存浏览器的输入值，不在 `onChange` 中转大写、过滤或截断，
+避免打断中文输入法的组合输入并导致重复字符、空白或光标异常。大小写归一化由后端在验证时处理，小写码同样有效。
+
 顾客 Cookie 名为 `TavoloFlow.Guest`，Path 为 `/api/public`，采用 HttpOnly、SameSite=Lax，
 不指定 Domain；生产 Secure，Development 随请求协议。它是浏览器会话 Cookie，票据固定 12 小时，
 不滑动续期。与店铺的 `TavoloFlow.Store`、固定 30 天的持久票据相互独立；店铺登录期限调整不会延长顾客本轮用餐授权。
@@ -163,6 +166,7 @@ Session 摘要字段：`id`、可空 `tableId`、历史 `tableLabel`、`status`�
 ## 6. 本地运行和学习实验
 
 按 [店铺账号模块](store-accounts.md) 启动数据库、应用迁移、初始化账号并启动 API/Vite。
+Windows + WSL 的手机扫码操作步骤见 [本地手机测试流程](zh-CN/local-wsl-testing.md)。
 开发账号初始化仍默认创建 SUSPENDED 餐厅。本阶段没有平台管理入口，不会自动改变服务状态。
 
 如需在**自己的开发数据库**启用测试餐厅，先在账号页确认餐厅 ID，再连接 Compose 数据库：
@@ -191,6 +195,8 @@ WHERE id = 'YOUR_DEV_RESTAURANT_UUID';
 6. 员工核对零订单并勾选离桌确认后关闭；顾客刷新看到结束状态。
 7. 再开同一桌，观察不同 Session ID；旧页面须主动重新浏览并验证。
 8. 浏览器网络面板检查 Cookie：Guest 为 HttpOnly，本地存储没有票据、密码或入桌码。
+9. iPhone Chrome 无痕窗口使用中文输入法，逐字输入含连续字母的入桌码（例如 `2NZZ`），
+   确认第三、四位不重复、不插入额外空白；删除、重新输入及中间替换均正常。再用实际入桌码的小写形式验证可入桌。
 
 ```bash
 dotnet test TavoloFlow.slnx
