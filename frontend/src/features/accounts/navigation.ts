@@ -45,7 +45,7 @@ export function staffNavItems(role: Role): StaffDestination[] {
     {
       to: "/staff/kitchen",
       label: "厨房",
-      description: "按下单顺序出餐，完成或取消整单",
+      description: "按下单顺序出餐，逐道完成或取消",
       icon: ChefHat,
     },
     ...(role === "OWNER"

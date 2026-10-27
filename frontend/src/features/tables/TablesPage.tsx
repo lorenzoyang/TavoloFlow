@@ -185,71 +185,79 @@ function TablesContent({ account }: { account: CurrentAccount }) {
           description={owner ? "添加第一个桌位，即可生成菜单二维码。" : "请联系老板添加。"}
         />
       )}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {tables?.map((table) => (
-          <article
-            key={table.id}
-            className={cn(
-              "flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-xs",
-              !table.isEnabled && "border-dashed bg-muted/60",
-            )}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <h2 className="text-xl font-semibold wrap-break-word">{table.tableLabel}</h2>
-              <Badge variant={table.activeSessionId ? "default" : "outline"}>
-                {table.activeSessionId ? "用餐中" : "空桌"}
-              </Badge>
-            </div>
-            {owner ? (
-              <div className="flex items-center gap-3">
-                <Switch
-                  aria-label={`启用桌位：${table.tableLabel}`}
-                  checked={table.isEnabled}
-                  disabled={busy || !!editor}
-                  onCheckedChange={() =>
-                    mutation.mutate(() => setTableEnabled(table.id, !table.isEnabled))
-                  }
-                />
-                <span className="text-sm text-muted-foreground">
-                  {table.isEnabled ? "已启用：顾客可扫码点餐" : "已停用：顾客只能浏览菜单"}
-                </span>
+      {/* Columns follow the width left beside the nav rail, so each card keeps room for its three
+          labelled actions on one line. */}
+      <div className="@container">
+        <div className="grid gap-3 @2xl:grid-cols-2 @5xl:grid-cols-3">
+          {tables?.map((table) => (
+            <article
+              key={table.id}
+              className={cn(
+                "flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-xs",
+                !table.isEnabled && "border-dashed bg-muted/60",
+              )}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <h2 className="text-xl font-semibold wrap-break-word">{table.tableLabel}</h2>
+                <Badge variant={table.activeSessionId ? "default" : "outline"}>
+                  {table.activeSessionId ? "用餐中" : "空桌"}
+                </Badge>
               </div>
-            ) : (
-              <Badge variant={table.isEnabled ? "secondary" : "outline"}>
-                {table.isEnabled ? "已启用" : "已停用"}
-              </Badge>
-            )}
-            {owner && (
-              <div className="mt-auto grid grid-cols-3 gap-2 border-t pt-3">
-                <Button variant="outline" onClick={() => setQrId(table.id)}>
-                  <QrCode />
-                  二维码
-                </Button>
-                <Button
-                  variant="ghost"
-                  disabled={busy || !!editor}
-                  onClick={() => open({ kind: "rename", table })}
-                >
-                  <Pencil />
-                  改名
-                </Button>
-                <Button
-                  variant="ghost"
-                  disabled={busy || !!editor || !!table.activeSessionId}
-                  onClick={() => open({ kind: "delete", table })}
-                >
-                  <Trash2 />
-                  删除
-                </Button>
-              </div>
-            )}
-            {table.activeSessionId && (
-              <p className="text-xs leading-5 text-muted-foreground">
-                本桌用餐尚未结束，暂不可删除。
-              </p>
-            )}
-          </article>
-        ))}
+              {owner ? (
+                <div className="flex items-center gap-3">
+                  <Switch
+                    aria-label={`启用桌位：${table.tableLabel}`}
+                    checked={table.isEnabled}
+                    disabled={busy || !!editor}
+                    onCheckedChange={() =>
+                      mutation.mutate(() => setTableEnabled(table.id, !table.isEnabled))
+                    }
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    {table.isEnabled ? "已启用：顾客可扫码点餐" : "已停用：顾客只能浏览菜单"}
+                  </span>
+                </div>
+              ) : (
+                <Badge variant={table.isEnabled ? "secondary" : "outline"}>
+                  {table.isEnabled ? "已启用" : "已停用"}
+                </Badge>
+              )}
+              {owner && (
+                // Each button fills a third of the row, so slimmer padding only gives the label room
+                // and keeps 二维码 on one line on 360px phones.
+                <div className="mt-auto grid grid-cols-3 gap-2 border-t pt-3">
+                  <Button variant="outline" className="px-2" onClick={() => setQrId(table.id)}>
+                    <QrCode />
+                    二维码
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="px-2"
+                    disabled={busy || !!editor}
+                    onClick={() => open({ kind: "rename", table })}
+                  >
+                    <Pencil />
+                    改名
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="px-2"
+                    disabled={busy || !!editor || !!table.activeSessionId}
+                    onClick={() => open({ kind: "delete", table })}
+                  >
+                    <Trash2 />
+                    删除
+                  </Button>
+                </div>
+              )}
+              {table.activeSessionId && (
+                <p className="text-xs leading-5 text-muted-foreground">
+                  本桌用餐尚未结束，暂不可删除。
+                </p>
+              )}
+            </article>
+          ))}
+        </div>
       </div>
       <Dialog
         open={editor?.kind === "create" || editor?.kind === "rename"}
