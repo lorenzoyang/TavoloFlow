@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Check,
+  MoreHorizontal,
   ChefHat,
   RefreshCw,
   Sun,
@@ -17,7 +18,14 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
+import type { OrderLine } from "@/features/orders/api";
+import { onLifecycleChange } from "@/lib/useLiveView";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { displayName } from "@/lib/language";
@@ -29,8 +37,9 @@ import type { KitchenOrder } from "./api";
 import { canCancel, waitLevel, type OrderStatus } from "./state";
 import { useKitchen } from "./useKitchen";
 
-const labels: Record<OrderStatus, string> = { NEW: "待处理", READY: "已完成", CANCELLED: "已取消" };
-const rank: Record<OrderStatus, number> = { NEW: 0, READY: 1, CANCELLED: 2 };
+const labels: Record<OrderStatus, string> = { NEW: "待处理", PROCESSED: "已处理" };
+const itemLabels = { NEW: "待出餐", READY: "已出餐", CANCELLED: "已取消" };
+type ItemConfirmation = { order: KitchenOrder; item: OrderLine };
 const waitStyles = {
   normal: "bg-secondary text-secondary-foreground",
   late: "bg-warning text-warning-foreground",
@@ -39,24 +48,23 @@ const waitStyles = {
 const toggleStyle =
   "aria-pressed:border-primary/40 aria-pressed:bg-accent aria-pressed:text-accent-foreground";
 
-// One ticket per order, readable from across the kitchen: table, waiting time, quantities and notes first.
+// Keep every line in its original position until the whole ticket is processed.
 function OrderTicket({
   order,
   model,
-  account,
   cancel,
 }: {
   order: KitchenOrder;
   model: ReturnType<typeof useKitchen>;
-  account: CurrentAccount;
-  cancel: (order: KitchenOrder) => void;
+  cancel: (order: KitchenOrder, item: OrderLine) => void;
 }) {
   const locked =
     !model.fresh ||
     model.busy.includes(order.id) ||
     model.pending.some((p) => p.orderId === order.id);
   const minutes = Math.max(0, Math.floor((model.now - Date.parse(order.createdAt)) / 60_000));
-  const cancelled = order.status === "CANCELLED";
+  const cancelled = order.items.every((i) => i.status === "CANCELLED");
+  const waiting = order.items.filter((i) => i.status === "NEW").length;
   return (
     <article
       className={cn(
@@ -70,6 +78,9 @@ function OrderTicket({
           <p className="text-sm text-muted-foreground">
             {formatTime(order.createdAt)} 下单 · #{shortId(order.id)}
           </p>
+          <p className="mt-1 text-sm font-medium">
+            待出餐 {waiting} 项／共 {order.items.length} 项
+          </p>
         </div>
         {order.status === "NEW" ? (
           <span
@@ -82,77 +93,134 @@ function OrderTicket({
             已等待 {minutes} 分钟
           </span>
         ) : (
-          <Badge variant={order.status === "READY" ? "success" : "outline"}>
-            {labels[order.status]}
+          <Badge variant={cancelled ? "outline" : "success"}>
+            {cancelled ? "全部已取消" : "已处理"}
           </Badge>
         )}
       </header>
       <ul className="divide-y border-y">
         {order.items.map((line) => {
           const name = displayName(line, order.defaultLanguage, "zh");
+          const compact = order.status === "NEW" && line.status !== "NEW";
           return (
-            <li key={line.id} className="flex gap-3 py-2.5">
-              <span className="w-12 shrink-0 text-2xl leading-7 font-bold tabular-nums">
-                {line.quantity}×
-              </span>
-              <div className="min-w-0 flex-1 space-y-1">
-                <p lang={name.language} className="text-lg leading-7 font-medium wrap-break-word">
+            <li
+              key={line.id}
+              className={cn("space-y-2 py-2.5", compact && "py-1.5 text-sm text-muted-foreground")}
+            >
+              <div className="flex items-start gap-2">
+                {line.status === "READY" && (
+                  <Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-success" />
+                )}
+                <p
+                  lang={name.language}
+                  className={cn(
+                    "min-w-0 flex-1 font-medium wrap-break-word",
+                    !compact && "text-lg leading-7",
+                    line.status === "CANCELLED" && "text-muted-foreground line-through",
+                  )}
+                >
                   {line.itemCode && (
                     <span className="mr-2 text-sm text-muted-foreground">{line.itemCode}</span>
                   )}
-                  {name.text}
+                  {name.text} ×{line.quantity}
                 </p>
-                {line.remark && (
-                  <p className="rounded-lg bg-warning/20 px-2.5 py-1.5 font-medium whitespace-pre-wrap wrap-break-word">
-                    备注：{line.remark}
-                  </p>
-                )}
-                {line.allergenCodes.length > 0 && (
-                  <p className="flex items-start gap-1 text-sm text-muted-foreground">
-                    <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-                    过敏原：
-                    {line.allergenCodes.map((code) => allergenNames.zh[code] ?? code).join(" · ")}
-                  </p>
+                {line.status !== "NEW" && (
+                  <span className="shrink-0 text-sm text-muted-foreground">
+                    {itemLabels[line.status]}
+                  </span>
                 )}
               </div>
+              {!compact && (
+                <>
+                  {line.remark && (
+                    <p
+                      className={cn(
+                        "rounded-lg px-2.5 py-1.5 font-medium whitespace-pre-wrap wrap-break-word",
+                        line.status === "NEW" ? "bg-warning/20" : "bg-secondary",
+                      )}
+                    >
+                      备注：{line.remark}
+                    </p>
+                  )}
+                  {line.allergenCodes.length > 0 && (
+                    <p className="flex items-start gap-1 text-sm text-muted-foreground">
+                      <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                      过敏原：
+                      {line.allergenCodes.map((code) => allergenNames.zh[code] ?? code).join(" · ")}
+                    </p>
+                  )}
+                  {line.readyAt && (
+                    <p className="text-xs text-muted-foreground">
+                      出餐：{formatDateTime(line.readyAt)}
+                    </p>
+                  )}
+                  {line.cancelledAt && (
+                    <p className="text-xs text-muted-foreground">
+                      取消：{formatDateTime(line.cancelledAt)} · 不计入应收
+                    </p>
+                  )}
+                </>
+              )}
+              {line.status === "NEW" && (
+                <div className="flex gap-2">
+                  <Button
+                    className="flex-1"
+                    disabled={locked}
+                    onClick={() => void model.perform(order, line, "ready")}
+                  >
+                    <Check />
+                    出餐完成
+                  </Button>
+                  <DropdownMenu modal={false}>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          disabled={locked}
+                          aria-label={`${name.text}的更多操作`}
+                        />
+                      }
+                    >
+                      <MoreHorizontal />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        variant="destructive"
+                        disabled={locked}
+                        onClick={() => cancel(order, line)}
+                      >
+                        取消菜品
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              )}
             </li>
           );
         })}
       </ul>
       {order.orderNote && (
-        <p className="rounded-xl border border-warning/60 bg-warning/12 p-3 font-medium whitespace-pre-wrap wrap-break-word">
+        <p
+          className={cn(
+            "rounded-xl border p-3 font-medium whitespace-pre-wrap wrap-break-word",
+            order.status === "NEW" ? "border-warning/60 bg-warning/12" : "bg-secondary",
+          )}
+        >
           整单备注：{order.orderNote}
         </p>
       )}
-      <div className="space-y-1 text-sm text-muted-foreground">
-        <p>
-          原订单金额：
-          <span className={cn("tabular-nums", cancelled && "line-through")}>
-            {formatMoney(order.totalAmountCents)}
-          </span>
-        </p>
-        {order.readyAt && <p>完成：{formatDateTime(order.readyAt)}</p>}
-        {order.cancelledAt && (
-          <>
-            <p>取消：{formatDateTime(order.cancelledAt)} · 不计入应收</p>
-            <p className="whitespace-pre-wrap text-foreground wrap-break-word">
-              原因：{order.cancelReason}
+      {order.status === "PROCESSED" && (
+        <div className="space-y-1 text-sm text-muted-foreground">
+          <p>
+            原订单金额：{formatMoney(order.totalAmountCents)} · 应收：
+            {formatMoney(order.payableAmountCents)}
+          </p>
+          {order.processedAt && <p>处理完毕：{formatDateTime(order.processedAt)}</p>}
+          {order.cancelReason && (
+            <p className="whitespace-pre-wrap wrap-break-word">
+              历史整单取消原因：{order.cancelReason}
             </p>
-          </>
-        )}
-      </div>
-      {(order.status === "NEW" || canCancel(account.role, order.status)) && (
-        <div className="mt-auto grid gap-2">
-          {order.status === "NEW" && (
-            <Button size="lg" disabled={locked} onClick={() => void model.perform(order, "ready")}>
-              <Check />
-              整单完成
-            </Button>
-          )}
-          {canCancel(account.role, order.status) && (
-            <Button variant="outline" disabled={locked} onClick={() => cancel(order)}>
-              {order.status === "READY" ? "作废已完成订单" : "取消整单"}
-            </Button>
           )}
         </div>
       )}
@@ -163,47 +231,35 @@ function OrderTicket({
 function KitchenContent({ account }: { account: CurrentAccount }) {
   const model = useKitchen(account);
   const wakeLock = useWakeLock();
-  const [confirmation, setConfirmation] = useState<KitchenOrder | null>(null);
-  const [reason, setReason] = useState("");
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const reasonInput = useRef<HTMLTextAreaElement>(null);
+  const [confirmation, setConfirmation] = useState<ItemConfirmation | null>(null);
+  useEffect(() => onLifecycleChange(() => setConfirmation(null)), []);
   const candidates = confirmation
     ? [
-        confirmation,
-        model.latest[confirmation.id],
+        model.latest[confirmation.order.id],
         model.query.data?.pages
           .flatMap((page) => page.items)
-          .find((order) => order.id === confirmation.id),
-      ].filter((o): o is KitchenOrder => !!o)
+          .find((o) => o.id === confirmation.order.id),
+      ].flatMap((o) => o?.items.filter((i) => i.id === confirmation.item.id) ?? [])
     : [];
-  const current = candidates.sort((a, b) => rank[b.status] - rank[a.status])[0];
-  const changed = !!confirmation && current?.status !== confirmation.status;
+  // Terminal states cannot be undone. Any observed terminal response invalidates the confirmation.
+  const current = candidates.find((i) => i.status !== "NEW") ?? candidates[0] ?? confirmation?.item;
+  const changed = !!confirmation && current?.status !== "NEW";
   const confirmingBusy =
     !!confirmation &&
-    (model.busy.includes(confirmation.id) ||
-      model.pending.some((p) => p.orderId === confirmation.id));
-  const cancel = (order: KitchenOrder) => {
-    setConfirmation(order);
-    setReason(drafts[order.id] ?? "");
+    (model.busy.includes(confirmation.order.id) ||
+      model.pending.some((p) => p.orderId === confirmation.order.id));
+  const cancel = (order: KitchenOrder, item: OrderLine) => {
+    if (canCancel(item.status)) setConfirmation({ order, item });
   };
   async function submitCancel() {
-    if (!confirmation || changed || !reason.trim() || reason.trim().length > 500) return;
-    const result = await model.perform(confirmation, "cancel", reason);
-    if (result) {
-      setConfirmation(null);
-      setReason("");
-      setDrafts((values) => {
-        const next = { ...values };
-        delete next[result.id];
-        return next;
-      });
-    }
+    if (!confirmation || changed) return;
+    if (await model.perform(confirmation.order, confirmation.item, "cancel")) setConfirmation(null);
   }
   return (
     <div>
       <PageHeader
         title="厨房"
-        description="按下单先后处理整单，最早的待处理订单在前。"
+        description="逐项标记出餐，最早的待处理订单在前。"
         actions={
           <>
             <Button
@@ -309,12 +365,14 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
                     disabled={!model.active || model.busy.includes(action.orderId)}
                     onClick={() => void model.recover(action)}
                   >
-                    核对原订单状态
+                    核对菜品状态
                   </Button>
                 }
               >
                 <span className="break-all">
-                  {action.kind === "ready" ? "完成" : "取消"}操作结果待确认 · #{action.orderId}
+                  {action.kind === "ready" ? "完成" : "取消"}操作结果待确认 · 订单 #
+                  {shortId(action.orderId)}
+                  {action.itemId ? ` · 菜品 #${shortId(action.itemId)}` : " · 旧版整单操作"}
                 </span>
               </Notice>
             ))}
@@ -327,7 +385,7 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
         className="gap-4"
       >
         <TabsList aria-label="订单状态" className="w-full sm:w-auto">
-          {(["NEW", "READY", "CANCELLED"] as const).map((status) => (
+          {(["NEW", "PROCESSED"] as const).map((status) => (
             <TabsTrigger key={status} value={status}>
               {labels[status]}
               {status === "NEW" && !!model.summary?.pendingCount && (
@@ -349,13 +407,7 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
           )}
           <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
             {model.orders.map((order) => (
-              <OrderTicket
-                key={order.id}
-                order={order}
-                model={model}
-                account={account}
-                cancel={cancel}
-              />
+              <OrderTicket key={order.id} order={order} model={model} cancel={cancel} />
             ))}
           </div>
           {model.query.hasNextPage && (
@@ -373,55 +425,22 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
       <ConfirmDialog
         open={!!confirmation}
         tone="destructive"
-        title={`${confirmation?.status === "READY" ? "确认作废已完成订单" : "确认取消整单"} · ${confirmation?.tableLabel ?? ""} 桌`}
+        title={`确认取消菜品 · ${confirmation?.order.tableLabel ?? ""} 桌`}
         description={
           confirmation &&
-          `取消整笔订单后，${formatMoney(confirmation.totalAmountCents)} 将不再计入应收。请核对实际情况。`
+          `取消「${displayName(confirmation.item, confirmation.order.defaultLanguage, "zh").text} ×${confirmation.item.quantity}」后，${formatMoney(confirmation.item.unitPriceCents * confirmation.item.quantity)} 将不计入应收。请先与厨房确认不再制作。`
         }
-        confirmLabel={confirmation?.status === "READY" ? "确认作废" : "确认取消整单"}
+        confirmLabel="确认取消菜品"
         cancelLabel="返回"
         busy={confirmingBusy}
-        confirmDisabled={!model.fresh || changed || !reason.trim()}
-        initialFocus={reasonInput}
+        confirmDisabled={!model.fresh || changed}
         onConfirm={() => void submitCancel()}
         onCancel={() => setConfirmation(null)}
       >
-        {confirmation && (
-          <div className="space-y-4">
-            <p className="text-xs break-all text-muted-foreground">订单 #{confirmation.id}</p>
-            {changed && (
-              <Notice
-                tone="error"
-                action={
-                  canCancel(account.role, current.status) && (
-                    <Button
-                      variant="outline"
-                      disabled={!model.fresh || confirmingBusy}
-                      onClick={() => setConfirmation(current)}
-                    >
-                      按最新状态重新确认
-                    </Button>
-                  )
-                }
-              >
-                订单已变为“{labels[current.status]}”，原确认已失效。
-              </Notice>
-            )}
-            <label className="block space-y-2 text-sm font-medium">
-              <span className="block">取消原因（必填，最多 500 字符）</span>
-              <Textarea
-                ref={reasonInput}
-                className="min-h-24"
-                maxLength={500}
-                value={reason}
-                disabled={confirmingBusy}
-                onChange={(event) => {
-                  setReason(event.target.value);
-                  setDrafts((values) => ({ ...values, [confirmation.id]: event.target.value }));
-                }}
-              />
-            </label>
-          </div>
+        {changed && (
+          <Notice tone="error">
+            菜品已变为“{current ? itemLabels[current.status] : "未知"}”，本次取消确认已失效。
+          </Notice>
         )}
       </ConfirmDialog>
     </div>

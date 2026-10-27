@@ -14,7 +14,7 @@ import type { useGuestVisit } from "@/features/guests/useGuestVisit";
 import { accessOutcome } from "@/features/guests/state";
 import { ApiError } from "@/lib/api";
 import { cn, uniqueBy } from "@/lib/utils";
-import { ordersKey, readOrders, type Order } from "./api";
+import { ordersKey, readOrders, type Order, type OrderItemStatus } from "./api";
 import { orderMessages, type OrderMessage } from "./messages";
 import { totalCents } from "./state";
 import type { useCart } from "./useCart";
@@ -26,7 +26,7 @@ const statusBadge = {
   NEW: "secondary",
   READY: "success",
   CANCELLED: "outline",
-} as const satisfies Record<Order["status"], "secondary" | "success" | "outline">;
+} as const satisfies Record<OrderItemStatus, "secondary" | "success" | "outline">;
 
 // Success is the only good news; menu changes and pauses are recoverable, never alarming errors.
 const messageTone = (message: OrderMessage): NoticeTone =>
@@ -34,7 +34,7 @@ const messageTone = (message: OrderMessage): NoticeTone =>
 
 function OrderCard({ order, language }: { order: Order; language: Language }) {
   const m = orderMessages[language];
-  const cancelled = order.status === "CANCELLED";
+  const cancelled = order.items.every((line) => line.status === "CANCELLED");
   return (
     <article className="space-y-3 rounded-2xl border bg-card p-4 shadow-xs">
       <header className="flex items-start justify-between gap-3">
@@ -42,13 +42,21 @@ function OrderCard({ order, language }: { order: Order; language: Language }) {
           <p className="font-medium tabular-nums">{formatTime(order.createdAt, language)}</p>
           <p className="text-xs text-muted-foreground">#{shortId(order.id)}</p>
         </div>
-        <Badge variant={statusBadge[order.status]}>{m[order.status]}</Badge>
+        <Badge variant={order.status === "NEW" ? "secondary" : cancelled ? "outline" : "success"}>
+          {m[order.status]}
+        </Badge>
       </header>
       <ul className="divide-y">
         {order.items.map((line) => {
           const name = displayName(line, order.defaultLanguage, language);
           return (
-            <li key={line.id} className="space-y-1 py-2.5">
+            <li
+              key={line.id}
+              className={cn(
+                "space-y-1 py-2.5",
+                line.status === "CANCELLED" && "text-muted-foreground",
+              )}
+            >
               <div className="flex items-start justify-between gap-3">
                 <p lang={name.language} className="min-w-0 font-medium wrap-break-word">
                   {line.itemCode && (
@@ -56,10 +64,19 @@ function OrderCard({ order, language }: { order: Order; language: Language }) {
                   )}
                   {line.quantity} × {name.text}
                 </p>
-                <span className="shrink-0 tabular-nums">
+                <span
+                  className={cn(
+                    "shrink-0 tabular-nums",
+                    line.status === "CANCELLED" && "line-through",
+                  )}
+                >
                   {formatMoney(line.unitPriceCents * line.quantity, language)}
                 </span>
               </div>
+              <Badge variant={statusBadge[line.status]}>
+                {m[line.status]}
+                {line.status === "CANCELLED" && ` · ${m.notCharged}`}
+              </Badge>
               {line.remark && (
                 <p className="text-sm whitespace-pre-wrap text-muted-foreground wrap-break-word">
                   {m.remark}: {line.remark}
@@ -80,13 +97,13 @@ function OrderCard({ order, language }: { order: Order; language: Language }) {
           {m.orderNote}: {order.orderNote}
         </p>
       )}
-      <p
-        className={cn(
-          "text-right font-semibold tabular-nums",
-          cancelled && "text-muted-foreground line-through",
-        )}
-      >
-        {m.total}: {formatMoney(order.totalAmountCents, language)}
+      {order.payableAmountCents !== order.totalAmountCents && (
+        <p className="text-right text-sm text-muted-foreground">
+          {m.originalTotal}: {formatMoney(order.totalAmountCents, language)}
+        </p>
+      )}
+      <p className="text-right font-semibold tabular-nums">
+        {m.payable}: {formatMoney(order.payableAmountCents, language)}
       </p>
     </article>
   );

@@ -11,8 +11,9 @@ export type BillSummary = {
   closeReason: CloseKind | null;
   billVersion: number;
   orderCount: number;
-  newOrderCount: number;
-  cancelledOrderCount: number;
+  itemCount: number;
+  newItemCount: number;
+  cancelledItemCount: number;
   totalAmountCents: number;
 };
 export type Confirmation = { kind: CloseKind; bill: BillSummary };
@@ -27,11 +28,12 @@ export const closeLabels: Record<CloseKind, string> = {
 export const closeBadges = { PAID: "success", EMPTY: "outline", VOIDED: "outline" } as const;
 
 export function closureKind(bill: BillSummary, role: "OWNER" | "STAFF"): CloseKind | null {
-  if (bill.status !== "ACTIVE" || bill.newOrderCount > 0) return null;
+  if (bill.status !== "ACTIVE" || bill.newItemCount > 0) return null;
   if (bill.orderCount === 0 && bill.totalAmountCents === 0) return "EMPTY";
   if (
     bill.orderCount > 0 &&
-    bill.cancelledOrderCount === bill.orderCount &&
+    bill.itemCount > 0 &&
+    bill.cancelledItemCount === bill.itemCount &&
     bill.totalAmountCents === 0
   )
     return "VOIDED";
@@ -45,9 +47,10 @@ export function confirmationChanged(confirmation: Confirmation, bill: BillSummar
     bill.status !== "ACTIVE" ||
     previous.billVersion !== bill.billVersion ||
     previous.totalAmountCents !== bill.totalAmountCents ||
-    previous.newOrderCount !== bill.newOrderCount ||
+    previous.newItemCount !== bill.newItemCount ||
     previous.orderCount !== bill.orderCount ||
-    previous.cancelledOrderCount !== bill.cancelledOrderCount
+    previous.itemCount !== bill.itemCount ||
+    previous.cancelledItemCount !== bill.cancelledItemCount
   );
 }
 

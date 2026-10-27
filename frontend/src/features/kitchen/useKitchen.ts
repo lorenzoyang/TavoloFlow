@@ -2,13 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { isSameAccount } from "@/features/accounts/queries";
-import { diningKey } from "@/features/dining/api";
+import { billingKey } from "@/features/billing/api";
+import { displayName } from "@/lib/language";
+import type { OrderLine } from "@/features/orders/api";
+import { diningKey, floorKey } from "@/features/dining/api";
 import { ApiError, errorMessage, withTimeout } from "@/lib/api";
 import { syncIsFresh, syncIsStalled } from "@/lib/live-view";
 import { isLive, onLifecycleChange } from "@/lib/useLiveView";
 import { uniqueBy } from "@/lib/utils";
 import {
-  cancelOrder,
+  cancelItem,
   kitchenKey,
   markReady,
   readKitchen,
@@ -112,6 +115,8 @@ export function useKitchen(account: CurrentAccount) {
   const refresh = useCallback(async () => {
     await client.invalidateQueries({ queryKey: scope, refetchType: "active" });
     void client.invalidateQueries({ queryKey: diningKey({ restaurantId, userId }) });
+    void client.invalidateQueries({ queryKey: floorKey({ restaurantId, userId }) });
+    void client.invalidateQueries({ queryKey: billingKey({ restaurantId, userId }) });
   }, [restaurantId, userId, scope, client]);
 
   const acceptOrder = useCallback(
@@ -151,12 +156,16 @@ export function useKitchen(account: CurrentAccount) {
       try {
         const order = await readKitchenOrder(action.orderId, withTimeout(controller.signal));
         if (!current()) return;
+        if (order.sessionId !== action.sessionId) throw new Error("Invalid recovery session");
         await acceptOrder(order, current);
         if (!current()) return;
         forget(action.orderId);
-        const result = recoveryOutcome(action, order.status);
+        const result = recoveryOutcome(
+          action,
+          order.items.find((i) => i.id === action.itemId)?.status,
+        );
         setNotice(
-          `${order.tableLabel} 桌：${result === "reached" ? "已核对当前状态，操作目标已达到。" : result === "changed" ? "订单已被处理，请查看最新状态。" : "订单仍为原状态；如需处理，请重新核对并确认。"}`,
+          `${order.tableLabel} 桌：${result === "reached" ? "已核对当前状态，操作目标已达到。" : result === "changed" ? "菜品已被处理，请查看最新状态。" : result === "legacy-reviewed" ? "已核对旧版整单操作的当前记录，请查看逐项状态。" : result === "missing" ? "原菜品已不可访问，请由老板核对。" : "菜品仍为待出餐；如需处理，请重新核对并确认。"}`,
         );
         setError("");
       } catch (e) {
@@ -307,12 +316,12 @@ export function useKitchen(account: CurrentAccount) {
     if (!sound) unlockSound();
   }
 
-  async function perform(order: KitchenOrder, kind: "ready" | "cancel", reason?: string) {
+  async function perform(order: KitchenOrder, item: OrderLine, kind: "ready" | "cancel") {
     if (
       !fresh ||
       operations.current.has(order.id) ||
       pendingRef.current.some((p) => p.orderId === order.id) ||
-      order.status === "CANCELLED" ||
+      item.status !== "NEW" ||
       !sameAccount()
     )
       return;
@@ -320,7 +329,7 @@ export function useKitchen(account: CurrentAccount) {
       orderId: order.id,
       sessionId: order.sessionId,
       kind,
-      expectedStatus: order.status,
+      itemId: item.id,
     };
     const controller = new AbortController();
     operations.current.set(order.id, controller);
@@ -337,16 +346,22 @@ export function useKitchen(account: CurrentAccount) {
       const signal = withTimeout(controller.signal);
       const result =
         kind === "cancel"
-          ? await cancelOrder(order.id, order.status, reason?.trim() ?? "", signal)
-          : await markReady(order.id, signal);
+          ? await cancelItem(order.id, item.id, signal)
+          : await markReady(order.id, item.id, signal);
       if (!current()) return;
+      if (
+        result.sessionId !== order.sessionId ||
+        result.items.find((line) => line.id === item.id)?.status !==
+          (kind === "ready" ? "READY" : "CANCELLED")
+      )
+        throw new Error("Invalid item operation result");
       await acceptOrder(result, current);
       if (!current()) return;
       forget(order.id);
       // Feedback is replaced when the result arrives, not cleared on tap, so it does not flicker.
       setError("");
       setNotice(
-        `${result.tableLabel} 桌：${kind === "ready" ? "整单已完成。" : "整单已取消，账单金额已更新。"}`,
+        `${result.tableLabel} 桌 · ${displayName(item, order.defaultLanguage, "zh").text} ×${item.quantity}：${kind === "ready" ? "菜品已出餐。" : "菜品已取消，账单金额已更新。"}`,
       );
       return result;
     } catch (e) {
@@ -356,7 +371,7 @@ export function useKitchen(account: CurrentAccount) {
         forget(order.id);
         setError(errorMessage(e));
         if (e.status === 409) {
-          // The original confirmation must not be silently promoted from NEW cancellation to READY voiding.
+          // A cancellation confirmation cannot survive the target item becoming terminal.
           try {
             const updated = await readKitchenOrder(order.id, withTimeout(controller.signal));
             if (current()) await acceptOrder(updated, current);

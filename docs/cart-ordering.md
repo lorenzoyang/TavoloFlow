@@ -3,7 +3,7 @@
 本阶段完成“浏览菜单 → 编辑购物车 → 验证入桌 → 核对并下单 → 查看本桌订单 → 继续加单”。
 顾客继续使用 `/q/{token}`，员工在 `/staff/floor` 开始或暂停接单。沿用九张表、现有迁移、顾客 Cookie 和 CSRF，没有新增数据库迁移或依赖。
 
-**当前边界：** 新订单状态为 `NEW`。厨房 READY 和取消已由[第六阶段](kitchen-cancellation.md)接续实现；PAID/VOIDED 关闭、完整账单与历史页已由[第七阶段](billing-history.md)接续实现。
+**当前边界：** 新订单及明细状态为 `NEW`；整单处理后为 `PROCESSED`。逐项 READY 和取消已由[第六阶段](kitchen-cancellation.md)接续实现；PAID/VOIDED 关闭、完整账单与历史页已由[第七阶段](billing-history.md)接续实现。
 一旦本轮存在任何订单，就不能使用 EMPTY 关闭；接单开关也不会关闭用餐。练习时建议使用测试餐厅和测试桌位。
 
 ## 1. 按四个小步骤阅读代码
@@ -56,7 +56,7 @@ sequenceDiagram
 | 方法与路径 | 输入 | 成功与关键错误 |
 |---|---|---|
 | `POST /api/public/orders` | 下方 JSON；顾客 Cookie 与对应 CSRF | 首次 `201`，同键已存在 `200`；`409 MENU_CHANGED`、`ORDERING_PAUSED` 等 |
-| `GET /api/public/sessions/{id}/orders` | 可选 `cursor`、`limit`，默认 50、最多 100 | `{ items, nextCursor, totalAmountCents }`；总额是本轮全部非取消订单，不是本页合计 |
+| `GET /api/public/sessions/{id}/orders` | 可选 `cursor`、`limit`，默认 50、最多 100 | `{ items, nextCursor, totalAmountCents }`；总额是本轮全部非取消明细的金额，不是本页合计 |
 | `GET /api/public/sessions/{id}/orders/by-request/{requestId}` | 原 Session、原 UUID | 原订单；`404 ORDER_NOT_FOUND` 仅表示暂未查到 |
 | `PATCH /api/staff/accepting-orders` | `{ "enabled": true }`；OWNER/STAFF、店铺 CSRF | `{ "orderingEnabled": true }`；只更新本店接单字段 |
 
@@ -103,7 +103,7 @@ HTTP 请求仍须能够解析、具备有效的 Session/请求标识并通过身
 新 Session 从版本 1 开始，第一笔成功后为 2。
 
 数量限制为每单 1–30 行、每行 1–20 份、总计不超过 100 份；备注分别最多 200/500 个字符。
-所有金额用整数欧分。前端用 `BigInt` 检查运算后再转换成安全整数；后端检查单价乘数量、整单合计、整桌非取消合计都不超过 `9,007,199,254,740,991`。
+所有金额用整数欧分。前端用 `BigInt` 检查运算后再转换成安全整数；后端检查单价乘数量、整单合计、整桌非取消明细合计都不超过 `9,007,199,254,740,991`。
 后端还阻止 `BillVersion` 达到 `int` 上限后的递增，不能把溢出留给数据库异常处理。
 
 ## 4. 页面与未知结果恢复
@@ -223,3 +223,9 @@ await page.route('**/api/public/orders', async route => {
 - [中文本桌订单](screenshots/table-orders-mobile-zh.png)
 - [存储不可用](screenshots/order-storage-mobile-en.png)
 - [关桌后未知结果提示](screenshots/order-ended-mobile-en.png)
+
+## 逐菜处理后的响应与恢复
+
+订单原始 `totalAmountCents` 保持下单快照，`payableAmountCents` 是未取消明细之和。每行增加 `status`（NEW/READY/CANCELLED）、`readyAt`、`cancelledAt`；整单 `status` 为 NEW/PROCESSED。顾客看到 NEW 为“已收到”，READY 为“已出餐”，取消明确不计应收。
+
+下单未知结果恢复必须同时验证原始总额等于全部明细之和、应收等于未取消明细之和；全部取消后应收为零仍是有效的原请求结果。数量和原始正文不因厨房处理而变化。同一请求 ID 的恢复与显式重试仍优先返回已有订单。

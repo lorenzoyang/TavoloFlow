@@ -24,27 +24,25 @@ const bill: BillSummary = {
   closeReason: null,
   billVersion: 3,
   orderCount: 2,
-  newOrderCount: 0,
-  cancelledOrderCount: 0,
+  itemCount: 2,
+  newItemCount: 0,
+  cancelledItemCount: 0,
   totalAmountCents: 1400,
 };
 
 test("only the owner can pay a positive bill; NEW or CLOSED blocks closure", () => {
   assert.equal(closureKind(bill, "OWNER"), "PAID");
   assert.equal(closureKind(bill, "STAFF"), null);
-  assert.equal(closureKind({ ...bill, newOrderCount: 1 }, "OWNER"), null);
+  assert.equal(closureKind({ ...bill, newItemCount: 1 }, "OWNER"), null);
   assert.equal(closureKind({ ...bill, status: "CLOSED" }, "OWNER"), null);
 });
 test("empty and fully cancelled visits have different zero closure rules", () => {
   assert.equal(closureKind({ ...bill, orderCount: 0, totalAmountCents: 0 }, "STAFF"), "EMPTY");
   assert.equal(
-    closureKind({ ...bill, cancelledOrderCount: 2, totalAmountCents: 0 }, "STAFF"),
+    closureKind({ ...bill, cancelledItemCount: 2, totalAmountCents: 0 }, "STAFF"),
     "VOIDED",
   );
-  assert.equal(
-    closureKind({ ...bill, cancelledOrderCount: 1, totalAmountCents: 0 }, "OWNER"),
-    null,
-  );
+  assert.equal(closureKind({ ...bill, cancelledItemCount: 1, totalAmountCents: 0 }, "OWNER"), null);
 });
 test("confirmation keeps its original amount and version after a background change", () => {
   const snapshot: Confirmation = { kind: "PAID", bill: { ...bill } };
@@ -60,7 +58,7 @@ test("closure or a changed visit invalidates the old confirmation", () => {
   const snapshot: Confirmation = { kind: "PAID", bill };
   assert.equal(confirmationChanged(snapshot, { ...bill, status: "CLOSED" }), true);
   assert.equal(confirmationChanged(snapshot, { ...bill, sessionId: "other" }), true);
-  assert.equal(confirmationChanged(snapshot, { ...bill, newOrderCount: 1 }), true);
+  assert.equal(confirmationChanged(snapshot, { ...bill, newItemCount: 1 }), true);
 });
 test("zero closure explicitly confirms departure and never uses checkout", () => {
   for (const kind of ["EMPTY", "VOIDED"] as const) {

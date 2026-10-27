@@ -89,10 +89,11 @@ generating SQL do not require a running database.
   reason, and total when closed. Closing clears the ciphertext. Opening and closing
   account IDs are not stored; request authorization still checks the caller's role.
   An active session must reference a table; closed history may have a null table ID.
-  Orders require metadata consistent with `NEW`, `READY`, or `CANCELLED`;
-  cancellation stores its time and nonblank reason without account attribution,
-  and cancellation from `READY` retains `ready_at`. Transition timestamps cannot
-  precede creation/opening or appear in reverse order.
+  Orders summarize `NEW` or `PROCESSED` with a nullable `processed_at`.
+  Items carry `NEW`, `READY`, or `CANCELLED` and their transition timestamps.
+  New cancellations need no reason and only accept NEW items; migrated historical
+  cancellations may retain `ready_at` and the old order reason. Services clamp item
+  times to order creation and closure to the latest item event.
 
 The DBML includes the current fields, relationships, and strengthened checks.
 `er-diagram.png` is an older export that still shows removed catalog/actor fields;
@@ -195,15 +196,15 @@ Application operations enforce these transaction boundaries:
 - Opening and deleting a table acquire the same table row lock and check its
   current state inside the transaction. The active-session unique index is the
   final safeguard against duplicate opening.
-- Creating an order, cancelling it, and closing its bill acquire the same dining
+- Creating an order, cancelling an item, and closing its bill acquire the same dining
   session row lock (`SELECT ... FOR UPDATE`) and verify that it is active. Order
   creation also coordinates menu row reads with price/availability updates.
 - Persist the order and all line snapshots, calculate amounts on the server, and
   increment `BillVersion` in the same transaction. A new order or an actual
-  cancellation increments it once; a retry or `READY` transition does not.
+  item cancellation increments it once; a retry or `READY` transition does not.
 - Resolve duplicate request IDs by returning the existing order. The unique
   index prevents duplicates but does not implement the retry response itself.
-- Update order states conditionally in SQL and inspect affected row counts.
+- Update item states conditionally in SQL and inspect affected row counts.
   Checkout recalculates the bill under the session lock and compares the
   confirmed amount and expected bill version before closing. `BillVersion` is a
   business counter, not an EF optimistic-concurrency token.

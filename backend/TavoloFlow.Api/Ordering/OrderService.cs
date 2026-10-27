@@ -55,7 +55,8 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
             total += price * line.Quantity;
         }
         var existingTotal = await db.Orders.Where(o => o.RestaurantId == guest.RestaurantId &&
-            o.DiningSessionId == guest.SessionId && o.Status != OrderStatus.Cancelled).SumAsync(o => o.TotalAmountCents, ct);
+            o.DiningSessionId == guest.SessionId).SelectMany(o => o.Items)
+            .Where(i => i.Status != OrderItemStatus.Cancelled).SumAsync(i => i.UnitPriceCents * i.Quantity, ct);
         if (existingTotal > MaxCents - total || session.BillVersion == int.MaxValue)
             throw new ApiException(409, "BILL_LIMIT_REACHED", "本轮账单已达到支持的上限，请联系工作人员。");
 
@@ -111,8 +112,8 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
             query = query.Where(o => EF.Functions.LessThan(ValueTuple.Create(o.CreatedAt, o.Id), ValueTuple.Create(after.CreatedAt, after.Id)));
         var rows = await query.OrderByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id).Take(limit + 1).ToArrayAsync(ct);
         var (page, next) = Paging.Page(rows, limit, last => new OrderCursor(sessionId, last.CreatedAt, last.Id));
-        var total = await db.Orders.Where(o => o.RestaurantId == guest.RestaurantId && o.DiningSessionId == sessionId &&
-            o.Status != OrderStatus.Cancelled).SumAsync(o => o.TotalAmountCents, ct);
+        var total = await db.Orders.Where(o => o.RestaurantId == guest.RestaurantId && o.DiningSessionId == sessionId).SelectMany(o => o.Items)
+            .Where(i => i.Status != OrderItemStatus.Cancelled).SumAsync(i => i.UnitPriceCents * i.Quantity, ct);
         await transaction.CommitAsync(ct);
         return new(page.Select(OrderResponse.From).ToArray(), next, total);
     }

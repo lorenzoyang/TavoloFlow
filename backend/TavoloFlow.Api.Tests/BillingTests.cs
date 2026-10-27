@@ -37,23 +37,24 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
         var a = await Create(host, s); var b = await Create(host, s); var c = await Create(host, s);
         using var staff = await Login(host, s.Staff);
         var first = (await staff.GetFromJsonAsync<BillPage>(Bill(s.Id) + "?limit=2"))!;
-        Assert.Equal(2100, first.Summary.TotalAmountCents); Assert.Equal(3, first.Summary.NewOrderCount);
+        Assert.Equal(2100, first.Summary.TotalAmountCents); Assert.Equal(3, first.Summary.NewItemCount);
         var second = (await staff.GetFromJsonAsync<BillPage>(Bill(s.Id) + "?limit=2&cursor=" + first.NextCursor))!;
         Assert.Equal(new[] { a.Id, b.Id, c.Id }, first.Orders.Concat(second.Orders).Select(o => o.Id));
         Assert.Null(second.NextCursor);
         await using var db = database.CreateContext();
-        await new KitchenService(db, host.Clock).CancelAsync(s.RestaurantId, a.Id, RestaurantUserRole.Staff, new("NEW", "点错"), default);
+        await new KitchenService(db, host.Clock).CancelAsync(s.RestaurantId, a.Id, a.Items.Single().Id, default);
         var conflict = await staff.GetAsync(Bill(s.Id) + "?cursor=" + first.NextCursor);
         await AssertErrorAsync(conflict, HttpStatusCode.Conflict, "BILL_CHANGED");
         var json = await conflict.Content.ReadAsStringAsync(); Assert.Contains("currentBill", json); Assert.Contains("1400", json);
         await db.MenuItems.Where(i => i.Id == s.Item.Id).ExecuteUpdateAsync(u => u.SetProperty(i => i.NameZh, "新菜名").SetProperty(i => i.PriceCents, 999));
         await new CatalogDeletionService(db).DeleteMenuItemAsync(s.RestaurantId, s.Item.Id, default);
         var bill = (await staff.GetFromJsonAsync<BillPage>(Bill(s.Id)))!;
-        Assert.Equal(1, bill.Summary.CancelledOrderCount); Assert.Equal(1400, bill.Summary.TotalAmountCents);
+        Assert.Equal(1, bill.Summary.CancelledItemCount); Assert.Equal(1400, bill.Summary.TotalAmountCents);
         Assert.All(bill.Orders, o => { Assert.Equal("炒饭", o.Items.Single().NameZh); Assert.Equal(700, o.TotalAmountCents); Assert.Null(o.Items.Single().MenuItemId); });
-        Assert.Equal("点错", bill.Orders[0].CancelReason);
+        Assert.Null(bill.Orders[0].CancelReason);
+        Assert.Equal(0, bill.Orders[0].PayableAmountCents);
         var floor = (await staff.GetFromJsonAsync<FloorResponse>("/api/staff/floor"))!.Tables.Single().Session!;
-        Assert.Equal(1400, floor.TotalAmountCents); Assert.Equal(3, floor.OrderCount); Assert.Equal(2, floor.NewOrderCount);
+        Assert.Equal(1400, floor.TotalAmountCents); Assert.Equal(3, floor.OrderCount); Assert.Equal(2, floor.NewItemCount);
         foreach (var secret in new[] { "clientRequestId", "joinCode", "passwordHash" }) Assert.DoesNotContain(secret, await staff.GetStringAsync(Bill(s.Id)));
         foreach (var query in new[] { "?limit=0", "?limit=101", "?cursor=bad" })
             await AssertErrorAsync(await staff.GetAsync(Bill(s.Id) + query), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
@@ -68,8 +69,8 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
         await AssertErrorAsync(await PostAsync(owner, Checkout(s.Id), new CheckoutInput(3, 1399)), HttpStatusCode.Conflict, "BILL_CHANGED");
         await AssertErrorAsync(await PostAsync(owner, Checkout(s.Id), new CheckoutInput(3, 1400)), HttpStatusCode.Conflict, "ORDERS_PENDING");
         await using var db = database.CreateContext(); var kitchen = new KitchenService(db, host.Clock);
-        await kitchen.ReadyAsync(s.RestaurantId, a.Id, default);
-        await kitchen.CancelAsync(s.RestaurantId, b.Id, RestaurantUserRole.Staff, new("NEW", "重复"), default);
+        await kitchen.ReadyAsync(s.RestaurantId, a.Id, a.Items.Single().Id, default);
+        await kitchen.CancelAsync(s.RestaurantId, b.Id, b.Items.Single().Id, default);
         await db.Restaurants.Where(r => r.Id == s.RestaurantId).ExecuteUpdateAsync(u => u.SetProperty(r => r.ServiceStatus, RestaurantServiceStatus.Suspended).SetProperty(r => r.OrderingEnabled, false));
         await db.RestaurantTables.Where(t => t.Id == s.Table.Id).ExecuteUpdateAsync(u => u.SetProperty(t => t.IsEnabled, false));
         var response = await PostAsync(owner, Checkout(s.Id), new CheckoutInput(4, 700));
@@ -82,8 +83,8 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
         await AssertErrorAsync(await PostAsync(owner, Checkout(s.Id), new CheckoutInput(4, 800)), HttpStatusCode.Conflict, "SESSION_CLOSED");
         await AssertErrorAsync(await PostAsync(owner, Void(s.Id), new CloseZeroBillInput(4, 0, true)), HttpStatusCode.Conflict, "SESSION_CLOSED");
         Assert.Null(await db.DiningSessions.Where(x => x.Id == s.Id).Select(x => x.JoinCodeCiphertext).SingleAsync());
-        Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => kitchen.ReadyAsync(s.RestaurantId, a.Id, default))).Code);
-        Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => kitchen.CancelAsync(s.RestaurantId, a.Id, RestaurantUserRole.Owner, new("READY", "错误"), default))).Code);
+        Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => kitchen.ReadyAsync(s.RestaurantId, a.Id, a.Items.Single().Id, default))).Code);
+        Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => kitchen.CancelAsync(s.RestaurantId, a.Id, a.Items.Single().Id, default))).Code);
         var history = (await owner.GetFromJsonAsync<BillPage>($"/api/owner/history/{s.Id}"))!;
         Assert.Equal(saved, history.Summary); Assert.Equal(2, history.Orders.Length);
         await AssertErrorAsync(await owner.GetAsync(Bill(s.Id)), HttpStatusCode.Conflict, "SESSION_CLOSED");
@@ -98,7 +99,7 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
         await AssertErrorAsync(await PostAsync(owner, Checkout(s.Id), new CheckoutInput(1, 0)), HttpStatusCode.Conflict, "SESSION_NOT_PAYABLE");
         var order = await Create(host, s);
         await using var db = database.CreateContext();
-        await new KitchenService(db, host.Clock).CancelAsync(s.RestaurantId, order.Id, RestaurantUserRole.Staff, new("NEW", "退单"), default);
+        await new KitchenService(db, host.Clock).CancelAsync(s.RestaurantId, order.Id, order.Items.Single().Id, default);
         await AssertErrorAsync(await PostAsync(staff, $"/api/staff/sessions/{s.Id}/close-empty", new CloseZeroBillInput(3, 0, true)), HttpStatusCode.Conflict, "SESSION_HAS_ORDERS");
         await AssertErrorAsync(await PostAsync(staff, Void(s.Id), new CloseZeroBillInput(3, 0, false)), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
         await AssertErrorAsync(await PostAsync(staff, Void(s.Id), new CloseZeroBillInput(2, 0, true)), HttpStatusCode.Conflict, "BILL_CHANGED");
@@ -147,7 +148,7 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
         var token = (await guest.GetFromJsonAsync<Token>("/api/public/csrf"))!.Value;
         Assert.Equal(HttpStatusCode.OK, (await PostAsync(guest, $"/api/public/qr/{s.Table.QrToken}/join", new JoinInput(s.Id, s.Open.JoinCode), token)).StatusCode);
         await using var db = database.CreateContext();
-        await new KitchenService(db, host.Clock).ReadyAsync(s.RestaurantId, order.Id, default);
+        await new KitchenService(db, host.Clock).ReadyAsync(s.RestaurantId, order.Id, order.Items.Single().Id, default);
         Assert.Equal(HttpStatusCode.OK, (await PostAsync(owner, Checkout(s.Id), new CheckoutInput(2, 700))).StatusCode);
         var reopened = await new DiningService(db, host.Services.GetRequiredService<JoinCodes>(), host.Clock).OpenAsync(s.RestaurantId, s.Table.Id, default);
         Assert.NotEqual(s.Id, reopened.Session.SessionId); Assert.Equal(1, reopened.Session.BillVersion);
@@ -197,7 +198,7 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
         using var host = new AccountTestHost(database); var s = await Seed(host); var other = await Seed(host);
         var a = await Create(host, s); var b = await Create(host, s);
         await using var db = database.CreateContext(); var kitchen = new KitchenService(db, host.Clock);
-        await kitchen.ReadyAsync(s.RestaurantId, a.Id, default); await kitchen.ReadyAsync(s.RestaurantId, b.Id, default);
+        await kitchen.ReadyAsync(s.RestaurantId, a.Id, a.Items.Single().Id, default); await kitchen.ReadyAsync(s.RestaurantId, b.Id, b.Items.Single().Id, default);
         var service = new BillingService(db, host.Clock);
         var closed = await service.CheckoutAsync(s.RestaurantId, s.Id, new(3, 1400), default);
         await new CatalogDeletionService(db).DeleteMenuItemAsync(s.RestaurantId, s.Item.Id, default);
@@ -221,16 +222,16 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
     public async Task Checkout_CompetesWithOrderWriter_RespectsSessionLockInBothOrders(string operation, bool writerFirst)
     {
         using var host = new AccountTestHost(database); var s = await Seed(host); var order = await Create(host, s);
-        if (operation != "ready")
-        { await using var setup = database.CreateContext(); await new KitchenService(setup, host.Clock).ReadyAsync(s.RestaurantId, order.Id, default); }
+        if (operation == "order")
+        { await using var setup = database.CreateContext(); await new KitchenService(setup, host.Clock).ReadyAsync(s.RestaurantId, order.Id, order.Items.Single().Id, default); }
         var gate = new LockGate(true); var otherGate = new LockGate(false);
         await using var first = Intercepted(gate); await using var second = Intercepted(otherGate);
         var writer = writerFirst ? first : second; var closer = writerFirst ? second : first;
         Task Write() => operation switch
         {
             "order" => new OrderService(writer, host.Clock).CreateAsync(s.Guest, s.Input(), default),
-            "cancel" => new KitchenService(writer, host.Clock).CancelAsync(s.RestaurantId, order.Id, RestaurantUserRole.Owner, new("READY", "退单"), default),
-            _ => new KitchenService(writer, host.Clock).ReadyAsync(s.RestaurantId, order.Id, default)
+            "cancel" => new KitchenService(writer, host.Clock).CancelAsync(s.RestaurantId, order.Id, order.Items.Single().Id, default),
+            _ => new KitchenService(writer, host.Clock).ReadyAsync(s.RestaurantId, order.Id, order.Items.Single().Id, default)
         };
         Task Close() => new BillingService(closer, host.Clock).CheckoutAsync(s.RestaurantId, s.Id, new(2, 700), default);
         Task<Exception?>? writing = writerFirst ? Record.ExceptionAsync(Write) : null;
@@ -250,7 +251,7 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
             if (operation == "ready") Assert.Null(closeError);
             else Assert.Equal("BILL_CHANGED", Assert.IsType<ApiException>(closeError).Code);
         }
-        else if (operation == "ready")
+        else if (operation != "order")
         { Assert.Equal("ORDERS_PENDING", Assert.IsType<ApiException>(closeError).Code); Assert.Null(writeError); }
         else
         { Assert.Null(closeError); Assert.Equal("SESSION_CLOSED", Assert.IsType<ApiException>(writeError).Code); }
@@ -260,7 +261,7 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
     public async Task Checkout_ConcurrentDuplicates_ReturnsOnePersistedClosure()
     {
         using var host = new AccountTestHost(database); var s = await Seed(host); var order = await Create(host, s);
-        await using var db = database.CreateContext(); await new KitchenService(db, host.Clock).ReadyAsync(s.RestaurantId, order.Id, default);
+        await using var db = database.CreateContext(); await new KitchenService(db, host.Clock).ReadyAsync(s.RestaurantId, order.Id, order.Items.Single().Id, default);
         async Task<BillSummaryResponse> Attempt()
         { await using var context = database.CreateContext(); return await new BillingService(context, host.Clock).CheckoutAsync(s.RestaurantId, s.Id, new(2, 700), default); }
         var results = await Task.WhenAll(Attempt(), Attempt()); Assert.Equal(results[0], results[1]); Assert.Equal(2, results[0].BillVersion);
@@ -272,8 +273,8 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
     {
         using var host = new AccountTestHost(database); var s = await Seed(host); var order = await Create(host, s);
         await using var setup = database.CreateContext(); var kitchen = new KitchenService(setup, host.Clock);
-        if (voided) await kitchen.CancelAsync(s.RestaurantId, order.Id, RestaurantUserRole.Staff, new("NEW", "退单"), default);
-        else await kitchen.ReadyAsync(s.RestaurantId, order.Id, default);
+        if (voided) await kitchen.CancelAsync(s.RestaurantId, order.Id, order.Items.Single().Id, default);
+        else await kitchen.ReadyAsync(s.RestaurantId, order.Id, order.Items.Single().Id, default);
         await using var db = Intercepted(new FailClose()); var billing = new BillingService(db, host.Clock);
         await Assert.ThrowsAsync<InvalidOperationException>(() => voided ? billing.CloseVoidAsync(s.RestaurantId, s.Id, new(3, 0, true), default)
             : billing.CheckoutAsync(s.RestaurantId, s.Id, new(2, 700), default));
@@ -287,10 +288,10 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
     {
         using var host = new AccountTestHost(database); var s = await Seed(host); var order = await Create(host, s);
         host.Clock.Advance(TimeSpan.FromMinutes(5));
-        await using var db = database.CreateContext(); var ready = await new KitchenService(db, host.Clock).ReadyAsync(s.RestaurantId, order.Id, default);
+        await using var db = database.CreateContext(); var ready = await new KitchenService(db, host.Clock).ReadyAsync(s.RestaurantId, order.Id, order.Items.Single().Id, default);
         host.Clock.Advance(TimeSpan.FromMinutes(-10));
         var closed = await new BillingService(db, host.Clock).CheckoutAsync(s.RestaurantId, s.Id, new(2, 700), default);
-        Assert.Equal(ready.ReadyAt, closed.ClosedAt);
+        Assert.Equal(ready.ProcessedAt, closed.ClosedAt);
     }
 
     private async Task<Setup> Seed(AccountTestHost host)

@@ -15,7 +15,7 @@ const action: PendingKitchenAction = {
   orderId: "00000000-0000-4000-8000-000000000001",
   sessionId: "00000000-0000-4000-8000-000000000002",
   kind: "cancel",
-  expectedStatus: "NEW",
+  itemId: "00000000-0000-4000-8000-000000000003",
 };
 
 test("unknown operations survive reload with only scoped identifiers and never carry replay bodies", () => {
@@ -32,7 +32,7 @@ test("unknown operations survive reload with only scoped identifiers and never c
     "{}",
     "[null]",
     JSON.stringify([{ ...action, orderId: "../another" }]),
-    JSON.stringify([{ ...action, kind: "ready", expectedStatus: "READY" }]),
+    JSON.stringify([{ ...action, itemId: "invalid" }]),
   ])
     assert.deepEqual(readPending(raw), []);
 });
@@ -43,9 +43,9 @@ test("GET recovery distinguishes achieved target, changed state and a fresh huma
   assert.equal(recoveryOutcome(action, "NEW"), "confirm-again");
   assert.equal(recoveryOutcome({ ...action, kind: "ready" }, "CANCELLED"), "changed");
   assert.equal(recoveryOutcome({ ...action, kind: "ready" }, "READY"), "reached");
-  assert.equal(canCancel("STAFF", "READY"), false);
-  assert.equal(canCancel("OWNER", "READY"), true);
-  assert.equal(canCancel("OWNER", "CANCELLED"), false);
+  assert.equal(canCancel("READY"), false);
+  assert.equal(canCancel("NEW"), true);
+  assert.equal(canCancel("CANCELLED"), false);
 });
 
 test("arrival detection works beyond the displayed page and does not alarm on processing or reconnect", () => {
@@ -84,4 +84,15 @@ test("waiting orders turn amber at 10 minutes and red at 20", () => {
   assert.equal(waitLevel(10), "late");
   assert.equal(waitLevel(19), "late");
   assert.equal(waitLevel(20), "overdue");
+});
+
+test("legacy whole-order markers are retained only for GET review, never treated as item writes", () => {
+  const { itemId: _item, ...legacy } = action;
+  const pending = readPending(
+    JSON.stringify([{ ...legacy, expectedStatus: "READY", reason: "old" }]),
+  );
+  assert.deepEqual(pending, [{ ...legacy, itemId: null }]);
+  assert.equal(recoveryOutcome(pending[0], undefined), "legacy-reviewed");
+  assert.deepEqual(readPending(JSON.stringify(pending)), pending);
+  assert.equal(recoveryOutcome(action, undefined), "missing");
 });

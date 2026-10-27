@@ -3,6 +3,8 @@ import { guestRequest, guestWrite } from "@/lib/api";
 import type { Language, Names } from "@/lib/language";
 import type { OrderInput } from "./state";
 
+export type OrderItemStatus = "NEW" | "READY" | "CANCELLED";
+
 export type OrderLine = Names & {
   id: string;
   menuItemId: string | null;
@@ -11,14 +13,18 @@ export type OrderLine = Names & {
   unitPriceCents: number;
   quantity: number;
   remark: string | null;
+  status: OrderItemStatus;
+  readyAt: string | null;
+  cancelledAt: string | null;
 };
 export type Order = {
   id: string;
   sessionId: string;
-  status: "NEW" | "READY" | "CANCELLED";
+  status: "NEW" | "PROCESSED";
   createdAt: string;
   defaultLanguage: Language;
   totalAmountCents: number;
+  payableAmountCents: number;
   orderNote: string | null;
   items: OrderLine[];
 };

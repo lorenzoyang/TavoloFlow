@@ -242,22 +242,22 @@ Table orders {
   order_note text
   default_language_snapshot varchar(2) [not null]
   created_at timestamptz [not null, default: `now()`]
-  ready_at timestamptz
-  cancelled_at timestamptz
-  cancel_reason text
+  processed_at timestamptz
+  cancel_reason text [note: 'Legacy whole-order history only; new cancellations collect no reason']
 
   Indexes {
     (id, restaurant_id) [unique, name: 'uq_orders_id_tenant']
     (dining_session_id, client_request_id) [unique, name: 'uq_order_one_per_request']
-    (restaurant_id, status, created_at)
+    (restaurant_id, status, created_at, id)
+    (restaurant_id, status, processed_at, id)
   }
 
   Checks {
-    `status IN ('NEW', 'READY', 'CANCELLED')` [name: 'ck_order_status']
+    `status IN ('NEW', 'PROCESSED')` [name: 'ck_order_status']
     `total_amount_cents >= 0` [name: 'ck_order_amount']
     `default_language_snapshot IN ('zh', 'it', 'en')` [name: 'ck_order_language']
-    `(status = 'NEW' AND ready_at IS NULL AND cancelled_at IS NULL AND cancel_reason IS NULL) OR (status = 'READY' AND ready_at IS NOT NULL AND cancelled_at IS NULL AND cancel_reason IS NULL) OR (status = 'CANCELLED' AND cancelled_at IS NOT NULL AND cancel_reason IS NOT NULL AND cancel_reason ~ '[^[:space:]]')` [name: 'ck_order_lifecycle']
-    `(ready_at IS NULL OR ready_at >= created_at) AND (cancelled_at IS NULL OR cancelled_at >= created_at) AND (ready_at IS NULL OR cancelled_at IS NULL OR cancelled_at >= ready_at)` [name: 'ck_order_transition_times']
+    `(status = 'NEW' AND processed_at IS NULL) OR (status = 'PROCESSED' AND processed_at IS NOT NULL)` [name: 'ck_order_lifecycle']
+    `processed_at IS NULL OR processed_at >= created_at` [name: 'ck_order_transition_times']
   }
 
   Note: '''
@@ -267,12 +267,13 @@ Table orders {
     The UI preserves the original payload
     while status is unknown and shows the persisted server result.
     Enforce idempotency and amounts with PostgreSQL constraints + transactions.
-    Change NEW -> READY or NEW -> CANCELLED with conditional UPDATE.
-    READY -> CANCELLED is OWNER only; closed sessions cannot change.
+    NEW while any item is NEW; otherwise PROCESSED with latest item transition time.
+    Original total stays immutable; payable amount sums uncancelled item snapshots.
     No order version field is needed.
     Do not allow guest access to orders after the session closes.
   '''
 }
+
 
 Table order_items {
   id uuid [pk]
@@ -287,6 +288,9 @@ Table order_items {
   unit_price_cents bigint [not null]
   quantity int [not null]
   remark text
+  status varchar(12) [not null, default: 'NEW']
+  ready_at timestamptz
+  cancelled_at timestamptz
 
   Indexes {
     (order_id, restaurant_id)
@@ -296,6 +300,8 @@ Table order_items {
     `concat(name_zh_snapshot, name_it_snapshot, name_en_snapshot) ~ '[^[:space:]]'` [name: 'ck_order_item_has_name']
     `unit_price_cents >= 0` [name: 'ck_order_item_unit_price']
     `quantity > 0` [name: 'ck_order_item_quantity']
+    `status IN ('NEW', 'READY', 'CANCELLED')` [name: 'ck_order_item_status']
+    `(status = 'NEW' AND ready_at IS NULL AND cancelled_at IS NULL) OR (status = 'READY' AND ready_at IS NOT NULL AND cancelled_at IS NULL) OR (status = 'CANCELLED' AND cancelled_at IS NOT NULL AND (ready_at IS NULL OR cancelled_at >= ready_at))` [name: 'ck_order_item_lifecycle']
   }
 
   Note: 'Historical name, price, and allergen snapshots. Line total = unit_price_cents * quantity; no separate line_total_cents.'

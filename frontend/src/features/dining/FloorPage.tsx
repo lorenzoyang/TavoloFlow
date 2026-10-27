@@ -265,7 +265,7 @@ function FloorContent({
 
   const tables = floor.data?.tables ?? [];
   const dining = tables.filter((table) => table.session).length;
-  const waiting = tables.reduce((n, table) => n + (table.session?.newOrderCount ?? 0), 0);
+  const waiting = tables.reduce((n, table) => n + (table.session?.newItemCount ?? 0), 0);
   const writeLocked = busy || !!pending || !!confirmation;
   return (
     <div>
@@ -381,7 +381,7 @@ function FloorContent({
               {waiting > 0 && (
                 <span className="flex items-center gap-1.5">
                   <span className="size-2.5 rounded-full bg-warning" />
-                  待出餐 {waiting} 笔
+                  待出餐 {waiting} 项
                 </span>
               )}
             </p>

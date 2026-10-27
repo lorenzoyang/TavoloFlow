@@ -111,7 +111,7 @@ restaurant → table → dining session          restaurant → menu item
 
 ### 5.2 `bill_version`：账单的乐观版本
 
-- 新用餐的版本从 1 开始。每成功创建一单、每实际取消一单，版本 +1；READY、幂等重放和关桌都不改变版本。
+- 新用餐的版本从 1 开始。每成功创建一单、每实际取消一行菜品，版本 +1；READY、幂等重放和关桌都不改变版本。
 - 老板确认时提交自己看到的版本和金额。关桌事务锁住 session 后重新计算账单，任一项不一致都返回 `409 BILL_CHANGED` 并附上 `currentBill`，由老板重新核对。
 - 下单、取消和关桌都需要同一个 session UPDATE 锁。如果下单先拿到锁，关桌会看到新版本而被拒绝；如果关桌先拿到锁，下单随后看到 CLOSED 而被拒绝。
 
@@ -123,14 +123,14 @@ restaurant → table → dining session          restaurant → menu item
 4. 版本不一致 → `BILL_CHANGED`
 5. EMPTY 但曾有任何订单 → `SESSION_HAS_ORDERS`
 6. 金额不一致 → `BILL_CHANGED`
-7. 有 NEW 订单 → `ORDERS_PENDING`
+7. 有 NEW 明细 → `ORDERS_PENDING`
 8. PAID 但金额 ≤ 0 → `SESSION_NOT_PAYABLE`
-9. VOIDED 但并非所有订单都已取消 → `SESSION_NOT_VOIDABLE`
+9. VOIDED 但并非所有菜品都已取消 → `SESSION_NOT_VOIDABLE`
 10. 钳制关闭时间（不早于开桌时间和最后一次订单事件），再做条件 UPDATE（`WHERE status = 'ACTIVE'`）
 
 ### 5.3 条件更新，而不是“先读后写”
 
-厨房把 NEW 改为 READY 时，先锁住该订单所属的 session（UPDATE），再重新读取订单状态，最后执行 `UPDATE orders SET status = 'READY' ... WHERE id = @id AND status = 'NEW'` 并检查受影响行数。session 锁已经把同一用餐的所有订单写入串行化，后到的请求会读到新状态并返回 `ORDER_CHANGED`。UPDATE 中的状态条件是第二道防线：即使将来某条写入路径忘了加锁，也不会无条件覆盖别人的结果。不要只在 C# 中读出状态后无条件保存：没有锁时，两个请求可能都读到 NEW。
+厨房把 NEW 改为 READY 时，先锁住该订单所属的 session（UPDATE），再重新读取明细状态，最后执行 `UPDATE order_items SET status = 'READY' ... WHERE id = @id AND status = 'NEW'` 并检查受影响行数。session 锁已经把同一用餐的所有订单写入串行化，后到的请求会读到新状态并返回 `ORDER_ITEM_CHANGED`。UPDATE 中的状态条件是第二道防线：即使将来某条写入路径忘了加锁，也不会无条件覆盖别人的结果。不要只在 C# 中读出状态后无条件保存：没有锁时，两个请求可能都读到 NEW。
 
 ### 5.4 下单幂等
 

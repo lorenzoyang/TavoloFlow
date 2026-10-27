@@ -187,6 +187,7 @@ test("only a complete server order with consistent safe amounts may clear the sa
     createdAt: "2026-10-22T12:00:00Z",
     defaultLanguage: "en",
     totalAmountCents: 1400,
+    payableAmountCents: 1400,
     orderNote: null,
     items: [
       {
@@ -200,10 +201,27 @@ test("only a complete server order with consistent safe amounts may clear the sa
         unitPriceCents: 700,
         quantity: 2,
         remark: null,
+        status: "NEW",
+        readyAt: null,
+        cancelledAt: null,
       },
     ],
   };
   assert.equal(confirmedOrder(order, session), order);
+  const cancelled: Order = {
+    ...order,
+    status: "PROCESSED",
+    payableAmountCents: 0,
+    items: [{ ...order.items[0], status: "CANCELLED", cancelledAt: "2026-10-22T12:05:00Z" }],
+  };
+  assert.equal(confirmedOrder(cancelled, session), cancelled);
+  const partial: Order = {
+    ...order,
+    totalAmountCents: 2800,
+    items: [order.items[0], { ...cancelled.items[0], id: "00000000-0000-4000-8000-000000000009" }],
+  };
+  assert.equal(confirmedOrder(partial, session), partial);
+  assert.throws(() => confirmedOrder({ ...partial, payableAmountCents: 2800 }, session));
   for (const broken of [
     { ...order, sessionId: id },
     { ...order, createdAt: "bad date" },
@@ -211,6 +229,9 @@ test("only a complete server order with consistent safe amounts may clear the sa
     { ...order, totalAmountCents: 1300 },
     { ...order, defaultLanguage: "fr" },
     { ...order, orderNote: undefined },
+    { ...order, payableAmountCents: 700 },
+    { ...order, status: "PROCESSED" },
+    { ...order, items: [{ ...order.items[0], status: "READY", readyAt: null }] },
   ])
     assert.throws(() => confirmedOrder(broken as Order, session));
 });

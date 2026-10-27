@@ -77,15 +77,15 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         if (reason == SessionCloseReason.Empty && bill.OrderCount > 0)
             throw BillingErrors.Conflict("SESSION_HAS_ORDERS", "本轮曾产生订单，不能按空桌关闭。", bill);
         if (bill.TotalAmountCents != amount) throw BillingErrors.Changed(bill);
-        if (bill.NewOrderCount > 0)
-            throw BillingErrors.Conflict("ORDERS_PENDING", "仍有待处理订单，请先到厨房完成或按实际情况取消。", bill);
+        if (bill.NewItemCount > 0)
+            throw BillingErrors.Conflict("ORDERS_PENDING", "仍有待出餐菜品，请先到厨房完成或按实际情况取消。", bill);
         if (reason == SessionCloseReason.Paid && bill.TotalAmountCents <= 0)
             throw BillingErrors.Conflict("SESSION_NOT_PAYABLE", "零账单应按空桌或全部取消关闭，不记录为收款。", bill);
-        if (reason == SessionCloseReason.Voided && (bill.OrderCount == 0 || bill.CancelledOrderCount != bill.OrderCount))
-            throw BillingErrors.Conflict("SESSION_NOT_VOIDABLE", "只有本轮已有订单且全部取消时，才能按零账单关闭。", bill);
+        if (reason == SessionCloseReason.Voided && (bill.OrderCount == 0 || bill.ItemCount == 0 || bill.CancelledItemCount != bill.ItemCount))
+            throw BillingErrors.Conflict("SESSION_NOT_VOIDABLE", "只有本轮已有订单且所有菜品均已取消时，才能按零账单关闭。", bill);
 
         var latest = await db.Orders.Where(o => o.RestaurantId == restaurantId && o.DiningSessionId == id)
-            .Select(o => (DateTime?)(o.CancelledAt ?? o.ReadyAt ?? o.CreatedAt)).MaxAsync(ct);
+            .Select(o => (DateTime?)(o.ProcessedAt ?? o.CreatedAt)).MaxAsync(ct);
         var now = clock.GetUtcNow().UtcDateTime;
         if (now < session.OpenedAt) now = session.OpenedAt;
         if (latest is not null && now < latest) now = latest.Value;

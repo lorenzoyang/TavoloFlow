@@ -1,5 +1,12 @@
 namespace TavoloFlow.Api.Entities;
 
+public enum OrderItemStatus
+{
+    New,
+    Ready,
+    Cancelled
+}
+
 public sealed class OrderItem
 {
     public Guid Id { get; set; }
@@ -14,6 +21,9 @@ public sealed class OrderItem
     public long UnitPriceCents { get; set; }
     public int Quantity { get; set; }
     public string? Remark { get; set; }
+    public OrderItemStatus Status { get; set; } = OrderItemStatus.New;
+    public DateTime? ReadyAt { get; set; }
+    public DateTime? CancelledAt { get; set; }
 
     public Restaurant Restaurant { get; set; } = null!;
     public Order Order { get; set; } = null!;

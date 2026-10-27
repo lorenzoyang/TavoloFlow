@@ -18,15 +18,11 @@ public sealed class KitchenController(KitchenService kitchen, CurrentAccount cur
     public async Task<IActionResult> Read(Guid id, CancellationToken ct) =>
         Ok(await kitchen.ReadAsync(current.RequireUser().RestaurantId, id, ct));
 
-    [HttpPost("api/staff/orders/{id:guid}/ready")]
-    public async Task<IActionResult> Ready(Guid id, CancellationToken ct) =>
-        Ok(await kitchen.ReadyAsync(current.RequireUser().RestaurantId, id, ct));
+    [HttpPost("api/staff/orders/{id:guid}/items/{itemId:guid}/ready")]
+    public async Task<IActionResult> Ready(Guid id, Guid itemId, CancellationToken ct) =>
+        Ok(await kitchen.ReadyAsync(current.RequireUser().RestaurantId, id, itemId, ct));
 
-    [HttpPost("api/staff/orders/{id:guid}/cancel")]
-    [RequestSizeLimit(16_384)]
-    public async Task<IActionResult> Cancel(Guid id, CancelOrderInput input, CancellationToken ct)
-    {
-        var user = current.RequireUser();
-        return Ok(await kitchen.CancelAsync(user.RestaurantId, id, user.Role, input, ct));
-    }
+    [HttpPost("api/staff/orders/{id:guid}/items/{itemId:guid}/cancel")]
+    public async Task<IActionResult> Cancel(Guid id, Guid itemId, CancellationToken ct) =>
+        Ok(await kitchen.CancelAsync(current.RequireUser().RestaurantId, id, itemId, ct));
 }

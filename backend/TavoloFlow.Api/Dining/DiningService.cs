@@ -30,8 +30,9 @@ public sealed class DiningService(ApplicationDbContext db, JoinCodes codes, Time
             .Select(x => new FloorTableResponse(x.Id, x.TableLabel, x.IsEnabled,
                 x.DiningSessions.Where(s => s.Status == DiningSessionStatus.Active)
                     .Select(s => new ActiveSessionResponse(s.Id, s.OpenedAt, s.Orders.Count,
-                        s.Orders.Count(o => o.Status == OrderStatus.New),
-                        s.Orders.Where(o => o.Status != OrderStatus.Cancelled).Sum(o => o.TotalAmountCents)))
+                        s.Orders.SelectMany(o => o.Items).Count(i => i.Status == OrderItemStatus.New),
+                        s.Orders.SelectMany(o => o.Items).Where(i => i.Status != OrderItemStatus.Cancelled)
+                            .Sum(i => i.UnitPriceCents * i.Quantity)))
                     .SingleOrDefault())).ToArrayAsync(ct);
         await transaction.CommitAsync(ct);
         return new(ApiEnum.Text(restaurant.ServiceStatus), restaurant.OrderingEnabled, restaurant.JoinCodeRequired, tables);

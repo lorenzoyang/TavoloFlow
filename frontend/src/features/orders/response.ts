@@ -10,19 +10,23 @@ export function confirmedOrder(value: Order, sessionId: string): Order {
     !value ||
     !isUuid(value.id) ||
     value.sessionId !== sessionId ||
-    !["NEW", "READY", "CANCELLED"].includes(value.status) ||
+    !["NEW", "PROCESSED"].includes(value.status) ||
     !isLanguage(value.defaultLanguage) ||
     typeof value.createdAt !== "string" ||
     !Number.isFinite(Date.parse(value.createdAt)) ||
     !text(value.orderNote) ||
     !Number.isSafeInteger(value.totalAmountCents) ||
     value.totalAmountCents <= 0 ||
+    !Number.isSafeInteger(value.payableAmountCents) ||
+    value.payableAmountCents < 0 ||
     !Array.isArray(value.items) ||
     value.items.length === 0 ||
     value.items.some(
       (line) =>
         !line ||
         !isUuid(line.id) ||
+        !["NEW", "READY", "CANCELLED"].includes(line.status) ||
+        !validTimes(line, value.createdAt) ||
         (line.menuItemId !== null && !isUuid(line.menuItemId)) ||
         !text(line.itemCode) ||
         !text(line.remark) ||
@@ -42,6 +46,32 @@ export function confirmedOrder(value: Order, sessionId: string): Order {
     (sum, line) => sum + BigInt(line.unitPriceCents) * BigInt(line.quantity),
     0n,
   );
-  if (total !== BigInt(value.totalAmountCents)) throw new Error("Invalid order total");
+  const payable = value.items.reduce(
+    (sum, line) =>
+      sum +
+      (line.status === "CANCELLED" ? 0n : BigInt(line.unitPriceCents) * BigInt(line.quantity)),
+    0n,
+  );
+  if (total !== BigInt(value.totalAmountCents) || payable !== BigInt(value.payableAmountCents))
+    throw new Error("Invalid order total");
+  if (
+    new Set(value.items.map((line) => line.id)).size !== value.items.length ||
+    value.status !== (value.items.some((line) => line.status === "NEW") ? "NEW" : "PROCESSED")
+  )
+    throw new Error("Invalid order progress");
   return value;
+}
+
+function validTimes(line: Order["items"][number], createdAt: string) {
+  const valid = (time: unknown) =>
+    typeof time === "string" &&
+    Number.isFinite(Date.parse(time)) &&
+    Date.parse(time) >= Date.parse(createdAt);
+  if (line.status === "NEW") return line.readyAt === null && line.cancelledAt === null;
+  if (line.status === "READY") return valid(line.readyAt) && line.cancelledAt === null;
+  return (
+    valid(line.cancelledAt) &&
+    (line.readyAt === null ||
+      (valid(line.readyAt) && Date.parse(line.cancelledAt!) >= Date.parse(line.readyAt)))
+  );
 }

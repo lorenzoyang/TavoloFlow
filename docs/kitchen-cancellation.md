@@ -1,150 +1,85 @@
-# 第六阶段：厨房与取消
+# 厨房：逐菜出餐与取消
 
-本阶段完成“顾客下单 → 厨房查看 → 整单完成或取消 → 顾客看到状态与应收更新”。
-员工和老板从导航的「厨房」进入 `/staff/kitchen`。保留九张表和全部已有迁移，没有增加运行时依赖。
-厨房只展示正在用餐的订单；收款、VOIDED 关闭和已关闭账单历史已由[第七阶段](billing-history.md)接续实现。
-即使所有订单已取消，也不能用 EMPTY 关闭，因为本轮曾经产生订单。
+顾客一次提交仍是一笔订单；厨房按订单查看桌号、下单时间、整单备注和菜品快照，但按明细行处理。
+“炒饭 ×3”一次出餐或取消三份，不支持分批数量。此处的已出餐只表示厨房完成，不表示服务员已取餐或送达。
 
-## 1. 按四个小步骤理解代码
+## 状态与页面
 
-| 步骤 | 入口 | 学习重点 |
+明细状态只有 `NEW`（待出餐）、`READY`（已出餐）、`CANCELLED`（已取消）。STAFF 和 OWNER 都只能将 NEW 改为 READY 或 CANCELLED；终态不能撤销或互转，老板也不能取消已出餐菜品。本阶段不做免单。
+
+订单状态由明细汇总：有任一 NEW 则为 NEW；全部处理后为 PROCESSED，`processedAt` 是最后一个明细处理时间。
+
+| 厨房标签 | 内容 | 排序 |
 |---|---|---|
-| 查询接口与列表 | `Kitchen/KitchenContracts.cs`、`Kitchen/KitchenService.cs`、`Controllers/KitchenController.cs` | 为什么订单内容来自快照？为什么列表与总量使用同一读取快照？ |
-| 完成、取消和权限 | `KitchenService.ChangeAsync`、`KitchenTests.cs` | Session 锁与条件 UPDATE 各自解决什么问题？取消和账单版本为什么必须一起提交？ |
-| 前端操作与恢复 | `features/kitchen/useKitchen.ts`、`state.ts`、`KitchenPage.tsx` | 为什么超时不能直接说失败？为什么核对结果只 GET？ |
-| 提醒、验收与回归 | `features/kitchen/audio.ts`、`tests/kitchen.test.ts`、本文 | 为什么新单提醒不能只比较当前第一页？恢复联网为什么重新建立声音基线？ |
+| 待处理 | NEW 订单，显示所有明细 | `(created_at, id)` 升序 |
+| 已处理 | PROCESSED 订单，包括全部取消 | `(processed_at, id)` 降序 |
 
-Controller 解析协议、读取可信账号；Service 在事务里决定能否修改；纯状态函数处理恢复和新单判定；Hook 负责查询、存储和生命周期；页面展示并收集确认。
+待处理卡片中，待出餐行有“出餐完成”主按钮与更多菜单中的“取消菜品”。取消使用 ConfirmDialog，明确桌号、菜名、整行数量及扣除金额，提示先与厨房沟通，不填写原因。
+已处理行留在原顺序，压缩显示并隐藏详细备注与操作：出餐用勾号，取消用删除线和文字标签。卡片显示“待出餐 X 项／共 Y 项”（按明细行计，不是份数）。最后一项处理后整卡移出。
+已处理标签保留完整订单与逐项备注、处理时间；全部取消的订单使用中性色。没有整单写入按钮或独立已取消标签。
 
-## 2. 接口契约
+## 接口契约
 
-所有接口使用店铺 Cookie、首次改密策略与可信 `CurrentAccount.RestaurantId`；写操作还要求店铺 CSRF。
-服务端响应均为 `Cache-Control: no-store`，不会接受客户端自报角色或餐厅归属。
+使用店铺 Cookie、首次改密策略、可信 `CurrentAccount.RestaurantId`；写操作验证店铺 CSRF。不能从客户端指定餐厅或角色。
 
 | 方法与路径 | 输入 | 结果 |
 |---|---|---|
-| `GET /api/staff/orders` | `status=NEW/READY/CANCELLED`，默认 NEW；`cursor`；`limit` 默认 50、最大 100 | `{ items, nextCursor, totalCount, pendingCount, createdOrderCount }` |
-| `GET /api/staff/orders/{id}` | 订单 ID | 单笔当前厨房订单，用于核对未知结果 |
-| `POST /api/staff/orders/{id}/ready` | 空对象 | NEW → READY，返回修改后的订单 |
-| `POST /api/staff/orders/{id}/cancel` | `{ expectedStatus: "NEW"或"READY", reason: "原因" }` | 合法取消，返回修改后的订单 |
+| `GET /api/staff/orders` | `status=NEW/PROCESSED`，默认 NEW；cursor；limit 默认 50/max 100 | `{ items, nextCursor, totalCount, pendingCount, createdOrderCount }` |
+| `GET /api/staff/orders/{id}` | 订单 ID | 完整当前订单，用于未知结果核对 |
+| `POST /api/staff/orders/{id}/items/{itemId}/ready` | `{}` | 指定行 NEW → READY，返回完整订单 |
+| `POST /api/staff/orders/{id}/items/{itemId}/cancel` | `{}` | 指定行 NEW → CANCELLED，返回完整订单 |
 
-厨房订单包含：`id`、`sessionId`、`tableLabel`、`status`、`createdAt`、`readyAt`、`cancelledAt`、`cancelReason`、`defaultLanguage`、`totalAmountCents`、`orderNote`、`items`。
-`items` 复用已有订单明细快照 DTO。桌号来自用餐记录快照，菜名、编号、数量、备注、价格和过敏原来自下单快照；后续改菜单或删除菜品不改变这些内容。
-不返回 `clientRequestId`、入桌码或账号信息。顾客接口继续使用原有 DTO，不额外公开取消原因。
+旧 `/orders/{id}/ready`、`/cancel` 已移除。取消不需要 expectedStatus 或 reason，因为唯一合法来源是 NEW。
 
-- NEW 按 `(created_at, id)` 升序，优先处理等待最久的订单。
-- READY 按 `(ready_at, id)` 倒序，CANCELLED 按 `(cancelled_at, id)` 倒序。
-- 游标绑定餐厅、状态、时间和 ID，不得跨筛选或跨餐厅复用；分页是实时队列，不是冻结的历史导出。
-- 三个列表都只含 ACTIVE 用餐。关闭后的单笔查询返回 `409 SESSION_CLOSED`，完整历史通过第七阶段的 OWNER 历史接口查询。
-- `totalCount` 是当前筛选总量；`pendingCount` 是本店所有活动 NEW 数量；`createdOrderCount` 是本店全部现存订单数量，包括已完成、取消和关闭用餐的订单。
-- 累计数仅用于发现新增提交，不返回历史内容。现阶段没有订单历史清理；将来引入删除或归档时，应重新评估这个提示计数方案。计数下降会重新建立基线。
+厨房订单包含 `id, sessionId, tableLabel, status, createdAt, processedAt, cancelReason, defaultLanguage, totalAmountCents, payableAmountCents, orderNote, items`。
+`cancelReason` 仅保留旧整单取消原因，新操作不写入。每个 item 在原快照字段上增加 `status, readyAt, cancelledAt`；顾客与账单共用此明细契约。
+`totalAmountCents` 永远是原始下单金额；`payableAmountCents` 为未取消明细的单价乘数量之和。
 
-取消原因先 trim，保存 1–500 字符。`expectedStatus` 必须是 NEW 或 READY。
-STAFF/OWNER 均可完成 NEW 或取消 NEW；作废 READY 必须 OWNER。
-重复完成/取消和状态不符统一返回 `409 ORDER_CHANGED`；不覆盖原处理时间和原因。
-跨店或不存在的订单返回 `404 ORDER_NOT_FOUND`，角色不足返回 `403 FORBIDDEN`，无效输入返回 `400 VALIDATION_FAILED`。
+- 列表只含 ACTIVE 用餐，行与计数来自同一 Repeatable Read 快照；游标绑定餐厅、状态和排序位置。
+- `totalCount` 为当前分类订单数，`pendingCount` 为所有活动待处理订单数；这两个数仍按订单计。
+- `createdOrderCount` 包含餐厅所有现存订单（含已处理、取消和关闭用餐），逐菜处理不会改变它。它用于发现新提交，不是审计序号。
+- 单笔读取在 Session SHARE 锁下执行；关桌后返回 `409 SESSION_CLOSED`，历史另走 OWNER 账单历史接口。
+- 写入时联合验证餐厅、订单、明细绑定，不存在、跨店或错误绑定均返回 `404 ORDER_ITEM_NOT_FOUND`；普通订单 GET 不存在仍返回 `ORDER_NOT_FOUND`。
+- 重复操作、已出餐取消或竞争失败返回 `409 ORDER_ITEM_CHANGED`，不会覆盖时间或重复扣减。
 
-## 3. 一次取消如何保证一致性
+## 事务与账单
 
-```mermaid
-sequenceDiagram
-    actor S as 员工或老板
-    participant UI as 厨房页面
-    participant API as KitchenController / Service
-    participant DB as PostgreSQL
-    S->>UI: 核对整单、填写原因并确认
-    UI->>API: POST cancel + expectedStatus + Cookie/CSRF
-    API->>DB: 按可信餐厅定位订单；开始事务
-    API->>DB: 锁所属 Session FOR UPDATE
-    API->>DB: 检查 ACTIVE、当前状态和版本上限
-    API->>DB: UPDATE 订单 WHERE status = expectedStatus
-    API->>DB: BillVersion + 1
-    API->>DB: 读取结果并提交事务
-    API-->>UI: 保存后的订单
-    UI->>API: 刷新厨房列表与用餐摘要
-```
+写入先按可信餐厅与订单、明细 ID 找到 session，再只锁 Session UPDATE，不反向锁餐厅或桌位。
+重新读取明细状态后执行带 `status = 'NEW'` 的条件 UPDATE。取消与 BillVersion +1 同事务提交；出餐不增加版本。服务暂停、桌位禁用、停止接单均不阻止处理既有菜品。
 
-下单、取消、EMPTY 关闭使用同一 Session UPDATE 锁。厨房锁住 Session 后不会反向获取餐厅或桌位锁，避免颠倒已有锁顺序。
-最终 SQL 仍带原状态条件并检查受影响行数；按钮禁用和内存判断都不能代替这一步。
+原始数量、价格、名称、备注及过敏原快照不变。取消只让该行退出应收，部分取消后的订单仍可能待处理。
+每次逐项操作检查整单是否已无 NEW，并原子维护订单状态与 processedAt。时钟倒退时逐项时间钳制到下单时间；整单时间取所有明细终态时间的最大值。
+下单、取消和所有关桌共用 Session UPDATE 锁，避免遗漏取消金额或把已关桌的菜品继续处理。
 
-- READY 只改状态和 `ready_at`，不改金额或 `BillVersion`。
-- CANCELLED 保留原金额、明细和原有 `ready_at`；新增取消时间和原因，并将版本增加一次。
-- 状态或版本写入失败时整个事务回滚。版本已到 `int.MaxValue` 时取消返回 `409 BILL_LIMIT_REACHED`。
-- 重复操作及失败操作不增加版本，也不替换首次取消原因。
-- 取消后应收查询排除该订单，订单自身原始金额仍保留。
-- 暂停服务、接单或桌位不阻止处理既有活动订单；用餐 CLOSED 后禁止修改。
-- 单笔核对持有 Session SHARE 锁；列表使用 Repeatable Read 保持该响应内卡片与数量的一致性。列表状态不作为写入授权依据，修改时始终重新检查。
+账单按明细计数：`itemCount, newItemCount, cancelledItemCount`，订单数仍保留。未出完菜不能结账，已有订单且所有明细取消才能 VOIDED；曾下单的用餐不能 EMPTY。详见 [账单与历史](billing-history.md)。
 
-例如老板确认取消 NEW 期间，厨房已经把它完成：原确认得到 `ORDER_CHANGED`，不会直接作废 READY。
-前端保留已输入原因，展示最新状态，老板必须重新确认“作废已完成订单”。
+## 前端同步与恢复
 
-## 4. 轮询、恢复与声音
+- 可见且在线时每 10 秒刷新全部已加载分页；30 秒陈旧、失败、离线或恢复前台后未重新同步均禁写。使用 `syncIsStalled` 的宽限避免短暂刷新闪警告。
+- 菜品写入或未知结果期间只锁本订单，其他订单仍能操作。写入前保存最少标识 `{ orderId, sessionId, itemId, kind }` 到按标签页、餐厅、账号隔离的 sessionStorage，不保存菜名、原因或请求正文。
+- 持久记录只有结果未知后才显示提示；结果核对 GET 原订单，检查目标 item 的状态，绝不自动重发 POST。目标仍为 NEW 时清除标记，用户可以重新核对后手动操作；取消再次弹确认。
+- 旧整单标记转换为 `itemId: null` 的只读核对记录，GET 后提示查看逐项状态，不推断某个菜品或发起新写入。
+- 收到新响应前取消旧列表请求，验证完整订单金额与状态，再更新厨房及失效桌台、账单查询。页面隐藏、身份变化、离线均取消请求并丢弃迟到响应；确认弹窗同时关闭。
+- 声音默认开启，浏览器需要手势解锁；首次加载、回前台、重连建立静默基线，两个标签共享新单计数基线。声音、常亮仅保留设备偏好。
 
-在线且页面可见时每 10 秒轮询；回到前台、恢复联网、修改成功后立即刷新。
-已加载的分页会从第一页开始重新读取并按 ID 去重；加载更多不会单独推进第一页的同步时间。
-超过 30 秒没有成功同步、离线或查询失败时，保留旧卡片并提示，暂停状态修改。
-首次加载、回到前台后，在新的成功同步之前同样暂停修改。这段通常不到一秒，所以离线或失败立即提示，
-仍在同步则超过 3 秒才提示（`syncIsStalled`），正常刷新不会闪出警告。切换状态视图时，
-不足 30 秒的缓存卡片与轮询数据同样可用，首次读取的视图同样适用 3 秒宽限。
+## 数据升级与发布
 
-请求超时、断网和 5xx 表示结果未知。每个订单独立保存最小待确认标识到标签页 `sessionStorage`，键包含餐厅和账号。
-不保存订单响应、取消原因或 Cookie；存储不可用时保持内存核对并提示刷新前记录订单编号。
-当前订单等待核对期间禁止再次写入，其他订单在同步正常时仍可处理。
-标识在 POST 之前就已保存，但“待确认”提示只在结果确实未知时显示（请求失败、超时，或刷新后从存储恢复）；
-请求进行中只锁定该卡片，正常完成时不会闪出提示。
+`ItemLevelOrderProcessing` 新迁移保留所有既有迁移和订单。旧 NEW/READY/CANCELLED 整单状态分别复制给其明细；READY/CANCELLED 订单汇总为 PROCESSED。旧完成、取消时间复制到明细；旧 READY 后被取消的记录保留两个时间，旧取消原因保留在订单上。
+这些时间是历史整单事件的兼容值，并非真实逐菜出餐时间。原始金额、内容快照和已关闭账单金额不变。
 
-恢复只 GET 原订单，不自动重发 POST：
+前后端与数据库作为同一版本发布，使用现有显式 migration bundle 流程，发布后旧页面需刷新；不自动启动迁移。部分完成与无原因取消无法无损降级为旧整单模型，迁移 Down 明确拒绝，回退需恢复升级前备份。
 
-| 核对结果 | 页面行为 |
-|---|---|
-| 已达到目标状态 | 展示实际状态，解除待确认提示；不声称一定由本次请求完成 |
-| 已变成另一状态 | 展示最新结果，原确认失效 |
-| 仍是原状态 | 提示重新核对，由用户明确发起新的操作 |
-| 用餐已关闭或订单不可访问 | 停止操作，提示由老板核对 |
-| 查询仍失败 | 保留待确认提示，继续只读核对 |
+## 验证与学习实验
 
-这是状态核对，不是操作级幂等追踪。旧 POST 可能延迟到达；单向状态转换和条件更新确保同一转换只发生一次。
-恢复前台会中止旧请求并推进操作代次；迟到响应不会重新填充旧身份的界面。
-退出或换账号会清除厨房私有查询，页面实例与本地操作状态按身份隔离。
+后端 `KitchenTests` 覆盖同菜不同备注、多份整行处理、终态权限、CSRF/租户与绑定、分页、并发重复操作和不同明细并发、时钟倒退、取消事务回滚与安全整数限制。`BillingTests` 验证与结账竞争；`ItemProcessingMigrationTests` 验证旧状态升级、时间和历史金额；数据层测试验证空库迁移及约束。
 
-声音提醒默认开启，是设备偏好（`localStorage`），关闭后在这台设备上保持关闭。浏览器只允许在用户点按后发声：
-从其他页面点进厨房通常已满足；直接打开或刷新页面时，页面上任意一次点按都会开启声音，
-1.5 秒内仍无法发声才显示“点按页面任意位置即可开启”。手机切到后台后音频可能被挂起，回到前台或下一次点按时恢复。
-安装为应用后（见 [PWA 说明](pwa.md)），Android 上的 Chrome 和电脑上的 Chrome/Edge 从图标打开即可直接发声，
-不再需要这次点按；iPhone/iPad 仍需点按一次。
-连续成功同步时比较累计订单数，新增一批订单最多响一次（两声上扬提示音），队列超过一页也能发现新提交。
-累计数是全店口径，三个状态视图共用一个基线；首次加载、恢复前台或断网重连后重新建立基线，不补播旧单；
-完成、取消或关桌不增加这个计数。浏览器不支持网页音频时显示提示，卡片和文字提醒继续工作。
+前端 `tests/kitchen.test.ts` 验证持久标识、旧记录 GET 核对、状态判定和同步门禁；订单结果测试涵盖部分与全部取消的恢复；账单测试验证明细级关单条件。
 
-锁屏和后台挂起时不保证轮询或声音。“屏幕常亮”需要 HTTPS 或 localhost：局域网 HTTP 测试时浏览器不提供该接口，
-按钮不显示，需要临时调整设备的自动锁屏。iPhone 的静音开关会让网页音频静音（Safari 默认把它当作环境音）。
+人工验收：手机与平板点击一行出餐，确认留在原位；取消另一行且不填原因；最后一项处理后整卡进入已处理。双设备同时操作同一行只能成功一次；断网后恢复只发 GET。再比较桌台、顾客、账单及历史的应收与明细状态。
 
-## 5. 自己动手做的实验
+### 本次验证记录（2026-10-27）
 
-1. 用 STAFF、OWNER 两个窗口打开厨房，再用顾客窗口点两单。核对待处理顺序、桌号、备注和快照。
-2. 一台设备完成订单，观察另一台在约 10 秒内更新，顾客“本桌订单”在约 30 秒内更新；完成不改变应收。
-3. OWNER 先打开取消确认并填写原因，另一台设备完成同一单。提交旧确认，观察冲突和原因保留；重新明确作废后金额减少。
-4. 用浏览器拦截响应模拟“服务端成功但返回丢失”。刷新页面，观察只 GET 核对，Network 面板中没有自动第二次 POST。
-5. 超过 50 笔订单后加载更多；另一设备处理第二页订单，观察完整轮询会更新已加载页面。
-6. 保持声音提醒开启，新增一单；断网超过 30 秒，期间继续从顾客设备下单，再恢复厨房连接。观察断网提示、修改按钮锁定，以及恢复不补响。
-7. 取消全部订单后尝试关闭空桌，应仍被拒绝；再通过第七阶段账单面板按 VOIDED 关闭，并核对历史原因。
-
-## 6. 验证命令
-
-```bash
-dotnet test TavoloFlow.slnx
-```
-
-前端目录：
-
-```bash
-node --test --test-isolation=none tests/*.test.ts
-npm run build
-npm run lint
-```
-
-后端使用真实临时 PostgreSQL；测试覆盖权限、分页、原始快照、状态竞争、取消与加单/关桌竞争、故障回滚、版本上限、暂停期间处理、顾客金额与同键恢复、禁止误用 EMPTY。
-前端纯逻辑测试覆盖最小恢复记录、角色判断、声音基线和同步过期。浏览器验收使用独立测试数据库，不修改开发数据库。
-
-本次验证（2026-10-23）：后端 174 项全部通过，其中厨房新增 12 项；前端纯逻辑 33 项全部通过，build 和 lint 通过。
-真实 Chromium 多窗口验收通过：并发完成与取消冲突、OWNER 重新确认作废、顾客金额更新、响应丢失后刷新恢复、超过 50 笔分页及第二页自动更新、声音触发与音频失败回退、31 秒断网后的静默恢复、退出保护、手机表单焦点及页面隐藏后的迟到响应丢弃。浏览器音频测试验证触发与去重；实际设备音量可用本文实验核对。
+- `dotnet build TavoloFlow.slnx --no-restore -m:1`：通过，无警告；`dotnet test TavoloFlow.slnx --no-build -m:1`：257 项通过，使用一次性 PostgreSQL 容器，包含升级测试。
+- `npm run build`、`npm run lint`、`npm run format:check`：通过；Node 24 下 `node --test --test-isolation=none tests/*.test.ts`：60 项通过。
+- Chromium 模拟 390×844 手机及 1100×900 平板，以模拟 API 验证逐项操作、紧凑行、取消菜单与无需原因的确认、最后一项处理后移出、已处理页完整详情、横向溢出检查；另验证丢失写响应后的 GET-only 恢复，以及双页面竞争后旧取消确认失效。无页面运行错误。
+- 浏览器验证使用模拟身份和接口，没有访问真实商家或生产数据库；实际事务、接口与迁移由后端集成测试覆盖。未在实体手机／iOS 上验收，当前 Linux 浏览器环境缺少中文字体，中文文案通过 DOM 校验。

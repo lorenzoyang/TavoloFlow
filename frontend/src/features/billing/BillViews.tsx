@@ -25,50 +25,74 @@ import {
 import { useBill } from "./useBill";
 import { useClosure } from "./useClosure";
 
-const orderLabels = { NEW: "待处理", READY: "已完成", CANCELLED: "已取消 · 不计应收" };
-const orderBadges = { NEW: "warning", READY: "success", CANCELLED: "outline" } as const;
+const itemLabels = { NEW: "待出餐", READY: "已出餐", CANCELLED: "已取消 · 不计应收" };
+const itemBadges = { NEW: "warning", READY: "success", CANCELLED: "outline" } as const;
 
 function BillOrder({ order, timeZone }: { order: KitchenOrder; timeZone: string }) {
-  const cancelled = order.status === "CANCELLED";
+  const cancelled = order.items.every((item) => item.status === "CANCELLED");
   return (
     <article className={cn("space-y-2 rounded-xl border p-3", cancelled && "bg-muted/60")}>
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={orderBadges[order.status]}>{orderLabels[order.status]}</Badge>
+          <Badge variant={order.status === "NEW" ? "warning" : cancelled ? "outline" : "success"}>
+            {order.status === "NEW" ? "待处理" : "已处理"}
+          </Badge>
           <span className="text-xs text-muted-foreground">
             {formatDateTime(order.createdAt, "zh", timeZone)} · #{shortId(order.id)}
           </span>
         </div>
-        <span
-          className={cn(
-            "font-semibold tabular-nums",
-            cancelled && "font-normal text-muted-foreground line-through",
-          )}
-        >
-          {formatMoney(order.totalAmountCents)}
+        <span className="font-semibold tabular-nums">
+          应收 {formatMoney(order.payableAmountCents)}
         </span>
       </header>
+      {order.payableAmountCents !== order.totalAmountCents && (
+        <p className="text-sm text-muted-foreground">
+          原订单金额：{formatMoney(order.totalAmountCents)}
+        </p>
+      )}
       <ul className="divide-y">
         {order.items.map((item) => {
           const name = displayName(item, order.defaultLanguage, "zh");
           return (
-            <li key={item.id} className="space-y-0.5 py-2">
+            <li key={item.id} className="space-y-1 py-2">
               <div className="flex items-start justify-between gap-3">
-                <p lang={name.language} className="min-w-0 wrap-break-word">
+                <p
+                  lang={name.language}
+                  className={cn(
+                    "min-w-0 wrap-break-word",
+                    item.status === "CANCELLED" && "text-muted-foreground line-through",
+                  )}
+                >
                   {item.itemCode && (
                     <span className="mr-2 text-muted-foreground">{item.itemCode}</span>
                   )}
                   {item.quantity} × {name.text}
                 </p>
-                <p className="shrink-0 tabular-nums">
+                <p
+                  className={cn(
+                    "shrink-0 tabular-nums",
+                    item.status === "CANCELLED" && "text-muted-foreground line-through",
+                  )}
+                >
                   {formatMoney(item.unitPriceCents * item.quantity)}
                 </p>
               </div>
+              <Badge variant={itemBadges[item.status]}>{itemLabels[item.status]}</Badge>
               <p className="text-xs text-muted-foreground">
                 单价 {formatMoney(item.unitPriceCents)}
               </p>
               {item.remark && (
                 <p className="text-sm whitespace-pre-wrap wrap-break-word">备注：{item.remark}</p>
+              )}
+              {item.readyAt && (
+                <p className="text-xs text-muted-foreground">
+                  出餐：{formatDateTime(item.readyAt, "zh", timeZone)}
+                </p>
+              )}
+              {item.cancelledAt && (
+                <p className="text-xs text-muted-foreground">
+                  取消：{formatDateTime(item.cancelledAt, "zh", timeZone)}
+                </p>
               )}
             </li>
           );
@@ -79,18 +103,10 @@ function BillOrder({ order, timeZone }: { order: KitchenOrder; timeZone: string 
           整单备注：{order.orderNote}
         </p>
       )}
-      {order.readyAt && (
-        <p className="text-sm text-muted-foreground">
-          完成：{formatDateTime(order.readyAt, "zh", timeZone)}
+      {order.cancelReason && (
+        <p className="text-sm whitespace-pre-wrap wrap-break-word">
+          历史整单取消原因：{order.cancelReason}
         </p>
-      )}
-      {order.cancelledAt && (
-        <div className="space-y-0.5 text-sm">
-          <p className="text-muted-foreground">
-            取消：{formatDateTime(order.cancelledAt, "zh", timeZone)}
-          </p>
-          <p className="whitespace-pre-wrap wrap-break-word">取消原因：{order.cancelReason}</p>
-        </div>
       )}
     </article>
   );
@@ -109,8 +125,8 @@ function BillTotal({ bill, timeZone }: { bill: BillSummary; timeZone: string }) 
       </div>
       <p className="text-3xl font-semibold tabular-nums">{formatMoney(bill.totalAmountCents)}</p>
       <p className="text-sm text-muted-foreground">
-        共 {bill.orderCount} 笔 · 待处理 {bill.newOrderCount} 笔 · 已取消 {bill.cancelledOrderCount}{" "}
-        笔
+        共 {bill.orderCount} 笔订单、{bill.itemCount} 项 · 待出餐 {bill.newItemCount} 项 · 已取消{" "}
+        {bill.cancelledItemCount} 项
       </p>
       <p className="text-sm text-muted-foreground">
         开桌：{formatDateTime(bill.openedAt, "zh", timeZone)}
@@ -142,7 +158,7 @@ export function BillDetails({
           <BillTotal bill={bill} timeZone={timeZone} />
           <p className="text-sm leading-6 text-muted-foreground">
             已显示 {model.orders.length} / {bill.orderCount}{" "}
-            笔。应收包含本轮全部未取消订单，与已加载页数无关。
+            笔。应收包含本轮全部未取消菜品，与已加载页数无关。
           </p>
           {model.orders.map((order) => (
             <BillOrder key={order.id} order={order} timeZone={timeZone} />
@@ -202,7 +218,7 @@ export function ActiveBillPanel({
       <div className="flex items-center justify-between gap-3">
         <h3 className="font-semibold">本轮账单</h3>
         <div className="flex items-center gap-2">
-          {bill?.newOrderCount ? (
+          {bill?.newItemCount ? (
             <Link
               to="/staff/kitchen"
               className={buttonVariants({ variant: "outline", size: "sm" })}
@@ -228,7 +244,7 @@ export function ActiveBillPanel({
           {closure.conflict && (
             <p className="mt-2">
               上次提交被拒绝时：应收 {formatMoney(closure.conflict.totalAmountCents)}，待处理{" "}
-              {closure.conflict.newOrderCount} 笔。请核对下方最新账单。
+              {closure.conflict.newItemCount} 项。请核对下方最新账单。
             </p>
           )}
         </Notice>
@@ -285,9 +301,9 @@ export function ActiveBillPanel({
               账单正在同步或已过期，暂不能关闭。恢复连接并成功同步后继续。
             </Notice>
           )}
-          {bill?.newOrderCount ? (
+          {bill?.newItemCount ? (
             <Notice tone="warning">
-              仍有 {bill.newOrderCount} 笔待处理订单，请先到厨房完成或按实际情况取消。
+              仍有 {bill.newItemCount} 项待出餐菜品，请先到厨房完成或按实际情况取消。
             </Notice>
           ) : null}
           {kind && (
@@ -310,7 +326,7 @@ export function ActiveBillPanel({
           )}
           {bill &&
             !kind &&
-            bill.newOrderCount === 0 &&
+            bill.newItemCount === 0 &&
             account.role === "STAFF" &&
             bill.totalAmountCents > 0 && (
               <p className="text-sm text-muted-foreground">本轮仍有应收，请由老板核对收款。</p>

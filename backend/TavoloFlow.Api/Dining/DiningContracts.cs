@@ -4,7 +4,7 @@ using TavoloFlow.Api.Common;
 
 namespace TavoloFlow.Api.Dining;
 
-public sealed record ActiveSessionResponse(Guid Id, DateTime OpenedAt, int OrderCount, int NewOrderCount, long TotalAmountCents);
+public sealed record ActiveSessionResponse(Guid Id, DateTime OpenedAt, int OrderCount, int NewItemCount, long TotalAmountCents);
 public sealed record FloorTableResponse(Guid Id, string TableLabel, bool IsEnabled, ActiveSessionResponse? Session);
 public sealed record FloorResponse(string ServiceStatus, bool OrderingEnabled, bool JoinCodeRequired, FloorTableResponse[] Tables);
 // JoinCode is null when the restaurant lets guests join without one; the session still stores a code.

@@ -1,11 +1,14 @@
 import { isUuid } from "../../lib/ids.ts";
 
-export type OrderStatus = "NEW" | "READY" | "CANCELLED";
+import type { OrderItemStatus } from "../orders/api.ts";
+
+export type OrderStatus = "NEW" | "PROCESSED";
 export type PendingKitchenAction = {
   orderId: string;
   sessionId: string;
+  // null means a legacy whole-order operation: GET review only, never a new write.
+  itemId: string | null;
   kind: "ready" | "cancel";
-  expectedStatus: "NEW" | "READY";
 };
 export type ArrivalBaseline = { count: number; at: number } | null;
 export const pendingKitchenKey = (restaurantId: string, userId: string) =>
@@ -21,17 +24,21 @@ export function readPending(raw: string | null): PendingKitchenAction[] {
         !row ||
         !isUuid(row.orderId) ||
         !isUuid(row.sessionId) ||
-        (row.kind !== "ready" && row.kind !== "cancel") ||
-        (row.expectedStatus !== "NEW" && row.expectedStatus !== "READY") ||
-        (row.kind === "ready" && row.expectedStatus !== "NEW")
+        (row.kind !== "ready" && row.kind !== "cancel")
       )
         continue;
+      const legacy =
+        row.itemId === null ||
+        (row.itemId === undefined &&
+          (row.expectedStatus === "NEW" ||
+            (row.kind === "cancel" && row.expectedStatus === "READY")));
+      if (!legacy && !isUuid(row.itemId)) continue;
       if (!entries.some((x) => x.orderId === row.orderId))
         entries.push({
           orderId: row.orderId,
           sessionId: row.sessionId,
+          itemId: legacy ? null : row.itemId,
           kind: row.kind,
-          expectedStatus: row.expectedStatus,
         });
     }
     return entries;
@@ -51,12 +58,14 @@ export function waitLevel(minutes: number): "normal" | "late" | "overdue" {
   return minutes >= 20 ? "overdue" : minutes >= 10 ? "late" : "normal";
 }
 
-export function canCancel(role: "OWNER" | "STAFF", status: OrderStatus) {
-  return status === "NEW" || (role === "OWNER" && status === "READY");
+export function canCancel(status: OrderItemStatus) {
+  return status === "NEW";
 }
 
-export function recoveryOutcome(action: PendingKitchenAction, status: OrderStatus) {
+export function recoveryOutcome(action: PendingKitchenAction, status: OrderItemStatus | undefined) {
+  if (action.itemId === null) return "legacy-reviewed";
+  if (!status) return "missing";
   if (status === (action.kind === "ready" ? "READY" : "CANCELLED")) return "reached";
-  if (status !== action.expectedStatus) return "changed";
+  if (status !== "NEW") return "changed";
   return "confirm-again";
 }

@@ -21,6 +21,7 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
     private const string Password = "Kitchen-test-password-123";
     private const string List = "/api/staff/orders";
     private static string Path(Guid id) => $"{List}/{id}";
+    private static string ItemPath(OrderResponse order) => $"{Path(order.Id)}/items/{order.Items.Single().Id}";
     private sealed record Setup(RestaurantUser Staff, RestaurantUser Owner, RestaurantTable Table,
         MenuItem Item, OpenSessionResponse Opened)
     {
@@ -59,58 +60,56 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
         });
         var json = await staff.GetStringAsync(List);
         foreach (var secret in new[] { "clientRequestId", "joinCode", "passwordHash" }) Assert.DoesNotContain(secret, json);
-        foreach (var query in new[] { "?cursor=broken", "?status=bad", "?limit=0", "?limit=101", "?status=READY&cursor=" + first.NextCursor })
+        foreach (var query in new[] { "?cursor=broken", "?status=bad", "?limit=0", "?limit=101", "?status=PROCESSED&cursor=" + first.NextCursor })
             await AssertErrorAsync(await staff.GetAsync(List + query), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
         using var foreign = await LoginAsync(host, other.Staff);
         await AssertErrorAsync(await foreign.GetAsync(List + "?cursor=" + first.NextCursor), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
     }
 
     [Fact]
-    public async Task Transitions_RolesAndGuestRecovery_PreserveHistoryAndUpdateOnlyCancellationVersion()
+    public async Task Transitions_RolesAndGuestRecovery_PreserveSnapshotsAndOnlyCancelNewItems()
     {
         using var host = new AccountTestHost(database);
         var s = await SeedAsync(host);
-        var input = s.Input();
-        var a = await CreateAsync(host, s, input);
-        var b = await CreateAsync(host, s);
-        using var staff = await LoginAsync(host, s.Staff);
-        using var owner = await LoginAsync(host, s.Owner);
-        var ready = await PostAsync(staff, Path(a.Id) + "/ready", new { });
+        var input = s.Input() with { Items = [new(s.Item.Id, 3, 700, "少盐"), new(s.Item.Id, 1, 700, "正常")] };
+        var order = await CreateAsync(host, s, input);
+        var first = order.Items.Single(i => i.Quantity == 3); var second = order.Items.Single(i => i.Quantity == 1);
+        var firstPath = $"{Path(order.Id)}/items/{first.Id}";
+        var secondPath = $"{Path(order.Id)}/items/{second.Id}";
+        using var staff = await LoginAsync(host, s.Staff); using var owner = await LoginAsync(host, s.Owner);
+        var ready = await PostAsync(staff, firstPath + "/ready", new { });
         Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
-        var completed = (await ready.Content.ReadFromJsonAsync<KitchenOrderResponse>())!;
-        Assert.NotNull(completed.ReadyAt);
-        Assert.Equal(3, await VersionAsync(s));
-        await AssertErrorAsync(await PostAsync(staff, Path(a.Id) + "/ready", new { }), HttpStatusCode.Conflict, "ORDER_CHANGED");
-        await AssertErrorAsync(await PostAsync(staff, Path(a.Id) + "/cancel", new { expectedStatus = "READY", reason = "作废" }), HttpStatusCode.Forbidden, "FORBIDDEN");
-        await AssertErrorAsync(await PostAsync(owner, Path(a.Id) + "/cancel", new { expectedStatus = "NEW", reason = "旧确认" }), HttpStatusCode.Conflict, "ORDER_CHANGED");
+        var partial = (await ready.Content.ReadFromJsonAsync<KitchenOrderResponse>())!;
+        Assert.Equal("NEW", partial.Status); Assert.Null(partial.ProcessedAt);
+        Assert.Equal(3, partial.Items.Single(i => i.Id == first.Id).Quantity); Assert.Equal("READY", partial.Items.Single(i => i.Id == first.Id).Status);
+        Assert.Equal("NEW", partial.Items.Single(i => i.Id == second.Id).Status); Assert.Equal(2800, partial.PayableAmountCents);
+        Assert.Equal(2, await VersionAsync(s));
+        foreach (var client in new[] { staff, owner })
+            await AssertErrorAsync(await PostAsync(client, firstPath + "/cancel", new { }), HttpStatusCode.Conflict, "ORDER_ITEM_CHANGED");
+        await AssertErrorAsync(await PostAsync(staff, firstPath + "/ready", new { }), HttpStatusCode.Conflict, "ORDER_ITEM_CHANGED");
         host.Clock.Advance(TimeSpan.FromSeconds(2));
-        var cancellation = await PostAsync(owner, Path(a.Id) + "/cancel", new { expectedStatus = "READY", reason = "  顾客退单  " });
-        Assert.Equal(HttpStatusCode.OK, cancellation.StatusCode);
-        var cancelled = (await cancellation.Content.ReadFromJsonAsync<KitchenOrderResponse>())!;
-        Assert.Equal(completed.ReadyAt, cancelled.ReadyAt); Assert.Equal("顾客退单", cancelled.CancelReason);
-        Assert.Equal(700, cancelled.TotalAmountCents); Assert.NotNull(cancelled.CancelledAt);
-        await AssertErrorAsync(await PostAsync(owner, Path(a.Id) + "/cancel", new { expectedStatus = "READY", reason = "不能覆盖" }), HttpStatusCode.Conflict, "ORDER_CHANGED");
-        await AssertErrorAsync(await PostAsync(staff, Path(a.Id) + "/ready", new { }), HttpStatusCode.Conflict, "ORDER_CHANGED");
-        Assert.Equal(4, await VersionAsync(s));
+        var cancelled = (await (await PostAsync(staff, secondPath + "/cancel", new { })).Content.ReadFromJsonAsync<KitchenOrderResponse>())!;
+        Assert.Equal("PROCESSED", cancelled.Status); Assert.Equal("CANCELLED", cancelled.Items.Single(i => i.Id == second.Id).Status);
+        Assert.Equal(2800, cancelled.TotalAmountCents); Assert.Equal(2100, cancelled.PayableAmountCents);
+        Assert.Equal(cancelled.Items.Single(i => i.Id == second.Id).CancelledAt, cancelled.ProcessedAt); Assert.Null(cancelled.CancelReason);
+        Assert.Equal(partial.Items.Single(i => i.Id == first.Id).ReadyAt, cancelled.Items.Single(i => i.Id == first.Id).ReadyAt); Assert.Equal(3, await VersionAsync(s));
+        await AssertErrorAsync(await PostAsync(owner, secondPath + "/cancel", new { }), HttpStatusCode.Conflict, "ORDER_ITEM_CHANGED");
+        await AssertErrorAsync(await PostAsync(owner, secondPath + "/ready", new { }), HttpStatusCode.Conflict, "ORDER_ITEM_CHANGED");
+        Assert.Equal(HttpStatusCode.NotFound, (await PostAsync(staff, Path(order.Id) + "/ready", new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await PostAsync(staff, Path(order.Id) + "/cancel", new { })).StatusCode);
         using var guest = host.Browser();
         var token = (await guest.GetFromJsonAsync<Token>("/api/public/csrf"))!.Value;
         Assert.Equal(HttpStatusCode.OK, (await PostAsync(guest, $"/api/public/qr/{s.Table.QrToken}/join",
             new JoinInput(s.Guest.SessionId, s.Opened.JoinCode), token)).StatusCode);
         var page = (await guest.GetFromJsonAsync<OrderPage>($"/api/public/sessions/{s.Guest.SessionId}/orders"))!;
-        Assert.Equal(700, page.TotalAmountCents);
-        Assert.Equal("CANCELLED", page.Items.Single(o => o.Id == a.Id).Status);
-        await using (var db = database.CreateContext())
-        {
-            var recovered = await new OrderService(db, host.Clock).CreateAsync(s.Guest, input, default);
-            Assert.False(recovered.Created); Assert.Equal("CANCELLED", recovered.Order.Status);
-        }
-        Assert.Equal(HttpStatusCode.OK, (await PostAsync(staff, Path(b.Id) + "/cancel", new { expectedStatus = "NEW", reason = "重复点单" })).StatusCode);
-        Assert.Equal(5, await VersionAsync(s));
-        await AssertErrorAsync(await PostAsync(staff, $"/api/staff/sessions/{s.Guest.SessionId}/close-empty",
-            new CloseZeroBillInput(5, 0, true)), HttpStatusCode.Conflict, "SESSION_HAS_ORDERS");
-        var queue = (await staff.GetFromJsonAsync<KitchenPage>(List + "?status=CANCELLED"))!;
-        Assert.Equal(2, queue.TotalCount); Assert.Equal(0, queue.PendingCount); Assert.Equal(2, queue.CreatedOrderCount);
-        Assert.Equal("顾客退单", (await staff.GetFromJsonAsync<KitchenOrderResponse>(Path(a.Id)))!.CancelReason);
+        Assert.Equal(2100, page.TotalAmountCents); Assert.Equal("CANCELLED", page.Items.Single().Items.Single(i => i.Id == second.Id).Status);
+        await using var db = database.CreateContext();
+        var recovered = await new OrderService(db, host.Clock).CreateAsync(s.Guest, input, default);
+        Assert.False(recovered.Created); Assert.Equal(2800, recovered.Order.TotalAmountCents); Assert.Equal(2100, recovered.Order.PayableAmountCents);
+        var bill = await SessionSummaries.ReadAsync(db, s.RestaurantId, s.Guest.SessionId, default);
+        Assert.Equal(2, bill.ItemCount); Assert.Equal(0, bill.NewItemCount); Assert.Equal(1, bill.CancelledItemCount);
+        var closed = await new BillingService(db, host.Clock).CheckoutAsync(s.RestaurantId, s.Guest.SessionId, new(3, 2100), default);
+        Assert.Equal(2100, closed.TotalAmountCents);
     }
 
     [Fact]
@@ -123,19 +122,17 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
         using var foreign = await LoginAsync(host, other.Owner);
         foreach (var url in new[] { List, Path(order.Id) })
             await AssertErrorAsync(await anonymous.GetAsync(url), HttpStatusCode.Unauthorized, "UNAUTHENTICATED");
-        await AssertErrorAsync(await staff.PostAsJsonAsync(Path(order.Id) + "/ready", new { }), HttpStatusCode.BadRequest, "CSRF_VALIDATION_FAILED");
-        await AssertErrorAsync(await staff.PostAsJsonAsync(Path(order.Id) + "/cancel", new { expectedStatus = "NEW", reason = "取消" }), HttpStatusCode.BadRequest, "CSRF_VALIDATION_FAILED");
+        await AssertErrorAsync(await staff.PostAsJsonAsync(ItemPath(order) + "/ready", new { }), HttpStatusCode.BadRequest, "CSRF_VALIDATION_FAILED");
+        await AssertErrorAsync(await staff.PostAsJsonAsync(ItemPath(order) + "/cancel", new { expectedStatus = "NEW", reason = "取消" }), HttpStatusCode.BadRequest, "CSRF_VALIDATION_FAILED");
         await AssertErrorAsync(await foreign.GetAsync(Path(order.Id)), HttpStatusCode.NotFound, "ORDER_NOT_FOUND");
-        await AssertErrorAsync(await PostAsync(foreign, Path(order.Id) + "/ready", new { }), HttpStatusCode.NotFound, "ORDER_NOT_FOUND");
-        await AssertErrorAsync(await PostAsync(foreign, Path(order.Id) + "/cancel", new { expectedStatus = "NEW", reason = "取消" }), HttpStatusCode.NotFound, "ORDER_NOT_FOUND");
-        foreach (var body in new object[] { new { }, new { expectedStatus = "CANCELLED", reason = "取消" },
-            new { expectedStatus = "NEW", reason = " \t " }, new { expectedStatus = "NEW", reason = new string('x', 501) },
-            new { expectedStatus = "NEW", reason = "取消", restaurantId = s.RestaurantId } })
-            await AssertErrorAsync(await PostAsync(staff, Path(order.Id) + "/cancel", body), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
+        await AssertErrorAsync(await PostAsync(foreign, ItemPath(order) + "/ready", new { }), HttpStatusCode.NotFound, "ORDER_ITEM_NOT_FOUND");
+        await AssertErrorAsync(await PostAsync(foreign, ItemPath(order) + "/cancel", new { }), HttpStatusCode.NotFound, "ORDER_ITEM_NOT_FOUND");
+        var another = await CreateAsync(host, s);
+        await AssertErrorAsync(await PostAsync(staff, $"{Path(order.Id)}/items/{another.Items.Single().Id}/cancel", new { }), HttpStatusCode.NotFound, "ORDER_ITEM_NOT_FOUND");
         await using var db = database.CreateContext();
         await db.RestaurantUsers.Where(u => u.Id == s.Staff.Id).ExecuteUpdateAsync(u => u.SetProperty(x => x.MustChangePassword, true));
         await AssertErrorAsync(await staff.GetAsync(List), HttpStatusCode.Forbidden, "PASSWORD_CHANGE_REQUIRED");
-        await AssertErrorAsync(await PostAsync(staff, Path(order.Id) + "/ready", new { }), HttpStatusCode.Forbidden, "PASSWORD_CHANGE_REQUIRED");
+        await AssertErrorAsync(await PostAsync(staff, ItemPath(order) + "/ready", new { }), HttpStatusCode.Forbidden, "PASSWORD_CHANGE_REQUIRED");
     }
 
     [Fact]
@@ -146,19 +143,19 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
         var a = await CreateAsync(host, s); var b = await CreateAsync(host, s); var c = await CreateAsync(host, s);
         await using var db = database.CreateContext();
         var service = new KitchenService(db, host.Clock);
-        await service.ReadyAsync(s.RestaurantId, b.Id, default);
+        await service.ReadyAsync(s.RestaurantId, b.Id, b.Items.Single().Id, default);
         host.Clock.Advance(TimeSpan.FromSeconds(1));
-        await service.ReadyAsync(s.RestaurantId, a.Id, default);
-        await service.ReadyAsync(s.RestaurantId, c.Id, default);
-        var first = await service.ListAsync(s.RestaurantId, "READY", null, 1, default);
-        var rest = await service.ListAsync(s.RestaurantId, "READY", first.NextCursor, 100, default);
+        await service.ReadyAsync(s.RestaurantId, a.Id, a.Items.Single().Id, default);
+        await service.ReadyAsync(s.RestaurantId, c.Id, c.Items.Single().Id, default);
+        var first = await service.ListAsync(s.RestaurantId, "PROCESSED", null, 1, default);
+        var rest = await service.ListAsync(s.RestaurantId, "PROCESSED", first.NextCursor, 100, default);
         Assert.Equal(new[] { c.Id, a.Id, b.Id }, first.Items.Concat(rest.Items).Select(x => x.Id));
         await CloseForTest(db, s, host.Clock);
-        var empty = await service.ListAsync(s.RestaurantId, "READY", null, 50, default);
+        var empty = await service.ListAsync(s.RestaurantId, "PROCESSED", null, 50, default);
         Assert.Empty(empty.Items); Assert.Equal(0, empty.TotalCount); Assert.Equal(3, empty.CreatedOrderCount);
         Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => service.ReadAsync(s.RestaurantId, a.Id, default))).Code);
-        Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => service.ReadyAsync(s.RestaurantId, b.Id, default))).Code);
-        Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => service.CancelAsync(s.RestaurantId, a.Id, RestaurantUserRole.Owner, new("READY", "取消"), default))).Code);
+        Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => service.ReadyAsync(s.RestaurantId, b.Id, b.Items.Single().Id, default))).Code);
+        Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => service.CancelAsync(s.RestaurantId, a.Id, a.Items.Single().Id, default))).Code);
     }
 
     [Fact]
@@ -171,12 +168,12 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
         await db.RestaurantTables.Where(x => x.Id == s.Table.Id).ExecuteUpdateAsync(u => u.SetProperty(x => x.IsEnabled, false));
         var service = new KitchenService(db, host.Clock);
         Assert.Equal(2, (await service.ListAsync(s.RestaurantId, "NEW", null, 50, default)).TotalCount);
-        await service.ReadyAsync(s.RestaurantId, a.Id, default);
-        await service.CancelAsync(s.RestaurantId, a.Id, RestaurantUserRole.Owner, new("READY", "取消"), default);
+        await service.ReadyAsync(s.RestaurantId, a.Id, a.Items.Single().Id, default);
+        Assert.Equal("ORDER_ITEM_CHANGED", (await Assert.ThrowsAsync<ApiException>(() => service.CancelAsync(s.RestaurantId, a.Id, a.Items.Single().Id, default))).Code);
         await db.DiningSessions.Where(x => x.Id == s.Guest.SessionId).ExecuteUpdateAsync(u => u.SetProperty(x => x.BillVersion, int.MaxValue));
-        Assert.Equal("BILL_LIMIT_REACHED", (await Assert.ThrowsAsync<ApiException>(() => service.CancelAsync(s.RestaurantId, b.Id, RestaurantUserRole.Staff, new("NEW", "取消"), default))).Code);
+        Assert.Equal("BILL_LIMIT_REACHED", (await Assert.ThrowsAsync<ApiException>(() => service.CancelAsync(s.RestaurantId, b.Id, b.Items.Single().Id, default))).Code);
         Assert.Equal("NEW", (await service.ReadAsync(s.RestaurantId, b.Id, default)).Status);
-        await service.ReadyAsync(s.RestaurantId, b.Id, default);
+        await service.ReadyAsync(s.RestaurantId, b.Id, b.Items.Single().Id, default);
         Assert.Equal(int.MaxValue, await VersionAsync(s));
     }
 
@@ -192,16 +189,16 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
             var service = new KitchenService(db, host.Clock);
             return await Record.ExceptionAsync(async () =>
             {
-                if (cancel) await service.CancelAsync(s.RestaurantId, order.Id, RestaurantUserRole.Owner, new("NEW", "首个原因"), default);
-                else await service.ReadyAsync(s.RestaurantId, order.Id, default);
+                if (cancel) await service.CancelAsync(s.RestaurantId, order.Id, order.Items.Single().Id, default);
+                else await service.ReadyAsync(s.RestaurantId, order.Id, order.Items.Single().Id, default);
             });
         }
         var errors = await Task.WhenAll(Attempt(cancelA), Attempt(cancelB));
         Assert.Single(errors, e => e is null);
-        Assert.Equal("ORDER_CHANGED", Assert.IsType<ApiException>(errors.Single(e => e is not null)).Code);
+        Assert.Equal("ORDER_ITEM_CHANGED", Assert.IsType<ApiException>(errors.Single(e => e is not null)).Code);
         await using var check = database.CreateContext();
-        var saved = await check.Orders.SingleAsync(o => o.Id == order.Id);
-        Assert.Equal(saved.Status == OrderStatus.Cancelled ? 3 : 2, await VersionAsync(s));
+        var saved = await check.OrderItems.SingleAsync(i => i.OrderId == order.Id);
+        Assert.Equal(saved.Status == OrderItemStatus.Cancelled ? 3 : 2, await VersionAsync(s));
     }
 
     [Fact]
@@ -209,15 +206,15 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
     {
         using var host = new AccountTestHost(database);
         var s = await SeedAsync(host); var a = await CreateAsync(host, s); var b = await CreateAsync(host, s);
-        async Task Cancel(Guid id)
+        async Task Cancel(OrderResponse order)
         {
             await using var db = database.CreateContext();
-            await new KitchenService(db, host.Clock).CancelAsync(s.RestaurantId, id, RestaurantUserRole.Staff, new("NEW", "取消"), default);
+            await new KitchenService(db, host.Clock).CancelAsync(s.RestaurantId, order.Id, order.Items.Single().Id, default);
         }
-        await Task.WhenAll(Cancel(a.Id), Cancel(b.Id), CreateAsync(host, s));
+        await Task.WhenAll(Cancel(a), Cancel(b), CreateAsync(host, s));
         Assert.Equal(6, await VersionAsync(s));
         await using var check = database.CreateContext();
-        Assert.Equal(700, await check.Orders.Where(o => o.DiningSessionId == s.Guest.SessionId && o.Status != OrderStatus.Cancelled).SumAsync(o => o.TotalAmountCents));
+        Assert.Equal(700, await check.Orders.Where(o => o.DiningSessionId == s.Guest.SessionId).SelectMany(o => o.Items).Where(i => i.Status != OrderItemStatus.Cancelled).SumAsync(i => i.UnitPriceCents * i.Quantity));
     }
 
     [Fact]
@@ -227,10 +224,10 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
         var s = await SeedAsync(host); var order = await CreateAsync(host, s);
         await using var db = Intercepted(new FailVersion());
         await Assert.ThrowsAsync<InvalidOperationException>(() => new KitchenService(db, host.Clock)
-            .CancelAsync(s.RestaurantId, order.Id, RestaurantUserRole.Staff, new("NEW", "取消"), default));
+            .CancelAsync(s.RestaurantId, order.Id, order.Items.Single().Id, default));
         await using var check = database.CreateContext();
-        var saved = await check.Orders.SingleAsync(o => o.Id == order.Id);
-        Assert.Equal(OrderStatus.New, saved.Status); Assert.Null(saved.CancelledAt); Assert.Null(saved.CancelReason);
+        var saved = await check.OrderItems.SingleAsync(i => i.OrderId == order.Id);
+        Assert.Equal(OrderItemStatus.New, saved.Status); Assert.Null(saved.CancelledAt);
         Assert.Equal(2, await VersionAsync(s));
     }
 
@@ -251,7 +248,7 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
             await tx.CommitAsync();
         }
         Task<KitchenOrderResponse> Cancel() => new KitchenService(cancelDb, host.Clock)
-            .CancelAsync(s.RestaurantId, order.Id, RestaurantUserRole.Staff, new("NEW", "取消"), default);
+            .CancelAsync(s.RestaurantId, order.Id, order.Items.Single().Id, default);
         Task<KitchenOrderResponse>? cancelling = cancelFirst ? Cancel() : null;
         Task? closing = cancelFirst ? null : Close();
         try
@@ -263,9 +260,64 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
         }
         finally { gate.Release.TrySetResult(); }
         await closing!;
-        if (cancelFirst) Assert.Equal("CANCELLED", (await cancelling!).Status);
+        if (cancelFirst) Assert.Equal("CANCELLED", (await cancelling!).Items.Single().Status);
         else Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => cancelling!)).Code);
         Assert.Equal(cancelFirst ? 3 : 2, await VersionAsync(s));
+    }
+
+    [Fact]
+    public async Task Changes_DifferentItemsConcurrently_ProcessesOrderAndCountsEachCancellationOnce()
+    {
+        using var host = new AccountTestHost(database); var s = await SeedAsync(host);
+        var order = await CreateAsync(host, s, s.Input() with { Items = [new(s.Item.Id, 3, 700, "少盐"), new(s.Item.Id, 2, 700, "正常")] });
+        async Task Cancel(Guid itemId)
+        {
+            await using var db = database.CreateContext();
+            await new KitchenService(db, host.Clock).CancelAsync(s.RestaurantId, order.Id, itemId, default);
+        }
+        await Task.WhenAll(order.Items.Select(i => Cancel(i.Id)));
+        await using var check = database.CreateContext();
+        var result = await new KitchenService(check, host.Clock).ReadAsync(s.RestaurantId, order.Id, default);
+        Assert.Equal("PROCESSED", result.Status); Assert.Equal(3500, result.TotalAmountCents); Assert.Equal(0, result.PayableAmountCents);
+        Assert.All(result.Items, i => { Assert.Equal("CANCELLED", i.Status); Assert.Null(i.ReadyAt); });
+        var bill = await SessionSummaries.ReadAsync(check, s.RestaurantId, s.Guest.SessionId, default);
+        Assert.Equal(4, bill.BillVersion); Assert.Equal(2, bill.ItemCount); Assert.Equal(2, bill.CancelledItemCount);
+        var closed = await new BillingService(check, host.Clock).CloseVoidAsync(s.RestaurantId, s.Guest.SessionId, new(4, 0, true), default);
+        Assert.Equal("VOIDED", closed.CloseReason);
+    }
+
+    [Fact]
+    public async Task Processing_ClockMovesBackwards_UsesLatestItemTimeAndKeepsPendingBillBlocked()
+    {
+        using var host = new AccountTestHost(database); var s = await SeedAsync(host);
+        var order = await CreateAsync(host, s, s.Input() with { Items = [new(s.Item.Id, 1, 700, "A"), new(s.Item.Id, 1, 700, "B")] });
+        await using var db = database.CreateContext(); var kitchen = new KitchenService(db, host.Clock);
+        host.Clock.Advance(TimeSpan.FromMinutes(5));
+        var first = await kitchen.ReadyAsync(s.RestaurantId, order.Id, order.Items[0].Id, default);
+        var billing = new BillingService(db, host.Clock);
+        Assert.Equal("ORDERS_PENDING", (await Assert.ThrowsAsync<ApiException>(() => billing.CheckoutAsync(s.RestaurantId, s.Guest.SessionId, new(2, 1400), default))).Code);
+        host.Clock.Advance(TimeSpan.FromMinutes(-10));
+        var last = await kitchen.CancelAsync(s.RestaurantId, order.Id, order.Items[1].Id, default);
+        Assert.Equal(order.CreatedAt, last.Items[1].CancelledAt);
+        Assert.Equal(first.Items[0].ReadyAt, last.ProcessedAt);
+        var closed = await billing.CheckoutAsync(s.RestaurantId, s.Guest.SessionId, new(3, 700), default);
+        Assert.Equal(last.ProcessedAt, closed.ClosedAt);
+    }
+
+    [Fact]
+    public async Task Create_PartiallyCancelledBill_UsesRemainingReceivablesForSafeIntegerLimit()
+    {
+        using var host = new AccountTestHost(database); var s = await SeedAsync(host);
+        const long price = InputRules.MaxSafeCents / 2;
+        await using var db = database.CreateContext();
+        await db.MenuItems.Where(i => i.Id == s.Item.Id).ExecuteUpdateAsync(u => u.SetProperty(i => i.PriceCents, price));
+        var input = s.Input() with { Items = [new(s.Item.Id, 1, price, "A"), new(s.Item.Id, 1, price, "B")] };
+        var order = await CreateAsync(host, s, input);
+        await new KitchenService(db, host.Clock).CancelAsync(s.RestaurantId, order.Id, order.Items[0].Id, default);
+        var single = s.Input() with { Items = [new(s.Item.Id, 1, price, null)] };
+        await CreateAsync(host, s, single);
+        Assert.Equal("BILL_LIMIT_REACHED", (await Assert.ThrowsAsync<ApiException>(() => CreateAsync(host, s, single with { ClientRequestId = Guid.NewGuid() }))).Code);
+        Assert.Equal(price * 2, (await SessionSummaries.ReadAsync(db, s.RestaurantId, s.Guest.SessionId, default)).TotalAmountCents);
     }
 
     private async Task<Setup> SeedAsync(AccountTestHost host)
@@ -306,7 +358,7 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
     private sealed record Token([property: System.Text.Json.Serialization.JsonPropertyName("token")] string Value);
     private static async Task CloseForTest(ApplicationDbContext db, Setup s, TimeProvider clock)
     {
-        var total = await db.Orders.Where(o => o.DiningSessionId == s.Guest.SessionId && o.Status != OrderStatus.Cancelled).SumAsync(o => o.TotalAmountCents);
+        var total = await db.Orders.Where(o => o.DiningSessionId == s.Guest.SessionId).SelectMany(o => o.Items).Where(i => i.Status != OrderItemStatus.Cancelled).SumAsync(i => i.UnitPriceCents * i.Quantity);
         await db.DiningSessions.Where(x => x.Id == s.Guest.SessionId).ExecuteUpdateAsync(u => u
             .SetProperty(x => x.Status, DiningSessionStatus.Closed).SetProperty(x => x.JoinCodeCiphertext, (string?)null)
             .SetProperty(x => x.ClosedAt, clock.GetUtcNow().UtcDateTime).SetProperty(x => x.CloseReason, SessionCloseReason.Paid)

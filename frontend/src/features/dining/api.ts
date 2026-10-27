@@ -11,7 +11,7 @@ export type FloorTable = {
     id: string;
     openedAt: string;
     orderCount: number;
-    newOrderCount: number;
+    newItemCount: number;
     totalAmountCents: number;
   } | null;
 };

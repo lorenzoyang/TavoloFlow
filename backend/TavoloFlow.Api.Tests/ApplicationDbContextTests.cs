@@ -232,10 +232,10 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
     [InlineData("closed_without_reason", "ck_session_lifecycle")]
     [InlineData("closed_before_open", "ck_session_close_time")]
     [InlineData("active_without_table", "ck_session_active_table")]
-    [InlineData("ready_without_timestamp", "ck_order_lifecycle")]
-    [InlineData("cancelled_without_reason", "ck_order_lifecycle")]
-    [InlineData("cancelled_with_blank_reason", "ck_order_lifecycle")]
-    [InlineData("ready_before_creation", "ck_order_transition_times")]
+    [InlineData("processed_without_timestamp", "ck_order_lifecycle")]
+    [InlineData("item_ready_without_timestamp", "ck_order_item_lifecycle")]
+    [InlineData("item_cancelled_without_timestamp", "ck_order_item_lifecycle")]
+    [InlineData("processed_before_creation", "ck_order_transition_times")]
     public async Task Update_InvalidRecord_RejectsCheckConstraint(string scenario, string constraint)
     {
         var visit = await SeedVisitAsync();
@@ -254,10 +254,10 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
             "closed_without_reason" => $"UPDATE dining_sessions SET status = 'CLOSED', closed_at = now(), closed_total_cents = 0, join_code_ciphertext = NULL WHERE id = {visit.SessionId}",
             "closed_before_open" => $"UPDATE dining_sessions SET status = 'CLOSED', closed_at = opened_at - interval '1 second', close_reason = 'EMPTY', closed_total_cents = 0, join_code_ciphertext = NULL WHERE id = {visit.SessionId}",
             "active_without_table" => $"UPDATE dining_sessions SET table_id = NULL WHERE id = {visit.SessionId}",
-            "ready_without_timestamp" => $"UPDATE orders SET status = 'READY' WHERE id = {order.Id}",
-            "cancelled_without_reason" => $"UPDATE orders SET status = 'CANCELLED', cancelled_at = now() WHERE id = {order.Id}",
-            "cancelled_with_blank_reason" => $"UPDATE orders SET status = 'CANCELLED', cancelled_at = now(), cancel_reason = E' \\t' WHERE id = {order.Id}",
-            "ready_before_creation" => $"UPDATE orders SET status = 'READY', ready_at = created_at - interval '1 second' WHERE id = {order.Id}",
+            "processed_without_timestamp" => $"UPDATE orders SET status = 'PROCESSED' WHERE id = {order.Id}",
+            "item_ready_without_timestamp" => $"UPDATE order_items SET status = 'READY' WHERE id = {line.Id}",
+            "item_cancelled_without_timestamp" => $"UPDATE order_items SET status = 'CANCELLED' WHERE id = {line.Id}",
+            "processed_before_creation" => $"UPDATE orders SET status = 'PROCESSED', processed_at = created_at - interval '1 second' WHERE id = {order.Id}",
             _ => throw new ArgumentOutOfRangeException(nameof(scenario))
         };
         var error = await Assert.ThrowsAsync<PostgresException>(() => context.Database.ExecuteSqlInterpolatedAsync(sql));

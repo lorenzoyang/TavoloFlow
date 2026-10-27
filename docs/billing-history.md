@@ -1,6 +1,6 @@
 # 第七阶段：结账与历史
 
-本阶段完成“核对整桌账单 → 线下收款 → PAID 关桌 → 顾客授权失效 → 查询历史”，并补齐全部订单取消后的 VOIDED 关闭。
+本阶段完成“核对整桌账单 → 线下收款 → PAID 关桌 → 顾客授权失效 → 查询历史”，并补齐全部菜品取消后的 VOIDED 关闭。
 老板从导航的「结账」进入 `/staff/orders`（也可以在「桌台」打开本桌详情直接结账）；历史入口是首页「管理」中的「历史账单」（`/staff/history`）。员工在 `/staff/floor` 查看活动账单并关闭 EMPTY / VOIDED。
 继续使用九张表和已有迁移，没有增加支付交易、支付方式、退款、关桌备注、操作人字段或运行时依赖。
 
@@ -34,18 +34,18 @@ Controller 验证访问策略、接收 DTO、读取可信餐厅；Service 负责
 
 ```text
 sessionId, tableId, tableLabel, status, openedAt, closedAt, closeReason,
-billVersion, orderCount, newOrderCount, cancelledOrderCount, totalAmountCents
+billVersion, orderCount, itemCount, newItemCount, cancelledItemCount, totalAmountCents
 ```
 
-订单复用厨房的快照 DTO，包含订单状态、原金额、菜名、单价、数量、备注、完成/取消时间和取消原因。
+订单复用厨房的快照 DTO，包含整单 NEW/PROCESSED 状态、原金额、应收金额及逐项 NEW/READY/CANCELLED、完成/取消时间、菜名、单价、数量和备注。取消原因只显示旧整单历史值，新操作不填写原因。
 明细按 `(created_at, id)` 升序分页；游标绑定餐厅、Session、活动/历史模式和 `billVersion`。
 活动账单版本变化后继续使用旧游标会得到 `409 BILL_CHANGED`，前端从第一页重新读取。
 READY 不增加账单版本；每次轮询重新读取已加载分页，以获得处理状态更新。
 同一响应内的金额、计数与明细在 Session SHARE 锁保护下读取；跨请求分页不表示冻结的数据库快照。
 
-`totalAmountCents` 始终是整桌金额，不受分页影响。活动用餐排除 CANCELLED 订单；历史读取 `closed_total_cents`。
-取消订单的原金额和明细继续保留，界面划掉原金额并显示原因。
-floor 中的活动 Session 摘要增加 `orderCount`、`newOrderCount` 和 `totalAmountCents`，同一次 Repeatable Read 快照读取桌位与汇总。
+`totalAmountCents` 始终是整桌金额，不受分页影响。活动用餐累计非 CANCELLED 明细的单价乘数量；历史读取 `closed_total_cents`。
+取消菜品的原金额和明细继续保留，界面划掉该行原金额并标记不计应收；订单 payableAmountCents 为剩余应收。
+floor 中的活动 Session 摘要增加 `orderCount`、`newItemCount` 和 `totalAmountCents`，同一次 Repeatable Read 快照读取桌位与汇总。
 
 ## 3. 三种关闭与事务
 
@@ -53,7 +53,7 @@ floor 中的活动 Session 摘要增加 `orderCount`、`newOrderCount` 和 `tota
 |---|---|---|
 | PAID | 正数应收、没有 NEW、版本和确认金额一致，已经完成线下收款 | OWNER |
 | EMPTY | 从未产生任何订单，确认金额为零、版本一致、确认顾客离桌 | STAFF / OWNER |
-| VOIDED | 存在订单且全部 CANCELLED，确认金额为零、版本一致、确认顾客离桌 | STAFF / OWNER |
+| VOIDED | 存在订单且所有明细全部 CANCELLED，确认金额为零、版本一致、确认顾客离桌 | STAFF / OWNER |
 
 只有零金额不足以允许 VOIDED；从未下单不能使用 VOIDED，全部取消也不能使用 EMPTY。
 界面里的“已完成线下收款”是老板确认；系统不接入支付渠道，不能验证线下款项是否实际到账。
@@ -130,7 +130,7 @@ sequenceDiagram
 
 1. 顾客点两单。老板打开结账页，观察有 NEW 时不能收款；厨房完成后，应收不变，收款入口出现。
 2. 老板核对 €15 并进入确认，另一设备再加单。刷新后原确认失效；即使没有刷新就提交，服务器也返回 `BILL_CHANGED`，不能按 €15 关闭。
-3. 取消全部订单，用 STAFF 关闭 VOIDED。另开一轮不下单，关闭 EMPTY，比较两条历史的原因。
+3. 取消全部待出餐菜品，用 STAFF 关闭 VOIDED。另开一轮不下单，关闭 EMPTY，比较两条历史的原因。
 4. 用浏览器拦截 checkout 响应，模拟数据库已成功但响应丢失。刷新，观察只 GET 原 Session，Network 中不会自动出现第二次 checkout POST。
 5. PAID 关闭后刷新顾客页，核对结束提示、购物车和订单清理；重新开同桌，旧授权仍不可用。
 6. 删除已关闭账单关联的菜品和桌位，按旧桌号查询历史，核对菜名、单价、备注与金额。
@@ -167,7 +167,7 @@ npm run lint
 
 浏览器实际覆盖：NEW 阻止收款；另一顾客加单导致提交冲突；PAID 成功响应丢失后刷新并只 GET 恢复；顾客结束状态；STAFF 的 VOIDED / EMPTY；STAFF 直接访问老板页面不发送受限业务查询；餐厅当天历史、桌号/原因筛选；删菜、删桌后快照不变。
 
-额外用 52 笔订单验证活动/历史明细分页、取消订单的原金额与原因、后台刷新后旧确认金额保持不变且不可提交、断网恢复后重新确认、原关闭请求未到服务器时刷新只读核对 ACTIVE、页面隐藏后丢弃迟到响应并恢复实际关闭状态、退出登录后历史不可访问。自动恢复均未增加关闭 POST 次数。
+额外用 52 笔订单验证活动/历史明细分页、取消明细的原金额和状态、后台刷新后旧确认金额保持不变且不可提交、断网恢复后重新确认、原关闭请求未到服务器时刷新只读核对 ACTIVE、页面隐藏后丢弃迟到响应并恢复实际关闭状态、退出登录后历史不可访问。自动恢复均未增加关闭 POST 次数。
 
 截图为虚构验收数据，可点击查看完整页面：
 

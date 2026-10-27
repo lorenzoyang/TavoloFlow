@@ -22,7 +22,7 @@ export function TableTile({
 }) {
   const session = table.session;
   const status = session
-    ? `用餐中，${session.newOrderCount ? `待出餐 ${session.newOrderCount} 笔，` : ""}${formatMoney(session.totalAmountCents)}`
+    ? `用餐中，${session.newItemCount ? `待出餐 ${session.newItemCount} 项，` : ""}${formatMoney(session.totalAmountCents)}`
     : table.isEnabled
       ? "空桌，点按开桌"
       : "已停用";
@@ -46,9 +46,9 @@ export function TableTile({
       <span className="pr-8 text-2xl leading-tight font-semibold wrap-break-word">
         {table.tableLabel}
       </span>
-      {session && session.newOrderCount > 0 && (
+      {session && session.newItemCount > 0 && (
         <Badge variant="warning" className="absolute top-2.5 right-2.5">
-          {session.newOrderCount}
+          {session.newItemCount}
         </Badge>
       )}
       {!session && table.isEnabled && (

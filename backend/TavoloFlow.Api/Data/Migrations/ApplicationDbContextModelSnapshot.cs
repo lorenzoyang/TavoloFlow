@@ -251,10 +251,6 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("cancel_reason");
 
-                    b.Property<DateTime?>("CancelledAt")
-                        .HasColumnType("timestamptz")
-                        .HasColumnName("cancelled_at");
-
                     b.Property<Guid>("ClientRequestId")
                         .HasColumnType("uuid")
                         .HasColumnName("client_request_id");
@@ -279,9 +275,9 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("order_note");
 
-                    b.Property<DateTime?>("ReadyAt")
+                    b.Property<DateTime?>("ProcessedAt")
                         .HasColumnType("timestamptz")
-                        .HasColumnName("ready_at");
+                        .HasColumnName("processed_at");
 
                     b.Property<Guid>("RestaurantId")
                         .HasColumnType("uuid")
@@ -309,7 +305,9 @@ namespace TavoloFlow.Api.Data.Migrations
 
                     b.HasIndex("DiningSessionId", "RestaurantId");
 
-                    b.HasIndex("RestaurantId", "Status", "CreatedAt");
+                    b.HasIndex("RestaurantId", "Status", "CreatedAt", "Id");
+
+                    b.HasIndex("RestaurantId", "Status", "ProcessedAt", "Id");
 
                     b.ToTable("orders", null, t =>
                         {
@@ -317,11 +315,11 @@ namespace TavoloFlow.Api.Data.Migrations
 
                             t.HasCheckConstraint("ck_order_language", "default_language_snapshot IN ('zh', 'it', 'en')");
 
-                            t.HasCheckConstraint("ck_order_lifecycle", "(status = 'NEW' AND ready_at IS NULL AND cancelled_at IS NULL AND cancel_reason IS NULL) OR (status = 'READY' AND ready_at IS NOT NULL AND cancelled_at IS NULL AND cancel_reason IS NULL) OR (status = 'CANCELLED' AND cancelled_at IS NOT NULL AND cancel_reason IS NOT NULL AND cancel_reason ~ '[^[:space:]]')");
+                            t.HasCheckConstraint("ck_order_lifecycle", "(status = 'NEW' AND processed_at IS NULL) OR (status = 'PROCESSED' AND processed_at IS NOT NULL)");
 
-                            t.HasCheckConstraint("ck_order_status", "status IN ('NEW', 'READY', 'CANCELLED')");
+                            t.HasCheckConstraint("ck_order_status", "status IN ('NEW', 'PROCESSED')");
 
-                            t.HasCheckConstraint("ck_order_transition_times", "(ready_at IS NULL OR ready_at >= created_at) AND (cancelled_at IS NULL OR cancelled_at >= created_at) AND (ready_at IS NULL OR cancelled_at IS NULL OR cancelled_at >= ready_at)");
+                            t.HasCheckConstraint("ck_order_transition_times", "processed_at IS NULL OR processed_at >= created_at");
                         });
                 });
 
@@ -337,6 +335,10 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("text[]")
                         .HasColumnName("allergen_codes_snapshot")
                         .HasDefaultValueSql("'{}'::text[]");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("cancelled_at");
 
                     b.Property<string>("ItemCodeSnapshot")
                         .HasMaxLength(40)
@@ -370,6 +372,10 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("quantity");
 
+                    b.Property<DateTime?>("ReadyAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("ready_at");
+
                     b.Property<string>("Remark")
                         .HasColumnType("text")
                         .HasColumnName("remark");
@@ -377,6 +383,13 @@ namespace TavoloFlow.Api.Data.Migrations
                     b.Property<Guid>("RestaurantId")
                         .HasColumnType("uuid")
                         .HasColumnName("restaurant_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasDefaultValue("NEW")
+                        .HasColumnName("status");
 
                     b.Property<long>("UnitPriceCents")
                         .HasColumnType("bigint")
@@ -394,7 +407,11 @@ namespace TavoloFlow.Api.Data.Migrations
                         {
                             t.HasCheckConstraint("ck_order_item_has_name", "concat(name_zh_snapshot, name_it_snapshot, name_en_snapshot) ~ '[^[:space:]]'");
 
+                            t.HasCheckConstraint("ck_order_item_lifecycle", "(status = 'NEW' AND ready_at IS NULL AND cancelled_at IS NULL) OR (status = 'READY' AND ready_at IS NOT NULL AND cancelled_at IS NULL) OR (status = 'CANCELLED' AND cancelled_at IS NOT NULL AND (ready_at IS NULL OR cancelled_at >= ready_at))");
+
                             t.HasCheckConstraint("ck_order_item_quantity", "quantity > 0");
+
+                            t.HasCheckConstraint("ck_order_item_status", "status IN ('NEW', 'READY', 'CANCELLED')");
 
                             t.HasCheckConstraint("ck_order_item_unit_price", "unit_price_cents >= 0");
                         });

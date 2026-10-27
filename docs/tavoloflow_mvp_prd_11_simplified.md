@@ -52,7 +52,7 @@
 |---|---|
 | **顾客 GUEST** | 无须账号；扫码看公开菜单、编辑本地购物车，输入本轮入桌码后下单/加单、查看本轮整桌已提交订单、主动查看入桌码 |
 | **员工 STAFF** | 开桌、查看本轮入桌码、厨房 READY 操作、取消 `NEW`、切换售罄、停止/恢复接单、查看活动桌与账单；按条件关空账单 |
-| **老板 OWNER** | 具有 STAFF 能力；编辑菜单和过敏原、管理桌位/二维码、`READY` 订单作废、确认线下收款并 `PAID` 清桌、查看历史、重置店铺员工密码 |
+| **老板 OWNER** | 具有 STAFF 能力；编辑菜单和过敏原、管理桌位/二维码、确认线下收款并 `PAID` 清桌、查看历史、重置店铺员工密码 |
 | **平台管理员 PLATFORM_ADMIN** | 创建/启停餐厅、初始化与重置店铺账号；默认不读取店铺具体顾客订单或入桌码 |
 
 每家餐厅 V1 最多一个共享 OWNER 账号和一个共享 STAFF 账号（允许在多台设备登录），数据库保留 `platform_users`、`restaurant_users` 和 `credential_version`。
@@ -104,7 +104,7 @@
 
 - 餐厅：`ACTIVE` / `SUSPENDED`；`ordering_enabled` 是另一独立开关。
 - 用餐：`ACTIVE` / `CLOSED`；`CLOSED` 的 `close_reason` 为 `PAID`、`EMPTY`、`VOIDED`。
-- 订单：`NEW` / `READY` / `CANCELLED`。
+- 订单汇总：`NEW` / `PROCESSED`；明细：`NEW` / `READY` / `CANCELLED`。
 - 桌位是否空闲**由是否存在 ACTIVE Session 推导**，不另存 `table_status`。
 
 ```mermaid
@@ -112,7 +112,7 @@ flowchart LR
   A[空桌: 无 ACTIVE Session] -->|员工手动开桌| B[ACTIVE Session / 新入桌码]
   B -->|顾客验证后下单、加单| C[ACTIVE Session / 订单增加]
   B -->|无订单且已离桌| D[EMPTY 关闭]
-  C -->|全部订单已取消、零金额| E[VOIDED 关闭]
+  C -->|全部明细已取消、零金额| E[VOIDED 关闭]
   C -->|老板确认线下收款| F[PAID 关闭]
   D --> A
   E --> A
@@ -232,25 +232,23 @@ flowchart TD
 
 **前端恢复时机**：连接恢复、页面从后台回到前台、刷新待确认页面时，都先校验 Session / 授权，再处理待确认意图。不要把“请求超时”映射成“订单未创建”。
 
-**当前下单实现（第五阶段）**：订单及快照在同一事务保存；首次返回 201、同键恢复返回 200，版本只增一次。活动授权可在暂停接单、服务停用或桌位停用时读取原订单，关桌后拒绝。列表按创建时间及 ID 倒序游标分页（默认 50、最多 100），返回整桌非取消订单总额；前台约 30 秒更新，可手动刷新和加载更多。授权替换保留原轮次草稿/意图，隐藏受保护数据，重新验证同轮后恢复；确认关桌清理本轮数据。`/staff/floor` 已提供 OWNER/STAFF 开始/暂停接单，仅修改 `OrderingEnabled`，未知结果用原工作台 GET 核对。实现、实验与验收见 [第五阶段学习文档](cart-ordering.md)。
+**当前下单实现（第五阶段）**：订单及快照在同一事务保存；首次返回 201、同键恢复返回 200，版本只增一次。活动授权可在暂停接单、服务停用或桌位停用时读取原订单，关桌后拒绝。列表按创建时间及 ID 倒序游标分页（默认 50、最多 100），返回整桌非取消明细总额；前台约 30 秒更新，可手动刷新和加载更多。授权替换保留原轮次草稿/意图，隐藏受保护数据，重新验证同轮后恢复；确认关桌清理本轮数据。`/staff/floor` 已提供 OWNER/STAFF 开始/暂停接单，仅修改 `OrderingEnabled`，未知结果用原工作台 GET 核对。实现、实验与验收见 [第五阶段学习文档](cart-ordering.md)。
 
 ### 3.6 厨房工作台与取消
 
-- 厨房列表展示 `NEW`，并可查看近期 `READY` / `CANCELLED`；默认每 **10 秒**轮询一次，显示最后成功同步时间；超过约 30 秒无成功同步要明显警示。
-- 声音提醒须由用户在设备上主动开启；初次进入或恢复网络时不对所有旧单反复报警。
-- STAFF/OWNER：`NEW → READY` 或 `NEW → CANCELLED`（取消填写原因）；OWNER 额外允许 `READY → CANCELLED`。
-- 不允许 `CANCELLED` 恢复、`READY → NEW`、已关闭 Session 修改订单。状态更新执行原子条件操作（如 `UPDATE orders ... WHERE status='NEW' ...`）；不能先在 C# 读取再无条件覆盖。
-- `NEW → READY` 不改变 `bill_version`；**实际成功取消**才递增 `bill_version`。重复取消、不合法状态操作不递增。
-- 状态冲突时前端刷新订单、显示已由别的设备处理；不提示为服务器异常。
-
-**当前厨房实现（第六阶段）**：`/staff/kitchen` 已提供待处理、已完成、已取消三个活动用餐视图。NEW 按提交时间/ID 升序，READY/CANCELLED 按处理时间/ID 倒序；游标分页默认 50、最大 100。完成和取消均在 Session 行锁内条件更新；取消须携带 `expectedStatus` 和 trim 后 1–500 字符原因，实际取消才递增账单版本。过期确认、重复操作返回 `ORDER_CHANGED`，保留原处理信息。页面每 10 秒刷新已加载分页，超过 30 秒未同步或连接失败时暂停修改；未知写入结果只 GET 核对。声音主动开启，以全店累计订单数检测新增，初次进入/恢复连接不补响。顾客端沿用原轮询获得状态和非取消总额。无新表、迁移或取消操作者字段；全部取消仍不能 EMPTY 关闭。接口、学习步骤和实验见 [第六阶段学习文档](kitchen-cancellation.md)。
+- 按订单分组，显示待处理 NEW 与已处理 PROCESSED 两个分类；默认每 10 秒刷新全部已加载分页，超过 30 秒未成功同步、失败或恢复前台后未刷新时禁写。
+- 按明细整行处理数量，STAFF/OWNER 都只能 NEW → READY 或 NEW → CANCELLED。取消不填原因，但需确认桌号、菜名、数量及先与厨房沟通；已出餐不能取消。
+- 已处理行在待处理卡片中紧凑保留，全部处理后整单移入已处理；无整单写入、独立已取消标签或免单功能。
+- 明细写入使用 Session UPDATE 锁和条件 UPDATE，实际取消才递增 BillVersion；整单状态和 processedAt 同事务更新。响应包括原始金额与未取消明细的应收。
+- 未知结果持久化原订单/明细/用餐 ID 与动作，只 GET 核对。重复或竞争返回 ORDER_ITEM_CHANGED，失效确认不能覆盖终态。声音默认开启、需要手势解锁，初次进入/恢复连接不补响。
+- 新增 ItemLevelOrderProcessing 迁移，保留旧订单并回填明细状态与兼容时间，旧取消原因只读。详见 [厨房与取消](kitchen-cancellation.md)。
 
 ### 3.7 结账、`bill_version` 与关桌（核心事务）
 
 **老板端交互**
 
 1. 老板选择桌位进入账单页面时，前端 `GET` 最新账单：逐笔订单、总金额、未完成数量、`bill_version`、Session ID。
-2. 老板完成线下收款准备，页面要求确认桌号、金额；若仍有 `NEW` 订单不能确认关桌。
+2. 老板完成线下收款准备，页面要求确认桌号、金额；若仍有 `NEW` 明细不能确认关桌。
 3. 点击“**已线下收款并清桌**”时，前端携带先前显示且老板确认过的 `sessionId`、`expectedBillVersion` 和 `confirmedTotalCents`，提交 **一次** checkout POST；不要求前端再 GET 一次账单后才 POST。
 4. 服务器在**数据库同一事务**内锁住该 Session，重新计算最新账单并比较版本、金额、状态和 `NEW` 数量：
    - 一致：写入 `CLOSED`、`PAID`、`closed_total_cents`、关闭时间，清空入桌码，提交事务；旧顾客访问随之失效。
@@ -263,7 +261,7 @@ flowchart TD
 |---|---|
 | 新建 Session | `1` |
 | 成功创建一笔新订单 / 加单 | `+1` |
-| 实际成功取消一笔未结账订单 | `+1` |
+| 实际成功取消一行待出餐菜品 | `+1` |
 | `NEW → READY` | 不变 |
 | 用旧 `client_request_id` 恢复原订单 | 不变 |
 | 重复状态操作但没有真正改变数据 | 不变 |
@@ -370,8 +368,8 @@ flowchart TD
 | POST | `/api/staff/sessions/{id}/close-void` | **已实现**：版本/零金额/离桌确认；必须存在订单且全部取消 |
 | GET | `/api/staff/orders` | **已实现**：活动用餐厨房列表，`status`/`cursor`/`limit`，返回筛选总量、待处理数和累计订单数 |
 | GET | `/api/staff/orders/{id}` | **已实现**：当前厨房订单及处理信息，供未知结果 GET 核对 |
-| POST | `/api/staff/orders/{id}/ready` | **已实现**：条件 `NEW → READY`，不递增账单版本 |
-| POST | `/api/staff/orders/{id}/cancel` | **已实现**：`expectedStatus` + 1–500 字符原因；READY 作废仅 OWNER，成功取消递增账单版本 |
+| POST | `/api/staff/orders/{id}/items/{itemId}/ready` | **已实现**：明细条件 `NEW → READY`，不递增账单版本 |
+| POST | `/api/staff/orders/{id}/items/{itemId}/cancel` | **已实现**：无原因参数，只允许待出餐明细取消，成功取消递增账单版本 |
 | PATCH | `/api/staff/menu-items/{id}/availability` | `isAvailable` **明确目标值**，仅改这个字段 |
 | PATCH | `/api/staff/accepting-orders` | **已实现**：OWNER/STAFF，`enabled` 明确目标值；仅 ACTIVE 餐厅可开启，检查与修改在餐厅行锁内完成 |
 | POST | `/api/owner/sessions/{id}/checkout` | **已实现**：`expectedBillVersion + confirmedTotalCents`，Session 锁内核账并原子 PAID 清桌 |
@@ -401,7 +399,7 @@ flowchart TD
   "status": "ACTIVE",
   "billVersion": 3,
   "totalAmountCents": 3000,
-  "newOrderCount": 0,
+  "newItemCount": 0,
   "orders": ["...这里只表示逐笔订单 DTO ..."]
 }
 ```
@@ -434,7 +432,7 @@ Content-Type: application/json
   "currentBill": {
     "billVersion": 4,
     "totalAmountCents": 4000,
-    "newOrderCount": 1
+    "newItemCount": 1
   }
 }
 ```
@@ -451,7 +449,7 @@ Content-Type: application/json
 | `409 SESSION_ALREADY_ACTIVE` | 员工刷新桌位，查看现有 Session，不重开 |
 | `409 SESSION_CLOSED` | 停止顾客旧请求，进入结束流程 |
 | `409 ACCOUNT_CHANGED` | 目标账号已变化，GET 核对最新版本后重新人工确认，不退出当前操作者 |
-| `409 ORDER_CHANGED` | 厨房/员工刷新订单当前状态，不强制覆盖 |
+| `409 ORDER_ITEM_CHANGED` | 厨房/员工刷新订单当前状态，不强制覆盖 |
 | `409 MENU_CHANGED` | 顾客重新查看变动菜品和金额并明确确认 |
 | `409 BILL_CHANGED` | 老板显示新账单，重新核对后再单击确认 |
 | `429 RATE_LIMITED` | 显示等待时间，不通过换 requestId 绕过 |
@@ -486,7 +484,7 @@ DBML 注释本身不会生成所有 PostgreSQL 部分索引；使用 **EF Core M
 - **写入订单（已实现）**：开启事务 → 餐厅 SHARE → 桌位 SHARE → Session UPDATE → 核验授权归属/ACTIVE → 查原 `client_request_id`，存在即返回原单 → 首次才检查服务/接单/桌位条件、输入、菜品审核/可售与已确认价格 → 保存订单及全部快照 → `bill_version+1` → 提交。菜单写入持有餐厅 UPDATE，与下单的 SHARE 协调。
 - **读取订单（已实现）**：事务内 Session SHARE → 验证归属/ACTIVE → 读取订单及账单总额 → 提交；不随后获取餐厅/桌位锁。
 - **取消订单**：开启事务 → 锁订单所属 Session 行 → 确认仍 ACTIVE → 按角色与订单状态执行条件更新 → 实际成功时 `bill_version+1` → 提交。
-- **READY 操作**：在事务内确认订单仍属于 ACTIVE Session，并条件更新 `NEW → READY`；无需改账单版本。
+- **READY 操作**：在事务内确认明细仍属于 ACTIVE Session，并条件更新 `NEW → READY`；无需改账单版本。
 - **结账/零账单关闭**：开启事务 → 锁 Session 行 → 重新计算金额、NEW 数及当前 `bill_version` → 核对用户确认值和权限 → 写 CLOSED/close_reason/金额/关闭时间并清除加密码 → 提交。
 - **开桌与删除桌位**：使用同一桌位行级锁/事务协调，结合 ACTIVE Session 部分唯一索引排除并发重复和删桌竞争。
 
@@ -562,7 +560,7 @@ DBML 注释本身不会生成所有 PostgreSQL 部分索引；使用 **EF Core M
 | AC-15 | 保存 `allergen_reviewed=false` 且 codes 为空 | 不能对顾客显示“无过敏原”；新建/编辑均需审核确认，包括售罄菜品 |
 | AC-16 | 两厨房设备同时 `NEW → READY` | 只有一次实际状态转换，重复操作不会产生新状态 |
 | AC-17 | 员工取消与 READY 操作竞争 | 只有满足当时状态/角色的操作成功；终态不会被无条件覆盖 |
-| AC-18 | 创建订单成功/取消订单成功 | 对应 Session 版本每次 +1；READY、重复请求不增加 |
+| AC-18 | 创建订单成功/取消明细成功 | 对应 Session 版本每次 +1；READY、重复请求不增加 |
 | AC-19 | 老板看到 €30 后另一顾客加单 | 旧 `billVersion` checkout 返回 409；不能按旧账单关闭 |
 | AC-20 | 结账先锁定并关闭 Session，顾客随后下单 | 后续下单失败；不会落入 CLOSED Session |
 | AC-21 | 老板试图关闭仍含 NEW 的账单 | 拒绝，提示未处理订单数量 |
@@ -588,9 +586,9 @@ DBML 注释本身不会生成所有 PostgreSQL 部分索引；使用 **EF Core M
 2. **账户与多租户**：平台/店铺登录、角色授权、首次改密、`credential_version`、创建餐厅。
 3. **菜单与桌位**：三语菜单、价格/审核验证、供应状态、固定二维码、删除。
 4. **开桌与顾客授权**：Session、加密码、Cookie、开桌未知结果恢复。
-5. **购物车和下单（已实现）**：最新价确认、`client_request_id`、历史快照、自动 GET 恢复/手动原请求重试、整桌订单和接单开关；无新迁移。含任何订单的用餐不能 EMPTY 关闭，由第七阶段 PAID/VOIDED 关闭接续。
-6. **厨房与取消（已实现）**：活动订单分页、10 秒轮询、主动声音提醒、READY/取消条件更新、版本递增、冲突确认和未知结果 GET 核对；无新迁移。
-7. **结账与历史（已实现）**：活动账单、PAID/VOIDED 关闭、EMPTY 共用界面、冻结确认值、只 GET 恢复、关闭后保护和 OWNER 历史筛选/分页；无新迁移。学习步骤见 [第七阶段文档](billing-history.md)。
+5. **购物车和下单（已实现）**：最新价确认、`client_request_id`、历史快照、自动 GET 恢复/手动原请求重试、整桌订单和接单开关；含旧订单明细状态回填迁移。含任何订单的用餐不能 EMPTY 关闭，由第七阶段 PAID/VOIDED 关闭接续。
+6. **厨房与取消（已实现）**：活动订单分页、10 秒轮询、主动声音提醒、READY/取消条件更新、版本递增、冲突确认和未知结果 GET 核对；含旧订单明细状态回填迁移。
+7. **结账与历史（已实现）**：活动账单、PAID/VOIDED 关闭、EMPTY 共用界面、冻结确认值、只 GET 恢复、关闭后保护和 OWNER 历史筛选/分页；含旧订单明细状态回填迁移。学习步骤见 [第七阶段文档](billing-history.md)。
 8. **平台管理与试运营准备（已实现）**：独立平台身份、原子建店、账号启停/重置、OWNER 员工维护、服务与接单协调、GET 恢复；显式迁移。沿用九张表，无新迁移。学习见 [第八阶段](platform-pilot.md)。部署、健康检查与备份恢复模板已移除，正式部署时重新编写。
 
 **MVP 完成标准**：单店能执行“建店 → 设置菜单 → 建桌并打印码 → 开桌 → 多人扫码验证/多次下单 → 厨房处理 → 老板按准确账单线下收款清桌 → 查询历史”的完整闭环；关键的网络中断、重复下单、并发取消、结账竞争和权限检查都通过集成测试。

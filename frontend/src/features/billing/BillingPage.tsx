@@ -104,8 +104,8 @@ function BillingContent({ account, sessionId, select }: Props & { account: Curre
                     <span className="text-xl font-semibold wrap-break-word">
                       {table.tableLabel} 桌
                     </span>
-                    {session.newOrderCount > 0 && (
-                      <Badge variant="warning">待处理 {session.newOrderCount}</Badge>
+                    {session.newItemCount > 0 && (
+                      <Badge variant="warning">待处理 {session.newItemCount}</Badge>
                     )}
                   </span>
                   <span className="block text-2xl font-semibold tabular-nums">

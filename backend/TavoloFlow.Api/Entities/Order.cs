@@ -3,8 +3,7 @@ namespace TavoloFlow.Api.Entities;
 public enum OrderStatus
 {
     New,
-    Ready,
-    Cancelled
+    Processed
 }
 
 public sealed class Order
@@ -18,8 +17,8 @@ public sealed class Order
     public string? OrderNote { get; set; }
     public required string DefaultLanguageSnapshot { get; set; }
     public DateTime CreatedAt { get; set; }
-    public DateTime? ReadyAt { get; set; }
-    public DateTime? CancelledAt { get; set; }
+    public DateTime? ProcessedAt { get; set; }
+    // Read-only compatibility for cancellations recorded before item-level processing.
     public string? CancelReason { get; set; }
 
     public Restaurant Restaurant { get; set; } = null!;

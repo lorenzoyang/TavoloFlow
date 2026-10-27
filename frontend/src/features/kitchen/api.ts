@@ -1,12 +1,12 @@
 import type { AccountScope } from "@/features/accounts/api";
 import type { Order } from "@/features/orders/api";
+import { confirmedOrder } from "@/features/orders/response";
 import { request, write } from "@/lib/api";
 import type { OrderStatus } from "./state";
 
 export type KitchenOrder = Order & {
   tableLabel: string;
-  readyAt: string | null;
-  cancelledAt: string | null;
+  processedAt: string | null;
   cancelReason: string | null;
 };
 export type KitchenPage = {
@@ -31,16 +31,29 @@ export async function readKitchen(
   });
   return { ...result, receivedAt: Date.now() };
 }
-export const readKitchenOrder = (id: string, signal: AbortSignal) =>
-  request<KitchenOrder>(`/api/staff/orders/${id}`, { signal });
+function confirmedKitchenOrder(order: KitchenOrder, id: string) {
+  confirmedOrder(order, order.sessionId);
+  if (
+    order.id !== id ||
+    typeof order.tableLabel !== "string" ||
+    (order.status === "NEW"
+      ? order.processedAt !== null
+      : typeof order.processedAt !== "string" || !Number.isFinite(Date.parse(order.processedAt)))
+  )
+    throw new Error("Invalid kitchen order response");
+  return order;
+}
+export const readKitchenOrder = async (id: string, signal: AbortSignal) =>
+  confirmedKitchenOrder(await request<KitchenOrder>(`/api/staff/orders/${id}`, { signal }), id);
 
-// Both transitions are conditional on the status the cook saw; a lost race returns ORDER_CHANGED.
-export const markReady = (id: string, signal: AbortSignal) =>
-  write<KitchenOrder>(`/api/staff/orders/${id}/ready`, "POST", {}, signal);
-export const cancelOrder = (
-  id: string,
-  expectedStatus: "NEW" | "READY",
-  reason: string,
-  signal: AbortSignal,
-) =>
-  write<KitchenOrder>(`/api/staff/orders/${id}/cancel`, "POST", { expectedStatus, reason }, signal);
+// Both transitions only accept NEW items. A lost race returns ORDER_ITEM_CHANGED.
+export const markReady = async (id: string, itemId: string, signal: AbortSignal) =>
+  confirmedKitchenOrder(
+    await write<KitchenOrder>(`/api/staff/orders/${id}/items/${itemId}/ready`, "POST", {}, signal),
+    id,
+  );
+export const cancelItem = async (id: string, itemId: string, signal: AbortSignal) =>
+  confirmedKitchenOrder(
+    await write<KitchenOrder>(`/api/staff/orders/${id}/items/${itemId}/cancel`, "POST", {}, signal),
+    id,
+  );
