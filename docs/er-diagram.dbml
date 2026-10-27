@@ -290,9 +290,12 @@ Table order_items {
   status varchar(12) [not null, default: 'NEW']
   ready_at timestamptz
   cancelled_at timestamptz
+  served_at timestamptz [note: 'Taken from the pass by a waiter; never affects the bill']
 
   Indexes {
     (order_id, restaurant_id)
+    restaurant_id
+    (restaurant_id, ready_at, id) [note: "Partial: WHERE status = 'READY' AND served_at IS NULL (pass queue)"]
   }
 
   Checks {
@@ -301,6 +304,7 @@ Table order_items {
     `quantity > 0` [name: 'ck_order_item_quantity']
     `status IN ('NEW', 'READY', 'CANCELLED')` [name: 'ck_order_item_status']
     `(status = 'NEW' AND ready_at IS NULL AND cancelled_at IS NULL) OR (status = 'READY' AND ready_at IS NOT NULL AND cancelled_at IS NULL) OR (status = 'CANCELLED' AND cancelled_at IS NOT NULL AND (ready_at IS NULL OR cancelled_at >= ready_at))` [name: 'ck_order_item_lifecycle']
+    `served_at IS NULL OR (status = 'READY' AND served_at >= ready_at)` [name: 'ck_order_item_served']
   }
 
   Note: 'Historical name, price, and allergen snapshots. Line total = unit_price_cents * quantity; no separate line_total_cents.'

@@ -25,6 +25,7 @@ import { Route as StaffKitchenRouteImport } from './routes/staff.kitchen'
 import { Route as StaffLoginRouteImport } from './routes/staff.login'
 import { Route as StaffMenuRouteImport } from './routes/staff.menu'
 import { Route as StaffOrdersRouteImport } from './routes/staff.orders'
+import { Route as StaffPassRouteImport } from './routes/staff.pass'
 import { Route as StaffSettingsRouteImport } from './routes/staff.settings'
 import { Route as StaffSubscriptionRouteImport } from './routes/staff.subscription'
 import { Route as StaffTablesRouteImport } from './routes/staff.tables'
@@ -111,6 +112,11 @@ const StaffOrdersRoute = StaffOrdersRouteImport.update({
   path: '/orders',
   getParentRoute: () => StaffRoute,
 } as any)
+const StaffPassRoute = StaffPassRouteImport.update({
+  id: '/pass',
+  path: '/pass',
+  getParentRoute: () => StaffRoute,
+} as any)
 const StaffSettingsRoute = StaffSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -154,6 +160,7 @@ export interface FileRoutesByFullPath {
   '/staff/login': typeof StaffLoginRoute
   '/staff/menu': typeof StaffMenuRoute
   '/staff/orders': typeof StaffOrdersRoute
+  '/staff/pass': typeof StaffPassRoute
   '/staff/settings': typeof StaffSettingsRoute
   '/staff/subscription': typeof StaffSubscriptionRoute
   '/staff/tables': typeof StaffTablesRoute
@@ -174,6 +181,7 @@ export interface FileRoutesByTo {
   '/staff/login': typeof StaffLoginRoute
   '/staff/menu': typeof StaffMenuRoute
   '/staff/orders': typeof StaffOrdersRoute
+  '/staff/pass': typeof StaffPassRoute
   '/staff/settings': typeof StaffSettingsRoute
   '/staff/subscription': typeof StaffSubscriptionRoute
   '/staff/tables': typeof StaffTablesRoute
@@ -198,6 +206,7 @@ export interface FileRoutesById {
   '/staff/login': typeof StaffLoginRoute
   '/staff/menu': typeof StaffMenuRoute
   '/staff/orders': typeof StaffOrdersRoute
+  '/staff/pass': typeof StaffPassRoute
   '/staff/settings': typeof StaffSettingsRoute
   '/staff/subscription': typeof StaffSubscriptionRoute
   '/staff/tables': typeof StaffTablesRoute
@@ -223,6 +232,7 @@ export interface FileRouteTypes {
     | '/staff/login'
     | '/staff/menu'
     | '/staff/orders'
+    | '/staff/pass'
     | '/staff/settings'
     | '/staff/subscription'
     | '/staff/tables'
@@ -243,6 +253,7 @@ export interface FileRouteTypes {
     | '/staff/login'
     | '/staff/menu'
     | '/staff/orders'
+    | '/staff/pass'
     | '/staff/settings'
     | '/staff/subscription'
     | '/staff/tables'
@@ -266,6 +277,7 @@ export interface FileRouteTypes {
     | '/staff/login'
     | '/staff/menu'
     | '/staff/orders'
+    | '/staff/pass'
     | '/staff/settings'
     | '/staff/subscription'
     | '/staff/tables'
@@ -396,6 +408,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StaffOrdersRouteImport
       parentRoute: typeof StaffRoute
     }
+    '/staff/pass': {
+      id: '/staff/pass'
+      path: '/pass'
+      fullPath: '/staff/pass'
+      preLoaderRoute: typeof StaffPassRouteImport
+      parentRoute: typeof StaffRoute
+    }
     '/staff/settings': {
       id: '/staff/settings'
       path: '/settings'
@@ -473,6 +492,7 @@ interface StaffRouteChildren {
   StaffLoginRoute: typeof StaffLoginRoute
   StaffMenuRoute: typeof StaffMenuRoute
   StaffOrdersRoute: typeof StaffOrdersRoute
+  StaffPassRoute: typeof StaffPassRoute
   StaffSettingsRoute: typeof StaffSettingsRoute
   StaffSubscriptionRoute: typeof StaffSubscriptionRoute
   StaffTablesRoute: typeof StaffTablesRoute
@@ -487,6 +507,7 @@ const StaffRouteChildren: StaffRouteChildren = {
   StaffLoginRoute: StaffLoginRoute,
   StaffMenuRoute: StaffMenuRoute,
   StaffOrdersRoute: StaffOrdersRoute,
+  StaffPassRoute: StaffPassRoute,
   StaffSettingsRoute: StaffSettingsRoute,
   StaffSubscriptionRoute: StaffSubscriptionRoute,
   StaffTablesRoute: StaffTablesRoute,

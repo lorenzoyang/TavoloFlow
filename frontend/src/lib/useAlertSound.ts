@@ -1,0 +1,84 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AlertAudio, readSoundPreference, saveSoundPreference, type Chime } from "./alert-sound";
+import { onLifecycleChange } from "./useLiveView";
+
+// Activation-triggering events: a mouse press counts on pointerdown, a touch on pointerup.
+const gestures = ["pointerdown", "pointerup", "keydown"] as const;
+const noAudio = "此浏览器不支持声音提醒；页面仍会正常更新。";
+
+// The on/off switch is a device preference stored under preferenceKey; on by default.
+export function useAlertSound(preferenceKey: string, chime: Chime) {
+  const [sound, setSound] = useState(() => readSoundPreference(preferenceKey));
+  const [audible, setAudible] = useState(true);
+  const [soundError, setSoundError] = useState("");
+  const audio = useRef<AlertAudio | null>(null);
+
+  useEffect(() => {
+    if (!sound) return;
+    const player = (audio.current ??= new AlertAudio());
+    let timer = 0;
+    // Reported as blocked only if audio is still not running shortly after an attempt in the foreground,
+    // so a start the browser allows, or a phone's suspension in the background, never flashes the notice.
+    const settle = () => {
+      window.clearTimeout(timer);
+      if (player.running) setAudible(true);
+      else
+        timer = window.setTimeout(
+          () => setAudible(player.running || document.visibilityState !== "visible"),
+          1500,
+        );
+    };
+    // Retried on every tap and on returning to the foreground until the browser lets audio run.
+    const wake = () => {
+      if (player.running || document.visibilityState !== "visible") return;
+      try {
+        player.start();
+      } catch {
+        setSoundError(noAudio);
+        return;
+      }
+      settle();
+    };
+    player.onChange = settle;
+    wake();
+    for (const type of gestures) window.addEventListener(type, wake, true);
+    const stopListening = onLifecycleChange(wake);
+    return () => {
+      window.clearTimeout(timer);
+      for (const type of gestures) window.removeEventListener(type, wake, true);
+      stopListening();
+      player.onChange = null;
+      player.close();
+      audio.current = null;
+    };
+  }, [sound]);
+
+  // Called inside a click, where every browser lets audio start.
+  const unlockSound = useCallback(() => {
+    try {
+      audio.current ??= new AlertAudio();
+      audio.current.start();
+    } catch {
+      setSoundError(noAudio);
+    }
+  }, []);
+
+  const toggleSound = useCallback(() => {
+    saveSoundPreference(preferenceKey, !sound);
+    setSound(!sound);
+    setAudible(true);
+    setSoundError("");
+    if (!sound) unlockSound();
+  }, [preferenceKey, sound, unlockSound]);
+
+  const play = useCallback(() => audio.current?.play(chime), [chime]);
+
+  return {
+    sound,
+    soundBlocked: sound && !audible && !soundError,
+    soundError,
+    unlockSound,
+    toggleSound,
+    play,
+  };
+}

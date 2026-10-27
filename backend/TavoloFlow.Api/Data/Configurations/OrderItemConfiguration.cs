@@ -19,6 +19,7 @@ internal sealed class OrderItemConfiguration : IEntityTypeConfiguration<OrderIte
                 "(status = 'NEW' AND ready_at IS NULL AND cancelled_at IS NULL) OR " +
                 "(status = 'READY' AND ready_at IS NOT NULL AND cancelled_at IS NULL) OR " +
                 "(status = 'CANCELLED' AND cancelled_at IS NOT NULL AND (ready_at IS NULL OR cancelled_at >= ready_at))");
+            table.HasCheckConstraint("ck_order_item_served", "served_at IS NULL OR (status = 'READY' AND served_at >= ready_at)");
         });
 
         builder.HasKey(item => item.Id);
@@ -51,8 +52,14 @@ internal sealed class OrderItemConfiguration : IEntityTypeConfiguration<OrderIte
             .HasDefaultValue(OrderItemStatus.New).ValueGeneratedNever();
         builder.Property(item => item.ReadyAt).HasColumnName("ready_at").HasColumnType("timestamptz");
         builder.Property(item => item.CancelledAt).HasColumnName("cancelled_at").HasColumnType("timestamptz");
+        builder.Property(item => item.ServedAt).HasColumnName("served_at").HasColumnType("timestamptz");
 
         builder.HasIndex(item => new { item.OrderId, item.RestaurantId });
+        // Explicit, because EF would otherwise treat the partial index below as covering this foreign key.
+        builder.HasIndex(item => item.RestaurantId);
+        // The pass queue and its newest-ready watermark.
+        builder.HasIndex(item => new { item.RestaurantId, item.ReadyAt, item.Id })
+            .HasFilter("status = 'READY' AND served_at IS NULL");
 
         builder.HasOne(item => item.Restaurant).WithMany(restaurant => restaurant.OrderItems)
             .HasForeignKey(item => item.RestaurantId).OnDelete(DeleteBehavior.Cascade);

@@ -99,6 +99,49 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
         return result;
     }
 
+    // READY items not yet taken from the pass, oldest first. Closed visits drop out with their session.
+    public async Task<PassPage> PassAsync(Guid restaurantId, string? cursor, int limit, CancellationToken ct)
+    {
+        Paging.EnsureLimit(limit);
+        var after = Paging.Decode<PassCursor>(cursor, c =>
+            c.RestaurantId == restaurantId && Paging.IsPosition(c.At, c.Id));
+        await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
+        var waiting = db.OrderItems.AsNoTracking().Where(i => i.RestaurantId == restaurantId &&
+            i.Status == OrderItemStatus.Ready && i.ServedAt == null);
+        var latest = await waiting.MaxAsync(i => i.ReadyAt, ct);
+        var active = waiting.Where(i => i.Order.DiningSession.Status == DiningSessionStatus.Active);
+        var total = await active.LongCountAsync(ct);
+        if (after is not null)
+            active = active.Where(i => EF.Functions.GreaterThan(ValueTuple.Create(i.ReadyAt!.Value, i.Id),
+                ValueTuple.Create(after.At, after.Id)));
+        var rows = await active.Include(i => i.Order).ThenInclude(o => o.DiningSession)
+            .OrderBy(i => i.ReadyAt).ThenBy(i => i.Id).Take(limit + 1).ToArrayAsync(ct);
+        var (page, next) = Paging.Page(rows, limit, last => new PassCursor(restaurantId, last.ReadyAt!.Value, last.Id));
+        await tx.CommitAsync(ct);
+        return new(page.Select(PassItemResponse.From).ToArray(), next, total, latest);
+    }
+
+    public async Task<PassItemResponse> ServedAsync(Guid restaurantId, Guid id, Guid itemId, CancellationToken ct)
+    {
+        var sessionId = await db.OrderItems.Where(i => i.RestaurantId == restaurantId && i.OrderId == id && i.Id == itemId)
+            .Select(i => (Guid?)i.Order.DiningSessionId).SingleOrDefaultAsync(ct) ?? throw ItemMissing();
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        // Same session lock as the kitchen transitions, so a closure cannot interleave.
+        await LockActiveSessionAsync(restaurantId, sessionId, RowLock.Update, ct);
+        var target = db.OrderItems.Where(i => i.RestaurantId == restaurantId && i.OrderId == id && i.Id == itemId);
+        var item = await target.AsNoTracking().SingleOrDefaultAsync(ct) ?? throw ItemMissing();
+        if (item.Status != OrderItemStatus.Ready || item.ServedAt is not null) throw Changed();
+        var now = clock.GetUtcNow().UtcDateTime;
+        if (now < item.ReadyAt) now = item.ReadyAt!.Value;
+        var changed = await target.Where(i => i.Status == OrderItemStatus.Ready && i.ServedAt == null)
+            .ExecuteUpdateAsync(u => u.SetProperty(i => i.ServedAt, now), ct);
+        if (changed != 1) throw Changed();
+        var result = PassItemResponse.From(await target.AsNoTracking()
+            .Include(i => i.Order).ThenInclude(o => o.DiningSession).SingleAsync(ct));
+        await tx.CommitAsync(ct);
+        return result;
+    }
+
     private IQueryable<Order> Orders(Guid restaurantId) => db.Orders.AsNoTracking()
         .Include(o => o.Items).Include(o => o.DiningSession).Where(o => o.RestaurantId == restaurantId);
 
@@ -126,4 +169,5 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
         status == OrderStatus.New ? order.CreatedAt : order.ProcessedAt!.Value;
 
     private sealed record Cursor(Guid RestaurantId, string Status, DateTime At, Guid Id);
+    private sealed record PassCursor(Guid RestaurantId, DateTime At, Guid Id);
 }

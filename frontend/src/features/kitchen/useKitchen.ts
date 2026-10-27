@@ -9,7 +9,10 @@ import { diningKey, floorKey } from "@/features/dining/api";
 import { ApiError, errorMessage, withTimeout } from "@/lib/api";
 import { syncIsFresh, syncIsStalled } from "@/lib/live-view";
 import { isLive, onLifecycleChange } from "@/lib/useLiveView";
+import { orderChime } from "@/lib/alert-sound";
+import { useAlertSound } from "@/lib/useAlertSound";
 import { uniqueBy } from "@/lib/utils";
+import { passKey } from "@/features/pass/api";
 import {
   cancelItem,
   kitchenKey,
@@ -19,7 +22,6 @@ import {
   type KitchenOrder,
   type KitchenPage,
 } from "./api";
-import { KitchenAudio, readSoundPreference, saveSoundPreference } from "./audio";
 import {
   arrivals,
   pendingKitchenKey,
@@ -29,10 +31,6 @@ import {
   type OrderStatus,
   type PendingKitchenAction,
 } from "./state";
-
-// Activation-triggering events: a mouse press counts on pointerdown, a touch on pointerup.
-const gestures = ["pointerdown", "pointerup", "keydown"] as const;
-const noAudio = "此浏览器不支持声音提醒；订单仍会正常更新。";
 
 export function useKitchen(account: CurrentAccount) {
   const client = useQueryClient();
@@ -46,9 +44,7 @@ export function useKitchen(account: CurrentAccount) {
   const [storageWarning, setStorageWarning] = useState(false);
   const [busy, setBusy] = useState<string[]>([]);
   const [writing, setWriting] = useState<string[]>([]);
-  const [sound, setSound] = useState(readSoundPreference);
-  const [audible, setAudible] = useState(true);
-  const [soundError, setSoundError] = useState("");
+  const { play, ...sound } = useAlertSound("tavoloflow:kitchen-sound", orderChime);
   const { restaurantId, userId, role } = account;
   const storageKey = pendingKitchenKey(restaurantId, userId);
   const [pending, setPending] = useState<PendingKitchenAction[]>(() => {
@@ -63,7 +59,6 @@ export function useKitchen(account: CurrentAccount) {
   const epoch = useRef(0);
   const operations = useRef(new Map<string, AbortController>());
   const baseline = useRef<ArrivalBaseline>(null);
-  const audio = useRef<KitchenAudio | null>(null);
   const [latest, setLatest] = useState<Record<string, KitchenOrder>>({});
   const scope = useMemo(() => kitchenKey({ restaurantId, userId }), [restaurantId, userId]);
   const query = useInfiniteQuery({
@@ -117,6 +112,7 @@ export function useKitchen(account: CurrentAccount) {
     void client.invalidateQueries({ queryKey: diningKey({ restaurantId, userId }) });
     void client.invalidateQueries({ queryKey: floorKey({ restaurantId, userId }) });
     void client.invalidateQueries({ queryKey: billingKey({ restaurantId, userId }) });
+    void client.invalidateQueries({ queryKey: passKey({ restaurantId, userId }) });
   }, [restaurantId, userId, scope, client]);
 
   const acceptOrder = useCallback(
@@ -254,67 +250,9 @@ export function useKitchen(account: CurrentAccount) {
     if (result.added > 0) {
       // Server arrivals are an external event, announced even when audio is disabled.
       setNotice(`收到 ${result.added} 笔新订单；当前待处理 ${head.pendingCount} 笔。`);
-      audio.current?.play();
+      play();
     }
-  }, [head, active, resumeAfter]);
-
-  useEffect(() => {
-    if (!sound) return;
-    const player = (audio.current ??= new KitchenAudio());
-    let timer = 0;
-    // Reported as blocked only if audio is still not running shortly after an attempt in the foreground,
-    // so a start the browser allows, or a phone's suspension in the background, never flashes the notice.
-    const settle = () => {
-      window.clearTimeout(timer);
-      if (player.running) setAudible(true);
-      else
-        timer = window.setTimeout(
-          () => setAudible(player.running || document.visibilityState !== "visible"),
-          1500,
-        );
-    };
-    // Retried on every tap and on returning to the foreground until the browser lets audio run.
-    const wake = () => {
-      if (player.running || document.visibilityState !== "visible") return;
-      try {
-        player.start();
-      } catch {
-        setSoundError(noAudio);
-        return;
-      }
-      settle();
-    };
-    player.onChange = settle;
-    wake();
-    for (const type of gestures) window.addEventListener(type, wake, true);
-    const stopListening = onLifecycleChange(wake);
-    return () => {
-      window.clearTimeout(timer);
-      for (const type of gestures) window.removeEventListener(type, wake, true);
-      stopListening();
-      player.onChange = null;
-      player.close();
-      audio.current = null;
-    };
-  }, [sound]);
-
-  // Called inside a click, where every browser lets audio start.
-  function unlockSound() {
-    try {
-      audio.current ??= new KitchenAudio();
-      audio.current.start();
-    } catch {
-      setSoundError(noAudio);
-    }
-  }
-
-  function toggleSound() {
-    saveSoundPreference(!sound);
-    setSound(!sound);
-    setAudible(true);
-    setSoundError("");
-    if (!sound) unlockSound();
-  }
+  }, [head, active, resumeAfter, play]);
 
   async function perform(order: KitchenOrder, item: OrderLine, kind: "ready" | "cancel") {
     if (
@@ -418,12 +356,8 @@ export function useKitchen(account: CurrentAccount) {
     // timed-out request, or a reload); while the request is in flight only its ticket is locked.
     pending: pending.filter((p) => !writing.includes(p.orderId)),
     storageWarning,
-    sound,
-    soundBlocked: sound && !audible && !soundError,
-    soundError,
+    ...sound,
     latest,
-    unlockSound,
-    toggleSound,
     perform,
     recover,
     refresh,

@@ -3,6 +3,7 @@ import {
   BookOpen,
   CalendarClock,
   ChefHat,
+  HandPlatter,
   History,
   House,
   LayoutGrid,
@@ -18,6 +19,7 @@ export type StaffDestination = {
     | "/staff"
     | "/staff/floor"
     | "/staff/kitchen"
+    | "/staff/pass"
     | "/staff/orders"
     | "/staff/menu"
     | "/staff/tables"
@@ -73,9 +75,17 @@ export function staffManagementItems(role: Role): StaffDestination[] {
     description: role === "OWNER" ? "添加桌位，下载二维码和桌卡" : "查看桌位与用餐状态",
     icon: QrCode,
   };
-  if (role !== "OWNER") return [tables];
+  // Lives on the counter tablet: waiters carrying dishes do not use their phones for it.
+  const pass: StaffDestination = {
+    to: "/staff/pass",
+    label: "传菜",
+    description: "出餐口平板：已出餐、待送到桌的菜品",
+    icon: HandPlatter,
+  };
+  if (role !== "OWNER") return [tables, pass];
   return [
     tables,
+    pass,
     {
       to: "/staff/history",
       label: "历史账单",

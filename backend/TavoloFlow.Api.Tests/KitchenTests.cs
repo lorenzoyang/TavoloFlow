@@ -320,6 +320,125 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
         Assert.Equal(price * 2, (await SessionSummaries.ReadAsync(db, s.RestaurantId, s.Guest.SessionId, default)).TotalAmountCents);
     }
 
+    [Fact]
+    public async Task Pass_ListAndServed_ShowsOnlyWaitingReadyItemsAndServesOnce()
+    {
+        using var host = new AccountTestHost(database);
+        var s = await SeedAsync(host);
+        var order = await CreateAsync(host, s, s.Input() with
+        {
+            Items = [new(s.Item.Id, 2, 700, "少盐"), new(s.Item.Id, 1, 700, "正常"), new(s.Item.Id, 1, 700, "辣")]
+        });
+        var first = order.Items.Single(i => i.Remark == "少盐"); var second = order.Items.Single(i => i.Remark == "正常");
+        var third = order.Items.Single(i => i.Remark == "辣");
+        string Served(Guid itemId) => $"{Path(order.Id)}/items/{itemId}/served";
+        using var staff = await LoginAsync(host, s.Staff); using var owner = await LoginAsync(host, s.Owner);
+        var empty = (await staff.GetFromJsonAsync<PassPage>("/api/staff/pass"))!;
+        Assert.Empty(empty.Items); Assert.Equal(0, empty.TotalCount); Assert.Null(empty.LatestReadyAt);
+        await using (var db = database.CreateContext())
+        {
+            var service = new KitchenService(db, host.Clock);
+            await service.ReadyAsync(s.RestaurantId, order.Id, first.Id, default);
+            host.Clock.Advance(TimeSpan.FromSeconds(1));
+            await service.ReadyAsync(s.RestaurantId, order.Id, second.Id, default);
+            await service.CancelAsync(s.RestaurantId, order.Id, third.Id, default);
+        }
+        var fresh = await CreateAsync(host, s);
+        var version = await VersionAsync(s);
+        var page = (await staff.GetFromJsonAsync<PassPage>("/api/staff/pass?limit=1"))!;
+        var rest = (await staff.GetFromJsonAsync<PassPage>("/api/staff/pass?limit=1&cursor=" + page.NextCursor))!;
+        Assert.Equal(2, page.TotalCount); Assert.Null(rest.NextCursor);
+        Assert.Equal(new[] { first.Id, second.Id }, page.Items.Concat(rest.Items).Select(i => i.Id));
+        var waiting = page.Items.Single();
+        Assert.Equal(order.Id, waiting.OrderId); Assert.Equal(s.Guest.SessionId, waiting.SessionId);
+        Assert.Equal("8", waiting.TableLabel); Assert.Equal("炒饭", waiting.NameZh); Assert.Equal(2, waiting.Quantity);
+        Assert.Equal("少盐", waiting.Remark); Assert.Null(waiting.ServedAt);
+        Assert.Equal(rest.Items.Single().ReadyAt, page.LatestReadyAt);
+        var json = await staff.GetStringAsync("/api/staff/pass");
+        foreach (var secret in new[] { "clientRequestId", "joinCode", "unitPriceCents" }) Assert.DoesNotContain(secret, json);
+
+        host.Clock.Advance(TimeSpan.FromSeconds(5));
+        var response = await PostAsync(staff, Served(first.Id), new { });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var served = (await response.Content.ReadFromJsonAsync<PassItemResponse>())!;
+        Assert.Equal(first.Id, served.Id); Assert.NotNull(served.ServedAt); Assert.True(served.ServedAt >= served.ReadyAt);
+        await AssertErrorAsync(await PostAsync(owner, Served(first.Id), new { }), HttpStatusCode.Conflict, "ORDER_ITEM_CHANGED");
+        await AssertErrorAsync(await PostAsync(staff, Served(third.Id), new { }), HttpStatusCode.Conflict, "ORDER_ITEM_CHANGED");
+        await AssertErrorAsync(await PostAsync(staff, $"{Path(fresh.Id)}/items/{fresh.Items.Single().Id}/served", new { }),
+            HttpStatusCode.Conflict, "ORDER_ITEM_CHANGED");
+        Assert.Equal(HttpStatusCode.OK, (await PostAsync(owner, Served(second.Id), new { })).StatusCode);
+        var drained = (await staff.GetFromJsonAsync<PassPage>("/api/staff/pass"))!;
+        Assert.Empty(drained.Items); Assert.Equal(0, drained.TotalCount); Assert.Null(drained.LatestReadyAt);
+        // Serving touches neither the bill nor the kitchen's view of the order.
+        Assert.Equal(version, await VersionAsync(s));
+        var kitchen = (await staff.GetFromJsonAsync<KitchenOrderResponse>(Path(order.Id)))!;
+        Assert.Equal("PROCESSED", kitchen.Status); Assert.Equal(2100, kitchen.PayableAmountCents);
+        Assert.Equal("READY", kitchen.Items.Single(i => i.Id == first.Id).Status);
+    }
+
+    [Fact]
+    public async Task Pass_ClosedSessionsTenantsAndCallers_HideItemsAndRejectInvalidWrites()
+    {
+        using var host = new AccountTestHost(database);
+        var s = await SeedAsync(host); var other = await SeedAsync(host);
+        var a = await CreateAsync(host, s); var b = await CreateAsync(host, s);
+        await using var db = database.CreateContext();
+        var service = new KitchenService(db, host.Clock);
+        await service.ReadyAsync(s.RestaurantId, a.Id, a.Items.Single().Id, default);
+        await service.ReadyAsync(s.RestaurantId, b.Id, b.Items.Single().Id, default);
+        using var anonymous = host.Browser(); using var staff = await LoginAsync(host, s.Staff);
+        using var foreign = await LoginAsync(host, other.Owner);
+        await AssertErrorAsync(await anonymous.GetAsync("/api/staff/pass"), HttpStatusCode.Unauthorized, "UNAUTHENTICATED");
+        await AssertErrorAsync(await staff.PostAsJsonAsync(ItemPath(a) + "/served", new { }), HttpStatusCode.BadRequest, "CSRF_VALIDATION_FAILED");
+        await AssertErrorAsync(await PostAsync(foreign, ItemPath(a) + "/served", new { }), HttpStatusCode.NotFound, "ORDER_ITEM_NOT_FOUND");
+        await AssertErrorAsync(await PostAsync(staff, $"{Path(a.Id)}/items/{b.Items.Single().Id}/served", new { }),
+            HttpStatusCode.NotFound, "ORDER_ITEM_NOT_FOUND");
+        var foreignPage = (await foreign.GetFromJsonAsync<PassPage>("/api/staff/pass"))!;
+        Assert.Empty(foreignPage.Items); Assert.Null(foreignPage.LatestReadyAt);
+        var first = (await staff.GetFromJsonAsync<PassPage>("/api/staff/pass?limit=1"))!;
+        foreach (var query in new[] { "?cursor=broken", "?limit=0", "?limit=101" })
+            await AssertErrorAsync(await staff.GetAsync("/api/staff/pass" + query), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
+        await AssertErrorAsync(await foreign.GetAsync("/api/staff/pass?cursor=" + first.NextCursor), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
+        await AssertErrorAsync(await staff.GetAsync(List + "?cursor=" + first.NextCursor), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
+        // Only READY items can be served, and never before they were ready.
+        var pending = await CreateAsync(host, s);
+        foreach (var (orderId, at) in new[] { (pending.Id, host.Clock.GetUtcNow().UtcDateTime), (a.Id, DateTime.UnixEpoch) })
+        {
+            var violation = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.OrderItems
+                .Where(i => i.OrderId == orderId).ExecuteUpdateAsync(u => u.SetProperty(i => i.ServedAt, at)));
+            Assert.Equal("ck_order_item_served", violation.ConstraintName);
+        }
+
+        await CloseForTest(db, s, host.Clock);
+        var closed = await service.PassAsync(s.RestaurantId, null, 50, default);
+        Assert.Empty(closed.Items); Assert.Equal(0, closed.TotalCount);
+        // Closing never moves the watermark, so it cannot sound like a newly ready dish.
+        Assert.Equal(first.LatestReadyAt, closed.LatestReadyAt);
+        Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() =>
+            service.ServedAsync(s.RestaurantId, a.Id, a.Items.Single().Id, default))).Code);
+    }
+
+    [Fact]
+    public async Task Served_TwoConcurrentDevices_OnlyOneSucceeds()
+    {
+        using var host = new AccountTestHost(database);
+        var s = await SeedAsync(host); var order = await CreateAsync(host, s);
+        await using (var db = database.CreateContext())
+            await new KitchenService(db, host.Clock).ReadyAsync(s.RestaurantId, order.Id, order.Items.Single().Id, default);
+        async Task<Exception?> Attempt()
+        {
+            await using var db = database.CreateContext();
+            return await Record.ExceptionAsync(() =>
+                new KitchenService(db, host.Clock).ServedAsync(s.RestaurantId, order.Id, order.Items.Single().Id, default));
+        }
+        var errors = await Task.WhenAll(Attempt(), Attempt());
+        Assert.Single(errors, e => e is null);
+        Assert.Equal("ORDER_ITEM_CHANGED", Assert.IsType<ApiException>(errors.Single(e => e is not null)).Code);
+        await using var check = database.CreateContext();
+        var saved = await check.OrderItems.SingleAsync(i => i.OrderId == order.Id);
+        Assert.Equal(OrderItemStatus.Ready, saved.Status); Assert.NotNull(saved.ServedAt);
+    }
+
     private async Task<Setup> SeedAsync(AccountTestHost host)
     {
         await using var db = database.CreateContext();
