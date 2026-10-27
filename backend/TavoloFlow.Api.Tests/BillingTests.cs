@@ -51,11 +51,10 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
         var bill = (await staff.GetFromJsonAsync<BillPage>(Bill(s.Id)))!;
         Assert.Equal(1, bill.Summary.CancelledItemCount); Assert.Equal(1400, bill.Summary.TotalAmountCents);
         Assert.All(bill.Orders, o => { Assert.Equal("炒饭", o.Items.Single().NameZh); Assert.Equal(700, o.TotalAmountCents); Assert.Null(o.Items.Single().MenuItemId); });
-        Assert.Null(bill.Orders[0].CancelReason);
         Assert.Equal(0, bill.Orders[0].PayableAmountCents);
         var floor = (await staff.GetFromJsonAsync<FloorResponse>("/api/staff/floor"))!.Tables.Single().Session!;
         Assert.Equal(1400, floor.TotalAmountCents); Assert.Equal(3, floor.OrderCount); Assert.Equal(2, floor.NewItemCount);
-        foreach (var secret in new[] { "clientRequestId", "joinCode", "passwordHash" }) Assert.DoesNotContain(secret, await staff.GetStringAsync(Bill(s.Id)));
+        foreach (var secret in new[] { "clientRequestId", "joinCode", "passwordHash", "cancelReason" }) Assert.DoesNotContain(secret, await staff.GetStringAsync(Bill(s.Id)));
         foreach (var query in new[] { "?limit=0", "?limit=101", "?cursor=bad" })
             await AssertErrorAsync(await staff.GetAsync(Bill(s.Id) + query), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
     }

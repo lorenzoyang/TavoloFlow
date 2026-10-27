@@ -103,11 +103,6 @@ function BillOrder({ order, timeZone }: { order: KitchenOrder; timeZone: string 
           整单备注：{order.orderNote}
         </p>
       )}
-      {order.cancelReason && (
-        <p className="text-sm whitespace-pre-wrap wrap-break-word">
-          历史整单取消原因：{order.cancelReason}
-        </p>
-      )}
     </article>
   );
 }

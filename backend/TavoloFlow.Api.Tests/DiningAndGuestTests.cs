@@ -265,7 +265,7 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
             ClientRequestId = Guid.NewGuid(), DefaultLanguageSnapshot = "it", TotalAmountCents = 100,
             Status = cancelled ? OrderStatus.Processed : OrderStatus.New,
             CreatedAt = host.Clock.GetUtcNow().UtcDateTime,
-            ProcessedAt = cancelled ? host.Clock.GetUtcNow().UtcDateTime : null, CancelReason = cancelled ? "test" : null });
+            ProcessedAt = cancelled ? host.Clock.GetUtcNow().UtcDateTime : null });
         await db.SaveChangesAsync();
         await AssertErrorAsync(await PostAsync(staff, SessionPath(opened.Session.SessionId) + "/close-empty", CloseInput()), HttpStatusCode.Conflict, "SESSION_HAS_ORDERS");
     }

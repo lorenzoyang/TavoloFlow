@@ -57,7 +57,17 @@ public sealed class ItemProcessingMigrationTests(PostgreSqlFixture database) : I
             ids.Add((orderId, session.Id, state));
         }
 
+        // Exercise an already upgraded database as well as the legacy-state backfill.
+        await migrator.MigrateAsync("20261027101211_ItemLevelOrderProcessing");
+        Assert.Equal(2, await db.Database.SqlQueryRaw<int>(
+            "SELECT count(*)::int AS \"Value\" FROM orders WHERE cancel_reason IS NOT NULL").SingleAsync());
         await migrator.MigrateAsync();
+        Assert.False(await db.Database.SqlQueryRaw<bool>("""
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'orders' AND column_name = 'cancel_reason'
+            ) AS "Value"
+            """).SingleAsync());
         Assert.False(db.Database.HasPendingModelChanges());
         foreach (var row in ids)
         {
@@ -65,7 +75,6 @@ public sealed class ItemProcessingMigrationTests(PostgreSqlFixture database) : I
             var cancelled = row.State.StartsWith("CANCELLED", StringComparison.Ordinal);
             Assert.Equal(row.State == "NEW" ? OrderStatus.New : OrderStatus.Processed, order.Status);
             Assert.Equal(row.State == "NEW" ? null : cancelled ? cancelledAt : readyAt, order.ProcessedAt);
-            Assert.Equal(cancelled ? "旧整单原因" : null, order.CancelReason);
             Assert.Equal(2100, order.TotalAmountCents);
             Assert.Equal(new[] { 1, 2 }, order.Items.Select(i => i.Quantity).Order());
             Assert.All(order.Items, item =>

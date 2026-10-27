@@ -31,8 +31,8 @@
 
 旧 `/orders/{id}/ready`、`/cancel` 已移除。取消不需要 expectedStatus 或 reason，因为唯一合法来源是 NEW。
 
-厨房订单包含 `id, sessionId, tableLabel, status, createdAt, processedAt, cancelReason, defaultLanguage, totalAmountCents, payableAmountCents, orderNote, items`。
-`cancelReason` 仅保留旧整单取消原因，新操作不写入。每个 item 在原快照字段上增加 `status, readyAt, cancelledAt`；顾客与账单共用此明细契约。
+厨房订单包含 `id, sessionId, tableLabel, status, createdAt, processedAt, defaultLanguage, totalAmountCents, payableAmountCents, orderNote, items`。
+取消原因不存储、不返回。每个 item 在原快照字段上增加 `status, readyAt, cancelledAt`；顾客与账单共用此明细契约。
 `totalAmountCents` 永远是原始下单金额；`payableAmountCents` 为未取消明细的单价乘数量之和。
 
 - 列表只含 ACTIVE 用餐，行与计数来自同一 Repeatable Read 快照；游标绑定餐厅、状态和排序位置。
@@ -64,10 +64,10 @@
 
 ## 数据升级与发布
 
-`ItemLevelOrderProcessing` 新迁移保留所有既有迁移和订单。旧 NEW/READY/CANCELLED 整单状态分别复制给其明细；READY/CANCELLED 订单汇总为 PROCESSED。旧完成、取消时间复制到明细；旧 READY 后被取消的记录保留两个时间，旧取消原因保留在订单上。
-这些时间是历史整单事件的兼容值，并非真实逐菜出餐时间。原始金额、内容快照和已关闭账单金额不变。
+`ItemLevelOrderProcessing` 新迁移保留所有既有迁移和订单。旧 NEW/READY/CANCELLED 整单状态分别复制给其明细；READY/CANCELLED 订单汇总为 PROCESSED。旧完成、取消时间复制到明细；旧 READY 后被取消的记录保留两个时间，随后通过 `RemoveOrderCancelReason` 迁移删除 `orders.cancel_reason` 及旧原因文字，订单和明细继续保留。
+这些时间是历史整单事件的兼容值，并非真实逐菜出餐时间。原始金额、内容快照和已关闭账单金额不变。删除原因列的迁移 Down 只能恢复空列，不能恢复已删除的文字。
 
-前后端与数据库作为同一版本发布，使用现有显式 migration bundle 流程，发布后旧页面需刷新；不自动启动迁移。部分完成与无原因取消无法无损降级为旧整单模型，迁移 Down 明确拒绝，回退需恢复升级前备份。
+前后端与数据库作为同一版本发布，使用现有显式 migration bundle 流程，发布后旧页面需刷新；不自动启动迁移。部分完成与无原因取消无法无损降级为旧整单模型，`ItemLevelOrderProcessing.Down` 明确拒绝，回退至旧整单模型需恢复升级前备份。
 
 ## 验证与学习实验
 

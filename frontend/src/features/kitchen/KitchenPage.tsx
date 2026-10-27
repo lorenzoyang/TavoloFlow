@@ -217,11 +217,6 @@ function OrderTicket({
             {formatMoney(order.payableAmountCents)}
           </p>
           {order.processedAt && <p>处理完毕：{formatDateTime(order.processedAt)}</p>}
-          {order.cancelReason && (
-            <p className="whitespace-pre-wrap wrap-break-word">
-              历史整单取消原因：{order.cancelReason}
-            </p>
-          )}
         </div>
       )}
     </article>

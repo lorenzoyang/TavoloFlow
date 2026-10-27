@@ -92,7 +92,8 @@ generating SQL do not require a running database.
   Orders summarize `NEW` or `PROCESSED` with a nullable `processed_at`.
   Items carry `NEW`, `READY`, or `CANCELLED` and their transition timestamps.
   New cancellations need no reason and only accept NEW items; migrated historical
-  cancellations may retain `ready_at` and the old order reason. Services clamp item
+  cancellations may retain `ready_at`. `RemoveOrderCancelReason` drops the legacy
+  reason column and its text without removing orders or item snapshots. Services clamp item
   times to order creation and closure to the latest item event.
 
 The DBML includes the current fields, relationships, and strengthened checks.

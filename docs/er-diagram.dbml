@@ -243,7 +243,6 @@ Table orders {
   default_language_snapshot varchar(2) [not null]
   created_at timestamptz [not null, default: `now()`]
   processed_at timestamptz
-  cancel_reason text [note: 'Legacy whole-order history only; new cancellations collect no reason']
 
   Indexes {
     (id, restaurant_id) [unique, name: 'uq_orders_id_tenant']

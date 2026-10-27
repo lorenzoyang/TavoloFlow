@@ -37,7 +37,7 @@ sessionId, tableId, tableLabel, status, openedAt, closedAt, closeReason,
 billVersion, orderCount, itemCount, newItemCount, cancelledItemCount, totalAmountCents
 ```
 
-订单复用厨房的快照 DTO，包含整单 NEW/PROCESSED 状态、原金额、应收金额及逐项 NEW/READY/CANCELLED、完成/取消时间、菜名、单价、数量和备注。取消原因只显示旧整单历史值，新操作不填写原因。
+订单复用厨房的快照 DTO，包含整单 NEW/PROCESSED 状态、原金额、应收金额及逐项 NEW/READY/CANCELLED、完成/取消时间、菜名、单价、数量和备注。取消原因不存储或展示。
 明细按 `(created_at, id)` 升序分页；游标绑定餐厅、Session、活动/历史模式和 `billVersion`。
 活动账单版本变化后继续使用旧游标会得到 `409 BILL_CHANGED`，前端从第一页重新读取。
 READY 不增加账单版本；每次轮询重新读取已加载分页，以获得处理状态更新。

@@ -59,7 +59,7 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
             Assert.Equal("少盐", order.Items.Single().Remark); Assert.Equal(["SOY"], order.Items.Single().AllergenCodes);
         });
         var json = await staff.GetStringAsync(List);
-        foreach (var secret in new[] { "clientRequestId", "joinCode", "passwordHash" }) Assert.DoesNotContain(secret, json);
+        foreach (var secret in new[] { "clientRequestId", "joinCode", "passwordHash", "cancelReason" }) Assert.DoesNotContain(secret, json);
         foreach (var query in new[] { "?cursor=broken", "?status=bad", "?limit=0", "?limit=101", "?status=PROCESSED&cursor=" + first.NextCursor })
             await AssertErrorAsync(await staff.GetAsync(List + query), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
         using var foreign = await LoginAsync(host, other.Staff);
@@ -91,7 +91,7 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
         var cancelled = (await (await PostAsync(staff, secondPath + "/cancel", new { })).Content.ReadFromJsonAsync<KitchenOrderResponse>())!;
         Assert.Equal("PROCESSED", cancelled.Status); Assert.Equal("CANCELLED", cancelled.Items.Single(i => i.Id == second.Id).Status);
         Assert.Equal(2800, cancelled.TotalAmountCents); Assert.Equal(2100, cancelled.PayableAmountCents);
-        Assert.Equal(cancelled.Items.Single(i => i.Id == second.Id).CancelledAt, cancelled.ProcessedAt); Assert.Null(cancelled.CancelReason);
+        Assert.Equal(cancelled.Items.Single(i => i.Id == second.Id).CancelledAt, cancelled.ProcessedAt);
         Assert.Equal(partial.Items.Single(i => i.Id == first.Id).ReadyAt, cancelled.Items.Single(i => i.Id == first.Id).ReadyAt); Assert.Equal(3, await VersionAsync(s));
         await AssertErrorAsync(await PostAsync(owner, secondPath + "/cancel", new { }), HttpStatusCode.Conflict, "ORDER_ITEM_CHANGED");
         await AssertErrorAsync(await PostAsync(owner, secondPath + "/ready", new { }), HttpStatusCode.Conflict, "ORDER_ITEM_CHANGED");

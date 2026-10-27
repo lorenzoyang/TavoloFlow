@@ -247,10 +247,6 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<string>("CancelReason")
-                        .HasColumnType("text")
-                        .HasColumnName("cancel_reason");
-
                     b.Property<Guid>("ClientRequestId")
                         .HasColumnType("uuid")
                         .HasColumnName("client_request_id");

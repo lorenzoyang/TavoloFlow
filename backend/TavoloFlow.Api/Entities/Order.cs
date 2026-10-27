@@ -18,8 +18,6 @@ public sealed class Order
     public required string DefaultLanguageSnapshot { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? ProcessedAt { get; set; }
-    // Read-only compatibility for cancellations recorded before item-level processing.
-    public string? CancelReason { get; set; }
 
     public Restaurant Restaurant { get; set; } = null!;
     public DiningSession DiningSession { get; set; } = null!;

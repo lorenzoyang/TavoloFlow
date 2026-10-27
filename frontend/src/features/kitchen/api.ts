@@ -7,7 +7,6 @@ import type { OrderStatus } from "./state";
 export type KitchenOrder = Order & {
   tableLabel: string;
   processedAt: string | null;
-  cancelReason: string | null;
 };
 export type KitchenPage = {
   items: KitchenOrder[];

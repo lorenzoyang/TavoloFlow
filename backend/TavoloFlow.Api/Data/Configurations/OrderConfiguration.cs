@@ -44,8 +44,6 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
 
         builder.Property(order => order.ProcessedAt).HasColumnName("processed_at").HasColumnType("timestamptz");
 
-        builder.Property(order => order.CancelReason).HasColumnName("cancel_reason").HasColumnType("text");
-
         builder.HasIndex(order => new { order.DiningSessionId, order.ClientRequestId }).IsUnique()
             .HasDatabaseName("uq_order_one_per_request");
 
