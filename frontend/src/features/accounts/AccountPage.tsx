@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
+import { ServiceSuspendedNotice } from "@/features/dining/ServiceNotice";
 import type { CurrentAccount } from "./api";
 import { messages as m } from "./messages";
 import { staffManagementItems, staffNavItems, type StaffDestination } from "./navigation";
@@ -95,6 +96,7 @@ function Home({ account, passwordChanged }: { account: CurrentAccount; passwordC
         description={`${account.restaurantName} · ${role}`}
       />
       {passwordChanged && <Notice tone="success">{m.changeSuccess}</Notice>}
+      <ServiceSuspendedNotice account={account} />
       <section aria-labelledby="home-workspaces" className="space-y-3">
         <h2 id="home-workspaces" className="text-sm font-medium text-muted-foreground">
           {m.workspaces}

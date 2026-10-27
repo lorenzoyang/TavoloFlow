@@ -44,7 +44,7 @@ export const messages: Record<Language, Messages> = {
     retry: "重新读取菜单",
     error: "暂时无法读取菜单，请检查网络后重试。",
     stale: "菜单更新失败，当前显示上次读取的内容。请重新读取或向服务员确认。",
-    suspended: "餐厅扫码服务暂时停用，您仍可浏览菜单。",
+    suspended: "本餐厅暂未开放扫码点餐，您仍可浏览菜单；如需点餐请联系服务员。",
     disabled: "此桌暂时停用，您仍可浏览菜单。",
     paused: "餐厅暂未接受扫码订单。",
     order: "可先编辑购物车；加入本轮用餐并核对订单后提交。",
@@ -69,7 +69,8 @@ export const messages: Record<Language, Messages> = {
     error: "Impossibile caricare il menu. Controlla la connessione e riprova.",
     stale:
       "Aggiornamento non riuscito: stai vedendo il menu precedente. Riprova o chiedi al personale.",
-    suspended: "Il servizio QR del ristorante è sospeso. Puoi comunque consultare il menu.",
+    suspended:
+      "Gli ordini tramite QR non sono ancora disponibili in questo ristorante. Puoi comunque consultare il menu; per ordinare rivolgiti al personale.",
     disabled: "Questo tavolo è disabilitato. Puoi comunque consultare il menu.",
     paused: "Il ristorante non accetta ordini tramite QR al momento.",
     order: "Prepara il carrello, unisciti al tavolo e controlla l’ordine prima di inviarlo.",
@@ -97,7 +98,8 @@ export const messages: Record<Language, Messages> = {
     error: "Unable to load the menu. Check your connection and try again.",
     stale:
       "The menu could not be updated. You are viewing an earlier version. Refresh or check with the staff.",
-    suspended: "The restaurant’s QR service is suspended. You can still browse the menu.",
+    suspended:
+      "QR ordering isn’t available at this restaurant yet. You can still browse the menu; please ask the staff to order.",
     disabled: "This table is disabled. You can still browse the menu.",
     paused: "The restaurant is not accepting QR orders at the moment.",
     order: "Prepare your cart, join this visit, then review and place your order.",

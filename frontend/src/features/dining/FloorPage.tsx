@@ -286,7 +286,9 @@ function FloorContent({
       />
       <div className="mb-5 space-y-3">
         {floor.data?.serviceStatus === "SUSPENDED" && (
-          <Notice tone="warning">餐厅服务已暂停，暂不能开新桌。已有用餐仍可核对并关闭空桌。</Notice>
+          <Notice tone="warning">
+            餐厅服务尚未由平台启用或已被暂停，暂不能开新桌；已有用餐仍可核对并关闭空桌。如需启用，请联系平台管理员。
+          </Notice>
         )}
         {notice && <Notice>{notice}</Notice>}
         {(error || floor.isError || session.isError || floor.fetchStatus === "paused") && (

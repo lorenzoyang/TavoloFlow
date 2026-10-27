@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
+import { ServiceSuspendedNotice } from "@/features/dining/ServiceNotice";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { isSameAccount, refreshAfterWrite } from "@/features/accounts/queries";
 import { ApiError, errorMessage } from "@/lib/api";
@@ -155,6 +156,7 @@ function TablesContent({ account }: { account: CurrentAccount }) {
         }
       />
       <div className="mb-5 space-y-3">
+        <ServiceSuspendedNotice account={account} />
         {notice && <Notice tone="success">{notice}</Notice>}
         {(query.isError || query.fetchStatus === "paused") && (
           <Notice tone="error">无法更新桌位列表，请检查网络后重试。</Notice>

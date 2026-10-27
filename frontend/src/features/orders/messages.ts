@@ -43,7 +43,8 @@ const en = {
     "This visit has ended. If an order was awaiting confirmation, ask staff to check it. Nothing will be sent to a new visit.",
   offline: "Connection or result could not be confirmed. Reconnect and check the original result.",
   paused: "The restaurant is not accepting new orders. Existing orders can still be checked.",
-  suspended: "The restaurant’s QR service is suspended. Existing orders can still be checked.",
+  suspended:
+    "QR ordering isn’t available at this restaurant right now. Existing orders can still be checked.",
   disabled: "This table is disabled for new orders. Please contact staff.",
   auth: "Verify the original visit again to recover your cart or pending order.",
   csrf: "Page verification changed. Please review and try again.",
@@ -106,7 +107,7 @@ export const orderMessages: Record<Language, typeof en> = {
     endedPending: "本轮用餐已结束。如有待确认订单，请由工作人员核对；不会发送到下一轮用餐。",
     offline: "连接或结果尚未确认，请恢复网络后核对原请求。",
     paused: "餐厅已暂停新增订单，仍可核对已提交订单。",
-    suspended: "餐厅扫码服务已暂停，仍可核对已提交订单。",
+    suspended: "本餐厅暂未开放扫码点餐，仍可核对已提交订单。",
     disabled: "此桌已停用，无法提交新订单，请联系工作人员。",
     auth: "请重新加入原用餐，以恢复购物车或待确认订单。",
     csrf: "页面验证已变化，请重新核对后再试。",
@@ -173,7 +174,8 @@ export const orderMessages: Record<Language, typeof en> = {
       "La visita è terminata. Chiedi al personale di verificare eventuali ordini in attesa. Nulla sarà inviato a una nuova visita.",
     offline: "Connessione o esito non confermati. Riconnettiti e verifica la richiesta originale.",
     paused: "Il ristorante non accetta nuovi ordini. Puoi verificare quelli già inviati.",
-    suspended: "Il servizio QR è sospeso. Puoi verificare gli ordini già inviati.",
+    suspended:
+      "Gli ordini tramite QR non sono disponibili al momento. Puoi verificare quelli già inviati.",
     disabled: "Il tavolo non accetta nuovi ordini. Rivolgiti al personale.",
     auth: "Unisciti di nuovo alla visita originale per recuperare carrello o ordine in attesa.",
     csrf: "La verifica della pagina è cambiata. Controlla e riprova.",
