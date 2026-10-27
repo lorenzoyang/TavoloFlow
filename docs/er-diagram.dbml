@@ -40,6 +40,7 @@ Table restaurants {
   currency_code char(3) [not null, default: 'EUR']
   service_status varchar(16) [not null, default: 'SUSPENDED']
   ordering_enabled boolean [not null, default: false]
+  join_code_required boolean [not null, default: true, note: 'Platform-only switch; false lets guests join an open table without its join code']
   owner_contact varchar(500)
   default_annual_fee_cents bigint
   subscription_version int [not null, default: 1]

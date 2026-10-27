@@ -27,10 +27,11 @@ export const guestKeys = {
 export const readGuestAccess = (sessionId: string, signal?: AbortSignal) =>
   guestRequest<GuestAccess>(`/api/public/sessions/${sessionId}/access`, { signal });
 
+// A restaurant without join codes accepts null and still issues the visit-bound guest cookie.
 export const joinVisit = (
   token: string,
   sessionId: string,
-  joinCode: string,
+  joinCode: string | null,
   signal: AbortSignal,
 ) =>
   guestWrite<{ restaurantId: string; tableId: string; sessionId: string }>(

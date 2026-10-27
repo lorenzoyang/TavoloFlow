@@ -11,6 +11,7 @@ export type PublicMenu = {
     defaultLanguage: Language;
     serviceStatus: "ACTIVE" | "SUSPENDED";
     orderingEnabled: boolean;
+    joinCodeRequired: boolean;
   };
   table: { id: string; tableLabel: string; isEnabled: boolean };
   activeSessionId: string | null;

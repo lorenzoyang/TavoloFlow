@@ -93,7 +93,7 @@ sequenceDiagram
 
 `PublicMenuResponse`：
 
-- `restaurant`：`id`、`name`、`currencyCode`、`defaultLanguage`、`serviceStatus`、`orderingEnabled`。
+- `restaurant`：`id`、`name`、`currencyCode`、`defaultLanguage`、`serviceStatus`、`orderingEnabled`、`joinCodeRequired`（只说明是否需要入桌码，不含码值）。
 - `table`：`id`、`tableLabel`、`isEnabled`。
 - `activeSessionId`：本桌活动用餐 ID，无活动用餐时为 `null`，不是授权凭据。
 - `menu`：`availableLanguages`、`categories`、`items`。分类和菜品 DTO 复用菜单字段，

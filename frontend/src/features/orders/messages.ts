@@ -28,7 +28,7 @@ const en = {
   notFound:
     "No result found yet. This does not mean the original request failed. You may check again or retry the same order.",
   success: "Order received",
-  unverified: "Verify this visit’s code before reviewing and placing your order.",
+  unverified: "Join this visit before reviewing and placing your order.",
   changed: "The menu has changed. Review the latest prices and availability, then confirm again.",
   unavailable:
     "Some dishes are unavailable or awaiting allergen review. Remove or replace them before ordering.",
@@ -95,7 +95,7 @@ export const orderMessages: Record<Language, typeof en> = {
     retry: "重试原订单",
     notFound: "暂未查到原订单，这不代表原请求已失败。可以继续核对，或使用同一请求重试。",
     success: "订单已收到",
-    unverified: "请先验证本轮入桌码，再核对并提交订单。",
+    unverified: "请先加入本轮用餐，再核对并提交订单。",
     changed: "菜单已变化，请重新核对最新价格和供应状态，再确认下单。",
     unavailable: "部分菜品已不可售或尚未完成过敏原审核，请移除或替换后再下单。",
     limits:
@@ -108,7 +108,7 @@ export const orderMessages: Record<Language, typeof en> = {
     paused: "餐厅已暂停新增订单，仍可核对已提交订单。",
     suspended: "餐厅扫码服务已暂停，仍可核对已提交订单。",
     disabled: "此桌已停用，无法提交新订单，请联系工作人员。",
-    auth: "请重新验证原用餐的入桌码，以恢复购物车或待确认订单。",
+    auth: "请重新加入原用餐，以恢复购物车或待确认订单。",
     csrf: "页面验证已变化，请重新核对后再试。",
     generic: "暂时无法完成操作，请检查网络或联系工作人员。",
     orders: "本桌订单",
@@ -157,7 +157,7 @@ export const orderMessages: Record<Language, typeof en> = {
     notFound:
       "Ordine non ancora trovato: questo non significa che sia fallito. Puoi ricontrollare o riprovare lo stesso ordine.",
     success: "Ordine ricevuto",
-    unverified: "Verifica il codice di questa visita prima di controllare e inviare l’ordine.",
+    unverified: "Unisciti al tavolo prima di controllare e inviare l’ordine.",
     changed:
       "Il menu è cambiato. Controlla prezzi e disponibilità aggiornati e conferma nuovamente.",
     unavailable:
@@ -175,7 +175,7 @@ export const orderMessages: Record<Language, typeof en> = {
     paused: "Il ristorante non accetta nuovi ordini. Puoi verificare quelli già inviati.",
     suspended: "Il servizio QR è sospeso. Puoi verificare gli ordini già inviati.",
     disabled: "Il tavolo non accetta nuovi ordini. Rivolgiti al personale.",
-    auth: "Verifica nuovamente il codice della visita originale per recuperare carrello o ordine in attesa.",
+    auth: "Unisciti di nuovo alla visita originale per recuperare carrello o ordine in attesa.",
     csrf: "La verifica della pagina è cambiata. Controlla e riprova.",
     generic: "Operazione non disponibile. Controlla la connessione o chiedi al personale.",
     orders: "Ordini del tavolo",

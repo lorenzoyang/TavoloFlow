@@ -10,9 +10,9 @@ public sealed class GuestService(ApplicationDbContext db, JoinCodes codes)
 {
     public async Task<GuestIdentity> JoinAsync(string token, JoinInput input, CancellationToken ct)
     {
-        var code = input.JoinCode.Trim().ToUpperInvariant();
+        var code = input.JoinCode?.Trim().ToUpperInvariant() ?? "";
 
-        if (input.SessionId is null || input.SessionId == Guid.Empty || code.Length != 4 || code.Any(c => !JoinCodes.Alphabet.Contains(c)))
+        if (input.SessionId is null || input.SessionId == Guid.Empty || (code.Length > 0 && !IsCode(code)))
             throw ApiException.Validation("请输入四位入桌码并确认当前用餐。");
 
         if (token.Length > 128) throw GuestErrors.QrNotFound();
@@ -28,8 +28,13 @@ public sealed class GuestService(ApplicationDbContext db, JoinCodes codes)
             ?? throw DiningErrors.SessionNotFound();
         if (session.TableId != table.Id) throw DiningErrors.SessionNotFound();
         if (session.Status != DiningSessionStatus.Active) throw DiningErrors.SessionClosed();
-        if (!codes.Matches(session, code))
-            throw new ApiException(401, "JOIN_CODE_INCORRECT", "入桌码不正确，请向同桌顾客或工作人员确认。");
+        // Read under the restaurant SHARE lock: the platform switch waits until this join commits.
+        if (restaurant.JoinCodeRequired)
+        {
+            if (!IsCode(code)) throw ApiException.Validation("请输入四位入桌码并确认当前用餐。");
+            if (!codes.Matches(session, code))
+                throw new ApiException(401, "JOIN_CODE_INCORRECT", "入桌码不正确，请向同桌顾客或工作人员确认。");
+        }
         await transaction.CommitAsync(ct);
         return new(restaurant.Id, table.Id, session.Id);
     }
@@ -62,6 +67,8 @@ public sealed class GuestService(ApplicationDbContext db, JoinCodes codes)
         await transaction.CommitAsync(ct);
         return result;
     }
+
+    private static bool IsCode(string code) => code.Length == 4 && code.All(c => JoinCodes.Alphabet.Contains(c));
 
     private static void RequireTarget(GuestIdentity guest, Guid target)
     {

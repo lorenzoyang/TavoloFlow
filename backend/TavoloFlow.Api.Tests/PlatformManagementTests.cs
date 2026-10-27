@@ -196,4 +196,31 @@ public sealed class PlatformManagementTests(PostgreSqlFixture database) : IClass
         await AssertErrorAsync(await WriteAsync(admin, $"/api/platform/restaurants/{Guid.NewGuid()}/google-maps-url",
             new { googleMapsUrl = place }, HttpMethod.Patch), HttpStatusCode.NotFound, "RESTAURANT_NOT_FOUND");
     }
+
+    [Fact]
+    public async Task JoinCodeRequired_CreateAndToggle_UpdatesOnlyThatSetting()
+    {
+        using var host = new AccountTestHost(database); using var admin = await Admin(host);
+        Assert.True((await Create(admin)).Restaurant.JoinCodeRequired);
+        var created = await Create(admin, Input() with { JoinCodeRequired = false });
+        Assert.False(created.Restaurant.JoinCodeRequired);
+        var id = created.Restaurant.Id;
+        var path = $"/api/platform/restaurants/{id}/join-code-required";
+        foreach (var invalid in new object[] { new { }, new { joinCodeRequired = true, extra = 1 } })
+            await AssertErrorAsync(await WriteAsync(admin, path, invalid, HttpMethod.Patch), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
+        var enabled = await WriteAsync(admin, path, new { joinCodeRequired = true }, HttpMethod.Patch);
+        var summary = (await enabled.Content.ReadFromJsonAsync<RestaurantSummary>())!;
+        Assert.True(summary.JoinCodeRequired);
+        Assert.Equal(created.Restaurant with { JoinCodeRequired = true }, summary);
+        Assert.True((await admin.GetFromJsonAsync<RestaurantDetail>($"/api/platform/restaurants/{id}"))!.Restaurant.JoinCodeRequired);
+        await AssertErrorAsync(await WriteAsync(admin, $"/api/platform/restaurants/{Guid.NewGuid()}/join-code-required",
+            new { joinCodeRequired = false }, HttpMethod.Patch), HttpStatusCode.NotFound, "RESTAURANT_NOT_FOUND");
+        // Only the platform changes it: a store OWNER has no platform identity.
+        using var owner = host.Browser();
+        await StoreLogin(owner, created.Credentials.Single(c => c.Account.Role == "OWNER"));
+        await AssertErrorAsync(await WriteAsync(owner, path, new { joinCodeRequired = false }, HttpMethod.Patch),
+            HttpStatusCode.Unauthorized, "UNAUTHENTICATED");
+        await using var db = database.CreateContext();
+        Assert.True(await db.Restaurants.Where(r => r.Id == id).Select(r => r.JoinCodeRequired).SingleAsync());
+    }
 }

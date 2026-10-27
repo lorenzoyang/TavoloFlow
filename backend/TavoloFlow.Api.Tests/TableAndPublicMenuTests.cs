@@ -204,7 +204,10 @@ public sealed class TableAndPublicMenuTests(PostgreSqlFixture database) : IClass
         using var json = JsonDocument.Parse(responseText);
         Assert.Equal(new[] { "activeSessionId", "menu", "restaurant", "table" }, json.RootElement.EnumerateObject().Select(x => x.Name).Order());
         var text = json.RootElement.GetRawText().ToLowerInvariant();
-        foreach (var forbidden in new[] { "joincode", "ciphertext", "password", "credential", "billversion", "orders", "username" }) Assert.DoesNotContain(forbidden, text);
+        Assert.True(result.Restaurant.JoinCodeRequired);
+        Assert.Equal(new[] { "currencyCode", "defaultLanguage", "id", "joinCodeRequired", "name", "orderingEnabled", "serviceStatus" },
+            json.RootElement.GetProperty("restaurant").EnumerateObject().Select(x => x.Name).Order());
+        foreach (var forbidden in new[] { "\"joincode\"", "ciphertext", "password", "credential", "billversion", "orders", "username" }) Assert.DoesNotContain(forbidden, text);
         await using var read = database.CreateContext();
         Assert.False(await read.DiningSessions.AnyAsync(x => x.RestaurantId == user.RestaurantId));
         Assert.False(await read.Orders.AnyAsync(x => x.RestaurantId == user.RestaurantId));

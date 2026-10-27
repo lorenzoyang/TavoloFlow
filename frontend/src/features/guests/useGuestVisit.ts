@@ -40,6 +40,8 @@ export function useGuestVisit(
   const operation = useRef<AbortController | null>(null);
   const epoch = useRef(0);
   const channel = useRef<BroadcastChannel | null>(null);
+  const autoJoined = useRef<string | null>(null);
+  const codeRequired = data.restaurant.joinCodeRequired;
   const key = guestKeys.access(data.restaurant.id, data.table.id, visit.sessionId);
   const access = useQuery({
     queryKey: key,
@@ -176,6 +178,26 @@ export function useGuestVisit(
     !menuError &&
     !visit.ended;
   const entranceAllowed = data.restaurant.serviceStatus === "ACTIVE" && data.table.isEnabled;
+  const autoJoin =
+    !codeRequired &&
+    !!visit.sessionId &&
+    !visit.ended &&
+    access.data?.kind === "unverified" &&
+    !access.isFetching &&
+    online &&
+    visible &&
+    !menuError &&
+    entranceAllowed &&
+    !busy;
+
+  useEffect(() => {
+    // Without join codes the page joins by itself, but at most once per visit: a failure leaves the
+    // button, and two tabs at different tables never keep taking the browser's guest cookie back.
+    if (!autoJoin || autoJoined.current === visit.sessionId) return;
+    autoJoined.current = visit.sessionId;
+    void join();
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoJoin, visit.sessionId]);
 
   function finish(controller: AbortController) {
     // A cancelled operation must not clear a newer operation's busy state.
@@ -221,7 +243,12 @@ export function useGuestVisit(
     setUnknown(false);
     setCode("");
     try {
-      await joinVisit(token, visit.sessionId, input, withTimeout(controller.signal));
+      await joinVisit(
+        token,
+        visit.sessionId,
+        codeRequired ? input : null,
+        withTimeout(controller.signal),
+      );
       if (controller.signal.aborted || generation !== epoch.current) return;
       setInput("");
       channel.current?.postMessage("changed");
@@ -237,7 +264,11 @@ export function useGuestVisit(
       if (!(e instanceof ApiError) || e.status >= 500) {
         setUnknown(true);
         await access.refetch();
-      } else showError(e);
+      } else {
+        showError(e);
+        // The platform may have just turned join codes on: reread the entrance to show the code field.
+        if (!codeRequired) void client.invalidateQueries({ queryKey: publicMenuKey(token) });
+      }
     } finally {
       finish(controller);
     }
@@ -299,6 +330,7 @@ export function useGuestVisit(
 
   return {
     visit,
+    codeRequired,
     verified,
     checking: access.isPending && access.fetchStatus === "fetching",
     busy,

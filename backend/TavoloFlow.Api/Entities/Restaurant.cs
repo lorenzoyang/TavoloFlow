@@ -15,6 +15,7 @@ public sealed class Restaurant
     public string CurrencyCode { get; set; } = "EUR";
     public RestaurantServiceStatus ServiceStatus { get; set; } = RestaurantServiceStatus.Suspended;
     public bool OrderingEnabled { get; set; }
+    public bool JoinCodeRequired { get; set; } = true;
     public DateTime CreatedAt { get; set; }
     public string? GoogleMapsUrl { get; set; }
     public string? OwnerContact { get; set; }

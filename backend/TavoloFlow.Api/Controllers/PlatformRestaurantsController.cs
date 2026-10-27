@@ -25,6 +25,9 @@ public sealed class PlatformRestaurantsController(RestaurantAdministration servi
     [HttpPatch("{id:guid}/google-maps-url")]
     public async Task<IActionResult> MapsUrl(Guid id, GoogleMapsUrlInput input, CancellationToken ct) =>
         Ok(await service.SetGoogleMapsUrlAsync(id, input.GoogleMapsUrl, Actor, ct));
+    [HttpPatch("{id:guid}/join-code-required")]
+    public async Task<IActionResult> JoinCodeRequired(Guid id, JoinCodeRequiredInput input, CancellationToken ct) =>
+        Ok(await service.SetJoinCodeRequiredAsync(id, input.JoinCodeRequired!.Value, Actor, ct));
     [HttpPatch("{id:guid}/users/{userId:guid}/active")]
     public async Task<IActionResult> Active(Guid id, Guid userId, AccountActiveInput input, CancellationToken ct) =>
         Ok(await service.SetActiveAsync(id, userId, input.ExpectedCredentialVersion!.Value, input.IsActive!.Value, Actor, ct));

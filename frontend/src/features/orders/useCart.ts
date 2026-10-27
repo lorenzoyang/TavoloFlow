@@ -234,7 +234,9 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
     if (!guest.verified) {
       guest.enter();
       setMessage("unverified");
-      document.getElementById("guest-join-code")?.focus();
+      (
+        document.getElementById("guest-join-code") ?? document.getElementById("guest-join-direct")
+      )?.focus();
       return;
     }
     const work = start();

@@ -64,7 +64,7 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
         if (await db.Restaurants.AnyAsync(r => r.Id == input.Id, ct))
             throw new ApiException(409, "RESTAURANT_EXISTS", "此创建标识已存在，请核对原餐厅。");
         var restaurant = new Restaurant { Id = input.Id, Name = input.Name.Trim(), DefaultLanguage = input.DefaultLanguage,
-            GoogleMapsUrl = mapsUrl };
+            GoogleMapsUrl = mapsUrl, JoinCodeRequired = input.JoinCodeRequired };
         var credentials = new List<TemporaryAccount>();
         foreach (var (name, role) in new[] { (owner, RestaurantUserRole.Owner), (staff, RestaurantUserRole.Staff) })
         {
@@ -113,6 +113,16 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
         if (await db.Restaurants.Where(r => r.Id == id).ExecuteUpdateAsync(u => u.SetProperty(r => r.GoogleMapsUrl, value), ct) == 0)
             throw AdministrationErrors.RestaurantNotFound();
         logger.LogInformation("Platform {ActorId} set restaurant {RestaurantId} map link.", actor, id);
+        return RestaurantSummary.From(await db.Restaurants.AsNoTracking().SingleAsync(r => r.Id == id, ct));
+    }
+
+    // A single-column UPDATE waits for the restaurant SHARE lock each guest join holds, so every join
+    // sees one value. Grants issued earlier stay valid when join codes are turned back on.
+    public async Task<RestaurantSummary> SetJoinCodeRequiredAsync(Guid id, bool required, Guid actor, CancellationToken ct)
+    {
+        if (await db.Restaurants.Where(r => r.Id == id).ExecuteUpdateAsync(u => u.SetProperty(r => r.JoinCodeRequired, required), ct) == 0)
+            throw AdministrationErrors.RestaurantNotFound();
+        logger.LogInformation("Platform {ActorId} set restaurant {RestaurantId} join code required={Required}.", actor, id, required);
         return RestaurantSummary.From(await db.Restaurants.AsNoTracking().SingleAsync(r => r.Id == id, ct));
     }
 

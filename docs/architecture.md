@@ -49,7 +49,7 @@ flowchart TD
 
 几个要点：
 
-- **认证与授权分离**。店铺和平台 Cookie 每次请求都在 `ValidatePrincipal` 中回查数据库，比对 `credential_version`、启用状态和角色，所以改密、重置或禁用后旧 Cookie 立即失效。顾客 Cookie 只证明“这个浏览器曾为某一轮用餐输对入桌码”，用餐是否仍为 ACTIVE 由每个顾客服务自行检查。
+- **认证与授权分离**。店铺和平台 Cookie 每次请求都在 `ValidatePrincipal` 中回查数据库，比对 `credential_version`、启用状态和角色，所以改密、重置或禁用后旧 Cookie 立即失效。顾客 Cookie 只证明“这个浏览器曾加入某一轮用餐”（需要入桌码的餐厅须输对入桌码），用餐是否仍为 ACTIVE 由每个顾客服务自行检查。
 - **默认安全**。没有显式 `[Authorize]` 的端点会落到兜底策略（Store Staff），新端点不会意外公开。
 - **统一错误信封**。所有业务错误都是 `{ code, message, requestId, errors, ...extensions }`。服务抛出 `ApiException`（通常经由模块工厂，如 `DiningErrors.SessionClosed()`），全局过滤器负责转换。少数错误码带扩展字段，例如 `MENU_CHANGED.changes` 和账单冲突的 `currentBill`。
 

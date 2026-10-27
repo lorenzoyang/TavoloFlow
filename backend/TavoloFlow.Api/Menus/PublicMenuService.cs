@@ -24,13 +24,14 @@ public sealed class PublicMenuService(ApplicationDbContext context)
                 x.Restaurant.DefaultLanguage,
                 x.Restaurant.ServiceStatus,
                 x.Restaurant.OrderingEnabled,
+                x.Restaurant.JoinCodeRequired,
                 ActiveSessionId = x.DiningSessions.Where(s => s.Status == DiningSessionStatus.Active)
                     .Select(s => (Guid?)s.Id).SingleOrDefault()
             }).SingleOrDefaultAsync(ct) ?? throw NotFound();
         var menu = await MenuReader.ReadAsync(context, entrance.RestaurantId, entrance.DefaultLanguage, ct);
         await transaction.CommitAsync(ct);
         return new(new(entrance.RestaurantId, entrance.Name, entrance.CurrencyCode, entrance.DefaultLanguage,
-                ApiEnum.Text(entrance.ServiceStatus), entrance.OrderingEnabled),
+                ApiEnum.Text(entrance.ServiceStatus), entrance.OrderingEnabled, entrance.JoinCodeRequired),
             new(entrance.Id, entrance.TableLabel, entrance.IsEnabled), entrance.ActiveSessionId,
             new(menu.AvailableLanguages, menu.Categories, menu.Items));
     }

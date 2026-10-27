@@ -44,7 +44,7 @@ public sealed record MenuResponse(
 
 // Anonymous QR bootstrap: entrance state plus the menu, never join codes, orders or accounts.
 public sealed record PublicRestaurantResponse(Guid Id, string Name, string CurrencyCode, string DefaultLanguage,
-    string ServiceStatus, bool OrderingEnabled);
+    string ServiceStatus, bool OrderingEnabled, bool JoinCodeRequired);
 public sealed record PublicTableResponse(Guid Id, string TableLabel, bool IsEnabled);
 public sealed record PublicMenuContent(string[] AvailableLanguages, CategoryResponse[] Categories, MenuItemResponse[] Items);
 public sealed record PublicMenuResponse(PublicRestaurantResponse Restaurant, PublicTableResponse Table,

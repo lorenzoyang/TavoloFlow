@@ -299,7 +299,7 @@ export function CartPanel({
               className="w-full"
               disabled={model.busy || !!model.cart.pending || !!model.blocked || guest.stale}
               onClick={() => {
-                // Phones close the sheet first so the join-code field the page focuses is reachable.
+                // Phones close the sheet first so the join control the page focuses is reachable.
                 if (!guest.verified && guest.visit.sessionId) onUnverified?.();
                 void model.prepare();
               }}

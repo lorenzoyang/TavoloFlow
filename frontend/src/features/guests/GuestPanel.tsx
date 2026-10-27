@@ -6,14 +6,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { Language } from "@/lib/language";
 import type { useGuestVisit } from "./useGuestVisit";
-import { guestMessages } from "./messages";
+import { guestCopy } from "./messages";
 
 type Guest = ReturnType<typeof useGuestVisit>;
 
 // Errors, unknown results and retry waits for the verification and code reads above it. The live
 // region stays rendered so announcements are reliable; while empty it leaves the flex flow (no gap).
 function Feedback({ guest, language }: { guest: Guest; language: Language }) {
-  const m = guestMessages[language];
+  const m = guestCopy(language, guest.codeRequired);
   return (
     <div id="guest-feedback" className="w-full space-y-3 empty:absolute" aria-live="polite">
       {(guest.error || guest.unknown || guest.stale || !guest.entranceAllowed) && (
@@ -50,7 +50,7 @@ function Feedback({ guest, language }: { guest: Guest; language: Language }) {
 }
 
 function JoinCode({ guest, language }: { guest: Guest; language: Language }) {
-  const m = guestMessages[language];
+  const m = guestCopy(language, guest.codeRequired);
   const [copyNotice, setCopyNotice] = useState("");
   return (
     <div className="space-y-3 rounded-xl bg-card p-4">
@@ -90,7 +90,7 @@ function JoinCode({ guest, language }: { guest: Guest; language: Language }) {
 }
 
 export function GuestPanel({ guest, language }: { guest: Guest; language: Language }) {
-  const m = guestMessages[language];
+  const m = guestCopy(language, guest.codeRequired);
   if (guest.visit.ended)
     return (
       <Card>
@@ -137,22 +137,46 @@ export function GuestPanel({ guest, language }: { guest: Guest; language: Langua
             </h2>
             <p className="text-sm leading-5 text-muted-foreground">{m.stage}</p>
           </div>
-          <Button
-            variant="outline"
-            disabled={guest.busy || !guest.entranceAllowed || guest.stale}
-            onClick={() => {
-              if (guest.code) guest.clearCode();
-              else void guest.reveal();
-            }}
-          >
-            {guest.code ? m.hide : m.show}
-          </Button>
+          {guest.codeRequired && (
+            <Button
+              variant="outline"
+              disabled={guest.busy || !guest.entranceAllowed || guest.stale}
+              onClick={() => {
+                if (guest.code) guest.clearCode();
+                else void guest.reveal();
+              }}
+            >
+              {guest.code ? m.hide : m.show}
+            </Button>
+          )}
         </div>
-        {guest.code && guest.visible && !guest.stale && (
+        {guest.codeRequired && guest.code && guest.visible && !guest.stale && (
           <JoinCode key={guest.code} guest={guest} language={language} />
         )}
         <Feedback guest={guest} language={language} />
       </section>
+    );
+  // The page joins by itself without join codes; this button covers a failed or expired join.
+  if (!guest.codeRequired)
+    return (
+      <Card className="ring-primary/30">
+        <CardContent className="relative flex flex-col gap-4">
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold">{m.title}</h2>
+            <p className="text-sm leading-6 text-muted-foreground">{m.hint}</p>
+          </div>
+          <Button
+            id="guest-join-direct"
+            size="lg"
+            aria-describedby="guest-feedback"
+            disabled={guest.busy || !guest.entranceAllowed || guest.wait > 0 || guest.unknown}
+            onClick={() => void guest.join()}
+          >
+            {guest.busy ? m.busy : m.join}
+          </Button>
+          <Feedback guest={guest} language={language} />
+        </CardContent>
+      </Card>
     );
   if (guest.visit.skipped)
     return (

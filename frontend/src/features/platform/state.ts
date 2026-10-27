@@ -20,12 +20,13 @@ export type Restaurant = {
   orderingEnabled: boolean;
   createdAt: string;
   googleMapsUrl: string | null;
+  joinCodeRequired: boolean;
   subscription?: SubscriptionSummary | null;
 };
 export type RestaurantDetail = { restaurant: Restaurant; accounts: ManagedAccount[] };
 export type TemporaryCredential = { account: ManagedAccount; temporaryPassword: string };
 export type PendingManagement = {
-  kind: "create" | "status" | "maps" | "active" | "reset";
+  kind: "create" | "status" | "maps" | "joinCode" | "active" | "reset";
   restaurantId: string;
   userId?: string;
   expectedVersion?: number;
@@ -38,7 +39,7 @@ export function readPending(raw: string | null): PendingManagement | null {
   if (!raw) return null;
   const p = JSON.parse(raw) as Partial<PendingManagement>;
   if (
-    !["create", "status", "maps", "active", "reset"].includes(p.kind ?? "") ||
+    !["create", "status", "maps", "joinCode", "active", "reset"].includes(p.kind ?? "") ||
     !isUuid(p.restaurantId) ||
     (p.userId !== undefined && !isUuid(p.userId)) ||
     ((p.kind === "active" || p.kind === "reset") &&

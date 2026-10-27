@@ -57,7 +57,7 @@ function MenuContent({
   const [categoryId, setCategoryId] = useState("");
   const [view, setView] = useState<"menu" | "orders">("menu");
   const [cartOpen, setCartOpen] = useState(false);
-  // Set when the phone cart closes to let the guest verify first: focus then goes to the code field.
+  // Set when the phone cart closes to let the guest join first: focus then goes to the join control.
   const focusJoin = useRef(false);
   const m = messages[language];
   const om = orderMessages[language];
@@ -198,7 +198,11 @@ function MenuContent({
               finalFocus={() => {
                 if (!focusJoin.current) return true;
                 focusJoin.current = false;
-                return document.getElementById("guest-join-code") ?? true;
+                return (
+                  document.getElementById("guest-join-code") ??
+                  document.getElementById("guest-join-direct") ??
+                  true
+                );
               }}
               className="max-h-[90dvh] gap-0 rounded-t-3xl"
             >

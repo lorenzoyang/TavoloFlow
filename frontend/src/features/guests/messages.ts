@@ -1,3 +1,5 @@
+import type { Language } from "@/lib/language";
+
 export const guestMessages = {
   zh: {
     title: "加入本轮用餐",
@@ -99,3 +101,38 @@ export const guestMessages = {
     stage: "You can review and submit your cart and see all orders submitted during this visit.",
   },
 };
+
+// Restaurants that let guests join without a code replace the copy that mentions one.
+const directMessages = {
+  zh: {
+    hint: "本桌已开桌，无需入桌码。加入后即可下单并查看本桌订单。",
+    join: "加入本轮用餐",
+    endedHint: "本轮授权已失效。如需参加新的用餐，请重新浏览菜单后加入。",
+    offline: "连接中断或状态尚未确认，菜单可继续浏览。",
+    unavailable: "当前无法加入本轮用餐，请联系工作人员。",
+    csrf: "页面验证已变化，请再次点击加入。",
+  },
+  it: {
+    hint: "Il tavolo è aperto e non serve alcun codice. Unisciti per ordinare e vedere gli ordini del tavolo.",
+    join: "Unisciti al tavolo",
+    endedHint:
+      "L’accesso precedente non è più valido. Per una nuova visita, riapri il menu e unisciti di nuovo.",
+    offline: "Connessione interrotta o stato da confermare. Puoi consultare il menu.",
+    unavailable: "Al momento non è possibile unirsi al tavolo. Contatta il personale.",
+    csrf: "La verifica della pagina è cambiata. Premi di nuovo Unisciti al tavolo.",
+  },
+  en: {
+    hint: "This table is open and no code is needed. Join to order and see your table’s orders.",
+    join: "Join this visit",
+    endedHint:
+      "Your previous access is no longer valid. To join a new visit, reopen the menu and join again.",
+    offline: "Connection lost or status unconfirmed. You can still browse the menu.",
+    unavailable: "You can’t join this visit right now. Please contact staff.",
+    csrf: "Page verification has changed. Press Join this visit again.",
+  },
+};
+
+export const guestCopy = (language: Language, codeRequired: boolean) =>
+  codeRequired
+    ? guestMessages[language]
+    : { ...guestMessages[language], ...directMessages[language] };

@@ -39,12 +39,13 @@ test("pending management state stores only identifiers and a version, never temp
     }),
   )!;
   assert.deepEqual(pending, { kind: "reset", restaurantId, userId, expectedVersion: 3 });
-  assert.deepEqual(readPending(JSON.stringify({ kind: "maps", restaurantId })), {
-    kind: "maps",
-    restaurantId,
-    userId: undefined,
-    expectedVersion: undefined,
-  });
+  for (const kind of ["maps", "joinCode"])
+    assert.deepEqual(readPending(JSON.stringify({ kind, restaurantId })), {
+      kind,
+      restaurantId,
+      userId: undefined,
+      expectedVersion: undefined,
+    });
   assert.equal(recoveryUrl("platform", pending), `/api/platform/restaurants/${restaurantId}`);
   assert.equal(recoveryUrl("store", pending), "/api/owner/staff");
   assert.notEqual(managementKey("platform", "admin"), managementKey("store", "admin"));

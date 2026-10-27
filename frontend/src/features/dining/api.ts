@@ -18,10 +18,12 @@ export type FloorTable = {
 export type Floor = {
   serviceStatus: "ACTIVE" | "SUSPENDED";
   orderingEnabled: boolean;
+  joinCodeRequired: boolean;
   tables: FloorTable[];
 };
 export type CodeResult = { sessionId: string; joinCode: string };
-export type OpenResult = { session: BillSummary; joinCode: string };
+// joinCode is null when guests of this restaurant join without one.
+export type OpenResult = { session: BillSummary; joinCode: string | null };
 
 export const floorKey = (account: AccountScope) =>
   ["floor", account.restaurantId, account.userId] as const;

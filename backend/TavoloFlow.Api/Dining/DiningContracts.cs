@@ -6,8 +6,9 @@ namespace TavoloFlow.Api.Dining;
 
 public sealed record ActiveSessionResponse(Guid Id, DateTime OpenedAt, int OrderCount, int NewOrderCount, long TotalAmountCents);
 public sealed record FloorTableResponse(Guid Id, string TableLabel, bool IsEnabled, ActiveSessionResponse? Session);
-public sealed record FloorResponse(string ServiceStatus, bool OrderingEnabled, FloorTableResponse[] Tables);
-public sealed record OpenSessionResponse(BillSummaryResponse Session, string JoinCode);
+public sealed record FloorResponse(string ServiceStatus, bool OrderingEnabled, bool JoinCodeRequired, FloorTableResponse[] Tables);
+// JoinCode is null when the restaurant lets guests join without one; the session still stores a code.
+public sealed record OpenSessionResponse(BillSummaryResponse Session, string? JoinCode);
 public sealed record JoinCodeResponse(Guid SessionId, string JoinCode);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]

@@ -480,6 +480,11 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("character varying(2048)")
                         .HasColumnName("google_maps_url");
 
+                    b.Property<bool>("JoinCodeRequired")
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("join_code_required");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(150)

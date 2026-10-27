@@ -38,6 +38,7 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
   });
   const [annualInput, setAnnualInput] = useState("");
   const [includePeriod, setIncludePeriod] = useState(false);
+  const [requireCode, setRequireCode] = useState(true);
   const [createError, setCreateError] = useState("");
   const live = useLiveView();
   const today = new Intl.DateTimeFormat("sv-SE", { timeZone: RESTAURANT_TIME_ZONE }).format(
@@ -83,6 +84,7 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
       googleMapsUrl: String(data.get("googleMapsUrl") ?? "").trim() || null,
       defaultAnnualFeeCents,
       initialPeriod,
+      joinCodeRequired: requireCode,
     };
     const ok = await actions.run({ kind: "create", restaurantId: id }, (signal) =>
       createRestaurant(input, signal),
@@ -91,6 +93,7 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
       form.reset();
       setAnnualInput("");
       setIncludePeriod(false);
+      setRequireCode(true);
     }
   };
   return (
@@ -142,6 +145,18 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
                   <NativeSelectOption value="en">English</NativeSelectOption>
                 </NativeSelect>
               </div>
+              <label className="flex min-h-11 items-center gap-3 sm:col-span-2">
+                <Checkbox
+                  checked={requireCode}
+                  onCheckedChange={(checked) => setRequireCode(checked)}
+                />
+                <span>
+                  顾客须输入入桌码
+                  <span className="block text-sm text-muted-foreground">
+                    取消后，开桌期间顾客扫描本桌二维码即可直接加入点餐；之后可在餐厅详情中修改。
+                  </span>
+                </span>
+              </label>
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="create-contact">老板联系方式（可选）</Label>
                 <Textarea id="create-contact" name="ownerContact" maxLength={500} rows={3} />
@@ -277,6 +292,7 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
               <Badge variant={r.orderingEnabled ? "secondary" : "outline"}>
                 {r.orderingEnabled ? "接单中" : "接单关闭"}
               </Badge>
+              {!r.joinCodeRequired && <Badge variant="outline">免入桌码</Badge>}
             </div>
             {r.subscription && <SubscriptionStatus summary={r.subscription} />}
             <div className="mt-auto flex flex-wrap gap-2">

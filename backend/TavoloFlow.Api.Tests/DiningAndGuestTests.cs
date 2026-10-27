@@ -13,6 +13,7 @@ using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Dining;
 using TavoloFlow.Api.Entities;
 using TavoloFlow.Api.Guests;
+using TavoloFlow.Api.Menus;
 using TavoloFlow.Api.Tables;
 using static TavoloFlow.Api.Tests.AccountTestHost;
 
@@ -63,7 +64,7 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
         Assert.Equal(1, next.Session.BillVersion);
         // Even an identical short code does not revive a cookie bound to the old session.
         var nextEntity = await db.DiningSessions.SingleAsync(s => s.Id == next.Session.SessionId);
-        nextEntity.JoinCodeCiphertext = host.Services.GetRequiredService<JoinCodes>().Encrypt(nextEntity, opened.JoinCode);
+        nextEntity.JoinCodeCiphertext = host.Services.GetRequiredService<JoinCodes>().Encrypt(nextEntity, opened.JoinCode!);
         await db.SaveChangesAsync();
         await AssertErrorAsync(await guest.GetAsync(AccessPath(next.Session.SessionId)), HttpStatusCode.Forbidden, "GUEST_SESSION_MISMATCH");
         var repeated = await PostAsync(staff, SessionPath(saved.Id) + "/close-empty", CloseInput());
@@ -128,7 +129,7 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
         await AssertErrorAsync(await JoinAsync(guest, table, wrong), HttpStatusCode.Unauthorized, "JOIN_CODE_INCORRECT");
         await AssertErrorAsync(await JoinAsync(guest, table, first with { JoinCode = "0000" }), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
         await AssertErrorAsync(await guest.GetAsync(CodePath(first.Session.SessionId)), HttpStatusCode.Unauthorized, "GUEST_AUTH_REQUIRED");
-        Assert.Equal(HttpStatusCode.OK, (await JoinAsync(guest, table, first with { JoinCode = " " + first.JoinCode.ToLowerInvariant() + " " })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await JoinAsync(guest, table, first with { JoinCode = " " + first.JoinCode!.ToLowerInvariant() + " " })).StatusCode);
         var (otherUser, otherTable) = await SeedAsync();
         using var otherStaff = await LoginAsync(host, otherUser);
         var second = await OpenAsync(otherStaff, otherTable);
@@ -186,6 +187,54 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
         await AssertErrorAsync(await JoinAsync(guest, table, opened), HttpStatusCode.Conflict, "SERVICE_SUSPENDED");
         Assert.Equal(HttpStatusCode.OK, (await staff.GetAsync(SessionPath(opened.Session.SessionId) + "/join-code")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await PostAsync(staff, SessionPath(opened.Session.SessionId) + "/close-empty", CloseInput())).StatusCode);
+    }
+
+    [Fact]
+    public async Task Join_RestaurantWithoutJoinCode_JoinsWithoutCodeAndHidesCodeOnOpen()
+    {
+        using var host = new AccountTestHost(database);
+        var (user, table) = await SeedAsync(joinCodeRequired: false);
+        using var staff = await LoginAsync(host, user);
+        var opened = await OpenAsync(staff, table);
+        Assert.Null(opened.JoinCode);
+        await using var db = database.CreateContext();
+        // The session still stores a code, so join codes can be turned back on during service.
+        Assert.NotNull((await db.DiningSessions.AsNoTracking().SingleAsync(s => s.Id == opened.Session.SessionId)).JoinCodeCiphertext);
+        Assert.False((await staff.GetFromJsonAsync<FloorResponse>("/api/staff/floor"))!.JoinCodeRequired);
+        using var guest = host.Browser();
+        var bootstrap = (await guest.GetFromJsonAsync<PublicMenuResponse>($"/api/public/qr/{table.QrToken}/bootstrap"))!;
+        Assert.False(bootstrap.Restaurant.JoinCodeRequired);
+        Assert.Equal(opened.Session.SessionId, bootstrap.ActiveSessionId);
+        Assert.Equal(HttpStatusCode.OK, (await JoinAsync(guest, table, opened)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await guest.GetAsync(AccessPath(opened.Session.SessionId))).StatusCode);
+        using var friend = host.Browser();
+        Assert.Equal(HttpStatusCode.OK, (await JoinAsync(friend, table, opened with { JoinCode = "2222" })).StatusCode);
+        // Entrance and session rules still apply without a code.
+        using var stranger = host.Browser();
+        await AssertErrorAsync(await JoinAsync(stranger, table, opened with { Session = opened.Session with { SessionId = Guid.NewGuid() } }),
+            HttpStatusCode.NotFound, "SESSION_NOT_FOUND");
+        await db.RestaurantTables.Where(t => t.Id == table.Id).ExecuteUpdateAsync(u => u.SetProperty(t => t.IsEnabled, false));
+        await AssertErrorAsync(await JoinAsync(stranger, table, opened), HttpStatusCode.Conflict, "TABLE_DISABLED");
+    }
+
+    [Fact]
+    public async Task Join_JoinCodeReenabled_KeepsExistingGrantAndRequiresCodeForNewGuests()
+    {
+        using var host = new AccountTestHost(database);
+        var (user, table) = await SeedAsync(joinCodeRequired: false);
+        using var staff = await LoginAsync(host, user);
+        var opened = await OpenAsync(staff, table);
+        using var early = host.Browser();
+        Assert.Equal(HttpStatusCode.OK, (await JoinAsync(early, table, opened)).StatusCode);
+        await using var db = database.CreateContext();
+        await db.Restaurants.Where(r => r.Id == user.RestaurantId).ExecuteUpdateAsync(u => u.SetProperty(r => r.JoinCodeRequired, true));
+        Assert.Equal(HttpStatusCode.OK, (await early.GetAsync(AccessPath(opened.Session.SessionId))).StatusCode);
+        var code = (await staff.GetFromJsonAsync<JoinCodeResponse>(SessionPath(opened.Session.SessionId) + "/join-code"))!.JoinCode;
+        using var late = host.Browser();
+        await AssertErrorAsync(await JoinAsync(late, table, opened), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
+        await AssertErrorAsync(await JoinAsync(late, table, opened with { JoinCode = code == "2222" ? "3333" : "2222" }),
+            HttpStatusCode.Unauthorized, "JOIN_CODE_INCORRECT");
+        Assert.Equal(HttpStatusCode.OK, (await JoinAsync(late, table, opened with { JoinCode = code })).StatusCode);
     }
 
     [Fact]
@@ -261,7 +310,7 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
         using var anonymous = host.Browser();
         var bootstrap = await anonymous.GetAsync($"/api/public/qr/{table.QrToken}/bootstrap");
         var body = await bootstrap.Content.ReadAsStringAsync();
-        Assert.DoesNotContain("joinCode", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"joinCode\"", body, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("password", body, StringComparison.OrdinalIgnoreCase);
         Assert.False(bootstrap.Headers.Contains("Set-Cookie"));
         Assert.Contains("no-store", bootstrap.Headers.CacheControl!.ToString());
@@ -410,10 +459,12 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
         }
     }
 
-    private async Task<(RestaurantUser, RestaurantTable)> SeedAsync(bool mustChange = false, RestaurantUserRole role = RestaurantUserRole.Staff)
+    private async Task<(RestaurantUser, RestaurantTable)> SeedAsync(bool mustChange = false, RestaurantUserRole role = RestaurantUserRole.Staff,
+        bool joinCodeRequired = true)
     {
         await using var db = database.CreateContext();
-        var restaurant = new Restaurant { Name = "Dining test", DefaultLanguage = "it", ServiceStatus = RestaurantServiceStatus.Active };
+        var restaurant = new Restaurant { Name = "Dining test", DefaultLanguage = "it", ServiceStatus = RestaurantServiceStatus.Active,
+            JoinCodeRequired = joinCodeRequired };
         var user = new RestaurantUser { Restaurant = restaurant, Username = "dining." + Guid.NewGuid().ToString("N"),
             PasswordHash = "", Role = role, MustChangePassword = mustChange };
         user.PasswordHash = new PasswordHasher<RestaurantUser>().HashPassword(user, Password);

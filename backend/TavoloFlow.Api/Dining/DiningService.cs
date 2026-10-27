@@ -34,7 +34,7 @@ public sealed class DiningService(ApplicationDbContext db, JoinCodes codes, Time
                         s.Orders.Where(o => o.Status != OrderStatus.Cancelled).Sum(o => o.TotalAmountCents)))
                     .SingleOrDefault())).ToArrayAsync(ct);
         await transaction.CommitAsync(ct);
-        return new(ApiEnum.Text(restaurant.ServiceStatus), restaurant.OrderingEnabled, tables);
+        return new(ApiEnum.Text(restaurant.ServiceStatus), restaurant.OrderingEnabled, restaurant.JoinCodeRequired, tables);
     }
 
     public Task<BillSummaryResponse> ReadAsync(Guid restaurantId, Guid sessionId, CancellationToken ct) =>
@@ -59,13 +59,14 @@ public sealed class DiningService(ApplicationDbContext db, JoinCodes codes, Time
             Id = Guid.CreateVersion7(), RestaurantId = restaurantId, TableId = tableId,
             TableLabelSnapshot = table.TableLabel, OpenedAt = clock.GetUtcNow().UtcDateTime
         };
+        // Every session gets a code, so the platform can turn join codes back on during service.
         var code = codes.Generate();
         session.JoinCodeCiphertext = codes.Encrypt(session, code);
         db.DiningSessions.Add(session);
         await db.SaveChangesAsync(ct);
         var response = await SessionSummaries.ReadAsync(db, restaurantId, session.Id, ct);
         await transaction.CommitAsync(ct);
-        return new(response, code);
+        return new(response, restaurant.JoinCodeRequired ? code : null);
     }
 
     public async Task<JoinCodeResponse> ReadCodeAsync(Guid restaurantId, Guid sessionId, CancellationToken ct)

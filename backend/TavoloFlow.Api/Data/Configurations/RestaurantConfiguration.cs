@@ -36,6 +36,8 @@ internal sealed class RestaurantConfiguration : IEntityTypeConfiguration<Restaur
             .HasDefaultValue(RestaurantServiceStatus.Suspended).ValueGeneratedNever();
 
         builder.Property(restaurant => restaurant.OrderingEnabled).HasColumnName("ordering_enabled").HasDefaultValue(false).ValueGeneratedNever();
+
+        builder.Property(restaurant => restaurant.JoinCodeRequired).HasColumnName("join_code_required").HasDefaultValue(true).ValueGeneratedNever();
         
         builder.Property(restaurant => restaurant.OwnerContact).HasColumnName("owner_contact").HasMaxLength(500);
         builder.Property(restaurant => restaurant.DefaultAnnualFeeCents).HasColumnName("default_annual_fee_cents");

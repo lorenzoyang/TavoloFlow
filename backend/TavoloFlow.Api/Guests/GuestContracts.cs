@@ -5,7 +5,8 @@ using TavoloFlow.Api.Common;
 namespace TavoloFlow.Api.Guests;
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record JoinInput([Required] Guid? SessionId, [Required, StringLength(32)] string JoinCode);
+// JoinCode is required only by restaurants that keep join codes on; others ignore it.
+public sealed record JoinInput([Required] Guid? SessionId, [StringLength(32)] string? JoinCode = null);
 
 public sealed record JoinResponse(Guid RestaurantId, Guid TableId, Guid SessionId);
 

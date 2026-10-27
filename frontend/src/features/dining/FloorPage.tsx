@@ -127,7 +127,11 @@ function FloorContent({
         const result = recoveredOpen(table?.session?.id);
         if (result.kind === "active") {
           setSelected(result.sessionId);
-          setNotice("已查到本桌当前用餐，请核对桌号；可主动查看入桌码。");
+          setNotice(
+            data.joinCodeRequired
+              ? "已查到本桌当前用餐，请核对桌号；可主动查看入桌码。"
+              : "已查到本桌当前用餐，请核对桌号。",
+          );
         } else {
           setSelected("");
           setNotice(
@@ -177,9 +181,13 @@ function FloorContent({
       if (!mounted.current) return;
       setSelected(result.session.sessionId);
       client.setQueryData(sessionKey(account, result.session.sessionId), result.session);
-      if (document.visibilityState === "visible" && navigator.onLine)
+      if (result.joinCode && document.visibilityState === "visible" && navigator.onLine)
         setCode({ sessionId: result.session.sessionId, joinCode: result.joinCode });
-      setNotice("开桌成功，请将本轮入桌码告知顾客。");
+      setNotice(
+        result.joinCode
+          ? "开桌成功，请将本轮入桌码告知顾客。"
+          : "开桌成功，顾客扫描本桌二维码即可直接加入点餐。",
+      );
       remember(null);
       void refresh();
     } catch (e) {
@@ -330,6 +338,7 @@ function FloorContent({
             <div className="space-y-6">
               <SessionSummary
                 session={session.data}
+                codeRequired={floor.data?.joinCodeRequired ?? true}
                 code={code}
                 disabled={busy || !!pending}
                 viewCode={() => void viewCode()}
@@ -400,7 +409,11 @@ function FloorContent({
       <ConfirmDialog
         open={!!confirmation}
         title={`确认开桌 · ${confirmation?.table.tableLabel ?? ""}`}
-        description="开桌后会生成本轮入桌码，请告知本桌顾客。"
+        description={
+          floor.data?.joinCodeRequired === false
+            ? "开桌后顾客扫描本桌二维码即可直接加入点餐。"
+            : "开桌后会生成本轮入桌码，请告知本桌顾客。"
+        }
         confirmLabel="确认开桌"
         busy={busy}
         confirmDisabled={!!pending}

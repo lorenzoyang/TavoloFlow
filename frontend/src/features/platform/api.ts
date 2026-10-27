@@ -22,6 +22,7 @@ export type CreateRestaurantInput = {
   defaultAnnualFeeCents?: number | null;
   initialPeriod?: PeriodInput | null;
   googleMapsUrl?: string | null;
+  joinCodeRequired: boolean;
 };
 
 export const platformLogin = (username: string, password: string, signal: AbortSignal) =>
@@ -82,6 +83,15 @@ export const setGoogleMapsUrl = (id: string, googleMapsUrl: string | null, signa
     `/api/platform/restaurants/${id}/google-maps-url`,
     "PATCH",
     { googleMapsUrl },
+    signal,
+  );
+
+// Sends the target value, so a late or repeated request can only leave the chosen setting.
+export const setJoinCodeRequired = (id: string, joinCodeRequired: boolean, signal: AbortSignal) =>
+  platformWrite<Restaurant>(
+    `/api/platform/restaurants/${id}/join-code-required`,
+    "PATCH",
+    { joinCodeRequired },
     signal,
   );
 

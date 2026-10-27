@@ -16,6 +16,7 @@ import {
   resetAccountPassword,
   setAccountActive,
   setGoogleMapsUrl,
+  setJoinCodeRequired,
   setServiceStatus,
 } from "./api";
 import { PlatformBoundary, PlatformNavigation } from "./PlatformAuth";
@@ -27,7 +28,26 @@ import { PlatformSubscription } from "@/features/subscriptions/PlatformSubscript
 
 type Confirmation =
   | { kind: "reset" | "active"; account: ManagedAccount }
-  | { kind: "status"; status: "ACTIVE" | "SUSPENDED" };
+  | { kind: "status"; status: "ACTIVE" | "SUSPENDED" }
+  | { kind: "joinCode"; required: boolean };
+// status and required are the values the administrator saw; confirming switches them.
+function describe(c: Confirmation) {
+  if (c.kind === "status")
+    return c.status === "ACTIVE"
+      ? "停用服务将同时关闭接单，既有订单和账单仍可处理。"
+      : "启用服务后，店铺仍须手动开启接单。";
+  if (c.kind === "joinCode")
+    return c.required
+      ? "关闭后，开桌期间任何扫描本桌二维码的人都可直接加入并下单，对正在用餐的桌位立即生效。"
+      : "开启后，新加入的顾客须输入入桌码；已加入的顾客授权保持有效，直到本轮结束或授权到期。";
+  return `${c.account.role} · ${c.account.username}：${
+    c.kind === "reset"
+      ? "重置后所有旧登录失效，须交付新临时密码并首次改密。账号启用状态不变。"
+      : c.account.isActive
+        ? "禁用后所有旧登录失效。"
+        : "重新启用账号，原有旧登录仍然失效。"
+  }`;
+}
 function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: string }) {
   const query = useQuery({
     queryKey: ["platform", "restaurant", identity.userId, id],
@@ -38,13 +58,15 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
   const [editingMap, setEditingMap] = useState(false);
   const panel = useRef<HTMLElement>(null);
   const current =
-    confirmation && confirmation.kind !== "status"
+    confirmation?.kind === "reset" || confirmation?.kind === "active"
       ? query.data?.accounts.find((a) => a.id === confirmation.account.id)
       : null;
   const changed =
     confirmation?.kind === "status"
       ? query.data?.restaurant.serviceStatus !== confirmation.status
-      : !!confirmation && current?.credentialVersion !== confirmation.account.credentialVersion;
+      : confirmation?.kind === "joinCode"
+        ? query.data?.restaurant.joinCodeRequired !== confirmation.required
+        : !!confirmation && current?.credentialVersion !== confirmation.account.credentialVersion;
   const locked =
     actions.busy ||
     !!actions.pending ||
@@ -67,6 +89,10 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
       const next = c.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
       await actions.run({ kind: "status", restaurantId: id }, (signal) =>
         setServiceStatus(id, next, signal),
+      );
+    } else if (c.kind === "joinCode") {
+      await actions.run({ kind: "joinCode", restaurantId: id }, (signal) =>
+        setJoinCodeRequired(id, !c.required, signal),
       );
     } else {
       const pending = {
@@ -144,6 +170,22 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
                     编辑地图链接
                   </Button>
                 </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm text-muted-foreground">
+                    {restaurant.joinCodeRequired
+                      ? "顾客须输入入桌码加入用餐"
+                      : "免入桌码：顾客扫码即可直接加入用餐"}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    disabled={locked || !!confirmation}
+                    onClick={() =>
+                      setConfirmation({ kind: "joinCode", required: restaurant.joinCodeRequired })
+                    }
+                  >
+                    {restaurant.joinCodeRequired ? "关闭入桌码" : "开启入桌码"}
+                  </Button>
+                </div>
               </div>
               <Button
                 variant={restaurant.serviceStatus === "ACTIVE" ? "outline" : "default"}
@@ -193,19 +235,7 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
               className="space-y-4 rounded-2xl border border-primary/30 bg-card p-4 shadow-xs outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <h2 className="font-semibold">确认操作 · {restaurant.name}</h2>
-              <p className="text-sm leading-6">
-                {confirmation.kind === "status"
-                  ? confirmation.status === "ACTIVE"
-                    ? "停用服务将同时关闭接单，既有订单和账单仍可处理。"
-                    : "启用服务后，店铺仍须手动开启接单。"
-                  : `${confirmation.account.role} · ${confirmation.account.username}：${
-                      confirmation.kind === "reset"
-                        ? "重置后所有旧登录失效，须交付新临时密码并首次改密。账号启用状态不变。"
-                        : confirmation.account.isActive
-                          ? "禁用后所有旧登录失效。"
-                          : "重新启用账号，原有旧登录仍然失效。"
-                    }`}
-              </p>
+              <p className="text-sm leading-6">{describe(confirmation)}</p>
               {changed && <Notice tone="error">状态已变化，请取消后重新核对。</Notice>}
               <div className="flex flex-wrap gap-2">
                 <Button disabled={locked || changed} onClick={() => void submit()}>

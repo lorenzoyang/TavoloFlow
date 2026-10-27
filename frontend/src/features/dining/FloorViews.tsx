@@ -70,14 +70,17 @@ export function TableTile({
   );
 }
 
-// The selected visit: status, the join code on request, then its bill (rendered by the caller).
+// The selected visit: status, the join code on request (only where the restaurant requires one),
+// then its bill (rendered by the caller).
 export function SessionSummary({
   session,
+  codeRequired,
   code,
   disabled,
   viewCode,
 }: {
   session: BillSummary | undefined;
+  codeRequired: boolean;
   code: CodeResult | null;
   disabled: boolean;
   viewCode: () => void;
@@ -92,6 +95,7 @@ export function SessionSummary({
         {active && <span>已提交订单 {session.orderCount} 笔</span>}
       </div>
       {active &&
+        codeRequired &&
         (code?.sessionId === session.sessionId ? (
           <div className="space-y-2 rounded-2xl border border-primary/25 bg-accent p-4">
             <label htmlFor="staff-join-code" className="text-sm font-medium">

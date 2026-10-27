@@ -48,6 +48,17 @@ sequenceDiagram
 - **四位入桌码**：首次加入用餐的共享短码；数据库只保存加密后的密文。
 - **Guest Cookie**：浏览器的受保护凭据，绑定餐厅、桌位、Session，内容不包含入桌码。
 
+**入桌码可按餐厅关闭。** `restaurants.join_code_required` 默认为 true，只有平台管理员能在建店时或餐厅详情中修改，
+OWNER/STAFF 不能修改。关闭后，顾客仍然通过 `POST join` 取得绑定本轮 Session 的 Guest Cookie，
+后端忽略请求中的码值；入口状态、Session 归属和 ACTIVE 检查、限流以及之后的下单规则都不变。
+开桌照常生成并加密保存入桌码，只是开桌响应返回 `joinCode: null`、楼面不显示入桌码。所以营业中重新开启入桌码后，
+正在用餐的桌位立即可以查看码值。加入时在 restaurant SHARE 锁内读取开关，平台的单列 UPDATE 会等这些加入事务结束。
+重新开启后，已签发的 Guest Cookie 继续有效，直到本轮关闭或 12 小时到期；之后新加入的顾客须输入入桌码。
+免码模式下，顾客页确认授权为 unverified 时会自动发送一次 join。每轮用餐每个页面最多自动发送一次：
+失败或授权到期后改为显示「加入本轮用餐」按钮，避免同一浏览器中不同桌的标签页互相抢 Cookie。
+免码 join 被拒绝时，页面重新读取 bootstrap；如果管理员刚刚开启了入桌码，页面会随即显示输入框。
+风险由餐厅承担：开桌期间，任何拿到本桌二维码的人都能加入并下单。
+
 入桌码字符集为 `23456789ABCDEFGHJKLMNPQRSTUVWXYZ`，用安全随机数生成。
 输入去除首尾空白并转大写。Data Protection 的用途链固定前缀加餐厅、桌位和 Session ID，
 不能将一轮的密文搬到另一轮使用。密文无法解密时返回 `503 JOIN_CODE_UNAVAILABLE`，不生成新码覆盖。
@@ -81,13 +92,13 @@ CSRF 沿用框架服务和现有 CSRF Cookie，但请求 token 分别从 `/api/a
 
 | 方法与路径 | 成功响应/用途 |
 | --- | --- |
-| `GET /api/staff/floor` | `serviceStatus`、`orderingEnabled`、`tables[]`；每桌包含 `id/tableLabel/isEnabled/session`，session 为 null 或 `{ id, openedAt }` |
-| `POST /api/staff/tables/{tableId}/open` | 无业务输入；201 `{ session, joinCode }` |
+| `GET /api/staff/floor` | `serviceStatus`、`orderingEnabled`、`joinCodeRequired`、`tables[]`；每桌包含 `id/tableLabel/isEnabled/session`，session 为 null 或 `{ id, openedAt }` |
+| `POST /api/staff/tables/{tableId}/open` | 无业务输入；201 `{ session, joinCode }`，免入桌码餐厅的 `joinCode` 为 null |
 | `GET /api/staff/sessions/{id}` | Session 摘要，包含已关闭记录，用于核对原操作 |
 | `GET /api/staff/sessions/{id}/join-code` | `{ sessionId, joinCode }`，仅活动用餐 |
 | `POST /api/staff/sessions/{id}/close-empty` | 输入确认信息，200 账单摘要（与 PAID/VOIDED 相同；现由 `BillingService` 实现） |
 | `GET /api/public/csrf` | `{ token }`，匿名或当前顾客均可取得 |
-| `POST /api/public/qr/{token}/join` | `{ sessionId, joinCode }` → Cookie 及 `{ restaurantId, tableId, sessionId }`，不回传码值 |
+| `POST /api/public/qr/{token}/join` | `{ sessionId, joinCode }`（免入桌码餐厅可省略或为 null）→ Cookie 及 `{ restaurantId, tableId, sessionId }`，不回传码值 |
 | `GET /api/public/sessions/{id}/access` | `{ restaurantId, tableId, sessionId, status, serviceStatus, isTableEnabled, orderingEnabled }` |
 | `GET /api/public/sessions/{id}/join-code` | `{ sessionId, joinCode }`，要求当前有效顾客授权及可用入口 |
 
