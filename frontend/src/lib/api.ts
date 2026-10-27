@@ -125,10 +125,15 @@ export async function write<T>(
 ): Promise<T> {
   // Fetch for every mutation so other tabs changing identity cannot leave a cached anonymous token behind.
   const { token } = await request<{ token: string }>("/api/auth/csrf", { signal });
+  // A file (such as a dish photo) is sent as the raw request body; everything else as JSON.
+  const file = body instanceof Blob;
   return request<T>(path, {
     method,
-    headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token },
-    body: JSON.stringify(body),
+    headers: {
+      "Content-Type": file ? body.type || "application/octet-stream" : "application/json",
+      "X-CSRF-TOKEN": token,
+    },
+    body: file ? body : JSON.stringify(body),
     signal,
   });
 }

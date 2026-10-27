@@ -103,6 +103,28 @@
 未修改业务代码或数据库结构，因此没有重复跑历史 250 项后端测试和 59 项前端纯逻辑测试；本次重点验证部署权限及完整实际运维流程。
 没有登录或修改真实 VPS，没有操作本地开发数据库、真实 `.env` 或 SSH 密钥。
 
+## 菜品图片（2026-10-27）
+
+新增可选菜品图片：迁移 `AddMenuItemImages`（新表 `menu_item_images`、`menu_items.image_id`），API 依赖 SkiaSharp。
+`deploy/Dockerfile.api` 改为按 `linux-x64` 发布（`dotnet restore/publish -r linux-x64`，迁移包加 `--runtime linux-x64`）：
+不指定 RID 时 SkiaSharp 会带上所有平台的原生库，发布目录约 475 MB；改后 API 目录约 67 MB（其中 `libSkiaSharp.so`
+约 12 MB，迁移包也会带一份）。Caddy 新增 `/api/public/menu-images/*` 路由，排在 `@api` 之前且不加 `no-store`。
+冒烟测试会上传一张菜品图片，并检查 `image/webp`、`immutable` 和 `nosniff`。
+
+冒烟测试恢复步骤原先用 `pg_isready` 走 Unix socket 等待临时 PostgreSQL，可能撞上官方镜像初始化阶段的临时服务器关闭，
+偶发 `the database system is shutting down`；现与生产健康检查一致，改为探测 `127.0.0.1`。
+
+| 检查 | 结果 |
+|---|---|
+| 后端集成测试 | 264 项通过，含 3 项图片场景（方向摆正、裁剪与缓存头，替换/删除/级联，权限与非法输入） |
+| 迁移与依赖 | 无待生成的模型变更；`dotnet list package --vulnerable` 无漏洞包 |
+| 前端纯逻辑测试、构建、Oxlint、Prettier | 67 项通过；构建、检查均通过 |
+| 本地界面 | 在演示库的临时副本上，手机与桌面访客菜单有图/无图混排、无横向滚动；编辑面板上传、超限拦截、非法文件报错、嵌套删除确认均正常 |
+| Caddy 路由 | `caddy adapt` 确认图片路由位于 `@api` 之前，只反向代理 |
+| 真实容器部署与回归 | 通过；含图片上传与 Caddy 缓存头、权限与写保护、迁移、HTTPS、Cookie/CSRF、两次发布、重启、备份恢复与应用回退 |
+
+验证使用临时数据库和临时容器；本地开发数据库、演示数据库与 `.env` 未修改，测试发布包和镜像已删除。
+
 ## 可复现验证
 
 ```bash

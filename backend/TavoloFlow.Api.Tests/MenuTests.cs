@@ -1,10 +1,13 @@
 using System.Data.Common;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using SkiaSharp;
 using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Entities;
@@ -469,6 +472,113 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
         }
     }
 
+    [Fact]
+    public async Task ItemImage_OwnerUpload_ServesUprightSquareWebpWithImmutableCache()
+    {
+        using var host = new AccountTestHost(database);
+        var ownerUser = await SeedAsync();
+        using var owner = await LoginAsync(host, ownerUser);
+        var item = await CreateItemAsync(owner, ValidItem((await CreateCategoryAsync(owner)).Id));
+        var token = $"menu-image-{Guid.NewGuid():N}";
+        await using (var context = database.CreateContext())
+        {
+            context.RestaurantTables.Add(new RestaurantTable { RestaurantId = ownerUser.RestaurantId, TableLabel = "T1", QrToken = token });
+            await context.SaveChangesAsync();
+        }
+        // Stored sideways: EXIF orientation 6 turns the red left half into the top half of the upright photo.
+        var upload = await UploadAsync(owner, item.Id, Photo(400, 200, orientation: 6));
+        Assert.Equal(HttpStatusCode.OK, upload.StatusCode);
+        var imageId = (await upload.Content.ReadFromJsonAsync<MenuItemResponse>())!.ImageId;
+        Assert.NotNull(imageId);
+        Assert.Equal(imageId, (await ReadAsync(owner)).Items.Single().ImageId);
+        using var guest = host.Browser();
+        var bootstrap = await guest.GetFromJsonAsync<PublicMenuResponse>($"/api/public/qr/{token}/bootstrap");
+        Assert.Equal(imageId, bootstrap!.Menu.Items.Single().ImageId);
+
+        var response = await guest.GetAsync(PublicImage(imageId.Value));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("image/webp", response.Content.Headers.ContentType!.MediaType);
+        Assert.False(response.Headers.CacheControl!.NoStore);
+        Assert.True(response.Headers.CacheControl.Public);
+        Assert.Equal(TimeSpan.FromDays(365), response.Headers.CacheControl.MaxAge);
+        Assert.Contains("immutable", response.Headers.CacheControl.ToString());
+        Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
+        var webp = await response.Content.ReadAsByteArrayAsync();
+        Assert.Equal("RIFF", Encoding.ASCII.GetString(webp, 0, 4));
+        Assert.Equal("WEBP", Encoding.ASCII.GetString(webp, 8, 4));
+        Assert.DoesNotContain("EXIF", Encoding.ASCII.GetString(webp));
+        using var stored = SKBitmap.Decode(webp);
+        Assert.Equal((640, 640), (stored.Width, stored.Height));
+        // Ignoring the tag would leave red on the left and blue on the right instead.
+        Assert.True(IsRed(stored.GetPixel(560, 80)));
+        Assert.False(IsRed(stored.GetPixel(80, 560)));
+    }
+
+    [Fact]
+    public async Task ItemImage_ReplaceDeleteAndContentSaves_KeepAtMostOneImmutableImage()
+    {
+        using var host = new AccountTestHost(database);
+        using var owner = await LoginAsync(host, await SeedAsync());
+        var category = await CreateCategoryAsync(owner);
+        var item = await CreateItemAsync(owner, ValidItem(category.Id));
+        var first = await UploadImageAsync(owner, item.Id, Photo(300, 300, SKEncodedImageFormat.Png));
+        // Content and availability writes never touch the photo.
+        var saved = await SendAsync(owner, HttpMethod.Put, $"{Items}/{item.Id}", ValidItem(category.Id) with { NameIt = "Riso" });
+        Assert.Equal(first, (await saved.Content.ReadFromJsonAsync<MenuItemResponse>())!.ImageId);
+        var sold = await SendAsync(owner, HttpMethod.Patch, Availability(item.Id), new { isAvailable = false });
+        Assert.Equal(first, (await sold.Content.ReadFromJsonAsync<MenuItemResponse>())!.ImageId);
+
+        var second = await UploadImageAsync(owner, item.Id, Photo(900, 600));
+        Assert.NotEqual(first, second);
+        using var guest = host.Browser();
+        var replaced = await guest.GetAsync(PublicImage(first));
+        await AssertErrorAsync(replaced, HttpStatusCode.NotFound, "MENU_IMAGE_NOT_FOUND");
+        Assert.True(replaced.Headers.CacheControl!.NoStore);
+        Assert.Equal(HttpStatusCode.OK, (await guest.GetAsync(PublicImage(second))).StatusCode);
+        Assert.Equal(1, await ImageCountAsync(item.Id));
+
+        foreach (var _ in Enumerable.Range(0, 2))
+        {
+            var deleted = await SendAsync(owner, HttpMethod.Delete, ImagePath(item.Id));
+            Assert.Equal(HttpStatusCode.OK, deleted.StatusCode);
+            Assert.Null((await deleted.Content.ReadFromJsonAsync<MenuItemResponse>())!.ImageId);
+        }
+        Assert.Null((await ReadAsync(owner)).Items.Single().ImageId);
+        await AssertErrorAsync(await guest.GetAsync(PublicImage(second)), HttpStatusCode.NotFound, "MENU_IMAGE_NOT_FOUND");
+        Assert.Equal(0, await ImageCountAsync(item.Id));
+
+        var third = await UploadImageAsync(owner, item.Id, Photo(300, 300));
+        Assert.Equal(HttpStatusCode.NoContent, (await SendAsync(owner, HttpMethod.Delete, $"{Items}/{item.Id}")).StatusCode);
+        Assert.Equal(0, await ImageCountAsync(item.Id));
+        await AssertErrorAsync(await guest.GetAsync(PublicImage(third)), HttpStatusCode.NotFound, "MENU_IMAGE_NOT_FOUND");
+    }
+
+    [Fact]
+    public async Task ItemImage_InvalidRequests_AreRejectedWithoutChangingTheItem()
+    {
+        using var host = new AccountTestHost(database);
+        var ownerUser = await SeedAsync();
+        using var owner = await LoginAsync(host, ownerUser);
+        using var staff = await LoginAsync(host, await SeedAsync(RestaurantUserRole.Staff, ownerUser.RestaurantId));
+        using var other = await LoginAsync(host, await SeedAsync());
+        var item = await CreateItemAsync(owner, ValidItem((await CreateCategoryAsync(owner)).Id));
+        var photo = Photo(300, 300);
+        await AssertErrorAsync(await UploadAsync(staff, item.Id, photo), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertErrorAsync(await SendAsync(staff, HttpMethod.Delete, ImagePath(item.Id)), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertErrorAsync(await UploadAsync(owner, item.Id, photo, csrf: false), HttpStatusCode.BadRequest, "CSRF_VALIDATION_FAILED");
+        await AssertErrorAsync(await UploadAsync(other, item.Id, photo), HttpStatusCode.NotFound, "MENU_RESOURCE_NOT_FOUND");
+        await AssertErrorAsync(await SendAsync(other, HttpMethod.Delete, ImagePath(item.Id)), HttpStatusCode.NotFound, "MENU_RESOURCE_NOT_FOUND");
+        await AssertErrorAsync(await UploadAsync(owner, Guid.NewGuid(), photo), HttpStatusCode.NotFound, "MENU_RESOURCE_NOT_FOUND");
+        byte[] gif = Convert.FromBase64String("R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==");
+        foreach (var content in new byte[][] { [], "not an image"u8.ToArray(), gif, photo[..(photo.Length / 2)] })
+            await AssertErrorAsync(await UploadAsync(owner, item.Id, content), HttpStatusCode.BadRequest, "IMAGE_INVALID");
+        await AssertErrorAsync(await UploadAsync(owner, item.Id, new byte[15 * 1024 * 1024 + 1]), HttpStatusCode.RequestEntityTooLarge, "IMAGE_TOO_LARGE");
+        Assert.Null((await ReadAsync(owner)).Items.Single().ImageId);
+        Assert.Equal(0, await ImageCountAsync(item.Id));
+        using var guest = host.Browser();
+        await AssertErrorAsync(await guest.GetAsync(PublicImage(Guid.NewGuid())), HttpStatusCode.NotFound, "MENU_IMAGE_NOT_FOUND");
+    }
+
     private async Task<RestaurantUser> SeedAsync(RestaurantUserRole role = RestaurantUserRole.Owner, Guid? restaurantId = null, bool mustChange = false)
     {
         await using var context = database.CreateContext();
@@ -517,6 +627,52 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<MenuItemResponse>())!;
     }
+
+    private static string ImagePath(Guid itemId) => $"{Items}/{itemId}/image";
+    private static string PublicImage(Guid imageId) => $"/api/public/menu-images/{imageId}";
+
+    private static async Task<HttpResponseMessage> UploadAsync(HttpClient client, Guid itemId, byte[] content, bool csrf = true)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Put, ImagePath(itemId)) { Content = new ByteArrayContent(content) };
+        request.Content.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
+        if (csrf) request.Headers.Add("X-CSRF-TOKEN", await CsrfAsync(client));
+        return await client.SendAsync(request);
+    }
+
+    private static async Task<Guid> UploadImageAsync(HttpClient client, Guid itemId, byte[] content)
+    {
+        var response = await UploadAsync(client, itemId, content);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<MenuItemResponse>())!.ImageId!.Value;
+    }
+
+    private async Task<int> ImageCountAsync(Guid itemId)
+    {
+        await using var context = database.CreateContext();
+        return await context.MenuItemImages.CountAsync(x => x.MenuItemId == itemId);
+    }
+
+    // Left half red, right half blue; a JPEG can carry an EXIF orientation tag.
+    private static byte[] Photo(int width, int height, SKEncodedImageFormat format = SKEncodedImageFormat.Jpeg,
+        byte? orientation = null)
+    {
+        using var bitmap = new SKBitmap(width, height);
+        using (var canvas = new SKCanvas(bitmap))
+        using (var paint = new SKPaint { Color = SKColors.Red })
+        {
+            canvas.Clear(SKColors.Blue);
+            canvas.DrawRect(0, 0, width / 2f, height, paint);
+        }
+        using var data = bitmap.Encode(format, 95);
+        var bytes = data.ToArray();
+        if (orientation is not { } value) return bytes;
+        // APP1 "Exif" segment with a big-endian TIFF header and a single SHORT tag 0x0112, inserted after SOI.
+        byte[] exif = [0xFF, 0xE1, 0, 34, .. "Exif\0\0"u8, .. "MM"u8, 0, 42, 0, 0, 0, 8, 0, 1,
+            0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, value, 0, 0, 0, 0, 0, 0];
+        return [.. bytes[..2], .. exif, .. bytes[2..]];
+    }
+
+    private static bool IsRed(SKColor color) => color.Red > 200 && color.Blue < 80;
 
     private static string Availability(Guid id) => $"/api/staff/menu-items/{id}/availability";
     private static MenuItemInput ValidItem(Guid categoryId) => new(categoryId, null, "炒饭", null, null,

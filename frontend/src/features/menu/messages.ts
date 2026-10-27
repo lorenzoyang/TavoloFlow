@@ -53,4 +53,15 @@ export const messages = {
     "设置菜单的首选语言，缺少翻译时逐条回退。菜单增删不会改变此设置；后台仍优先显示中文。",
   setDefault: "保存默认语言",
   fieldError: "请检查以下字段",
+  photo: "菜品图片（可选）",
+  photoHint:
+    "支持 JPG、PNG 或 WebP，最大 15 MB。图片会自动居中裁成正方形；选择后立即保存，不需要点下方的保存按钮。",
+  photoAfterCreate: "保存菜品后，可在编辑菜品时添加图片。",
+  choosePhoto: "选择图片",
+  replacePhoto: "更换图片",
+  removePhoto: "删除图片",
+  removePhotoTitle: "删除这道菜的图片？",
+  removePhotoHint: "客人菜单将不再显示这张图片，需要时可以重新上传。",
+  photoTooLarge: "图片超过 15 MB，请换一张较小的照片。",
+  photoSaved: "图片已更新。",
 } as const;

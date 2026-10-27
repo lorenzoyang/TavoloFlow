@@ -107,10 +107,14 @@ sequenceDiagram
 | `DELETE /api/owner/menu/items/{id}` | OWNER | 204 |
 | `PATCH /api/staff/menu-items/{id}/availability` | OWNER / STAFF | 200：更新后的菜品 |
 | `PATCH /api/owner/menu/default-language` | OWNER | 200：`{ "defaultLanguage": "it" }` |
+| `PUT /api/owner/menu/items/{id}/image` | OWNER | 200：更新后的菜品（新的 `imageId`） |
+| `DELETE /api/owner/menu/items/{id}/image` | OWNER | 200：更新后的菜品（`imageId: null`），重复删除同样成功 |
+| `GET /api/public/menu-images/{imageId}` | 匿名 | 200：`image/webp`，可长期缓存 |
 
 菜单响应包含 `restaurantId`、`defaultLanguage`、`availableLanguages`、`categories`、
 `items`、`allergens`。分类按 ID、菜品按分类 ID 和自身 ID 稳定排序。
-菜品/分类响应不暴露 EF 导航对象。所有接口响应继续使用 `Cache-Control: no-store`。
+菜品/分类响应不暴露 EF 导航对象。菜品响应含可空的 `imageId`（员工菜单与公开 bootstrap 相同）。
+除菜品图片 GET 外，所有接口响应继续使用 `Cache-Control: no-store`。
 
 分类输入为 `nameZh`、`nameIt`、`nameEn`。菜品输入示例：
 
@@ -136,6 +140,10 @@ sequenceDiagram
 `400 VALIDATION_FAILED`，`errors.defaultLanguage` 提供字段提示，权限与 CSRF 校验不变。
 菜单请求 DTO 拒绝未定义字段，不能通过供应接口夹带价格或名称。
 
+菜品图片的上传请求体就是图片文件本身（不用 multipart），格式按文件内容判断，不看 `Content-Type`。
+图片 GET 成功时返回 `Cache-Control: public, max-age=31536000, immutable` 和
+`X-Content-Type-Options: nosniff`；生产 Caddy 为这条路径单独设了不加 `no-store` 的规则。
+
 ## 3. 数据规则与失败行为
 
 - 名称、描述、编号去首尾空白，空内容保存为 `null`；至少一种名称非空。
@@ -150,6 +158,18 @@ sequenceDiagram
 - 分类只能为空时删除。菜品删除复用 `CatalogDeletionService`，先清空订单明细的可空菜品引用，
   保留名称、价格、编号、过敏原快照及餐厅归属。删除服务自行开启事务，先锁餐厅再锁菜品，
   原子提交引用清空与删除；`MenuService` 不再包一层事务。两种删除服务都不应被外层事务包装。
+- 菜品图片可选，每道菜最多一张，存在 `menu_item_images` 表（`bytea`），菜单读取不加载图片字节。
+  `menu_items.image_id` 指向当前图片，只由图片写接口在同一事务内与图片表一起修改，没有反向外键。
+- 图片写入与内容保存分开：换图不要求重新审核过敏原，内容保存和供应切换也不会改动图片。
+  写入沿用菜单写锁顺序（先锁餐厅），解码与压缩在事务和锁之外完成。
+- 服务端只接受 JPEG、PNG、WebP，上限 15 MB、约 5000 万像素；用 SkiaSharp 解码，按 EXIF 方向摆正，
+  转为 sRGB，居中裁成 640×640 后编码为 WebP（质量 80），不保留 EXIF/GPS 等元数据，
+  也从不原样返回上传的字节。选用 SkiaSharp（MIT）而不是 ImageSharp：2026-10 时 ImageSharp 没有已知漏洞的
+  版本（3.2.0、4.1.2 起）在 Release 构建时都要求 Six Labors 许可证密钥，而不要求密钥的 3.1.x 仍有安全公告。
+  `deploy/Dockerfile.api` 只按 `linux-x64` 发布，否则 SkiaSharp 会带上所有平台的原生库（约 450 MB）。
+- 每次上传生成新的随机 `imageId`，所以图片 URL 内容永不改变；被替换或删除的旧 URL 返回 404。
+  删除菜品时数据库级联删除图片；订单快照不含图片，历史订单不受影响。
+- 图片写入不在浏览器保存未知结果标记：重复上传只是再替换一次，刷新后的菜单就能看出结果。
 
 错误统一为 `code`、`message`、`requestId`，字段校验附 `errors`：
 
@@ -160,6 +180,9 @@ sequenceDiagram
 | `409 ITEM_CODE_CONFLICT` | 本店已有相同编号 |
 | `409 CATEGORY_NOT_EMPTY` | 分类仍有菜品 |
 | `409 ALLERGEN_REVIEW_REQUIRED` | 未审核菜品不能恢复供应 |
+| `400 IMAGE_INVALID` | 不是 JPEG/PNG/WebP，或图片内容损坏 |
+| `413 IMAGE_TOO_LARGE` | 图片超过 15 MB 或约 5000 万像素 |
+| `404 MENU_IMAGE_NOT_FOUND` | 图片不存在（已被替换或删除） |
 
 401、403、CSRF 等错误复用账号模块。数据库唯一索引是并发编号冲突的最终保障，
 业务服务把对应异常转换为 409；没有新建冲突表或菜单版本字段。

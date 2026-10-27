@@ -163,6 +163,7 @@ Table menu_items {
   allergen_codes "text[]" [not null, default: '{}', note: 'Only 14 predefined EU allergen codes, validated by the API']
   allergen_reviewed boolean [not null, default: false, note: 'true + empty codes = reviewed, no identified declarable allergens']
   is_available boolean [not null, default: true]
+  image_id uuid [note: 'Current menu_item_images.id; no FK, written only together with that table']
 
   Indexes {
     (id, restaurant_id) [unique, name: 'uq_menu_items_id_tenant']
@@ -186,6 +187,17 @@ Table menu_items {
     allergen_reviewed=true + empty allergen_codes means reviewed and
     no identified declarable allergens; do not promise zero cross-contact.
     Reconfirm review when allergen_codes are edited.
+  '''
+}
+
+Table menu_item_images {
+  id uuid [pk, note: 'Random per upload; also the immutable public image URL id']
+  menu_item_id uuid [not null, unique]
+  content bytea [not null, note: '640x640 WebP re-encoded by the API; no EXIF']
+
+  Note: '''
+    Optional dish photo, at most one per item. Kept apart from menu_items so
+    menu reads never load image bytes. Not part of order snapshots.
   '''
 }
 
@@ -325,6 +337,7 @@ Ref: order_items.restaurant_id > restaurants.id [delete: cascade]
 // Nullable historical links are explicitly detached by catalog deletion operations.
 // Composite FKs keep related records in the same restaurant.
 Ref: menu_items.(category_id, restaurant_id) > menu_categories.(id, restaurant_id) [delete: no action]
+Ref: menu_item_images.menu_item_id - menu_items.id [delete: cascade]
 Ref: dining_sessions.(table_id, restaurant_id) > restaurant_tables.(id, restaurant_id) [delete: no action]
 Ref: orders.(dining_session_id, restaurant_id) > dining_sessions.(id, restaurant_id) [delete: cascade]
 Ref: order_items.(order_id, restaurant_id) > orders.(id, restaurant_id) [delete: cascade]
@@ -341,6 +354,7 @@ TableGroup tables_and_menu {
   restaurant_tables
   menu_categories
   menu_items
+  menu_item_images
 }
 
 TableGroup dining_and_orders {

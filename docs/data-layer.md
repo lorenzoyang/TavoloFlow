@@ -1,6 +1,6 @@
 # Data layer
 
-The ten entity classes live in `backend/TavoloFlow.Api/Entities`. Individual
+The eleven entity classes live in `backend/TavoloFlow.Api/Entities`. Individual
 Fluent API configurations, `ApplicationDbContext`, and EF migrations live in
 `backend/TavoloFlow.Api/Data`. A fresh database contains no accounts or sample
 records. Development account initialization is an explicit application command;

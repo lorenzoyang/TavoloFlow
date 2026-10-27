@@ -9,6 +9,7 @@ import { Notice } from "@/components/notice";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FieldDescription } from "@/components/ui/field";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
@@ -19,17 +20,20 @@ import { ApiError, errorMessage } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
+  deleteItemImage,
   deleteMenuEntry,
   menuQuery,
   saveCategory,
   saveItem,
   setDefaultLanguage,
   setItemAvailability,
+  uploadItemImage,
   type Category,
   type Menu,
   type MenuItem,
 } from "./api";
 import { displayName } from "@/lib/language";
+import { ItemImageSection, ItemThumbnail } from "./ItemImage";
 import { CategoryForm, ItemForm } from "./MenuForms";
 import { languages, messages as m } from "./messages";
 
@@ -64,22 +68,40 @@ function MenuContent({ account }: { account: CurrentAccount }) {
       else if (result === "failed") setNotice(m.refreshFailed);
     },
   });
-  const busy = mutation.isPending;
+  const [photoNotice, setPhotoNotice] = useState<{ tone: "success" | "warning"; text: string }>();
+  // Photo writes keep the item editor open: the section shows the refreshed photo in place.
+  const imageMutation = useMutation({
+    mutationFn: (send: () => Promise<unknown>) => send(),
+    onMutate: () => {
+      setPhotoNotice(undefined);
+    },
+    onSuccess: async () => {
+      if (!isSameAccount(client, account)) return;
+      const result = await refreshAfterWrite(client, account, options);
+      if (result === "refreshed") setPhotoNotice({ tone: "success", text: m.photoSaved });
+      else if (result === "failed") setPhotoNotice({ tone: "warning", text: m.refreshFailed });
+    },
+  });
+  const busy = mutation.isPending || imageMutation.isPending;
   const editing = editor !== null;
   function open(next: Editor) {
     mutation.reset();
+    imageMutation.reset();
     setNotice("");
+    setPhotoNotice(undefined);
     setEditor(next);
   }
   function cancel() {
     setEditor(null);
     mutation.reset();
+    imageMutation.reset();
+    setPhotoNotice(undefined);
   }
-  const feedback = mutation.isError ? (
+  const failure = (error: unknown) => (
     <Notice
       tone="error"
       action={
-        (!(mutation.error instanceof ApiError) || mutation.error.status >= 500) && (
+        (!(error instanceof ApiError) || error.status >= 500) && (
           <Button
             variant="outline"
             disabled={query.isFetching}
@@ -90,9 +112,11 @@ function MenuContent({ account }: { account: CurrentAccount }) {
         )
       }
     >
-      {errorMessage(mutation.error, m.unknown)}
+      {errorMessage(error, m.unknown)}
     </Notice>
-  ) : null;
+  );
+  const feedback = mutation.isError ? failure(mutation.error) : null;
+  const photoError = imageMutation.isError ? failure(imageMutation.error) : null;
   const menu = query.data;
   // A removed selection falls back to the full menu without discarding an open form.
   const selected = menu?.categories.find((value) => value.id === categoryId);
@@ -104,6 +128,11 @@ function MenuContent({ account }: { account: CurrentAccount }) {
       "zh",
     ).text;
   const formOpen = editor?.kind === "category" || editor?.kind === "item";
+  // The photo section follows the live menu, unlike the form fields, which keep their snapshot.
+  const liveItem =
+    editor?.kind === "item" && editor.value
+      ? menu?.items.find((item) => item.id === editor.value?.id)
+      : undefined;
   return (
     <div>
       <PageHeader
@@ -240,9 +269,12 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                         </p>
                       )}
                     </div>
-                    <span className="shrink-0 font-semibold tabular-nums">
-                      {formatMoney(item.priceCents)}
-                    </span>
+                    <div className="flex shrink-0 flex-col items-end gap-2">
+                      <span className="font-semibold tabular-nums">
+                        {formatMoney(item.priceCents)}
+                      </span>
+                      {item.imageId && <ItemThumbnail imageId={item.imageId} className="size-16" />}
+                    </div>
                   </div>
                   {!item.allergenReviewed ? (
                     <p className="text-sm text-destructive">{m.unreviewed}</p>
@@ -372,6 +404,25 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                 save={(body) => mutation.mutate(() => saveCategory(editor.value?.id, body))}
                 feedback={feedback}
               />
+            )}
+            {menu && editor?.kind === "item" && liveItem && (
+              <ItemImageSection
+                item={liveItem}
+                busy={busy}
+                error={photoError}
+                notice={photoNotice && <Notice tone={photoNotice.tone}>{photoNotice.text}</Notice>}
+                upload={(file) => imageMutation.mutate(() => uploadItemImage(liveItem.id, file))}
+                clear={() => {
+                  imageMutation.reset();
+                  setPhotoNotice(undefined);
+                }}
+                remove={(done) =>
+                  imageMutation.mutate(() => deleteItemImage(liveItem.id), { onSuccess: done })
+                }
+              />
+            )}
+            {menu && editor?.kind === "item" && !editor.value && (
+              <FieldDescription className="mb-5">{m.photoAfterCreate}</FieldDescription>
             )}
             {menu && editor?.kind === "item" && (
               <ItemForm

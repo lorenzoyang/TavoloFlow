@@ -93,6 +93,36 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
             return MenuItemResponse.From(item);
         }, ct);
 
+    // Image writes are separate from content saves, so changing a photo never asks for allergen review again.
+    public async Task<MenuItemResponse> SetItemImageAsync(Guid restaurantId, Guid id, Stream body, long? length,
+        CancellationToken ct)
+    {
+        var content = await MenuImages.EncodeAsync(body, length, ct);
+        return await WriteAsync(restaurantId, async () =>
+        {
+            var item = await context.MenuItems.SingleOrDefaultAsync(x => x.RestaurantId == restaurantId && x.Id == id, ct)
+                ?? throw MenuErrors.NotFound();
+            // A new id per upload keeps every image URL immutable; the replaced URL starts returning 404.
+            await context.MenuItemImages.Where(x => x.MenuItemId == id).ExecuteDeleteAsync(ct);
+            var image = new MenuItemImage { Id = Guid.NewGuid(), MenuItemId = id, Content = content };
+            context.MenuItemImages.Add(image);
+            item.ImageId = image.Id;
+            await context.SaveChangesAsync(ct);
+            return MenuItemResponse.From(item);
+        }, ct);
+    }
+
+    public Task<MenuItemResponse> DeleteItemImageAsync(Guid restaurantId, Guid id, CancellationToken ct) =>
+        WriteAsync(restaurantId, async () =>
+        {
+            var item = await context.MenuItems.SingleOrDefaultAsync(x => x.RestaurantId == restaurantId && x.Id == id, ct)
+                ?? throw MenuErrors.NotFound();
+            await context.MenuItemImages.Where(x => x.MenuItemId == id).ExecuteDeleteAsync(ct);
+            item.ImageId = null;
+            await context.SaveChangesAsync(ct);
+            return MenuItemResponse.From(item);
+        }, ct);
+
     public async Task<DefaultLanguageResponse> SetDefaultLanguageAsync(Guid restaurantId, string? language, CancellationToken ct)
     {
         if (!InputRules.IsLanguage(language))

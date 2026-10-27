@@ -38,5 +38,10 @@ public sealed class PublicMenuService(ApplicationDbContext context)
             new(menu.AvailableLanguages, menu.Categories, menu.Items));
     }
 
+    // Image URLs carry no tenant: the id is random and the photo is already public on that restaurant's menu.
+    public async Task<byte[]> ReadImageAsync(Guid imageId, CancellationToken ct) =>
+        await context.MenuItemImages.Where(x => x.Id == imageId).Select(x => x.Content).SingleOrDefaultAsync(ct)
+            ?? throw MenuErrors.ImageNotFound();
+
     private static ApiException NotFound() => new(404, "QR_NOT_FOUND", "二维码无效，请联系餐厅工作人员。");
 }

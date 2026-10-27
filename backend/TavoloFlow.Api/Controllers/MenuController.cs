@@ -54,6 +54,17 @@ public sealed class MenuController(MenuService menus, CurrentAccount current) : 
         return NoContent();
     }
 
+    // The body is the raw image file (no multipart); its format is detected from the bytes, not Content-Type.
+    [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
+    [HttpPut("api/owner/menu/items/{id:guid}/image")]
+    public async Task<IActionResult> SetItemImage(Guid id, CancellationToken ct) =>
+        Ok(await menus.SetItemImageAsync(RestaurantId, id, Request.Body, Request.ContentLength, ct));
+
+    [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
+    [HttpDelete("api/owner/menu/items/{id:guid}/image")]
+    public async Task<IActionResult> DeleteItemImage(Guid id, CancellationToken ct) =>
+        Ok(await menus.DeleteItemImageAsync(RestaurantId, id, ct));
+
     [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
     [HttpPatch("api/owner/menu/default-language")]
     public async Task<IActionResult> DefaultLanguage(DefaultLanguageInput input, CancellationToken ct) =>

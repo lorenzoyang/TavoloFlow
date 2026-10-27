@@ -3,13 +3,15 @@ WORKDIR /src
 COPY global.json ./
 COPY .config/dotnet-tools.json .config/
 COPY backend/TavoloFlow.Api/TavoloFlow.Api.csproj backend/TavoloFlow.Api/
-RUN dotnet restore backend/TavoloFlow.Api && dotnet tool restore
+RUN dotnet restore backend/TavoloFlow.Api -r linux-x64 && dotnet tool restore
 COPY backend/TavoloFlow.Api/ backend/TavoloFlow.Api/
-RUN dotnet publish backend/TavoloFlow.Api -c Release --no-restore -o /publish /p:UseAppHost=false
+# Publish for the server's runtime only: SkiaSharp otherwise ships native libraries for every OS (~450 MB).
+RUN dotnet publish backend/TavoloFlow.Api -c Release -r linux-x64 --self-contained false --no-restore \
+    -o /publish /p:UseAppHost=false
 # EF constructs the host during bundle generation, but does not connect to this dummy database.
 RUN ConnectionStrings__Default='Host=localhost;Database=build;Username=build;Password=build' \
     dotnet ef migrations bundle --project backend/TavoloFlow.Api --configuration Release \
-    --no-build --target-runtime linux-x64 --output /publish/efbundle
+    --no-build --runtime linux-x64 --target-runtime linux-x64 --output /publish/efbundle
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 USER root

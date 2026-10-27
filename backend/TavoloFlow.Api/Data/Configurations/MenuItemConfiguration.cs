@@ -43,6 +43,8 @@ internal sealed class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
 
         builder.Property(item => item.IsAvailable).HasColumnName("is_available").HasDefaultValue(true).ValueGeneratedNever();
 
+        builder.Property(item => item.ImageId).HasColumnName("image_id");
+
         builder.HasIndex(item => new { item.RestaurantId, item.CategoryId });
 
         builder.HasIndex(item => new { item.RestaurantId, item.ItemCode }).IsUnique()

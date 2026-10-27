@@ -29,11 +29,11 @@ public sealed record CategoryResponse(Guid Id, string? NameZh, string? NameIt, s
 public sealed record MenuItemResponse(
     Guid Id, Guid CategoryId, string? ItemCode, string? NameZh, string? NameIt, string? NameEn,
     string? DescriptionZh, string? DescriptionIt, string? DescriptionEn,
-    long PriceCents, string[] AllergenCodes, bool AllergenReviewed, bool IsAvailable)
+    long PriceCents, string[] AllergenCodes, bool AllergenReviewed, bool IsAvailable, Guid? ImageId)
 {
     public static MenuItemResponse From(MenuItem item) => new(item.Id, item.CategoryId, item.ItemCode,
         item.NameZh, item.NameIt, item.NameEn, item.DescriptionZh, item.DescriptionIt, item.DescriptionEn,
-        item.PriceCents, item.AllergenCodes, item.AllergenReviewed, item.IsAvailable);
+        item.PriceCents, item.AllergenCodes, item.AllergenReviewed, item.IsAvailable, item.ImageId);
 }
 
 public sealed record DefaultLanguageResponse(string DefaultLanguage);
@@ -53,6 +53,9 @@ public sealed record PublicMenuResponse(PublicRestaurantResponse Restaurant, Pub
 public static class MenuErrors
 {
     public static ApiException NotFound() => new(404, "MENU_RESOURCE_NOT_FOUND", "分类或菜品不存在，请刷新菜单。");
+    public static ApiException ImageInvalid() => new(400, "IMAGE_INVALID", "无法读取该图片，请上传 JPG、PNG 或 WebP 格式的照片。");
+    public static ApiException ImageTooLarge() => new(413, "IMAGE_TOO_LARGE", "图片太大，请上传不超过 15 MB、约 5000 万像素以内的照片。");
+    public static ApiException ImageNotFound() => new(404, "MENU_IMAGE_NOT_FOUND", "图片不存在。");
 }
 
 public static class MenuAllergens

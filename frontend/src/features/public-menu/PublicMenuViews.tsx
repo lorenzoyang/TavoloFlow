@@ -15,6 +15,8 @@ import { formatMoney } from "@/lib/format";
 import { displayName, isLanguage, LANGUAGES, type Language } from "@/lib/language";
 import { cn } from "@/lib/utils";
 import type { MenuItem } from "@/features/menu/api";
+import { DishPhoto } from "@/features/menu/ItemImage";
+import { usePhoto } from "@/features/menu/usePhoto";
 import { orderMessages } from "@/features/orders/messages";
 import { totalCents } from "@/features/orders/state";
 import type { useCart } from "@/features/orders/useCart";
@@ -140,6 +142,26 @@ function DishRow({
   const description = { zh: item.descriptionZh, it: item.descriptionIt, en: item.descriptionEn }[
     name.language
   ];
+  const photo = usePhoto(item.imageId);
+  const addButton = (
+    <Button
+      size="icon-lg"
+      className={cn(
+        "relative rounded-full",
+        photo.shown && "absolute -right-2 -bottom-2 border-2 border-card shadow-sm",
+      )}
+      disabled={disabled || !item.isAvailable || !item.allergenReviewed}
+      aria-label={`${orderMessages[language].add}: ${name.text}`}
+      onClick={add}
+    >
+      <Plus />
+      {count > 0 && (
+        <span className="absolute -top-1.5 -right-1.5 flex min-w-6 items-center justify-center rounded-full border-2 border-card bg-foreground px-1 text-xs font-semibold text-background tabular-nums">
+          {count}
+        </span>
+      )}
+    </Button>
+  );
   return (
     <li className="flex gap-3 rounded-2xl border bg-card p-4 shadow-xs">
       <div className="min-w-0 flex-1 space-y-1.5">
@@ -160,22 +182,22 @@ function DishRow({
         )}
         <Allergens item={item} language={language} />
       </div>
+      {/* The text column never moves; a photo only fills the price column, with the add button
+          on its corner so that button stays at the card's bottom right either way. */}
       <div className="flex shrink-0 flex-col items-end justify-between gap-3">
         <p className="font-semibold tabular-nums">{formatMoney(item.priceCents, language)}</p>
-        <Button
-          size="icon-lg"
-          className="relative rounded-full"
-          disabled={disabled || !item.isAvailable || !item.allergenReviewed}
-          aria-label={`${orderMessages[language].add}: ${name.text}`}
-          onClick={add}
-        >
-          <Plus />
-          {count > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 flex min-w-6 items-center justify-center rounded-full border-2 border-card bg-foreground px-1 text-xs font-semibold text-background tabular-nums">
-              {count}
-            </span>
-          )}
-        </Button>
+        {photo.shown ? (
+          <div className="relative mr-2 mb-2">
+            <DishPhoto
+              imageId={photo.shown}
+              onError={photo.fail}
+              className={cn("size-24 sm:size-28", !item.isAvailable && "opacity-60 grayscale")}
+            />
+            {addButton}
+          </div>
+        ) : (
+          addButton
+        )}
       </div>
     </li>
   );

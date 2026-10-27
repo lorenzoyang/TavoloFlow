@@ -16,6 +16,8 @@ public sealed class MenuItem
     public string[] AllergenCodes { get; set; } = [];
     public bool AllergenReviewed { get; set; }
     public bool IsAvailable { get; set; } = true;
+    // Mirrors menu_item_images.id for this item; only MenuService image writes change either side.
+    public Guid? ImageId { get; set; }
 
     public Restaurant Restaurant { get; set; } = null!;
     public MenuCategory Category { get; set; } = null!;

@@ -12,6 +12,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<RestaurantTable> RestaurantTables => Set<RestaurantTable>();
     public DbSet<MenuCategory> MenuCategories => Set<MenuCategory>();
     public DbSet<MenuItem> MenuItems => Set<MenuItem>();
+    public DbSet<MenuItemImage> MenuItemImages => Set<MenuItemImage>();
     public DbSet<DiningSession> DiningSessions => Set<DiningSession>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();

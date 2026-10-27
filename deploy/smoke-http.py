@@ -4,6 +4,7 @@
 Connects to loopback while verifying Caddy's local CA and the production hostname.
 Only smoke-test credentials and state are written to the private temporary directory.
 """
+import base64
 import http.client
 import http.cookies
 import json
@@ -16,6 +17,13 @@ import uuid
 phase, directory, port = sys.argv[1:]
 root = pathlib.Path(directory)
 context = ssl.create_default_context(cafile=str(root / "root.crt"))
+# A 16x16 JPEG dish photo; the API re-encodes every upload to a 640x640 WebP.
+PHOTO = base64.b64decode(
+    "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0o"
+    "MCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAQABAD"
+    "ASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAT/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAABv/EABQRAQAA"
+    "AAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AIABk+f/2Q=="
+)
 
 
 class LocalConnection(http.client.HTTPSConnection):
@@ -35,12 +43,14 @@ class Browser:
             f"{name}={value['value']}" for name, value in self.cookies.items()
             if path.startswith(value["path"])
         )}
+        raw = isinstance(body, bytes)
         if body is not None:
-            headers["Content-Type"] = "application/json"
+            headers["Content-Type"] = "image/jpeg" if raw else "application/json"
         if token:
             headers["X-CSRF-TOKEN"] = token
         connection = LocalConnection("app.qiaotavoloflow.it", context=context)
-        connection.request(method, path, body=json.dumps(body) if body is not None else None, headers=headers)
+        payload = body if raw or body is None else json.dumps(body)
+        connection.request(method, path, body=payload, headers=headers)
         response = connection.getresponse()
         raw_headers = response.getheaders()
         data = response.read()
@@ -121,6 +131,19 @@ if phase == "create":
         "currentPassword": owner["temporaryPassword"], "newPassword": "Deployment-owner-123"
     })
     browser.request("GET", "/api/not-found", status=404)
+    category = browser.write("POST", "/api/owner/menu/categories", {
+        "nameZh": "冒烟分类", "nameIt": None, "nameEn": None
+    }, status=201)
+    item = browser.write("POST", "/api/owner/menu/items", {
+        "categoryId": category["id"], "itemCode": None, "nameZh": "冒烟菜品", "nameIt": None, "nameEn": None,
+        "descriptionZh": None, "descriptionIt": None, "descriptionEn": None, "priceCents": 100,
+        "allergenCodes": [], "allergenReviewed": True
+    }, status=201)
+    image_id = browser.write("PUT", f"/api/owner/menu/items/{item['id']}/image", PHOTO)["imageId"]
+    # Caddy's menu-image route must not add the no-store that every other /api response gets.
+    headers, _ = browser.request("GET", f"/api/public/menu-images/{image_id}")
+    assert headers["content-type"] == "image/webp" and headers["x-content-type-options"] == "nosniff"
+    assert "immutable" in headers["cache-control"] and "no-store" not in headers["cache-control"]
     table = browser.write("POST", "/api/owner/tables", {"tableLabel": "Smoke table"}, status=201)
     browser.write("PATCH", "/api/staff/accepting-orders", {"enabled": True})
     opened = browser.write("POST", f"/api/staff/tables/{table['id']}/open", None, status=201)
@@ -132,7 +155,7 @@ if phase == "create":
     (root / "browser.json").write_text(json.dumps({
         "cookies": browser.cookies, "session": session_id, "code": opened["joinCode"], "restaurant": restaurant_id
     }))
-    print("HTTPS routes, cache headers, three identities, CSRF, restaurant creation and encrypted join code: passed")
+    print("HTTPS routes, cache headers, three identities, CSRF, restaurant creation, dish photo and encrypted join code: passed")
 else:
     saved = json.loads((root / "browser.json").read_text())
     browser = Browser(saved["cookies"])

@@ -166,8 +166,9 @@ tar -xzf "$backup" -C "$work/restore"
 (cd "$work/restore" && sha256sum --check --quiet SHA256SUMS)
 docker run -d --name "$COMPOSE_PROJECT_NAME-restore" --network none \
   -e POSTGRES_PASSWORD=disposable-restore-only -v /var/lib/postgresql postgres:18-alpine >/dev/null
+# Probe TCP like the Compose healthcheck: the image's temporary initdb server only listens on the socket.
 for _attempt in {1..30}; do
-  if docker exec "$COMPOSE_PROJECT_NAME-restore" pg_isready -U postgres >/dev/null; then break; fi
+  if docker exec "$COMPOSE_PROJECT_NAME-restore" pg_isready -h 127.0.0.1 -U postgres >/dev/null; then break; fi
   sleep 1
 done
 docker exec -i "$COMPOSE_PROJECT_NAME-restore" pg_restore -U postgres -d postgres \

@@ -12,6 +12,12 @@
 {$DOMAIN} {
 	encode zstd gzip
 
+	# Dish photos: every upload gets a new URL, so the API marks them immutable. This handle must stay
+	# before @api, which would otherwise add no-store to them.
+	handle /api/public/menu-images/* {
+		reverse_proxy api:8080
+	}
+
 	@api path /api /api/*
 	handle @api {
 		header Cache-Control "no-store"

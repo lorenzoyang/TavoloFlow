@@ -15,6 +15,7 @@ export type MenuItem = Names & {
   allergenCodes: string[];
   allergenReviewed: boolean;
   isAvailable: boolean;
+  imageId: string | null;
 };
 export type Menu = {
   restaurantId: string;
@@ -39,6 +40,16 @@ export const saveItem = (id: string | undefined, body: unknown) =>
 
 export const deleteMenuEntry = (resource: "categories" | "items", id: string) =>
   write<void>(`/api/owner/menu/${resource}/${id}`, "DELETE");
+
+// Photos are written apart from the content form; each upload gets a new immutable URL.
+export const uploadItemImage = (id: string, file: File) =>
+  write<MenuItem>(`/api/owner/menu/items/${id}/image`, "PUT", file);
+
+export const deleteItemImage = (id: string) =>
+  write<MenuItem>(`/api/owner/menu/items/${id}/image`, "DELETE");
+
+// Anonymous and cached by the browser for a year; the same URL serves staff and guest pages.
+export const menuImageUrl = (imageId: string) => `/api/public/menu-images/${imageId}`;
 
 export const setItemAvailability = (id: string, isAvailable: boolean) =>
   write<MenuItem>(`/api/staff/menu-items/${id}/availability`, "PATCH", { isAvailable });

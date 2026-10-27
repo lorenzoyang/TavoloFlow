@@ -185,6 +185,10 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("description_zh");
 
+                    b.Property<Guid?>("ImageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("image_id");
+
                     b.Property<bool>("IsAvailable")
                         .HasColumnType("boolean")
                         .HasDefaultValue(true)
@@ -238,6 +242,29 @@ namespace TavoloFlow.Api.Data.Migrations
 
                             t.HasCheckConstraint("ck_item_positive_price", "price_cents > 0");
                         });
+                });
+
+            modelBuilder.Entity("TavoloFlow.Api.Entities.MenuItemImage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<byte[]>("Content")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("content");
+
+                    b.Property<Guid>("MenuItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("menu_item_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MenuItemId")
+                        .IsUnique();
+
+                    b.ToTable("menu_item_images", (string)null);
                 });
 
             modelBuilder.Entity("TavoloFlow.Api.Entities.Order", b =>
@@ -783,6 +810,15 @@ namespace TavoloFlow.Api.Data.Migrations
                     b.Navigation("Category");
 
                     b.Navigation("Restaurant");
+                });
+
+            modelBuilder.Entity("TavoloFlow.Api.Entities.MenuItemImage", b =>
+                {
+                    b.HasOne("TavoloFlow.Api.Entities.MenuItem", null)
+                        .WithOne()
+                        .HasForeignKey("TavoloFlow.Api.Entities.MenuItemImage", "MenuItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("TavoloFlow.Api.Entities.Order", b =>
