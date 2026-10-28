@@ -17,7 +17,7 @@ export function FilterChips({
   return (
     <nav
       aria-label={label}
-      className="flex gap-2 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="flex gap-2 overflow-x-auto py-1 scrollbar-none [&::-webkit-scrollbar]:hidden"
     >
       {items.map((item) => {
         const pressed = item.value === value;
