@@ -6,14 +6,14 @@ import type { ManagedAccount, Restaurant, RestaurantDetail, TemporaryCredential 
 
 // Platform administration uses the platform identity; the owner's staff maintenance uses the store identity.
 export const RESTAURANTS_PAGE_SIZE = 20;
-export type RestaurantFilter = {
+type RestaurantFilter = {
   search: string;
   status: string;
   page: number;
   subscriptionStatus?: string;
   sort?: string;
 };
-export type CreateRestaurantInput = {
+type CreateRestaurantInput = {
   id: string;
   name: string;
   defaultLanguage: string;

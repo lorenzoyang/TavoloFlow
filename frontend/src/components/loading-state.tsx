@@ -1,14 +1,10 @@
 import { Spinner } from "@/components/ui/spinner";
-import { cn } from "@/lib/utils";
 
-export function LoadingState({ label, className }: { label: string; className?: string }) {
+export function LoadingState({ label }: { label: string }) {
   return (
     <p
       role="status"
-      className={cn(
-        "flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground",
-        className,
-      )}
+      className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"
     >
       <Spinner />
       {label}

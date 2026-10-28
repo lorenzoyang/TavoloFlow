@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
-export type FilterChip = { value: string; label: string; lang?: string };
+type FilterChip = { value: string; label: string; lang?: string };
 
 // A single-choice filter that scrolls sideways instead of wrapping into several rows on phones.
 export function FilterChips({
@@ -9,21 +8,16 @@ export function FilterChips({
   items,
   value,
   onChange,
-  className,
 }: {
   label: string;
   items: FilterChip[];
   value: string;
   onChange: (value: string) => void;
-  className?: string;
 }) {
   return (
     <nav
       aria-label={label}
-      className={cn(
-        "flex gap-2 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-        className,
-      )}
+      className="flex gap-2 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {items.map((item) => {
         const pressed = item.value === value;

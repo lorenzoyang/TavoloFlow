@@ -2,6 +2,5 @@
 src/routeTree.gen.ts
 package-lock.json
 dist/
-dist-ssr/
 .tanstack/
 node_modules/

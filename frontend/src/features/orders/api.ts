@@ -28,7 +28,7 @@ export type Order = {
   orderNote: string | null;
   items: OrderLine[];
 };
-export type OrderPage = { items: Order[]; nextCursor: string | null; totalAmountCents: number };
+type OrderPage = { items: Order[]; nextCursor: string | null; totalAmountCents: number };
 export const ordersKey = (restaurantId: string, tableId: string, sessionId: string) =>
   [...guestKeys.visit(restaurantId, tableId, sessionId), "orders"] as const;
 export const readOrders = (sessionId: string, cursor: string | null, signal: AbortSignal) =>

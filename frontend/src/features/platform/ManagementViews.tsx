@@ -13,14 +13,12 @@ import type { TemporaryCredential, ManagedAccount } from "./state";
 export function ThemeChoices({
   name,
   defaultValue,
-  disabled,
 }: {
   name: string;
   defaultValue: RestaurantTheme;
-  disabled?: boolean;
 }) {
   return (
-    <fieldset className="space-y-2" disabled={disabled}>
+    <fieldset className="space-y-2">
       <legend className="mb-2 text-sm font-medium">餐厅主题（顾客菜单与店铺页面的配色）</legend>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {THEMES.map((theme) => (

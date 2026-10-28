@@ -7,7 +7,6 @@ const zh = {
   close: "关闭",
   cancel: "取消",
   back: "返回",
-  refresh: "刷新",
   sound: "声音提醒",
   soundOn: "开启声音",
   soundBlocked: "浏览器要求先点按一次页面才能播放提醒声。点按页面任意位置即可开启。",
@@ -28,7 +27,6 @@ export const staffMessages: Record<StaffLanguage, typeof zh> = {
     close: "Chiudi",
     cancel: "Annulla",
     back: "Indietro",
-    refresh: "Aggiorna",
     sound: "Suoni",
     soundOn: "Attiva suoni",
     soundBlocked:

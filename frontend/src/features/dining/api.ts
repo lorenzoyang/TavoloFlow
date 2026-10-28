@@ -15,7 +15,7 @@ export type FloorTable = {
     totalAmountCents: number;
   } | null;
 };
-export type Floor = {
+type Floor = {
   serviceStatus: "ACTIVE" | "SUSPENDED";
   orderingEnabled: boolean;
   joinCodeRequired: boolean;
@@ -23,7 +23,7 @@ export type Floor = {
 };
 export type CodeResult = { sessionId: string; joinCode: string };
 // joinCode is null when guests of this restaurant join without one.
-export type OpenResult = { session: BillSummary; joinCode: string | null };
+type OpenResult = { session: BillSummary; joinCode: string | null };
 
 export const floorKey = (account: AccountScope) =>
   ["floor", account.restaurantId, account.userId] as const;
@@ -33,7 +33,7 @@ export const sessionKey = (account: AccountScope, id: string) =>
   [...diningKey(account), id] as const;
 
 export const readFloor = (signal?: AbortSignal) => request<Floor>("/api/staff/floor", { signal });
-export const readSession = (id: string, signal?: AbortSignal) =>
+const readSession = (id: string, signal?: AbortSignal) =>
   request<BillSummary>(`/api/staff/sessions/${id}`, { signal });
 export const floorQuery = (account: AccountScope) =>
   queryOptions({

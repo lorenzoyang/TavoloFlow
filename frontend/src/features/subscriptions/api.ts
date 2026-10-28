@@ -10,7 +10,7 @@ export const subscriptionRemindersKey = (userId: string) =>
   ["platform", "subscription-reminders", userId] as const;
 
 // Reads and writes return the summary with every period, both from one snapshot.
-export const subscriptionBase = (id: string) => `/api/platform/restaurants/${id}/subscription`;
+const subscriptionBase = (id: string) => `/api/platform/restaurants/${id}/subscription`;
 export const getSubscription = (id: string, signal: AbortSignal) =>
   platformRequest<SubscriptionDetail>(subscriptionBase(id), { signal });
 export const getOwnerSubscription = (signal: AbortSignal) =>

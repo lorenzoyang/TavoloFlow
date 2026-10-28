@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import type { CurrentAccount } from "@/features/accounts/api";
 import type { KitchenOrder } from "@/features/kitchen/api";
 import { displayName } from "@/lib/language";
-import { formatDateTime, formatMoney, shortId } from "@/lib/format";
+import { formatDateTime, formatMoney, RESTAURANT_TIME_ZONE, shortId } from "@/lib/format";
 import { errorMessage } from "@/lib/api";
 import { staffMessages } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
@@ -143,9 +143,9 @@ function BillTotal({ bill, timeZone }: { bill: BillSummary; timeZone: string }) 
   );
 }
 
-export function BillDetails({
+function BillDetails({
   model,
-  timeZone = "Europe/Rome",
+  timeZone = RESTAURANT_TIME_ZONE,
 }: {
   model: ReturnType<typeof useBill>;
   timeZone?: string;

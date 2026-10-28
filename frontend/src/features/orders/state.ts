@@ -1,7 +1,7 @@
 import type { MenuItem } from "../menu/api.ts";
 import { isUuid } from "../../lib/ids.ts";
 
-export type OrderLineInput = {
+type OrderLineInput = {
   menuItemId: string;
   quantity: number;
   expectedUnitPriceCents: number;
@@ -23,7 +23,7 @@ export type Cart = {
   orderNote: string;
   pending: OrderInput | null;
 };
-export type CartIssue = "limits" | "amount" | "unavailable" | "storage" | "damaged";
+type CartIssue = "limits" | "amount" | "unavailable" | "storage" | "damaged";
 export class CartError extends Error {
   readonly issue: CartIssue;
   constructor(issue: CartIssue) {
@@ -228,7 +228,7 @@ export function persistCart(
   }
 }
 
-export type FailureDisposition = "ended" | "reauthenticate" | "editable" | "unknown";
+type FailureDisposition = "ended" | "reauthenticate" | "editable" | "unknown";
 export function submissionFailure(
   status: number | null,
   code: string | null,

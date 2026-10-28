@@ -11,7 +11,7 @@ type ErrorBody = {
 };
 
 // Writes whose result may be lost give up after this long; the caller then recovers by GET.
-export const REQUEST_TIMEOUT_MS = 15_000;
+const REQUEST_TIMEOUT_MS = 15_000;
 
 export function withTimeout(signal: AbortSignal): AbortSignal {
   return AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]);

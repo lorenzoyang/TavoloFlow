@@ -1,7 +1,7 @@
-import type { Language } from "../../lib/language.ts";
+import { isLanguage, type Language } from "../../lib/language.ts";
 
 export function selectedLanguage(preference: string | null, fallback: Language): Language {
-  return preference === "zh" || preference === "it" || preference === "en" ? preference : fallback;
+  return isLanguage(preference) ? preference : fallback;
 }
 
 export function languageStorageKey(restaurantId: string) {
@@ -14,7 +14,7 @@ export function readLanguage(
 ): Language | null {
   try {
     const value = storage.getItem(languageStorageKey(restaurantId));
-    return value === "zh" || value === "it" || value === "en" ? value : null;
+    return isLanguage(value) ? value : null;
   } catch {
     return null;
   }

@@ -65,8 +65,6 @@ const en = {
   stale: "Update failed. The orders shown may be out of date.",
   updated: "Last updated",
   allergies: "Allergen information",
-  pausedDraft:
-    "You can keep editing your cart; ordering requires an active visit and an available service.",
   viewCart: "View cart",
   keepOrdering: "Keep ordering",
   menuTab: "Menu",
@@ -132,7 +130,6 @@ export const orderMessages: Record<Language, typeof en> = {
     stale: "订单更新失败，当前显示上次读取的内容。",
     updated: "最后更新",
     allergies: "过敏原信息",
-    pausedDraft: "可继续编辑购物车；正式下单需要有效的本轮授权及可用的接单服务。",
     viewCart: "查看购物车",
     keepOrdering: "继续点菜",
     menuTab: "点菜",
@@ -204,8 +201,6 @@ export const orderMessages: Record<Language, typeof en> = {
     stale: "Aggiornamento non riuscito. Gli ordini visualizzati potrebbero non essere aggiornati.",
     updated: "Ultimo aggiornamento",
     allergies: "Informazioni sugli allergeni",
-    pausedDraft:
-      "Puoi modificare il carrello; per ordinare servono una visita autorizzata e il servizio disponibile.",
     viewCart: "Vedi carrello",
     keepOrdering: "Continua a ordinare",
     menuTab: "Menu",

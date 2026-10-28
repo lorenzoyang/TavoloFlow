@@ -44,7 +44,7 @@ Windows + WSL 的启动、转发、防火墙及手机扫码步骤见 [本地手�
 - `src/routes/`：文件路由，只负责 URL 和搜索参数。
 - `src/features/<模块>/`：`api.ts` 放请求、查询 key 和类型；`state.ts` 放纯逻辑，有单元测试；`use*.ts` 负责轮询与恢复；`*Page.tsx` / `*Views.tsx` 负责界面。
 - `src/components/ui/`：shadcn 生成的基础组件。
-- `src/components/`：全站共用的页面组件，包括页头、提示、确认对话框、主从视图、筛选标签和空状态。
+- `src/components/`：全站共用的页面组件，包括页头、提示、确认对话框、主从视图、筛选标签、加载状态、空状态和品牌标识。
 - `src/lib/`：HTTP 请求、格式化、语言和共享 hook。
 - `public/`：favicon、店铺端 manifest、service worker 和应用图标。
 

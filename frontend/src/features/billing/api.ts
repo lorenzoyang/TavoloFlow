@@ -3,13 +3,13 @@ import type { KitchenOrder } from "@/features/kitchen/api";
 import { request } from "@/lib/api";
 import type { BillSummary, HistoryFilters } from "./state";
 
-export type BillPage = {
+type BillPage = {
   summary: BillSummary;
   orders: KitchenOrder[];
   nextCursor: string | null;
   receivedAt: number;
 };
-export type HistoryPage = {
+type HistoryPage = {
   items: BillSummary[];
   nextCursor: string | null;
   totalCount: number;

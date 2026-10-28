@@ -100,7 +100,7 @@ export type HistoryFilters = {
   tableLabel?: string;
   closeReason?: CloseKind;
 };
-export type BillingSearch = { sessionId?: string };
+type BillingSearch = { sessionId?: string };
 export type HistorySearch = BillingSearch & HistoryFilters;
 export function billingSearch(search: Record<string, unknown>): BillingSearch {
   return { sessionId: isUuid(search.sessionId) ? search.sessionId : undefined };

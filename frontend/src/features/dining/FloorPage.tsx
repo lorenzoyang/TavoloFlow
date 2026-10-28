@@ -18,6 +18,7 @@ import { ActiveBillPanel } from "@/features/billing/BillViews";
 import { tablesKey } from "@/features/tables/api";
 import { ApiError, errorMessage, withTimeout } from "@/lib/api";
 import { staffMessages } from "@/lib/staff-messages";
+import { isLive } from "@/lib/useLiveView";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import {
@@ -181,7 +182,7 @@ function FloorContent({
       if (!mounted.current) return;
       setSelected(result.session.sessionId);
       client.setQueryData(sessionKey(account, result.session.sessionId), result.session);
-      if (result.joinCode && document.visibilityState === "visible" && navigator.onLine)
+      if (result.joinCode && isLive())
         setCode({ sessionId: result.session.sessionId, joinCode: result.joinCode });
       setNotice(m.opened(!!result.joinCode));
       remember(null);
@@ -239,8 +240,7 @@ function FloorContent({
         mounted.current &&
         !controller.signal.aborted &&
         generation === codeEpoch.current &&
-        document.visibilityState === "visible" &&
-        navigator.onLine
+        isLive()
       )
         setCode(result);
     } catch (e) {

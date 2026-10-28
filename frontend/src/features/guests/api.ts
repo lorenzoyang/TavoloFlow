@@ -1,7 +1,7 @@
 import { ApiError, guestRequest, guestWrite } from "@/lib/api";
 import { accessOutcome } from "./state";
 
-export type GuestAccess = {
+type GuestAccess = {
   restaurantId: string;
   tableId: string;
   sessionId: string;
@@ -10,8 +10,7 @@ export type GuestAccess = {
   isTableEnabled: boolean;
   orderingEnabled: boolean;
 };
-export type AccessResult =
-  { kind: "verified"; access: GuestAccess } | { kind: "unverified" | "ended" };
+type AccessResult = { kind: "verified"; access: GuestAccess } | { kind: "unverified" | "ended" };
 
 // Guest cache keys nest restaurant > table > visit (session) > resource, so one prefix clears a whole
 // visit, a whole table or every guest entry. Code that filters by position relies on this layout.
