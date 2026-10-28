@@ -143,10 +143,7 @@ test("dish groups gather one dish across orders, the longest wait first", () => 
     dish("00000000-0000-4000-8000-000000000101", rice, "炒饭"),
   ]);
   const t3 = ticket("00000000-0000-4000-8000-000000000013", "3", "2026-10-28T12:01:00Z", [
-    dish("00000000-0000-4000-8000-000000000301", dumplings, "饺子", {
-      quantity: 2,
-      allergenCodes: ["GLUTEN"],
-    }),
+    dish("00000000-0000-4000-8000-000000000301", dumplings, "饺子", { quantity: 2 }),
     dish("00000000-0000-4000-8000-000000000302", rice, "炒饭", { remark: "不要葱" }),
     dish("00000000-0000-4000-8000-000000000303", rice, "炒饭", {
       status: "READY",
@@ -154,10 +151,7 @@ test("dish groups gather one dish across orders, the longest wait first", () => 
     }),
   ]);
   const t4 = ticket("00000000-0000-4000-8000-000000000014", "4", "2026-10-28T12:02:00Z", [
-    dish("00000000-0000-4000-8000-000000000401", rice, "炒饭", {
-      quantity: 2,
-      allergenCodes: ["SOY"],
-    }),
+    dish("00000000-0000-4000-8000-000000000401", rice, "炒饭", { quantity: 2 }),
     dish("00000000-0000-4000-8000-000000000402", dumplings, "饺子", {
       status: "CANCELLED",
       cancelledAt: "2026-10-28T12:03:00Z",
@@ -174,8 +168,6 @@ test("dish groups gather one dish across orders, the longest wait first", () => 
   );
   // A remark stays on its own line inside the group; terminal lines never appear.
   assert.equal(groups[0].lines[1].line.remark, "不要葱");
-  assert.deepEqual(groups[0].allergenCodes, ["SOY"]);
-  assert.deepEqual(groups[1].allergenCodes, ["GLUTEN"]);
   assert.deepEqual(dishGroups([]), []);
 });
 

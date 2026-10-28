@@ -10,7 +10,6 @@ export type DishGroup = {
   key: string;
   lines: { order: KitchenOrder; line: OrderLine }[];
   quantity: number;
-  allergenCodes: string[];
 };
 export type PendingKitchenAction = {
   orderId: string;
@@ -95,13 +94,11 @@ export function dishGroups(orders: KitchenOrder[]): DishGroup[] {
         line.menuItemId ?? JSON.stringify([line.itemCode, line.nameZh, line.nameIt, line.nameEn]);
       let group = groups.get(key);
       if (!group) {
-        group = { key, lines: [], quantity: 0, allergenCodes: [] };
+        group = { key, lines: [], quantity: 0 };
         groups.set(key, group);
       }
       group.lines.push({ order, line });
       group.quantity += line.quantity;
-      for (const code of line.allergenCodes)
-        if (!group.allergenCodes.includes(code)) group.allergenCodes.push(code);
     }
   return [...groups.values()];
 }

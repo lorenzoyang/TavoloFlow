@@ -6,7 +6,6 @@ import {
   RefreshCw,
   Sun,
   Timer,
-  TriangleAlert,
   Volume2,
   VolumeX,
 } from "lucide-react";
@@ -29,7 +28,6 @@ import { onLifecycleChange } from "@/lib/useLiveView";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { displayName } from "@/lib/language";
-import { allergenNames } from "@/features/public-menu/messages";
 import { formatDateTime, formatMoney, formatTime, shortId } from "@/lib/format";
 import { staffMessages } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
@@ -70,17 +68,6 @@ function WaitBadge({ minutes }: { minutes: number }) {
       <Timer aria-hidden="true" className="size-4" />
       {m.waited(minutes)}
     </span>
-  );
-}
-
-function AllergenNote({ codes }: { codes: string[] }) {
-  const language = useStaffLanguage();
-  return (
-    <p className="flex items-start gap-1 text-sm text-muted-foreground">
-      <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-      {kitchenMessages[language].allergens}
-      {codes.map((code) => allergenNames[language][code] ?? code).join(" · ")}
-    </p>
   );
 }
 
@@ -154,19 +141,22 @@ function DishCard({
   const name = displayName(first.line, first.order.defaultLanguage, language);
   return (
     <article className="flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-xs">
-      <header className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          <h2 lang={name.language} className="text-2xl font-bold wrap-break-word">
+      {/* The total keeps its own column, so a long name never pushes it onto a line of its own. */}
+      <header className="space-y-2">
+        <h2 className="flex items-start justify-between gap-3 text-2xl font-bold">
+          <span lang={name.language} className="min-w-0 wrap-break-word">
             {first.line.itemCode && (
               <span className="mr-2 text-base font-medium text-muted-foreground">
                 {first.line.itemCode}
               </span>
             )}
-            {name.text} ×{group.quantity}
-          </h2>
-          {group.allergenCodes.length > 0 && <AllergenNote codes={group.allergenCodes} />}
+            {name.text}
+          </span>
+          <span className="shrink-0 tabular-nums">×{group.quantity}</span>
+        </h2>
+        <div className="flex">
+          <WaitBadge minutes={waitedMinutes(model, first.order)} />
         </div>
-        <WaitBadge minutes={waitedMinutes(model, first.order)} />
       </header>
       <ul className="divide-y border-t">
         {group.lines.map(({ order, line }) => (
@@ -285,7 +275,6 @@ function OrderTicket({
                       {c.remark(line.remark)}
                     </p>
                   )}
-                  {line.allergenCodes.length > 0 && <AllergenNote codes={line.allergenCodes} />}
                   {line.readyAt && (
                     <p className="text-xs text-muted-foreground">
                       {m.readyAt(formatDateTime(line.readyAt, language))}
