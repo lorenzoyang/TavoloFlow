@@ -351,7 +351,8 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
             foreach (var visit in new[] { deleted, preserved })
             {
                 var order = NewOrder(visit);
-                setup.AddRange(order, NewOrderItem(visit, order), new RestaurantUser
+                setup.AddRange(order, NewOrderItem(visit, order),
+                    new MenuItemImage { Id = Guid.NewGuid(), MenuItemId = visit.MenuItemId, Content = [1] }, new RestaurantUser
                 {
                     RestaurantId = visit.RestaurantId,
                     Username = Guid.NewGuid().ToString("N"),
@@ -376,6 +377,9 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
         Assert.Equal(new int[7], await GetRestaurantRowCountsAsync(context, deleted.RestaurantId));
         Assert.True(await context.Restaurants.AnyAsync(restaurant => restaurant.Id == preserved.RestaurantId));
         Assert.Equal(new[] { 2, 1, 1, 1, 1, 1, 1 }, await GetRestaurantRowCountsAsync(context, preserved.RestaurantId));
+        // Photos have no restaurant_id: they cascade through their dish.
+        Assert.False(await context.MenuItemImages.AnyAsync(image => image.MenuItemId == deleted.MenuItemId));
+        Assert.True(await context.MenuItemImages.AnyAsync(image => image.MenuItemId == preserved.MenuItemId));
         Assert.True(await context.PlatformUsers.AnyAsync(user => user.Id == platformUserId));
     }
 

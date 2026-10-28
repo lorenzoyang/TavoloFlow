@@ -6,6 +6,7 @@ const zh = {
   damaged: "待确认记录无法读取，请先联系管理员核对，当前页面暂停写入。",
   recoveredCreate: "已查到餐厅。初始密码无法再次读取，请进入餐厅详情，核对后重新重置账号密码。",
   recoveredRestaurant: "已重新读取餐厅状态，请核对。后续修改需要重新人工确认。",
+  recoveredMissing: "目标已不存在（可能已被删除），已清除待确认记录。",
   recoveredAccount: (changed: boolean) =>
     `${changed ? "账号凭据版本已变化；可能来自本次操作或其他管理员的修改。" : "账号凭据版本尚未变化，原请求仍可能到达。"}临时密码无法再次读取；如需重置，请核对最新状态后重新人工确认。`,
   missingCreate:
@@ -50,6 +51,8 @@ export const managementMessages: Record<StaffLanguage, typeof zh> = {
       "Ristorante trovato. Le password iniziali non si possono rileggere: aprilo e reimposta le password.",
     recoveredRestaurant:
       "Stato del ristorante ricaricato: controllalo. Ogni nuova modifica va confermata di nuovo.",
+    recoveredMissing:
+      "Elemento non più presente (forse eliminato): l’operazione in sospeso è stata archiviata.",
     recoveredAccount: (changed) =>
       `${changed ? "Le credenziali dell’account sono cambiate, per questa operazione o per un’altra modifica." : "Le credenziali non sono ancora cambiate: la richiesta originale potrebbe ancora arrivare."} La password temporanea non si può rileggere; per reimpostarla controlla lo stato attuale e conferma di nuovo.`,
     missingCreate:

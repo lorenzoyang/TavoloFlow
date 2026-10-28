@@ -19,6 +19,12 @@ public sealed class PlatformRestaurantsController(RestaurantAdministration servi
     [HttpPost]
     public async Task<IActionResult> Create(CreateRestaurantInput input, CancellationToken ct) =>
         StatusCode(201, await service.CreateAsync(input, Actor, ct));
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    {
+        await service.DeleteAsync(id, Actor, ct);
+        return NoContent();
+    }
     [HttpPatch("{id:guid}/service-status")]
     public async Task<IActionResult> Status(Guid id, ServiceStatusInput input, CancellationToken ct) =>
         Ok(await service.SetStatusAsync(id, input.Status, Actor, ct));

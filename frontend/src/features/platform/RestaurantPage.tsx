@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Trash2 } from "lucide-react";
 import { LoadingState } from "@/components/loading-state";
 import { Notice } from "@/components/notice";
 import { PageHeader } from "@/components/page-header";
@@ -13,6 +13,7 @@ import { errorMessage } from "@/lib/api";
 import { isTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import {
+  deleteRestaurant,
   readRestaurant,
   resetAccountPassword,
   setAccountActive,
@@ -37,9 +38,10 @@ import { PlatformSubscription } from "@/features/subscriptions/PlatformSubscript
 type Confirmation =
   | { kind: "reset" | "active"; account: ManagedAccount }
   | { kind: "status"; status: "ACTIVE" | "SUSPENDED" }
-  | { kind: "joinCode"; required: boolean };
+  | { kind: "joinCode"; required: boolean }
+  | { kind: "delete" };
 // status and required are the values the administrator saw; confirming switches them.
-function describe(c: Confirmation) {
+function describe(c: Exclude<Confirmation, { kind: "delete" }>) {
   if (c.kind === "status")
     return c.status === "ACTIVE"
       ? "停用服务将同时关闭接单，既有订单和账单仍可处理。"
@@ -57,12 +59,17 @@ function describe(c: Confirmation) {
   }`;
 }
 function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: string }) {
+  // The name of the restaurant this page deleted; the page stops reading it from then on.
+  const [deleted, setDeleted] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ["platform", "restaurant", identity.userId, id],
     queryFn: ({ signal }) => readRestaurant(id, signal),
+    enabled: deleted === null,
   });
   const actions = useManagement("platform", identity.userId);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  // Typing the name guards against deleting the wrong restaurant; it lives only in this state.
+  const [typedName, setTypedName] = useState("");
   const [editingMap, setEditingMap] = useState(false);
   const [editingTheme, setEditingTheme] = useState(false);
   const panel = useRef<HTMLElement>(null);
@@ -75,7 +82,10 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
       ? query.data?.restaurant.serviceStatus !== confirmation.status
       : confirmation?.kind === "joinCode"
         ? query.data?.restaurant.joinCodeRequired !== confirmation.required
-        : !!confirmation && current?.credentialVersion !== confirmation.account.credentialVersion;
+        : confirmation?.kind === "delete"
+          ? query.data?.restaurant.serviceStatus !== "SUSPENDED"
+          : !!confirmation && current?.credentialVersion !== confirmation.account.credentialVersion;
+  const nameConfirmed = typedName.trim() === query.data?.restaurant.name;
   const locked =
     actions.busy ||
     !!actions.pending ||
@@ -90,11 +100,24 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
     panel.current?.scrollIntoView({ block: "center", behavior: "smooth" });
     panel.current?.focus({ preventScroll: true });
   }, [open]);
-  const submit = async () => {
-    if (!confirmation || locked || changed) return;
-    const c = confirmation;
+  const closeConfirmation = () => {
     setConfirmation(null);
-    if (c.kind === "status") {
+    setTypedName("");
+  };
+  const submit = async () => {
+    if (!confirmation || locked || changed || (confirmation.kind === "delete" && !nameConfirmed))
+      return;
+    const c = confirmation;
+    const name = query.data!.restaurant.name;
+    closeConfirmation();
+    if (c.kind === "delete") {
+      if (
+        await actions.run({ kind: "delete", restaurantId: id }, (signal) =>
+          deleteRestaurant(id, signal),
+        )
+      )
+        setDeleted(name);
+    } else if (c.kind === "status") {
       const next = c.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
       await actions.run({ kind: "status", restaurantId: id }, (signal) =>
         setServiceStatus(id, next, signal),
@@ -137,6 +160,14 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
     );
     if (saved) setEditingTheme(false);
   };
+  if (deleted !== null)
+    return (
+      <>
+        <PlatformNavigation account={identity} />
+        <PageHeader title={deleted} back={{ to: "/platform/restaurants", label: "返回餐厅列表" }} />
+        <Notice tone="success">已永久删除「{deleted}」及其全部数据。</Notice>
+      </>
+    );
   const restaurant = query.data?.restaurant;
   const accounts = query.data?.accounts ?? [];
   return (
@@ -282,16 +313,58 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
               ref={panel}
               tabIndex={-1}
               aria-label="管理操作确认"
-              className="space-y-4 rounded-2xl border border-primary/30 bg-card p-4 shadow-xs outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              className={cn(
+                "space-y-4 rounded-2xl border border-primary/30 bg-card p-4 shadow-xs outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                confirmation.kind === "delete" && "border-destructive/50",
+              )}
             >
-              <h2 className="font-semibold">确认操作 · {restaurant.name}</h2>
-              <p className="text-sm leading-6">{describe(confirmation)}</p>
+              {confirmation.kind === "delete" ? (
+                <>
+                  <h2 className="font-semibold">确认永久删除 · {restaurant.name}</h2>
+                  <ul className="list-disc space-y-1 pl-5 text-sm leading-6">
+                    <li>
+                      将删除老板和员工账号、桌台与二维码（已打印的桌卡失效）、菜单与菜品照片、全部就餐记录、订单和账单历史（包括未结账单）、服务期与收费记录。
+                    </li>
+                    <li>店里已登录的设备会在下一次请求时退出，顾客扫码会看到二维码无效。</li>
+                    <li>
+                      删除不能撤销：数据只会在此后 7
+                      天内的每日备份里残留，而恢复备份会回滚整个系统，不能只恢复这一家餐厅。
+                    </li>
+                  </ul>
+                  <div className="space-y-2">
+                    <Label htmlFor="delete-restaurant-name">
+                      输入餐厅名称「{restaurant.name}」以确认
+                    </Label>
+                    <Input
+                      id="delete-restaurant-name"
+                      value={typedName}
+                      onChange={(event) => setTypedName(event.target.value)}
+                      autoComplete="off"
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h2 className="font-semibold">确认操作 · {restaurant.name}</h2>
+                  <p className="text-sm leading-6">{describe(confirmation)}</p>
+                </>
+              )}
               {changed && <Notice tone="error">状态已变化，请取消后重新核对。</Notice>}
               <div className="flex flex-wrap gap-2">
-                <Button disabled={locked || changed} onClick={() => void submit()}>
-                  确认执行
-                </Button>
-                <Button variant="outline" onClick={() => setConfirmation(null)}>
+                {confirmation.kind === "delete" ? (
+                  <Button
+                    variant="destructive"
+                    disabled={locked || changed || !nameConfirmed}
+                    onClick={() => void submit()}
+                  >
+                    永久删除
+                  </Button>
+                ) : (
+                  <Button disabled={locked || changed} onClick={() => void submit()}>
+                    确认执行
+                  </Button>
+                )}
+                <Button variant="outline" onClick={closeConfirmation}>
                   取消
                 </Button>
               </div>
@@ -309,6 +382,26 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
               />
             ))}
           </div>
+          <Card>
+            <CardContent className="flex flex-wrap items-center justify-between gap-4">
+              <div className="space-y-1">
+                <h2 className="font-semibold">永久删除餐厅</h2>
+                <p className="text-sm text-muted-foreground">
+                  {restaurant.serviceStatus === "SUSPENDED"
+                    ? "删除这家餐厅及其全部数据，无法撤销。"
+                    : "须先停用餐厅服务，才能永久删除。"}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                disabled={locked || !!confirmation || restaurant.serviceStatus !== "SUSPENDED"}
+                onClick={() => setConfirmation({ kind: "delete" })}
+              >
+                <Trash2 />
+                永久删除餐厅
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       )}
       {actions.message && <Notice className="my-4">{actions.message}</Notice>}

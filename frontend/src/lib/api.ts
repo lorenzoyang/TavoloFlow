@@ -67,7 +67,7 @@ export async function platformRequest<T>(path: string, init?: RequestInit): Prom
 
 export async function platformWrite<T>(
   path: string,
-  method: "POST" | "PATCH",
+  method: "POST" | "PATCH" | "DELETE",
   body?: unknown,
   signal?: AbortSignal,
 ): Promise<T> {

@@ -72,10 +72,13 @@ export function useManagement(scope: "platform" | "store", userId: string, resta
     },
     [key],
   );
+  // After a delete nothing refetches here: the deleted restaurant's page would only read a 404.
+  // The other pages refetch their stale queries when they mount.
   const invalidate = useCallback(
-    () =>
+    (refetchType: "active" | "none" = "active") =>
       client.invalidateQueries({
         predicate: scope === "platform" ? isPlatformQuery : isPrivateQuery,
+        refetchType,
       }),
     [client, scope],
   );
@@ -111,6 +114,11 @@ export function useManagement(scope: "platform" | "store", userId: string, resta
       if (error instanceof ApiError && error.status === 404 && p.kind === "create") {
         setMissingCreate(true);
         setMessage(m.missingCreate);
+      } else if (error instanceof ApiError && error.status === 404) {
+        // The target is gone (for a delete, this is its success); keeping the marker would block every write.
+        remember(null);
+        setMessage(m.recoveredMissing);
+        await invalidate();
       } else setMessage(errorMessage(error, m.recoverUnknown, language));
     } finally {
       if (operation.current === controller) {
@@ -180,9 +188,9 @@ export function useManagement(scope: "platform" | "store", userId: string, resta
       if (controller.signal.aborted || generation !== epoch.current || !sameIdentity())
         return false;
       remember(null);
-      setSecrets(temporaryCredentials(result));
+      setSecrets(temporaryCredentials(result ?? {}));
       setMessage(m.done);
-      await invalidate();
+      await invalidate(action.kind === "delete" ? "none" : "active");
       return true;
     } catch (error) {
       if (controller.signal.aborted || generation !== epoch.current || !sameIdentity())

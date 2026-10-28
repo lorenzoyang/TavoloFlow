@@ -384,6 +384,7 @@ flowchart TD
 | GET / POST | `/api/platform/auth/csrf`、`login`、`me`、`logout`、`change-password` | **已实现**：独立 Platform 身份、持久登录固定 30 天且不滑动续期、独立限流及 CSRF 用途 |
 | GET / POST | `/api/platform/restaurants` | **已实现**：分页/筛选；客户端指定 UUID 原子建店，成功响应一次性返回两个随机密码 |
 | GET / PATCH | `/api/platform/restaurants/{id}`、`/{id}/service-status` | **已实现**：餐厅与账号详情；明确 ACTIVE/SUSPENDED，停用同时关闭接单 |
+| DELETE | `/api/platform/restaurants/{id}` | **已实现**：只删除已停用的餐厅，数据库级联删除全部数据；页面须输入餐厅名确认 |
 | PATCH / POST | `/api/platform/restaurants/{id}/users/{userId}/active`、`reset-password` | **已实现**：预期凭据版本保护账号启停/重置，冲突 ACCOUNT_CHANGED |
 | PATCH | `/api/platform/restaurants/{id}/google-maps-url` | **已实现**：平台专用的 HTTPS Google 地图链接，为官网餐厅列表预留；店铺与顾客接口不返回 |
 | GET | `/api/health/live`、`/api/health/ready` | **已移除**：随部署模板一并删除，正式部署时重新设计 |

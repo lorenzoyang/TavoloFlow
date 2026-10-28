@@ -137,6 +137,23 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
         return RestaurantSummary.From(await db.Restaurants.AsNoTracking().SingleAsync(r => r.Id == id, ct));
     }
 
+    // One conditional DELETE, so a concurrent reactivation cannot slip between the status check and the delete.
+    // PostgreSQL cascades the whole tenant graph and waits for store transactions holding its rows. Kitchen work
+    // may still run while suspended and could deadlock with the cascade; PostgreSQL then aborts one side, and
+    // an aborted delete is an unknown result the browser recovers by GET.
+    public async Task DeleteAsync(Guid id, Guid actor, CancellationToken ct)
+    {
+        var name = await db.Restaurants.Where(r => r.Id == id).Select(r => r.Name).SingleOrDefaultAsync(ct)
+            ?? throw AdministrationErrors.RestaurantNotFound();
+        if (await db.Restaurants.Where(r => r.Id == id && r.ServiceStatus == RestaurantServiceStatus.Suspended)
+                .ExecuteDeleteAsync(ct) == 0)
+            throw await db.Restaurants.AnyAsync(r => r.Id == id, ct)
+                ? AdministrationErrors.NotSuspended()
+                : AdministrationErrors.RestaurantNotFound();
+        // The data is gone, so this line is the only remaining trace of the restaurant.
+        logger.LogInformation("Platform {ActorId} deleted restaurant {RestaurantId} ({RestaurantName}).", actor, id, name);
+    }
+
     public async Task<ManagedAccount> StaffAsync(Guid restaurantId, CancellationToken ct) => ManagedAccount.From(
         await db.RestaurantUsers.AsNoTracking().SingleOrDefaultAsync(u => u.RestaurantId == restaurantId && u.Role == RestaurantUserRole.Staff, ct)
             ?? throw AdministrationErrors.AccountNotFound());

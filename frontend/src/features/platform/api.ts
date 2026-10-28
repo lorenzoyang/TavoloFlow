@@ -79,6 +79,9 @@ export const setServiceStatus = (id: string, status: "ACTIVE" | "SUSPENDED", sig
     { status },
     signal,
   );
+// Only a SUSPENDED restaurant can be deleted; a repeated or late request finds nothing and returns 404.
+export const deleteRestaurant = (id: string, signal: AbortSignal) =>
+  platformWrite<void>(`/api/platform/restaurants/${id}`, "DELETE", undefined, signal);
 // Platform-only: the map link is kept for a future public restaurant list. null clears it.
 export const setGoogleMapsUrl = (id: string, googleMapsUrl: string | null, signal: AbortSignal) =>
   platformWrite<Restaurant>(

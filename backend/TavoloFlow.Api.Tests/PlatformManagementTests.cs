@@ -159,6 +159,37 @@ public sealed class PlatformManagementTests(PostgreSqlFixture database) : IClass
     }
 
     [Fact]
+    public async Task Delete_ActiveRestaurant_ReturnsNotSuspendedAndKeepsData()
+    {
+        using var host = new AccountTestHost(database); using var admin = await Admin(host);
+        var a = await Create(admin); var path = $"/api/platform/restaurants/{a.Restaurant.Id}";
+        await WriteAsync(admin, $"{path}/service-status", new { status = "ACTIVE" }, HttpMethod.Patch);
+        await AssertErrorAsync(await WriteAsync(admin, path, new { }, HttpMethod.Delete), HttpStatusCode.Conflict, "RESTAURANT_NOT_SUSPENDED");
+        var detail = (await admin.GetFromJsonAsync<RestaurantDetail>(path))!;
+        Assert.Equal("ACTIVE", detail.Restaurant.ServiceStatus); Assert.Equal(2, detail.Accounts.Length);
+    }
+
+    [Fact]
+    public async Task Delete_SuspendedRestaurant_RemovesTenantAndRevokesStoreLogin()
+    {
+        using var host = new AccountTestHost(database); using var admin = await Admin(host);
+        var a = await Create(admin); var b = await Create(admin);
+        var path = $"/api/platform/restaurants/{a.Restaurant.Id}";
+        using var owner = host.Browser(); await StoreLogin(owner, a.Credentials.Single(c => c.Account.Role == "OWNER"));
+        await AssertErrorAsync(await WriteAsync(admin, path, new { }, HttpMethod.Delete, "/api/auth/csrf"),
+            HttpStatusCode.BadRequest, "CSRF_VALIDATION_FAILED");
+        Assert.Equal(HttpStatusCode.NoContent, (await WriteAsync(admin, path, new { }, HttpMethod.Delete)).StatusCode);
+        await AssertErrorAsync(await admin.GetAsync(path), HttpStatusCode.NotFound, "RESTAURANT_NOT_FOUND");
+        // A repeated or late request finds nothing to delete.
+        await AssertErrorAsync(await WriteAsync(admin, path, new { }, HttpMethod.Delete), HttpStatusCode.NotFound, "RESTAURANT_NOT_FOUND");
+        await AssertErrorAsync(await owner.GetAsync("/api/auth/me"), HttpStatusCode.Unauthorized, "UNAUTHENTICATED");
+        Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync($"/api/platform/restaurants/{b.Restaurant.Id}")).StatusCode);
+        await using var db = database.CreateContext();
+        Assert.False(await db.RestaurantUsers.AnyAsync(u => u.RestaurantId == a.Restaurant.Id));
+        Assert.Equal(2, await db.RestaurantUsers.CountAsync(u => u.RestaurantId == b.Restaurant.Id));
+    }
+
+    [Fact]
     public async Task List_FilterAndPagination_ReturnOnlyRequestedRestaurants()
     {
         using var host = new AccountTestHost(database); using var admin = await Admin(host);
