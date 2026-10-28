@@ -13,10 +13,12 @@ import type { KitchenOrder } from "@/features/kitchen/api";
 import { displayName } from "@/lib/language";
 import { formatDateTime, formatMoney, shortId } from "@/lib/format";
 import { errorMessage } from "@/lib/api";
+import { staffMessages } from "@/lib/staff-messages";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
+import { billingMessages } from "./messages";
 import {
   closeBadges,
-  closeLabels,
   closureKind,
   confirmationChanged,
   type BillSummary,
@@ -25,34 +27,36 @@ import {
 import { useBill } from "./useBill";
 import { useClosure } from "./useClosure";
 
-const itemLabels = { NEW: "待出餐", READY: "已出餐", CANCELLED: "已取消 · 不计应收" };
 const itemBadges = { NEW: "warning", READY: "success", CANCELLED: "outline" } as const;
 
 function BillOrder({ order, timeZone }: { order: KitchenOrder; timeZone: string }) {
+  const language = useStaffLanguage();
+  const m = billingMessages[language];
+  const c = staffMessages[language];
   const cancelled = order.items.every((item) => item.status === "CANCELLED");
   return (
     <article className={cn("space-y-2 rounded-xl border p-3", cancelled && "bg-muted/60")}>
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={order.status === "NEW" ? "warning" : cancelled ? "outline" : "success"}>
-            {order.status === "NEW" ? "待处理" : "已处理"}
+            {order.status === "NEW" ? m.orderNew : m.orderProcessed}
           </Badge>
           <span className="text-xs text-muted-foreground">
-            {formatDateTime(order.createdAt, "zh", timeZone)} · #{shortId(order.id)}
+            {formatDateTime(order.createdAt, language, timeZone)} · #{shortId(order.id)}
           </span>
         </div>
         <span className="font-semibold tabular-nums">
-          应收 {formatMoney(order.payableAmountCents)}
+          {m.payable(formatMoney(order.payableAmountCents, language))}
         </span>
       </header>
       {order.payableAmountCents !== order.totalAmountCents && (
         <p className="text-sm text-muted-foreground">
-          原订单金额：{formatMoney(order.totalAmountCents)}
+          {m.originalTotal(formatMoney(order.totalAmountCents, language))}
         </p>
       )}
       <ul className="divide-y">
         {order.items.map((item) => {
-          const name = displayName(item, order.defaultLanguage, "zh");
+          const name = displayName(item, order.defaultLanguage, language);
           return (
             <li key={item.id} className="space-y-1 py-2">
               <div className="flex items-start justify-between gap-3">
@@ -74,24 +78,26 @@ function BillOrder({ order, timeZone }: { order: KitchenOrder; timeZone: string 
                     item.status === "CANCELLED" && "text-muted-foreground line-through",
                   )}
                 >
-                  {formatMoney(item.unitPriceCents * item.quantity)}
+                  {formatMoney(item.unitPriceCents * item.quantity, language)}
                 </p>
               </div>
-              <Badge variant={itemBadges[item.status]}>{itemLabels[item.status]}</Badge>
+              <Badge variant={itemBadges[item.status]}>{m.item[item.status]}</Badge>
               <p className="text-xs text-muted-foreground">
-                单价 {formatMoney(item.unitPriceCents)}
+                {m.unitPrice(formatMoney(item.unitPriceCents, language))}
               </p>
               {item.remark && (
-                <p className="text-sm whitespace-pre-wrap wrap-break-word">备注：{item.remark}</p>
+                <p className="text-sm whitespace-pre-wrap wrap-break-word">
+                  {c.remark(item.remark)}
+                </p>
               )}
               {item.readyAt && (
                 <p className="text-xs text-muted-foreground">
-                  出餐：{formatDateTime(item.readyAt, "zh", timeZone)}
+                  {m.readyAt(formatDateTime(item.readyAt, language, timeZone))}
                 </p>
               )}
               {item.cancelledAt && (
                 <p className="text-xs text-muted-foreground">
-                  取消：{formatDateTime(item.cancelledAt, "zh", timeZone)}
+                  {m.cancelledAt(formatDateTime(item.cancelledAt, language, timeZone))}
                 </p>
               )}
             </li>
@@ -100,7 +106,7 @@ function BillOrder({ order, timeZone }: { order: KitchenOrder; timeZone: string 
       </ul>
       {order.orderNote && (
         <p className="rounded-lg bg-secondary p-2.5 text-sm whitespace-pre-wrap wrap-break-word">
-          整单备注：{order.orderNote}
+          {m.orderNote(order.orderNote)}
         </p>
       )}
     </article>
@@ -108,26 +114,31 @@ function BillOrder({ order, timeZone }: { order: KitchenOrder; timeZone: string 
 }
 
 function BillTotal({ bill, timeZone }: { bill: BillSummary; timeZone: string }) {
+  const language = useStaffLanguage();
+  const m = billingMessages[language];
   return (
     <div className="space-y-2 rounded-2xl bg-secondary p-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          {bill.status === "CLOSED" ? "关闭记录金额" : "整桌应收"}
+          {bill.status === "CLOSED" ? m.closedAmount : m.totalDue}
         </p>
         <Badge variant={bill.closeReason ? closeBadges[bill.closeReason] : "secondary"}>
-          {bill.closeReason ? closeLabels[bill.closeReason] : "用餐中"}
+          {bill.closeReason ? m.close[bill.closeReason] : m.dining}
         </Badge>
       </div>
-      <p className="text-3xl font-semibold tabular-nums">{formatMoney(bill.totalAmountCents)}</p>
-      <p className="text-sm text-muted-foreground">
-        共 {bill.orderCount} 笔订单、{bill.itemCount} 项 · 待出餐 {bill.newItemCount} 项 · 已取消{" "}
-        {bill.cancelledItemCount} 项
+      <p className="text-3xl font-semibold tabular-nums">
+        {formatMoney(bill.totalAmountCents, language)}
       </p>
       <p className="text-sm text-muted-foreground">
-        开桌：{formatDateTime(bill.openedAt, "zh", timeZone)}
-        {bill.closedAt && ` · 关桌：${formatDateTime(bill.closedAt, "zh", timeZone)}`}
+        {m.counts(bill.orderCount, bill.itemCount, bill.newItemCount, bill.cancelledItemCount)}
       </p>
-      <p className="text-xs break-all text-muted-foreground">用餐编号：{bill.sessionId}</p>
+      <p className="text-sm text-muted-foreground">
+        {m.times(
+          formatDateTime(bill.openedAt, language, timeZone),
+          bill.closedAt && formatDateTime(bill.closedAt, language, timeZone),
+        )}
+      </p>
+      <p className="text-xs break-all text-muted-foreground">{m.sessionId(bill.sessionId)}</p>
     </div>
   );
 }
@@ -139,26 +150,25 @@ export function BillDetails({
   model: ReturnType<typeof useBill>;
   timeZone?: string;
 }) {
+  const language = useStaffLanguage();
+  const m = billingMessages[language];
   const bill = model.head?.summary;
   return (
-    <section aria-label="账单明细" className="space-y-4">
+    <section aria-label={m.details} className="space-y-4">
       {model.query.isError && (
-        <Notice tone="error">
-          {errorMessage(model.query.error, "账单暂时无法更新，请恢复连接后刷新。")}
-        </Notice>
+        <Notice tone="error">{errorMessage(model.query.error, m.readError, language)}</Notice>
       )}
-      {!bill && !model.query.isError && <LoadingState label="正在读取账单…" />}
+      {!bill && !model.query.isError && <LoadingState label={m.loading} />}
       {bill && (
         <>
           <BillTotal bill={bill} timeZone={timeZone} />
           <p className="text-sm leading-6 text-muted-foreground">
-            已显示 {model.orders.length} / {bill.orderCount}{" "}
-            笔。应收包含本轮全部未取消菜品，与已加载页数无关。
+            {m.shown(model.orders.length, bill.orderCount)}
           </p>
           {model.orders.map((order) => (
             <BillOrder key={order.id} order={order} timeZone={timeZone} />
           ))}
-          {bill.orderCount === 0 && <p className="text-muted-foreground">本轮从未产生订单。</p>}
+          {bill.orderCount === 0 && <p className="text-muted-foreground">{m.noOrders}</p>}
           {model.query.hasNextPage && (
             <Button
               variant="outline"
@@ -166,7 +176,7 @@ export function BillDetails({
               disabled={!model.view.active || model.query.isFetching}
               onClick={() => void model.query.fetchNextPage()}
             >
-              加载更多账单订单
+              {m.loadMore}
             </Button>
           )}
         </>
@@ -182,6 +192,9 @@ export function ActiveBillPanel({
   account: CurrentAccount;
   sessionId: string;
 }) {
+  const language = useStaffLanguage();
+  const m = billingMessages[language];
+  const c = staffMessages[language];
   const model = useBill(account, sessionId);
   const closure = useClosure(account);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
@@ -209,22 +222,22 @@ export function ActiveBillPanel({
     setChecked(false);
   }
   return (
-    <section aria-label="本轮结账" className="space-y-4">
+    <section aria-label={m.checkout} className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="font-semibold">本轮账单</h3>
+        <h3 className="font-semibold">{m.bill}</h3>
         <div className="flex items-center gap-2">
           {bill?.newItemCount ? (
             <Link
               to="/staff/kitchen"
               className={buttonVariants({ variant: "outline", size: "sm" })}
             >
-              去厨房处理
+              {m.toKitchen}
             </Link>
           ) : null}
           <Button
             variant="outline"
             size="icon"
-            aria-label="刷新账单"
+            aria-label={m.refresh}
             disabled={!model.view.active || model.query.isFetching}
             onClick={() => void model.refresh()}
           >
@@ -238,17 +251,15 @@ export function ActiveBillPanel({
           {closure.error}
           {closure.conflict && (
             <p className="mt-2">
-              上次提交被拒绝时：应收 {formatMoney(closure.conflict.totalAmountCents)}，待处理{" "}
-              {closure.conflict.newItemCount} 项。请核对下方最新账单。
+              {m.conflict(
+                formatMoney(closure.conflict.totalAmountCents, language),
+                closure.conflict.newItemCount,
+              )}
             </p>
           )}
         </Notice>
       )}
-      {closure.storageWarning && (
-        <Notice tone="warning">
-          浏览器无法保存待确认提示，请在当前页面核对结果，刷新前记录本轮用餐编号。
-        </Notice>
-      )}
+      {closure.storageWarning && <Notice tone="warning">{m.storageWarning}</Notice>}
       {closure.pending.map((action) => (
         <Notice
           key={action.sessionId}
@@ -259,47 +270,43 @@ export function ActiveBillPanel({
               disabled={!model.view.active || closure.busy.includes(action.sessionId)}
               onClick={() => void closure.recover(action)}
             >
-              核对原用餐状态
+              {m.verify}
             </Button>
           }
         >
-          <span className="break-all">
-            关闭结果待确认 · 用餐 #{action.sessionId}。系统不会自动重新提交。
-          </span>
+          <span className="break-all">{m.pending(action.sessionId)}</span>
         </Notice>
       ))}
-      {model.session.isError && <Notice tone="error">{errorMessage(model.session.error)}</Notice>}
+      {model.session.isError && (
+        <Notice tone="error">{errorMessage(model.session.error, undefined, language)}</Notice>
+      )}
       {model.closed && model.session.data ? (
         <div className="space-y-3 rounded-2xl border bg-secondary p-4">
-          <h3 className="text-lg font-semibold">{model.session.data.tableLabel} 桌 · 本轮已结束</h3>
+          <h3 className="text-lg font-semibold">
+            {m.closedTitle(c.table(model.session.data.tableLabel))}
+          </h3>
           <p>
-            {closeLabels[model.session.data.closeReason!]} · 记录金额{" "}
-            {formatMoney(model.session.data.totalAmountCents)}
+            {m.closedSummary(
+              m.close[model.session.data.closeReason!],
+              formatMoney(model.session.data.totalAmountCents, language),
+            )}
           </p>
-          <p className="text-sm text-muted-foreground">
-            本轮顾客授权已失效。下一轮用餐须重新开桌。
-          </p>
+          <p className="text-sm text-muted-foreground">{m.closedHint}</p>
           {account.role === "OWNER" && (
             <Link
               to="/staff/history"
               search={{ sessionId }}
               className={buttonVariants({ variant: "outline" })}
             >
-              查看历史账单
+              {m.toHistory}
             </Link>
           )}
         </div>
       ) : (
         <>
-          {model.stalled && (
-            <Notice tone="warning">
-              账单正在同步或已过期，暂不能关闭。恢复连接并成功同步后继续。
-            </Notice>
-          )}
+          {model.stalled && <Notice tone="warning">{m.stalled}</Notice>}
           {bill?.newItemCount ? (
-            <Notice tone="warning">
-              仍有 {bill.newItemCount} 项待出餐菜品，请先到厨房完成或按实际情况取消。
-            </Notice>
+            <Notice tone="warning">{m.waiting(bill.newItemCount)}</Notice>
           ) : null}
           {kind && (
             <Button
@@ -312,11 +319,7 @@ export function ActiveBillPanel({
                 setConfirmation({ kind, bill: { ...bill! } });
               }}
             >
-              {kind === "PAID"
-                ? "核对收款并清桌"
-                : kind === "EMPTY"
-                  ? "关闭空桌"
-                  : "关闭全部取消的零账单"}
+              {m.closeButton[kind]}
             </Button>
           )}
           {bill &&
@@ -324,25 +327,15 @@ export function ActiveBillPanel({
             bill.newItemCount === 0 &&
             account.role === "STAFF" &&
             bill.totalAmountCents > 0 && (
-              <p className="text-sm text-muted-foreground">本轮仍有应收，请由老板核对收款。</p>
+              <p className="text-sm text-muted-foreground">{m.ownerCollects}</p>
             )}
           <BillDetails model={model} />
           <ConfirmDialog
             open={!!confirmation}
-            title={`${
-              confirmation?.kind === "PAID"
-                ? "确认线下收款并清桌"
-                : confirmation?.kind === "EMPTY"
-                  ? "确认关闭空桌"
-                  : "确认全部取消后关闭"
-            } · ${confirmation?.bill.tableLabel ?? ""} 桌`}
-            description={
-              confirmation?.kind === "PAID"
-                ? "请完成线下收款，再确认关闭本轮用餐。"
-                : "此操作不记录收款。请核对订单并确认顾客已离桌。"
-            }
-            confirmLabel={confirmation?.kind === "PAID" ? "已线下收款并清桌" : "确认关闭本轮用餐"}
-            cancelLabel="返回账单"
+            title={`${m.confirmTitle[confirmation?.kind ?? "VOIDED"]} · ${c.table(confirmation?.bill.tableLabel ?? "")}`}
+            description={confirmation?.kind === "PAID" ? m.confirmPaid : m.confirmZero}
+            confirmLabel={confirmation?.kind === "PAID" ? m.confirmPaidLabel : m.confirmZeroLabel}
+            cancelLabel={m.backToBill}
             busy={busy}
             confirmDisabled={!checked || changed || locked || !model.fresh}
             initialFocus={checkbox}
@@ -352,13 +345,9 @@ export function ActiveBillPanel({
             {confirmation && (
               <div className="space-y-4">
                 <p className="text-2xl font-semibold tabular-nums">
-                  核对金额：{formatMoney(confirmation.bill.totalAmountCents)}
+                  {m.checkAmount(formatMoney(confirmation.bill.totalAmountCents, language))}
                 </p>
-                {changed && (
-                  <Notice tone="error">
-                    账单已变化，原确认已失效。请返回账单，核对最新金额后重新确认。
-                  </Notice>
-                )}
+                {changed && <Notice tone="error">{m.changed}</Notice>}
                 <label className="flex min-h-11 items-center gap-3 rounded-xl border bg-card p-3 font-medium">
                   <Checkbox
                     ref={checkbox}
@@ -366,9 +355,7 @@ export function ActiveBillPanel({
                     disabled={locked || changed}
                     onCheckedChange={setChecked}
                   />
-                  {confirmation.kind === "PAID"
-                    ? "已核对桌号和金额，并完成线下收款"
-                    : "已核对零账单，确认顾客已离桌"}
+                  {confirmation.kind === "PAID" ? m.checkedPaid : m.checkedZero}
                 </label>
               </div>
             )}
@@ -388,17 +375,16 @@ export function HistoricalBill({
   sessionId: string;
   timeZone?: string;
 }) {
+  const m = billingMessages[useStaffLanguage()];
   const model = useBill(account, sessionId, true);
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm leading-6 text-muted-foreground">
-          已关闭账单只读，内容来自本轮用餐和下单快照。
-        </p>
+        <p className="text-sm leading-6 text-muted-foreground">{m.historyHint}</p>
         <Button
           variant="outline"
           size="icon"
-          aria-label="刷新历史详情"
+          aria-label={m.refreshHistoryDetail}
           disabled={!model.view.active || model.query.isFetching}
           onClick={() => void model.refresh()}
         >

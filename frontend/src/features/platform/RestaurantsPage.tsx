@@ -233,7 +233,11 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
           <span className="break-all">结果待确认 · 餐厅编号 {actions.pending.restaurantId}</span>
         </Notice>
       )}
-      <TemporaryPasswords credentials={actions.secrets} close={actions.clearSecrets} />
+      <TemporaryPasswords
+        credentials={actions.secrets}
+        close={actions.clearSecrets}
+        language="zh"
+      />
       <form
         className="mb-5 grid grid-cols-2 items-end gap-3 rounded-2xl border bg-card p-4 shadow-xs lg:grid-cols-[1.5fr_1fr_1fr_1fr_auto_auto]"
         onSubmit={(event) => {
@@ -301,7 +305,7 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
               {!r.joinCodeRequired && <Badge variant="outline">免入桌码</Badge>}
               <ThemeBadge theme={r.theme} />
             </div>
-            {r.subscription && <SubscriptionStatus summary={r.subscription} />}
+            {r.subscription && <SubscriptionStatus summary={r.subscription} language="zh" />}
             <div className="mt-auto flex flex-wrap gap-2">
               <Link
                 to="/platform/restaurants/$restaurantId"

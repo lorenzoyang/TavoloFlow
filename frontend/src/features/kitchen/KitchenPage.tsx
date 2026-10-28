@@ -31,14 +31,15 @@ import type { CurrentAccount } from "@/features/accounts/api";
 import { displayName } from "@/lib/language";
 import { allergenNames } from "@/features/public-menu/messages";
 import { formatDateTime, formatMoney, formatTime, shortId } from "@/lib/format";
+import { staffMessages } from "@/lib/staff-messages";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import { useWakeLock } from "@/lib/useWakeLock";
 import type { KitchenOrder } from "./api";
+import { kitchenMessages } from "./messages";
 import { canCancel, waitLevel, type OrderStatus } from "./state";
 import { useKitchen } from "./useKitchen";
 
-const labels: Record<OrderStatus, string> = { NEW: "待处理", PROCESSED: "已处理" };
-const itemLabels = { NEW: "待出餐", READY: "已出餐", CANCELLED: "已取消" };
 type ItemConfirmation = { order: KitchenOrder; item: OrderLine };
 const waitStyles = {
   normal: "bg-secondary text-secondary-foreground",
@@ -58,6 +59,9 @@ function OrderTicket({
   model: ReturnType<typeof useKitchen>;
   cancel: (order: KitchenOrder, item: OrderLine) => void;
 }) {
+  const language = useStaffLanguage();
+  const m = kitchenMessages[language];
+  const c = staffMessages[language];
   const locked =
     !model.fresh ||
     model.busy.includes(order.id) ||
@@ -74,13 +78,11 @@ function OrderTicket({
     >
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-2xl font-bold wrap-break-word">{order.tableLabel} 桌</h2>
+          <h2 className="text-2xl font-bold wrap-break-word">{c.table(order.tableLabel)}</h2>
           <p className="text-sm text-muted-foreground">
-            {formatTime(order.createdAt)} 下单 · #{shortId(order.id)}
+            {m.orderedAt(formatTime(order.createdAt, language))} · #{shortId(order.id)}
           </p>
-          <p className="mt-1 text-sm font-medium">
-            待出餐 {waiting} 项／共 {order.items.length} 项
-          </p>
+          <p className="mt-1 text-sm font-medium">{m.itemsWaiting(waiting, order.items.length)}</p>
         </div>
         {order.status === "NEW" ? (
           <span
@@ -90,17 +92,17 @@ function OrderTicket({
             )}
           >
             <Timer aria-hidden="true" className="size-4" />
-            已等待 {minutes} 分钟
+            {m.waited(minutes)}
           </span>
         ) : (
           <Badge variant={cancelled ? "outline" : "success"}>
-            {cancelled ? "全部已取消" : "已处理"}
+            {cancelled ? m.allCancelled : m.processed}
           </Badge>
         )}
       </header>
       <ul className="divide-y border-y">
         {order.items.map((line) => {
-          const name = displayName(line, order.defaultLanguage, "zh");
+          const name = displayName(line, order.defaultLanguage, language);
           const compact = order.status === "NEW" && line.status !== "NEW";
           return (
             <li
@@ -126,7 +128,7 @@ function OrderTicket({
                 </p>
                 {line.status !== "NEW" && (
                   <span className="shrink-0 text-sm text-muted-foreground">
-                    {itemLabels[line.status]}
+                    {m.item[line.status]}
                   </span>
                 )}
               </div>
@@ -139,24 +141,26 @@ function OrderTicket({
                         line.status === "NEW" ? "bg-warning/20" : "bg-secondary",
                       )}
                     >
-                      备注：{line.remark}
+                      {c.remark(line.remark)}
                     </p>
                   )}
                   {line.allergenCodes.length > 0 && (
                     <p className="flex items-start gap-1 text-sm text-muted-foreground">
                       <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-                      过敏原：
-                      {line.allergenCodes.map((code) => allergenNames.zh[code] ?? code).join(" · ")}
+                      {m.allergens}
+                      {line.allergenCodes
+                        .map((code) => allergenNames[language][code] ?? code)
+                        .join(" · ")}
                     </p>
                   )}
                   {line.readyAt && (
                     <p className="text-xs text-muted-foreground">
-                      出餐：{formatDateTime(line.readyAt)}
+                      {m.readyAt(formatDateTime(line.readyAt, language))}
                     </p>
                   )}
                   {line.cancelledAt && (
                     <p className="text-xs text-muted-foreground">
-                      取消：{formatDateTime(line.cancelledAt)} · 不计入应收
+                      {m.cancelledAt(formatDateTime(line.cancelledAt, language))}
                     </p>
                   )}
                 </>
@@ -169,7 +173,7 @@ function OrderTicket({
                     onClick={() => void model.perform(order, line, "ready")}
                   >
                     <Check />
-                    出餐完成
+                    {m.ready}
                   </Button>
                   <DropdownMenu modal={false}>
                     <DropdownMenuTrigger
@@ -178,7 +182,7 @@ function OrderTicket({
                           variant="outline"
                           size="icon"
                           disabled={locked}
-                          aria-label={`${name.text}的更多操作`}
+                          aria-label={m.moreActions(name.text)}
                         />
                       }
                     >
@@ -190,7 +194,7 @@ function OrderTicket({
                         disabled={locked}
                         onClick={() => cancel(order, line)}
                       >
-                        取消菜品
+                        {m.cancelItem}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -207,16 +211,18 @@ function OrderTicket({
             order.status === "NEW" ? "border-warning/60 bg-warning/12" : "bg-secondary",
           )}
         >
-          整单备注：{order.orderNote}
+          {m.orderNote(order.orderNote)}
         </p>
       )}
       {order.status === "PROCESSED" && (
         <div className="space-y-1 text-sm text-muted-foreground">
           <p>
-            原订单金额：{formatMoney(order.totalAmountCents)} · 应收：
-            {formatMoney(order.payableAmountCents)}
+            {m.amounts(
+              formatMoney(order.totalAmountCents, language),
+              formatMoney(order.payableAmountCents, language),
+            )}
           </p>
-          {order.processedAt && <p>处理完毕：{formatDateTime(order.processedAt)}</p>}
+          {order.processedAt && <p>{m.processedAt(formatDateTime(order.processedAt, language))}</p>}
         </div>
       )}
     </article>
@@ -224,6 +230,9 @@ function OrderTicket({
 }
 
 function KitchenContent({ account }: { account: CurrentAccount }) {
+  const language = useStaffLanguage();
+  const m = kitchenMessages[language];
+  const c = staffMessages[language];
   const model = useKitchen(account);
   const wakeLock = useWakeLock();
   const [confirmation, setConfirmation] = useState<ItemConfirmation | null>(null);
@@ -253,36 +262,36 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
   return (
     <div>
       <PageHeader
-        title="厨房"
-        description="逐项标记出餐，最早的待处理订单在前。"
+        title={m.title}
+        description={m.description}
         actions={
           <>
             <Button
               variant="outline"
               className={toggleStyle}
               aria-pressed={model.sound}
-              aria-label="声音提醒"
+              aria-label={c.sound}
               onClick={model.toggleSound}
             >
               {model.sound ? <Volume2 /> : <VolumeX />}
-              <span className="hidden sm:inline">声音提醒</span>
+              <span className="hidden sm:inline">{c.sound}</span>
             </Button>
             {wakeLock.supported && (
               <Button
                 variant="outline"
                 className={toggleStyle}
                 aria-pressed={wakeLock.enabled}
-                aria-label="屏幕常亮"
+                aria-label={c.wakeLock}
                 onClick={wakeLock.toggle}
               >
                 <Sun />
-                <span className="hidden sm:inline">屏幕常亮</span>
+                <span className="hidden sm:inline">{c.wakeLock}</span>
               </Button>
             )}
             <Button
               variant="outline"
               size="icon"
-              aria-label="刷新订单"
+              aria-label={m.refresh}
               disabled={!model.active || model.query.isFetching}
               onClick={() => void model.refresh()}
             >
@@ -293,7 +302,7 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
       />
       <div className="mb-5 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-2xl border bg-card px-4 py-3 shadow-xs">
-          <p className="font-semibold">全店待处理 {model.summary?.pendingCount ?? "—"} 笔</p>
+          <p className="font-semibold">{m.pendingTotal(model.summary?.pendingCount ?? "—")}</p>
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <span
               className={cn(
@@ -306,23 +315,19 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
               )}
             />
             {model.summary
-              ? `最后成功同步：${formatDateTime(model.summary.receivedAt)}`
-              : "尚未同步"}
+              ? c.lastSync(formatDateTime(model.summary.receivedAt, language))
+              : c.notSynced}
           </p>
         </div>
         {model.stalled && (
           <Notice tone="error">
-            {!model.active
-              ? "连接已断开或页面暂停。"
-              : model.query.isPending
-                ? "正在同步订单。"
-                : "订单可能尚未更新。"}{" "}
-            暂停状态修改，成功同步后即可继续。
+            {!model.active ? c.disconnected : model.query.isPending ? m.syncing : m.maybeStale}{" "}
+            {m.writesPaused}
           </Notice>
         )}
         {model.notice && <Notice>{model.notice}</Notice>}
         {(model.error || model.query.isError) && (
-          <Notice tone="error">{model.error || "无法更新订单，请检查连接后刷新。"}</Notice>
+          <Notice tone="error">{model.error || m.readError}</Notice>
         )}
         {model.soundBlocked && (
           <Notice
@@ -330,26 +335,18 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
             action={
               <Button variant="outline" onClick={model.unlockSound}>
                 <Volume2 />
-                开启声音
+                {c.soundOn}
               </Button>
             }
           >
-            浏览器要求先点按一次页面才能播放提醒声。点按页面任意位置即可开启。
+            {c.soundBlocked}
           </Notice>
         )}
-        {model.soundError && <Notice tone="warning">{model.soundError}</Notice>}
-        {wakeLock.failed && (
-          <Notice tone="warning">
-            未能保持屏幕常亮（浏览器拒绝或处于省电模式），可点按「屏幕常亮」重试。
-          </Notice>
-        )}
-        {model.storageWarning && (
-          <Notice tone="warning">
-            浏览器无法保存操作提示。请在当前页面核对待确认结果，刷新前先记录订单编号。
-          </Notice>
-        )}
+        {model.soundUnsupported && <Notice tone="warning">{c.soundUnsupported}</Notice>}
+        {wakeLock.failed && <Notice tone="warning">{c.wakeLockFailed}</Notice>}
+        {model.storageWarning && <Notice tone="warning">{m.storageWarning}</Notice>}
         {model.pending.length > 0 && (
-          <section aria-label="待确认操作" className="space-y-3">
+          <section aria-label={m.pendingSection} className="space-y-3">
             {model.pending.map((action) => (
               <Notice
                 key={action.orderId}
@@ -360,14 +357,16 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
                     disabled={!model.active || model.busy.includes(action.orderId)}
                     onClick={() => void model.recover(action)}
                   >
-                    核对菜品状态
+                    {m.verify}
                   </Button>
                 }
               >
                 <span className="break-all">
-                  {action.kind === "ready" ? "完成" : "取消"}操作结果待确认 · 订单 #
-                  {shortId(action.orderId)}
-                  {action.itemId ? ` · 菜品 #${shortId(action.itemId)}` : " · 旧版整单操作"}
+                  {m.pendingAction(
+                    action.kind,
+                    shortId(action.orderId),
+                    action.itemId && shortId(action.itemId),
+                  )}
                 </span>
               </Notice>
             ))}
@@ -379,10 +378,10 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
         onValueChange={(status: OrderStatus) => model.setStatus(status)}
         className="gap-4"
       >
-        <TabsList aria-label="订单状态" className="w-full sm:w-auto">
+        <TabsList aria-label={m.statusTabs} className="w-full sm:w-auto">
           {(["NEW", "PROCESSED"] as const).map((status) => (
             <TabsTrigger key={status} value={status}>
-              {labels[status]}
+              {m.status[status]}
               {status === "NEW" && !!model.summary?.pendingCount && (
                 <Badge variant="warning" className="h-5 px-1.5">
                   {model.summary.pendingCount}
@@ -393,12 +392,15 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
         </TabsList>
         <TabsContent value={model.status} className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            {labels[model.status]}共 {model.head?.totalCount ?? "—"} 笔 · 已显示{" "}
-            {model.orders.length} 笔。仅显示正在用餐的订单。
+            {m.listSummary(
+              m.status[model.status],
+              model.head?.totalCount ?? "—",
+              model.orders.length,
+            )}
           </p>
-          {model.query.isPending && <LoadingState label="正在读取订单…" />}
+          {model.query.isPending && <LoadingState label={m.loading} />}
           {!model.query.isPending && !model.query.isError && model.orders.length === 0 && (
-            <EmptyState icon={ChefHat} title={`暂无${labels[model.status]}订单。`} />
+            <EmptyState icon={ChefHat} title={m.empty[model.status]} />
           )}
           <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
             {model.orders.map((order) => (
@@ -412,7 +414,7 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
               disabled={!model.active || model.query.isFetching}
               onClick={() => void model.query.fetchNextPage()}
             >
-              加载更多订单
+              {m.loadMore}
             </Button>
           )}
         </TabsContent>
@@ -420,13 +422,16 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
       <ConfirmDialog
         open={!!confirmation}
         tone="destructive"
-        title={`确认取消菜品 · ${confirmation?.order.tableLabel ?? ""} 桌`}
+        title={m.cancelTitle(c.table(confirmation?.order.tableLabel ?? ""))}
         description={
           confirmation &&
-          `取消「${displayName(confirmation.item, confirmation.order.defaultLanguage, "zh").text} ×${confirmation.item.quantity}」后，${formatMoney(confirmation.item.unitPriceCents * confirmation.item.quantity)} 将不计入应收。请先与厨房确认不再制作。`
+          m.cancelHint(
+            `${displayName(confirmation.item, confirmation.order.defaultLanguage, language).text} ×${confirmation.item.quantity}`,
+            formatMoney(confirmation.item.unitPriceCents * confirmation.item.quantity, language),
+          )
         }
-        confirmLabel="确认取消菜品"
-        cancelLabel="返回"
+        confirmLabel={m.confirmCancel}
+        cancelLabel={c.back}
         busy={confirmingBusy}
         confirmDisabled={!model.fresh || changed}
         onConfirm={() => void submitCancel()}
@@ -434,7 +439,7 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
       >
         {changed && (
           <Notice tone="error">
-            菜品已变为“{current ? itemLabels[current.status] : "未知"}”，本次取消确认已失效。
+            {m.changed(current ? m.item[current.status] : m.unknownStatus)}
           </Notice>
         )}
       </ConfirmDialog>

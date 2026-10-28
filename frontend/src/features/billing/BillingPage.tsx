@@ -13,26 +13,33 @@ import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { floorQuery } from "@/features/dining/api";
 import { formatMoney, formatTime } from "@/lib/format";
+import { staffMessages } from "@/lib/staff-messages";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import { ActiveBillPanel } from "./BillViews";
+import { billingMessages } from "./messages";
 import { useLiveView } from "@/lib/useLiveView";
 
 export function OwnerOnlyNotice() {
+  const m = billingMessages[useStaffLanguage()];
   return (
     <Notice
       tone="warning"
       action={
         <Link to="/staff/floor" className={buttonVariants({ variant: "outline" })}>
-          返回桌台
+          {m.toFloor}
         </Link>
       }
     >
-      此页面仅老板可访问。
+      {m.ownerOnly}
     </Notice>
   );
 }
 type Props = { sessionId?: string; select: (id: string) => void };
 function BillingContent({ account, sessionId, select }: Props & { account: CurrentAccount }) {
+  const language = useStaffLanguage();
+  const m = billingMessages[language];
+  const c = staffMessages[language];
   const view = useLiveView();
   const floor = useQuery({
     ...floorQuery(account),
@@ -44,13 +51,13 @@ function BillingContent({ account, sessionId, select }: Props & { account: Curre
   return (
     <div>
       <PageHeader
-        title="结账"
-        description="核对整桌账单，在线下收款后结束本轮用餐。"
+        title={m.title}
+        description={m.description}
         actions={
           <Button
             variant="outline"
             size="icon"
-            aria-label="刷新桌位"
+            aria-label={m.refreshTables}
             disabled={!view.active || floor.isFetching}
             onClick={() => void floor.refetch()}
           >
@@ -60,12 +67,13 @@ function BillingContent({ account, sessionId, select }: Props & { account: Curre
       />
       {floor.isError && (
         <Notice tone="error" className="mb-5">
-          桌位列表暂时无法更新，请恢复连接后刷新。
+          {m.tablesError}
         </Notice>
       )}
       <MasterDetail
         open={!!sessionId}
-        title={selected ? `${selected.tableLabel} 桌` : "本轮账单"}
+        title={selected ? c.table(selected.tableLabel) : m.bill}
+        closeLabel={c.close}
         onClose={() => select("")}
         detail={
           sessionId && (
@@ -77,13 +85,9 @@ function BillingContent({ account, sessionId, select }: Props & { account: Curre
           )
         }
       >
-        {floor.isPending && <LoadingState label="正在读取活动桌位…" />}
+        {floor.isPending && <LoadingState label={m.loadingTables} />}
         {floor.data && active.length === 0 && (
-          <EmptyState
-            icon={Receipt}
-            title="当前没有活动用餐"
-            description="开桌后，用餐中的桌会出现在这里。"
-          />
+          <EmptyState icon={Receipt} title={m.noVisits} description={m.noVisitsHint} />
         )}
         <div className="@container">
           <div className="grid gap-3 @lg:grid-cols-2 @4xl:grid-cols-3">
@@ -102,17 +106,17 @@ function BillingContent({ account, sessionId, select }: Props & { account: Curre
                 >
                   <span className="flex items-start justify-between gap-3">
                     <span className="text-xl font-semibold wrap-break-word">
-                      {table.tableLabel} 桌
+                      {c.table(table.tableLabel)}
                     </span>
                     {session.newItemCount > 0 && (
-                      <Badge variant="warning">待处理 {session.newItemCount}</Badge>
+                      <Badge variant="warning">{m.pendingBadge(session.newItemCount)}</Badge>
                     )}
                   </span>
                   <span className="block text-2xl font-semibold tabular-nums">
-                    {formatMoney(session.totalAmountCents)}
+                    {formatMoney(session.totalAmountCents, language)}
                   </span>
                   <span className="block text-sm text-muted-foreground">
-                    共 {session.orderCount} 笔 · {formatTime(session.openedAt)} 开桌
+                    {m.tableSummary(session.orderCount, formatTime(session.openedAt, language))}
                   </span>
                 </button>
               );

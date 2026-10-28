@@ -3,6 +3,11 @@ import { test } from "node:test";
 import { formatCents, formatMoney, formatTime, parsePrice, shortId } from "../src/lib/format.ts";
 import { isUuid, randomUuid } from "../src/lib/ids.ts";
 import { isLanguage } from "../src/lib/language.ts";
+import {
+  readStaffLanguage,
+  saveStaffLanguage,
+  staffLanguageKey,
+} from "../src/lib/staff-language.ts";
 
 test("UUIDs need only getRandomValues and carry the UUIDv4 version and variant bits", () => {
   const cryptoWithoutRandomUuid = {
@@ -64,4 +69,33 @@ test("short references come from the random tail, so records created together st
   const second = "019a1b2c-3d4e-7f00-9c8d-7e6f5a4b3c2d";
   assert.equal(shortId(first), "4F5A6B");
   assert.equal(shortId(second), "4B3C2D");
+});
+
+test("the staff language is a device choice that falls back to Chinese", () => {
+  const values = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      values.set(key, value);
+    },
+  };
+  assert.equal(readStaffLanguage(storage), "zh");
+  saveStaffLanguage("it", storage);
+  assert.equal(values.get(staffLanguageKey), "it");
+  assert.equal(readStaffLanguage(storage), "it");
+  // Guests can choose English, staff pages cannot.
+  for (const value of ["en", "malformed", ""]) {
+    values.set(staffLanguageKey, value);
+    assert.equal(readStaffLanguage(storage), "zh");
+  }
+  const blocked = {
+    getItem: () => {
+      throw new Error("blocked");
+    },
+    setItem: () => {
+      throw new Error("blocked");
+    },
+  };
+  assert.equal(readStaffLanguage(blocked), "zh");
+  assert.doesNotThrow(() => saveStaffLanguage("it", blocked));
 });

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { isPrivateQuery, isPlatformQuery } from "../src/lib/query-scope.ts";
 import {
-  accountRecoveryMessage,
+  credentialsChanged,
   managementKey,
   readPending,
   recoveryUrl,
@@ -78,8 +78,8 @@ test("recovery compares target versions without treating another administrator's
     userId: account.id,
     expectedVersion: 2,
   };
-  assert.match(accountRecoveryMessage(pending, account), /原请求仍可能到达/);
-  assert.match(accountRecoveryMessage(pending, { ...account, credentialVersion: 3 }), /其他管理员/);
-  assert.throws(() => accountRecoveryMessage(pending, { ...account, id: randomUuid() }));
-  assert.throws(() => accountRecoveryMessage(pending, undefined));
+  assert.equal(credentialsChanged(pending, account), false);
+  assert.equal(credentialsChanged(pending, { ...account, credentialVersion: 3 }), true);
+  assert.throws(() => credentialsChanged(pending, { ...account, id: randomUuid() }));
+  assert.throws(() => credentialsChanged(pending, undefined));
 });

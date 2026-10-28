@@ -23,7 +23,9 @@ import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import { ServiceSuspendedNotice } from "@/features/dining/ServiceNotice";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { isSameAccount, refreshAfterWrite } from "@/features/accounts/queries";
-import { ApiError, errorMessage } from "@/lib/api";
+import { ApiError, errorMessage, fieldErrors } from "@/lib/api";
+import { staffMessages } from "@/lib/staff-messages";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import {
   createTable,
@@ -33,13 +35,13 @@ import {
   tablesQuery,
   type RestaurantTable,
 } from "./api";
+import { tableMessages } from "./messages";
 import { TableQr } from "./TableQr";
 
 type Editor =
   | { kind: "create" }
   | { kind: "rename"; table: RestaurantTable }
   | { kind: "delete"; table: RestaurantTable };
-const unknownResult = "操作结果待确认，请重新读取桌位列表并核对，再决定是否操作。";
 
 // Creating and renaming share one label form; deletion is confirmed separately.
 function TableLabelForm({
@@ -57,6 +59,8 @@ function TableLabelForm({
   cancel: () => void;
   inputRef: RefObject<HTMLInputElement | null>;
 }) {
+  const language = useStaffLanguage();
+  const m = tableMessages[language];
   const [label, setLabel] = useState(editor.kind === "create" ? "" : editor.table.tableLabel);
   function save(event: FormEvent) {
     event.preventDefault();
@@ -67,7 +71,7 @@ function TableLabelForm({
   return (
     <form onSubmit={save} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="table-label">桌号</Label>
+        <Label htmlFor="table-label">{m.label}</Label>
         <Input
           ref={inputRef}
           id="table-label"
@@ -76,24 +80,23 @@ function TableLabelForm({
           value={label}
           disabled={busy}
           onChange={(event) => setLabel(event.target.value)}
-          placeholder="例如：8、露台 A1"
+          placeholder={m.placeholder}
         />
-        {error instanceof ApiError &&
-          error.errors.tableLabel?.map((message) => (
-            <p key={message} className="text-sm text-destructive">
-              {message}
-            </p>
-          ))}
+        {fieldErrors(error, language).tableLabel?.map((message) => (
+          <p key={message} className="text-sm text-destructive">
+            {message}
+          </p>
+        ))}
       </div>
       {!!error && !(error instanceof ApiError && error.errors.tableLabel) && (
-        <Notice tone="error">{errorMessage(error, unknownResult)}</Notice>
+        <Notice tone="error">{errorMessage(error, m.unknownResult, language)}</Notice>
       )}
       <DialogFooter>
         <Button type="button" variant="outline" disabled={busy} onClick={cancel}>
-          取消
+          {staffMessages[language].cancel}
         </Button>
         <Button type="submit" disabled={busy || !label.trim()}>
-          {busy ? "正在处理…" : "保存桌位"}
+          {busy ? m.saving : m.save}
         </Button>
       </DialogFooter>
     </form>
@@ -102,6 +105,9 @@ function TableLabelForm({
 
 function TablesContent({ account }: { account: CurrentAccount }) {
   const client = useQueryClient();
+  const language = useStaffLanguage();
+  const m = tableMessages[language];
+  const c = staffMessages[language];
   const options = tablesQuery(account);
   const query = useQuery(options);
   const owner = account.role === "OWNER";
@@ -117,8 +123,8 @@ function TablesContent({ account }: { account: CurrentAccount }) {
       if (!isSameAccount(client, account)) return;
       setEditor(null);
       const result = await refreshAfterWrite(client, account, options);
-      if (result === "refreshed") setNotice("桌位操作已成功。");
-      else if (result === "failed") setNotice("操作已成功，但列表刷新失败。请重新读取桌位。");
+      if (result === "refreshed") setNotice(m.saved);
+      else if (result === "failed") setNotice(m.refreshFailed);
     },
   });
   function open(next: Editor) {
@@ -136,18 +142,14 @@ function TablesContent({ account }: { account: CurrentAccount }) {
   return (
     <div>
       <PageHeader
-        title="桌位与二维码"
-        description={
-          owner
-            ? "维护桌位，下载二维码和桌卡，供顾客扫码点餐。"
-            : "查看本店桌位与当前用餐状态；桌位由老板维护。"
-        }
-        back={{ to: "/staff", label: "首页" }}
+        title={m.title}
+        description={owner ? m.ownerHint : m.staffHint}
+        back={{ to: "/staff", label: c.home }}
         actions={
           <Button
             variant="outline"
             size="icon"
-            aria-label="重新读取桌位"
+            aria-label={m.refresh}
             disabled={query.isFetching || busy}
             onClick={() => void query.refetch()}
           >
@@ -159,30 +161,26 @@ function TablesContent({ account }: { account: CurrentAccount }) {
         <ServiceSuspendedNotice account={account} />
         {notice && <Notice tone="success">{notice}</Notice>}
         {(query.isError || query.fetchStatus === "paused") && (
-          <Notice tone="error">无法更新桌位列表，请检查网络后重试。</Notice>
+          <Notice tone="error">{m.readError}</Notice>
         )}
         {mutation.isError && !editor && (
-          <Notice tone="error">{errorMessage(mutation.error, unknownResult)}</Notice>
+          <Notice tone="error">{errorMessage(mutation.error, m.unknownResult, language)}</Notice>
         )}
         {owner && (
           <Button disabled={busy || !!editor} onClick={() => open({ kind: "create" })}>
             <Plus />
-            添加桌位
+            {m.add}
           </Button>
         )}
       </div>
       {query.isPending && (
-        <LoadingState
-          label={
-            query.fetchStatus === "paused" ? "当前离线，恢复网络后重新读取桌位。" : "正在读取桌位…"
-          }
-        />
+        <LoadingState label={query.fetchStatus === "paused" ? m.offline : m.loading} />
       )}
       {tables?.length === 0 && (
         <EmptyState
           icon={QrCode}
-          title="还没有桌位"
-          description={owner ? "添加第一个桌位，即可生成菜单二维码。" : "请联系老板添加。"}
+          title={m.empty}
+          description={owner ? m.ownerEmpty : m.staffEmpty}
         />
       )}
       {/* Columns follow the width left beside the nav rail, so each card keeps room for its three
@@ -200,13 +198,13 @@ function TablesContent({ account }: { account: CurrentAccount }) {
               <div className="flex items-start justify-between gap-3">
                 <h2 className="text-xl font-semibold wrap-break-word">{table.tableLabel}</h2>
                 <Badge variant={table.activeSessionId ? "default" : "outline"}>
-                  {table.activeSessionId ? "用餐中" : "空桌"}
+                  {table.activeSessionId ? m.dining : m.free}
                 </Badge>
               </div>
               {owner ? (
                 <div className="flex items-center gap-3">
                   <Switch
-                    aria-label={`启用桌位：${table.tableLabel}`}
+                    aria-label={m.enable(table.tableLabel)}
                     checked={table.isEnabled}
                     disabled={busy || !!editor}
                     onCheckedChange={() =>
@@ -214,21 +212,21 @@ function TablesContent({ account }: { account: CurrentAccount }) {
                     }
                   />
                   <span className="text-sm text-muted-foreground">
-                    {table.isEnabled ? "已启用：顾客可扫码点餐" : "已停用：顾客只能浏览菜单"}
+                    {table.isEnabled ? m.enabledHint : m.disabledHint}
                   </span>
                 </div>
               ) : (
                 <Badge variant={table.isEnabled ? "secondary" : "outline"}>
-                  {table.isEnabled ? "已启用" : "已停用"}
+                  {table.isEnabled ? m.enabled : m.disabled}
                 </Badge>
               )}
               {owner && (
                 // Each button fills a third of the row, so slimmer padding only gives the label room
-                // and keeps 二维码 on one line on 360px phones.
+                // and keeps one-word labels on one line on 360px phones.
                 <div className="mt-auto grid grid-cols-3 gap-2 border-t pt-3">
                   <Button variant="outline" className="px-2" onClick={() => setQrId(table.id)}>
                     <QrCode />
-                    二维码
+                    {m.qr}
                   </Button>
                   <Button
                     variant="ghost"
@@ -237,7 +235,7 @@ function TablesContent({ account }: { account: CurrentAccount }) {
                     onClick={() => open({ kind: "rename", table })}
                   >
                     <Pencil />
-                    改名
+                    {m.rename}
                   </Button>
                   <Button
                     variant="ghost"
@@ -246,14 +244,12 @@ function TablesContent({ account }: { account: CurrentAccount }) {
                     onClick={() => open({ kind: "delete", table })}
                   >
                     <Trash2 />
-                    删除
+                    {m.remove}
                   </Button>
                 </div>
               )}
               {table.activeSessionId && (
-                <p className="text-xs leading-5 text-muted-foreground">
-                  本桌用餐尚未结束，暂不可删除。
-                </p>
+                <p className="text-xs leading-5 text-muted-foreground">{m.activeHint}</p>
               )}
             </article>
           ))}
@@ -265,12 +261,12 @@ function TablesContent({ account }: { account: CurrentAccount }) {
           if (!next && !busy) cancel();
         }}
       >
-        <DialogContent initialFocus={labelInput}>
+        <DialogContent initialFocus={labelInput} closeLabel={c.close}>
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold">
-              {editor?.kind === "create" ? "添加桌位" : "修改桌号"}
+              {editor?.kind === "create" ? m.add : m.renameTitle}
             </DialogTitle>
-            <DialogDescription>桌号 1–50 个字符，同店唯一；改名不会改变二维码。</DialogDescription>
+            <DialogDescription>{m.labelHint}</DialogDescription>
           </DialogHeader>
           {(editor?.kind === "create" || editor?.kind === "rename") && (
             <TableLabelForm
@@ -288,9 +284,10 @@ function TablesContent({ account }: { account: CurrentAccount }) {
       <ConfirmDialog
         open={editor?.kind === "delete"}
         tone="destructive"
-        title={`确认删除桌位「${editor?.kind === "delete" ? editor.table.tableLabel : ""}」`}
-        description="删除后，原二维码立即失效。历史账单保留；重新创建同名桌位需要重新下载二维码。"
-        confirmLabel={busy ? "正在处理…" : "确认删除"}
+        title={m.removeTitle(editor?.kind === "delete" ? editor.table.tableLabel : "")}
+        description={m.removeHint}
+        confirmLabel={busy ? m.saving : m.confirmRemove}
+        cancelLabel={c.cancel}
         busy={busy}
         onConfirm={() => {
           if (editor?.kind === "delete") {
@@ -301,7 +298,7 @@ function TablesContent({ account }: { account: CurrentAccount }) {
         onCancel={cancel}
       >
         {mutation.isError && (
-          <Notice tone="error">{errorMessage(mutation.error, unknownResult)}</Notice>
+          <Notice tone="error">{errorMessage(mutation.error, m.unknownResult, language)}</Notice>
         )}
       </ConfirmDialog>
       {owner && (
@@ -311,12 +308,12 @@ function TablesContent({ account }: { account: CurrentAccount }) {
             if (!next) setQrId(null);
           }}
         >
-          <DialogContent>
+          <DialogContent closeLabel={c.close}>
             {qrTable && (
               <>
                 <DialogHeader>
                   <DialogTitle className="text-lg font-semibold wrap-break-word">
-                    {qrTable.tableLabel} · 桌位二维码
+                    {m.qrTitle(qrTable.tableLabel)}
                   </DialogTitle>
                   <DialogDescription>{account.restaurantName}</DialogDescription>
                 </DialogHeader>

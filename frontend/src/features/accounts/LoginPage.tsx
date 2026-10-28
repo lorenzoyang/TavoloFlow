@@ -7,15 +7,18 @@ import { Spinner } from "@/components/ui/spinner";
 import { Field, FieldLabel, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ApiError, errorMessage } from "@/lib/api";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { login } from "./api";
 import { replaceAccount } from "./queries";
-import { messages as m } from "./messages";
+import { accountMessages } from "./messages";
 import { VerifyIdentityButton } from "./AccountFeedback";
 import { AccountCard, AccountCardHeader } from "./AccountLayout";
 import { AuthBoundary } from "./AuthBoundary";
 import { PasswordInput } from "./PasswordInput";
 
 function LoginForm() {
+  const language = useStaffLanguage();
+  const m = accountMessages[language];
   const usernameId = useId();
   const mutation = useMutation({
     mutationFn: async ({ username, password }: { username: string; password: string }) => {
@@ -58,7 +61,7 @@ function LoginForm() {
             disabled={mutation.isPending}
           />
           {mutation.isError && (
-            <Notice tone="error">{errorMessage(mutation.error, m.loginUnknown)}</Notice>
+            <Notice tone="error">{errorMessage(mutation.error, m.loginUnknown, language)}</Notice>
           )}
           <Button type="submit" size="lg" disabled={mutation.isPending} className="w-full">
             {mutation.isPending ? <Spinner /> : <ArrowRight aria-hidden="true" />}

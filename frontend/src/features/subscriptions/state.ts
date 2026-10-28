@@ -46,8 +46,6 @@ export function periodTotal(annualFee: number | null, years: number): number | n
   const total = BigInt(annualFee) * BigInt(years);
   return total <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(total) : null;
 }
-export const subscriptionStateLabel = (state: SubscriptionSummary["serviceState"]) =>
-  ({ UNCONFIGURED: "尚未登记", UPCOMING: "待开始", ACTIVE: "使用中", EXPIRED: "已到期" })[state];
 
 export function periodFromForm(data: FormData, prefix: string, id: string): PeriodInput {
   const startsOn = String(data.get(`${prefix}-startsOn`) ?? "");

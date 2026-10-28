@@ -20,11 +20,6 @@ export type Confirmation = { kind: CloseKind; bill: BillSummary };
 export type PendingClosure = { sessionId: string; kind: CloseKind };
 export const closureKey = (restaurantId: string, userId: string) =>
   `tavoloflow:billing:${restaurantId}:${userId}`;
-export const closeLabels: Record<CloseKind, string> = {
-  PAID: "已收款",
-  EMPTY: "空桌关闭",
-  VOIDED: "全部取消后关闭",
-};
 export const closeBadges = { PAID: "success", EMPTY: "outline", VOIDED: "outline" } as const;
 
 export function closureKind(bill: BillSummary, role: "OWNER" | "STAFF"): CloseKind | null {

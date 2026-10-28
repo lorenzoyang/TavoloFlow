@@ -8,8 +8,11 @@ import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { formatDateTime } from "@/lib/format";
 import { displayName } from "@/lib/language";
+import { staffMessages } from "@/lib/staff-messages";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { useWakeLock } from "@/lib/useWakeLock";
 import { cn } from "@/lib/utils";
+import { passMessages } from "./messages";
 import { passWaitLevel, type PassTable } from "./state";
 import { usePass } from "./usePass";
 
@@ -21,15 +24,20 @@ const waitStyles = {
 };
 
 function TableCard({ table, model }: { table: PassTable; model: ReturnType<typeof usePass> }) {
+  const language = useStaffLanguage();
+  const m = passMessages[language];
+  const c = staffMessages[language];
   return (
     <article className="flex flex-col gap-2 rounded-2xl border bg-card p-4 shadow-xs">
       <header className="flex items-baseline justify-between gap-3">
-        <h2 className="min-w-0 text-3xl font-bold wrap-break-word">{table.tableLabel} 桌</h2>
-        <span className="shrink-0 text-sm text-muted-foreground">待送 {table.items.length} 道</span>
+        <h2 className="min-w-0 text-3xl font-bold wrap-break-word">{c.table(table.tableLabel)}</h2>
+        <span className="shrink-0 text-sm text-muted-foreground">
+          {m.toServe(table.items.length)}
+        </span>
       </header>
       <ul className="divide-y border-t">
         {table.items.map((item) => {
-          const name = displayName(item, item.defaultLanguage, "zh");
+          const name = displayName(item, item.defaultLanguage, language);
           const minutes = Math.max(
             0,
             Math.floor((model.view.now - Date.parse(item.readyAt)) / 60_000),
@@ -52,22 +60,22 @@ function TableCard({ table, model }: { table: PassTable; model: ReturnType<typeo
                     waitStyles[passWaitLevel(minutes)],
                   )}
                 >
-                  {minutes === 0 ? "刚出餐" : `已等 ${minutes} 分钟`}
+                  {minutes === 0 ? m.justReady : m.waited(minutes)}
                 </span>
               </div>
               {item.remark && (
                 <p className="rounded-lg bg-secondary px-2.5 py-1.5 text-sm whitespace-pre-wrap wrap-break-word">
-                  备注：{item.remark}
+                  {c.remark(item.remark)}
                 </p>
               )}
               <Button
                 className="w-full"
                 disabled={!model.fresh || model.busy.includes(item.id)}
-                aria-label={`${table.tableLabel} 桌 ${name.text} 已送达`}
+                aria-label={m.servedLabel(c.table(table.tableLabel), name.text)}
                 onClick={() => void model.serve(item)}
               >
                 <Check />
-                已送达
+                {m.served}
               </Button>
             </li>
           );
@@ -78,42 +86,45 @@ function TableCard({ table, model }: { table: PassTable; model: ReturnType<typeo
 }
 
 function PassContent({ account }: { account: CurrentAccount }) {
+  const language = useStaffLanguage();
+  const m = passMessages[language];
+  const c = staffMessages[language];
   const model = usePass(account);
   const wakeLock = useWakeLock();
   return (
     <div>
       <PageHeader
-        title="传菜"
-        description="厨房出餐后菜品出现在这里，最早出餐的桌在前。取走菜品时点「已送达」。"
-        back={{ to: "/staff", label: "首页" }}
+        title={m.title}
+        description={m.description}
+        back={{ to: "/staff", label: c.home }}
         actions={
           <>
             <Button
               variant="outline"
               className={toggleStyle}
               aria-pressed={model.sound}
-              aria-label="声音提醒"
+              aria-label={c.sound}
               onClick={model.toggleSound}
             >
               {model.sound ? <Volume2 /> : <VolumeX />}
-              <span className="hidden sm:inline">声音提醒</span>
+              <span className="hidden sm:inline">{c.sound}</span>
             </Button>
             {wakeLock.supported && (
               <Button
                 variant="outline"
                 className={toggleStyle}
                 aria-pressed={wakeLock.enabled}
-                aria-label="屏幕常亮"
+                aria-label={c.wakeLock}
                 onClick={wakeLock.toggle}
               >
                 <Sun />
-                <span className="hidden sm:inline">屏幕常亮</span>
+                <span className="hidden sm:inline">{c.wakeLock}</span>
               </Button>
             )}
             <Button
               variant="outline"
               size="icon"
-              aria-label="刷新菜品"
+              aria-label={m.refresh}
               disabled={!model.view.active || model.query.isFetching}
               onClick={() => void model.refresh()}
             >
@@ -124,7 +135,7 @@ function PassContent({ account }: { account: CurrentAccount }) {
       />
       <div className="mb-5 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-2xl border bg-card px-4 py-3 shadow-xs">
-          <p className="font-semibold">全店待送 {model.head?.totalCount ?? "—"} 道</p>
+          <p className="font-semibold">{m.totalToServe(model.head?.totalCount ?? "—")}</p>
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <span
               className={cn(
@@ -136,22 +147,18 @@ function PassContent({ account }: { account: CurrentAccount }) {
                     : "bg-muted-foreground/40",
               )}
             />
-            {model.head ? `最后成功同步：${formatDateTime(model.head.receivedAt)}` : "尚未同步"}
+            {model.head ? c.lastSync(formatDateTime(model.head.receivedAt, language)) : c.notSynced}
           </p>
         </div>
         {model.stalled && (
           <Notice tone="error">
-            {!model.view.active
-              ? "连接已断开或页面暂停。"
-              : model.query.isPending
-                ? "正在同步菜品。"
-                : "菜品可能尚未更新。"}{" "}
-            暂停标记送达，成功同步后即可继续。
+            {!model.view.active ? c.disconnected : model.query.isPending ? m.syncing : m.maybeStale}{" "}
+            {m.writesPaused}
           </Notice>
         )}
         {model.notice && <Notice>{model.notice}</Notice>}
         {(model.error || model.query.isError) && (
-          <Notice tone="error">{model.error || "无法更新菜品，请检查连接后刷新。"}</Notice>
+          <Notice tone="error">{model.error || m.readError}</Notice>
         )}
         {model.soundBlocked && (
           <Notice
@@ -159,24 +166,20 @@ function PassContent({ account }: { account: CurrentAccount }) {
             action={
               <Button variant="outline" onClick={model.unlockSound}>
                 <Volume2 />
-                开启声音
+                {c.soundOn}
               </Button>
             }
           >
-            浏览器要求先点按一次页面才能播放提醒声。点按页面任意位置即可开启。
+            {c.soundBlocked}
           </Notice>
         )}
-        {model.soundError && <Notice tone="warning">{model.soundError}</Notice>}
-        {wakeLock.failed && (
-          <Notice tone="warning">
-            未能保持屏幕常亮（浏览器拒绝或处于省电模式），可点按「屏幕常亮」重试。
-          </Notice>
-        )}
+        {model.soundUnsupported && <Notice tone="warning">{c.soundUnsupported}</Notice>}
+        {wakeLock.failed && <Notice tone="warning">{c.wakeLockFailed}</Notice>}
       </div>
       <div className="space-y-4">
-        {model.query.isPending && <LoadingState label="正在读取待送菜品…" />}
+        {model.query.isPending && <LoadingState label={m.loading} />}
         {!model.query.isPending && !model.query.isError && model.items.length === 0 && (
-          <EmptyState icon={HandPlatter} title="暂无待送菜品。" />
+          <EmptyState icon={HandPlatter} title={m.empty} />
         )}
         <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
           {model.tables.map((table) => (
@@ -190,7 +193,7 @@ function PassContent({ account }: { account: CurrentAccount }) {
             disabled={!model.view.active || model.query.isFetching}
             onClick={() => void model.query.fetchNextPage()}
           >
-            加载更多菜品
+            {m.loadMore}
           </Button>
         )}
       </div>

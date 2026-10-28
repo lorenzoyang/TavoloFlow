@@ -17,6 +17,8 @@ import type { CurrentAccount } from "@/features/accounts/api";
 import { ActiveBillPanel } from "@/features/billing/BillViews";
 import { tablesKey } from "@/features/tables/api";
 import { ApiError, errorMessage, withTimeout } from "@/lib/api";
+import { staffMessages } from "@/lib/staff-messages";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import {
   floorQuery,
@@ -36,6 +38,7 @@ import {
   type PendingDiningAction,
 } from "./state";
 import { SessionSummary, TableTile } from "./FloorViews";
+import { diningMessages } from "./messages";
 
 type FloorProps = { sessionId?: string; select: (id: string) => void };
 function FloorContent({
@@ -44,6 +47,9 @@ function FloorContent({
   select: setSelected,
 }: FloorProps & { account: CurrentAccount }) {
   const client = useQueryClient();
+  const language = useStaffLanguage();
+  const m = diningMessages[language];
+  const c = staffMessages[language];
   const floor = useQuery(floorQuery(account));
   const selected = sessionId;
   const session = useQuery(sessionQuery(account, selected));
@@ -118,7 +124,7 @@ function FloorContent({
         const data = await readFloor(controller.signal);
         if (!mounted.current) return;
         client.setQueryData(floorQuery(account).queryKey, data);
-        setNotice(data.orderingEnabled ? "已核对：当前允许接单。" : "已核对：当前已暂停接单。");
+        setNotice(m.checkedAccepting(data.orderingEnabled));
       } else {
         const data = await readFloor(controller.signal);
         if (!mounted.current) return;
@@ -127,26 +133,20 @@ function FloorContent({
         const result = recoveredOpen(table?.session?.id);
         if (result.kind === "active") {
           setSelected(result.sessionId);
-          setNotice(
-            data.joinCodeRequired
-              ? "已查到本桌当前用餐，请核对桌号；可主动查看入桌码。"
-              : "已查到本桌当前用餐，请核对桌号。",
-          );
+          setNotice(m.foundVisit(data.joinCodeRequired));
         } else {
           setSelected("");
-          setNotice(
-            table ? "已核对：当前为空桌。如需开桌，请重新确认。" : "此桌已不存在，请联系老板核对。",
-          );
+          setNotice(table ? m.checkedFree : m.tableGone);
         }
       }
       remember(null);
     } catch (e) {
-      if (mounted.current) setError(errorMessage(e, "暂时无法核对，请恢复连接后重新读取。"));
+      if (mounted.current) setError(errorMessage(e, m.recoverUnknown, language));
     } finally {
       operation.current = null;
       if (mounted.current) setBusy(false);
     }
-  }, [pending, client, account, remember, setSelected]);
+  }, [pending, client, account, remember, setSelected, m, language]);
 
   useEffect(() => {
     // Schedule restoration after mount so StrictMode's setup/cleanup probe cannot abort the only recovery.
@@ -183,17 +183,13 @@ function FloorContent({
       client.setQueryData(sessionKey(account, result.session.sessionId), result.session);
       if (result.joinCode && document.visibilityState === "visible" && navigator.onLine)
         setCode({ sessionId: result.session.sessionId, joinCode: result.joinCode });
-      setNotice(
-        result.joinCode
-          ? "开桌成功，请将本轮入桌码告知顾客。"
-          : "开桌成功，顾客扫描本桌二维码即可直接加入点餐。",
-      );
+      setNotice(m.opened(!!result.joinCode));
       remember(null);
       void refresh();
     } catch (e) {
       if (!mounted.current) return;
       if (e instanceof ApiError && e.status < 500) remember(null);
-      setError(errorMessage(e, "开桌结果待确认。请重新读取状态；系统不会自动重发开桌。"));
+      setError(errorMessage(e, m.openUnknown, language));
       if (e instanceof ApiError && e.status === 409) void refresh();
     } finally {
       operation.current = null;
@@ -217,16 +213,12 @@ function FloorContent({
       await setAcceptingOrders(enabled, withTimeout(controller.signal));
       if (!mounted.current) return;
       remember(null);
-      setNotice(
-        enabled
-          ? "已允许接单；实际下单仍须餐厅服务和桌位可用。"
-          : "已暂停新增订单，既有订单仍可核对。",
-      );
+      setNotice(m.acceptingSaved(enabled));
       void refresh();
     } catch (e) {
       if (!mounted.current) return;
       if (e instanceof ApiError && e.status < 500) remember(null);
-      setError(errorMessage(e, "接单设置结果待确认，请重新读取状态。"));
+      setError(errorMessage(e, m.acceptingUnknown, language));
     } finally {
       operation.current = null;
       if (mounted.current) setBusy(false);
@@ -254,7 +246,7 @@ function FloorContent({
     } catch (e) {
       if (mounted.current) {
         setCode(null);
-        setError(errorMessage(e));
+        setError(errorMessage(e, undefined, language));
         void refresh();
       }
     } finally {
@@ -270,13 +262,13 @@ function FloorContent({
   return (
     <div>
       <PageHeader
-        title="桌台"
+        title={m.title}
         description={account.restaurantName}
         actions={
           <Button
             variant="outline"
             size="icon"
-            aria-label="重新读取状态"
+            aria-label={m.refresh}
             disabled={busy || floor.isFetching}
             onClick={() => void refresh()}
           >
@@ -285,38 +277,31 @@ function FloorContent({
         }
       />
       <div className="mb-5 space-y-3">
-        {floor.data?.serviceStatus === "SUSPENDED" && (
-          <Notice tone="warning">
-            餐厅服务尚未由平台启用或已被暂停，暂不能开新桌；已有用餐仍可核对并关闭空桌。如需启用，请联系平台管理员。
-          </Notice>
-        )}
+        {floor.data?.serviceStatus === "SUSPENDED" && <Notice tone="warning">{m.suspended}</Notice>}
         {notice && <Notice>{notice}</Notice>}
         {(error || floor.isError || session.isError || floor.fetchStatus === "paused") && (
-          <Notice tone="error">{error || "无法更新状态，请检查连接后重新读取。"}</Notice>
+          <Notice tone="error">{error || m.readError}</Notice>
         )}
         {pending && (
           <Notice
             tone="warning"
             action={
               <Button disabled={busy} onClick={() => void recover()}>
-                核对操作结果
+                {m.verify}
               </Button>
             }
           >
-            {pending.kind === "accepting" ? "接单设置结果待确认" : "开桌结果待确认"}
-            ，核对完成前暂停新的操作。
+            {m.pending(pending.kind)}
           </Notice>
         )}
         {floor.data && (
           <div className="flex items-center justify-between gap-4 rounded-2xl border bg-card p-4 shadow-xs">
             <div className="min-w-0">
               <p id="accepting-orders" className="font-medium">
-                扫码接单
+                {m.accepting}
               </p>
               <p className="text-sm leading-5 text-muted-foreground">
-                {floor.data.orderingEnabled
-                  ? "已开启：顾客可以扫码下单。"
-                  : "已暂停：不再接收新订单，已提交的订单仍可核对。"}
+                {floor.data.orderingEnabled ? m.acceptingOn : m.acceptingOff}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -333,7 +318,8 @@ function FloorContent({
       </div>
       <MasterDetail
         open={!!selected}
-        title={session.data ? `${session.data.tableLabel} 桌` : "本轮用餐"}
+        title={session.data ? c.table(session.data.tableLabel) : m.visit}
+        closeLabel={c.close}
         onClose={() => setSelected("")}
         detail={
           selected && (
@@ -354,15 +340,15 @@ function FloorContent({
           )
         }
       >
-        {floor.isPending && <LoadingState label="正在读取桌位…" />}
+        {floor.isPending && <LoadingState label={m.loading} />}
         {floor.data?.tables.length === 0 && (
           <EmptyState
             icon={LayoutGrid}
-            title="还没有桌位"
-            description="请先到「桌位与二维码」添加桌位。"
+            title={m.noTables}
+            description={m.noTablesHint}
             action={
               <Link to="/staff/tables" className={buttonVariants({ variant: "outline" })}>
-                桌位与二维码
+                {m.tablesLink}
               </Link>
             }
           />
@@ -372,16 +358,16 @@ function FloorContent({
             <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
               <span className="flex items-center gap-1.5">
                 <span className="size-2.5 rounded-full bg-primary" />
-                用餐中 {dining}
+                {m.dining(dining)}
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="size-2.5 rounded-full border bg-card" />
-                空桌 {tables.filter((table) => !table.session && table.isEnabled).length}
+                {m.free(tables.filter((table) => !table.session && table.isEnabled).length)}
               </span>
               {waiting > 0 && (
                 <span className="flex items-center gap-1.5">
                   <span className="size-2.5 rounded-full bg-warning" />
-                  待出餐 {waiting} 项
+                  {m.waiting(waiting)}
                 </span>
               )}
             </p>
@@ -410,13 +396,10 @@ function FloorContent({
       </MasterDetail>
       <ConfirmDialog
         open={!!confirmation}
-        title={`确认开桌 · ${confirmation?.table.tableLabel ?? ""}`}
-        description={
-          floor.data?.joinCodeRequired === false
-            ? "开桌后顾客扫描本桌二维码即可直接加入点餐。"
-            : "开桌后会生成本轮入桌码，请告知本桌顾客。"
-        }
-        confirmLabel="确认开桌"
+        title={m.openTitle(confirmation?.table.tableLabel ?? "")}
+        description={floor.data?.joinCodeRequired === false ? m.openHintNoCode : m.openHint}
+        confirmLabel={m.confirmOpen}
+        cancelLabel={c.cancel}
         busy={busy}
         confirmDisabled={!!pending}
         onConfirm={() => void submit()}

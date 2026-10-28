@@ -59,12 +59,10 @@ export function readPending(raw: string | null): PendingManagement | null {
 export function recoveryUrl(scope: "platform" | "store", p: PendingManagement) {
   return scope === "platform" ? `/api/platform/restaurants/${p.restaurantId}` : "/api/owner/staff";
 }
-export function accountRecoveryMessage(p: PendingManagement, account: ManagedAccount | undefined) {
+// Whether the target's credentials moved past the confirmed version: by this request or another
+// administrator's, which a read cannot tell apart. Unchanged means the request may still arrive.
+export function credentialsChanged(p: PendingManagement, account: ManagedAccount | undefined) {
   if (!account || account.id !== p.userId || p.expectedVersion === undefined)
     throw new Error("无法核对目标账号，请重新读取。");
-  const change =
-    account.credentialVersion > p.expectedVersion
-      ? "账号凭据版本已变化；可能来自本次操作或其他管理员的修改。"
-      : "账号凭据版本尚未变化，原请求仍可能到达。";
-  return `${change}临时密码无法再次读取；如需重置，请核对最新状态后重新人工确认。`;
+  return account.credentialVersion > p.expectedVersion;
 }

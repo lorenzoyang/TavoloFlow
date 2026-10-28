@@ -1,6 +1,8 @@
 import { Badge } from "@/components/ui/badge";
 import { formatMoney } from "@/lib/format";
-import { subscriptionStateLabel, type SubscriptionPeriod, type SubscriptionSummary } from "./state";
+import type { StaffLanguage } from "@/lib/staff-language";
+import { subscriptionMessages } from "./messages";
+import type { SubscriptionPeriod, SubscriptionSummary } from "./state";
 
 const stateBadges = {
   UNCONFIGURED: "outline",
@@ -9,70 +11,70 @@ const stateBadges = {
   EXPIRED: "destructive",
 } as const;
 
-export function SubscriptionStatus({ summary }: { summary: SubscriptionSummary }) {
-  const periodLabel =
-    summary.serviceState === "UPCOMING"
-      ? "待开始周期"
-      : summary.serviceState === "EXPIRED"
-        ? "最近周期"
-        : "当前周期";
+// Shared by the OWNER page (in the staff language) and the platform pages (in Chinese).
+export function SubscriptionStatus({
+  summary,
+  language,
+}: {
+  summary: SubscriptionSummary;
+  language: StaffLanguage;
+}) {
+  const m = subscriptionMessages[language];
+  const periodLabel = m.period(summary.serviceState);
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
-        <Badge variant={stateBadges[summary.serviceState]}>
-          {subscriptionStateLabel(summary.serviceState)}
-        </Badge>
+        <Badge variant={stateBadges[summary.serviceState]}>{m.state[summary.serviceState]}</Badge>
         {summary.paymentState && (
           <Badge variant={summary.paymentState === "PAID" ? "success" : "warning"}>
-            {periodLabel}
-            {summary.paymentState === "PAID" ? "已付费" : "未付费"}
+            {m.payment(periodLabel, summary.paymentState === "PAID")}
           </Badge>
         )}
       </div>
       {summary.startsOn && (
         <p className="text-sm leading-6">
-          {periodLabel}开始日期 {summary.startsOn} · 连续约定服务截止日期 {summary.expiresOn}
-          （当天到期）
+          {m.dates(periodLabel, summary.startsOn, summary.expiresOn)}
         </p>
       )}
-      {summary.paymentState && (
-        <p className="text-xs text-muted-foreground">各周期的付款情况请查看收费周期明细。</p>
-      )}
+      {summary.paymentState && <p className="text-xs text-muted-foreground">{m.paymentHint}</p>}
       {summary.unpaidPeriodCount > 0 && (
         <p role="status" className="text-sm font-medium text-destructive">
-          有 {summary.unpaidPeriodCount} 个已开始的周期待付费。
+          {m.unpaid(summary.unpaidPeriodCount)}
         </p>
       )}
       {summary.dueSoon && (
         <p role="status" className="text-sm font-medium">
-          服务将在 7 天内到期，请安排续费。
+          {m.dueSoon}
         </p>
       )}
       {summary.serviceState === "EXPIRED" && (
         <p role="status" className="text-sm font-medium text-destructive">
-          约定服务期限已到期，请安排续费。
+          {m.expired}
         </p>
       )}
     </div>
   );
 }
 
-export function PeriodDetails({ period }: { period: SubscriptionPeriod }) {
+export function PeriodDetails({
+  period,
+  language,
+}: {
+  period: SubscriptionPeriod;
+  language: StaffLanguage;
+}) {
+  const m = subscriptionMessages[language];
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="space-y-1">
-        <p className="font-medium">
-          {period.startsOn} 至 {period.endsOn}（截止当天到期）
-        </p>
+        <p className="font-medium">{m.range(period.startsOn, period.endsOn)}</p>
         <p className="text-sm text-muted-foreground">
-          {period.years} 年 · 总金额 {formatMoney(period.amountCents)}
+          {m.amount(period.years, formatMoney(period.amountCents, language))}
         </p>
-        <p className="text-sm text-muted-foreground">
-          {period.paidOn ? `付费日期 ${period.paidOn}` : "付费日期尚未登记"}
-        </p>
+        <p className="text-sm text-muted-foreground">{m.paidOn(period.paidOn)}</p>
       </div>
       <Badge variant={period.paidOn ? "success" : "warning"}>
-        {period.paidOn ? "已付费" : "未付费"}
+        {period.paidOn ? m.paid : m.unpaidBadge}
       </Badge>
     </div>
   );

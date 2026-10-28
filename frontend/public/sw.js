@@ -84,6 +84,16 @@ const offlinePage = `<!doctype html>
       <button type="button" onclick="location.reload()">重新加载</button>
     </main>
     <script>
+      // The page follows the device's staff language (src/lib/staff-language.ts); Chinese otherwise.
+      try {
+        if (localStorage.getItem("tavoloflow:staff-language") === "it") {
+          document.documentElement.lang = "it";
+          document.querySelector("h1").textContent = "Nessuna connessione";
+          document.querySelector("p").textContent =
+            "Controlla la rete. Quando torna la connessione, la pagina si ricarica da sola.";
+          document.querySelector("button").textContent = "Ricarica";
+        }
+      } catch {}
       // Reconnecting reloads at once. While the device reports a connection but the server still
       // cannot be reached (Wi-Fi still joining, a restart), it retries every 10 seconds.
       addEventListener("online", () => location.reload());

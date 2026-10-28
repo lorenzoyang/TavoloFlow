@@ -1,11 +1,13 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { BrandMark } from "@/components/brand";
 import { Card, CardContent } from "@/components/ui/card";
 import { OwnerSubscriptionReminder } from "@/features/subscriptions/SubscriptionReminders";
 import { useDocumentTheme } from "@/lib/useDocumentTheme";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { accountQuery } from "./queries";
-import { messages as m } from "./messages";
+import { accountMessages } from "./messages";
+import { LanguageSwitch } from "./LanguageSwitch";
 import { StaffNav } from "./StaffNav";
 import { useInstallableStaffApp } from "./useInstallApp";
 
@@ -14,15 +16,26 @@ import { useInstallableStaffApp } from "./useInstallApp";
 // The shell sets the available width; each page chooses its own content width.
 // Every staff page, sign-in included, makes the staff app installable. Only signed-in pages take the
 // restaurant's theme; sign-in and the first password change keep the default palette.
+// Before signing in, the language switch sits under the brand, so a new employee can change it
+// before reading anything else.
 export function StaffLayout({ children }: { children: ReactNode }) {
   const account = useQuery(accountQuery).data;
   const signedIn = !!account && !account.mustChangePassword;
+  const language = useStaffLanguage();
   useInstallableStaffApp();
   useDocumentTheme(signedIn ? account.restaurantTheme : null);
+  useEffect(() => {
+    const root = document.documentElement;
+    root.lang = language === "it" ? "it" : "zh-CN";
+    return () => {
+      root.lang = "zh-CN";
+    };
+  }, [language]);
   if (!signedIn)
     return (
       <div className="flex min-h-dvh flex-col items-center px-4 pt-[max(3rem,env(safe-area-inset-top))] pb-10">
-        <BrandMark caption={m.brandCaption} className="mb-8" />
+        <BrandMark caption={accountMessages[language].brandCaption} className="mb-5" />
+        <LanguageSwitch className="mb-6" />
         <main className="w-full">{children}</main>
       </div>
     );

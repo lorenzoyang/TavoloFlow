@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
 import { ServiceSuspendedNotice } from "@/features/dining/ServiceNotice";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import type { CurrentAccount } from "./api";
-import { messages as m } from "./messages";
+import { accountMessages } from "./messages";
 import { staffManagementItems, staffNavItems, type StaffDestination } from "./navigation";
 import { AuthBoundary } from "./AuthBoundary";
+import { LanguageSwitch } from "./LanguageSwitch";
 import { LogoutButton } from "./LogoutButton";
 import { useInstallOffer } from "./useInstallApp";
 
@@ -56,6 +58,7 @@ function ManagementRow({ item }: { item: StaffDestination }) {
 // some use (a tap and about 30 seconds); until then, and in other browsers, the steps per device
 // are listed.
 function InstallSection() {
+  const m = accountMessages[useStaffLanguage()];
   const { standalone, installed, canInstall, install } = useInstallOffer();
   if (standalone) return null;
   return (
@@ -88,6 +91,8 @@ function InstallSection() {
 }
 
 function Home({ account, passwordChanged }: { account: CurrentAccount; passwordChanged: boolean }) {
+  const language = useStaffLanguage();
+  const m = accountMessages[language];
   const role = account.role === "OWNER" ? m.owner : m.staff;
   return (
     <div className="mx-auto max-w-3xl space-y-8">
@@ -102,7 +107,7 @@ function Home({ account, passwordChanged }: { account: CurrentAccount; passwordC
           {m.workspaces}
         </h2>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {staffNavItems(account.role)
+          {staffNavItems(account.role, language)
             .filter((item) => item.to !== "/staff")
             .map((item) => (
               <WorkspaceTile key={item.to} item={item} />
@@ -114,7 +119,7 @@ function Home({ account, passwordChanged }: { account: CurrentAccount; passwordC
           {m.management}
         </h2>
         <div className="divide-y rounded-2xl border bg-card shadow-xs">
-          {staffManagementItems(account.role).map((item) => (
+          {staffManagementItems(account.role, language).map((item) => (
             <ManagementRow key={item.to} item={item} />
           ))}
         </div>
@@ -137,6 +142,10 @@ function Home({ account, passwordChanged }: { account: CurrentAccount; passwordC
                 </div>
               ))}
             </dl>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="text-sm text-muted-foreground">{m.language}</span>
+              <LanguageSwitch />
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <Link
                 to="/staff/change-password"

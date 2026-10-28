@@ -9,13 +9,19 @@ import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { Button } from "@/components/ui/button";
 import { errorMessage } from "@/lib/api";
+import { staffMessages } from "@/lib/staff-messages";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import { readStaffAccount, resetStaffPassword } from "./api";
+import { managementMessages } from "./management-messages";
 import { AccountActions, TemporaryPasswords } from "./ManagementViews";
 import { useManagement } from "./useManagement";
 import type { ManagedAccount } from "./state";
 
 function StaffSettings({ owner }: { owner: CurrentAccount }) {
+  const language = useStaffLanguage();
+  const m = managementMessages[language];
+  const c = staffMessages[language];
   const query = useQuery({
     queryKey: ["staff-account", owner.restaurantId, owner.userId],
     queryFn: ({ signal }) => readStaffAccount(signal),
@@ -44,14 +50,14 @@ function StaffSettings({ owner }: { owner: CurrentAccount }) {
   return (
     <div className="mx-auto max-w-2xl">
       <PageHeader
-        title="员工账号"
-        description={`${owner.restaurantName} · 店里所有员工设备共用这个 STAFF 账号。`}
-        back={{ to: "/staff", label: "首页" }}
+        title={m.staffTitle}
+        description={m.staffDescription(owner.restaurantName)}
+        back={{ to: "/staff", label: c.home }}
         actions={
           <Button
             variant="outline"
             size="icon"
-            aria-label="刷新员工账号"
+            aria-label={m.refreshStaff}
             onClick={() => void query.refetch()}
           >
             <RefreshCw className={cn(query.isFetching && "animate-spin")} />
@@ -59,12 +65,15 @@ function StaffSettings({ owner }: { owner: CurrentAccount }) {
         }
       />
       <div className="space-y-4">
-        {query.isPending && <LoadingState label="正在读取员工账号…" />}
-        {query.error && <Notice tone="error">{errorMessage(query.error)}</Notice>}
+        {query.isPending && <LoadingState label={m.loadingStaff} />}
+        {query.error && (
+          <Notice tone="error">{errorMessage(query.error, undefined, language)}</Notice>
+        )}
         {query.data && (
           <AccountActions
             account={query.data}
             platform={false}
+            language={language}
             disabled={locked || !!confirmation}
             choose={(_, a) => setConfirmation(a)}
           />
@@ -72,36 +81,39 @@ function StaffSettings({ owner }: { owner: CurrentAccount }) {
         {actions.message && <Notice>{actions.message}</Notice>}
         {actions.pending && (
           <Button disabled={actions.busy} onClick={() => void actions.recover()}>
-            查询原操作结果
+            {m.verify}
           </Button>
         )}
-        <TemporaryPasswords credentials={actions.secrets} close={actions.clearSecrets} />
+        <TemporaryPasswords
+          credentials={actions.secrets}
+          close={actions.clearSecrets}
+          language={language}
+        />
       </div>
       <ConfirmDialog
         open={!!confirmation}
-        title="确认重置员工密码"
-        description={
-          confirmation &&
-          `${owner.restaurantName} · ${confirmation.username}：重置后所有员工设备须重新登录，并修改临时密码。`
-        }
-        confirmLabel="确认重置"
+        title={m.resetTitle}
+        description={confirmation && m.resetHint(owner.restaurantName, confirmation.username)}
+        confirmLabel={m.confirmReset}
+        cancelLabel={c.cancel}
         confirmDisabled={locked || changed}
         onConfirm={() => void submit()}
         onCancel={() => setConfirmation(null)}
       >
-        {changed && <Notice tone="error">账号已变化，请取消后重新核对。</Notice>}
+        {changed && <Notice tone="error">{m.accountChanged}</Notice>}
       </ConfirmDialog>
     </div>
   );
 }
 export function StaffSettingsPage() {
+  const m = managementMessages[useStaffLanguage()];
   return (
     <AuthBoundary mode="account">
       {(owner) =>
         owner.role === "OWNER" ? (
           <StaffSettings key={`${owner.restaurantId}:${owner.userId}`} owner={owner} />
         ) : (
-          <Notice tone="warning">仅老板可以管理员工密码。</Notice>
+          <Notice tone="warning">{m.ownerOnly}</Notice>
         )
       }
     </AuthBoundary>

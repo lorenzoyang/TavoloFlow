@@ -163,7 +163,7 @@ export function PlatformSubscription({
       {detail.error && <Notice tone="error">{errorMessage(detail.error)}</Notice>}
       {summary && (
         <div className="space-y-4">
-          <SubscriptionStatus summary={summary} />
+          <SubscriptionStatus summary={summary} language="zh" />
           <dl className="grid gap-x-4 gap-y-2 border-t pt-4 text-sm sm:grid-cols-[10rem_1fr]">
             <dt className="text-muted-foreground">老板联系方式</dt>
             <dd className="font-medium whitespace-pre-wrap wrap-break-word">
@@ -261,7 +261,7 @@ export function PlatformSubscription({
             ) : (
               <>
                 <div className="sm:col-span-2">
-                  <PeriodDetails period={editor.period!} />
+                  <PeriodDetails period={editor.period!} language="zh" />
                 </div>
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="subscription-paid">实际付费日期</Label>
@@ -323,7 +323,7 @@ export function PlatformSubscription({
       {periods?.length === 0 && <p className="text-sm text-muted-foreground">尚未登记收费周期。</p>}
       {periods?.map((period) => (
         <article className="space-y-3 rounded-xl border p-4" key={period.id}>
-          <PeriodDetails period={period} />
+          <PeriodDetails period={period} language="zh" />
           <div className="flex flex-wrap gap-2">
             {!period.paidOn && (
               <>

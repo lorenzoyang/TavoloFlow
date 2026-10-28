@@ -1,7 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { UtensilsCrossed } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import type { CurrentAccount } from "./api";
+import { accountMessages } from "./messages";
 import { staffNavItems, type StaffDestination } from "./navigation";
 
 function NavItem({ item, rail }: { item: StaffDestination; rail: boolean }) {
@@ -26,11 +28,13 @@ function NavItem({ item, rail }: { item: StaffDestination; rail: boolean }) {
 
 // One list of tabs: a bottom bar on phones, a side rail from tablet width up.
 export function StaffNav({ account }: { account: CurrentAccount }) {
-  const items = staffNavItems(account.role);
+  const language = useStaffLanguage();
+  const items = staffNavItems(account.role, language);
+  const label = accountMessages[language].mainNav;
   return (
     <>
       <nav
-        aria-label="主导航"
+        aria-label={label}
         className="sticky top-0 hidden h-dvh w-24 shrink-0 flex-col items-center gap-1 border-r bg-card/70 px-2 pt-[max(1.25rem,env(safe-area-inset-top))] pb-5 md:flex"
       >
         <span className="mb-4 flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
@@ -44,7 +48,7 @@ export function StaffNav({ account }: { account: CurrentAccount }) {
         </p>
       </nav>
       <nav
-        aria-label="主导航"
+        aria-label={label}
         className="fixed inset-x-0 bottom-0 z-40 border-t bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
       >
         <div

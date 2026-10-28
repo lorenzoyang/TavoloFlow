@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { BillSummary } from "@/features/billing/state";
 import { formatDateTime, formatMoney, formatTime } from "@/lib/format";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import type { CodeResult, FloorTable } from "./api";
+import { diningMessages } from "./messages";
 
 // Empty tables open on tap; dining tables show their opening time, unsent kitchen work and amount.
 export function TableTile({
@@ -20,18 +22,20 @@ export function TableTile({
   disabled: boolean;
   onSelect: () => void;
 }) {
+  const language = useStaffLanguage();
+  const m = diningMessages[language];
   const session = table.session;
   const status = session
-    ? `用餐中，${session.newItemCount ? `待出餐 ${session.newItemCount} 项，` : ""}${formatMoney(session.totalAmountCents)}`
+    ? m.tileStatus(session.newItemCount, formatMoney(session.totalAmountCents, language))
     : table.isEnabled
-      ? "空桌，点按开桌"
-      : "已停用";
+      ? m.tileFree
+      : m.disabled;
   return (
     <button
       type="button"
       disabled={disabled}
       aria-pressed={session ? selected : undefined}
-      aria-label={`${table.tableLabel}：${status}`}
+      aria-label={m.tile(table.tableLabel, status)}
       onClick={onSelect}
       className={cn(
         "relative flex min-h-28 flex-col justify-between gap-2 rounded-2xl border p-3 text-left shadow-xs transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
@@ -57,14 +61,16 @@ export function TableTile({
       {session ? (
         <span className="space-y-0.5">
           <span className="block text-xs text-muted-foreground">
-            {formatTime(session.openedAt)} 开桌
+            {m.openedAt(formatTime(session.openedAt, language))}
           </span>
           <span className="block font-semibold tabular-nums">
-            {formatMoney(session.totalAmountCents)}
+            {formatMoney(session.totalAmountCents, language)}
           </span>
         </span>
       ) : (
-        <span className="text-sm text-muted-foreground">{table.isEnabled ? "空桌" : "已停用"}</span>
+        <span className="text-sm text-muted-foreground">
+          {table.isEnabled ? m.freeShort : m.disabled}
+        </span>
       )}
     </button>
   );
@@ -85,21 +91,23 @@ export function SessionSummary({
   disabled: boolean;
   viewCode: () => void;
 }) {
-  if (!session) return <LoadingState label="正在读取本轮用餐…" />;
+  const language = useStaffLanguage();
+  const m = diningMessages[language];
+  if (!session) return <LoadingState label={m.loadingVisit} />;
   const active = session.status === "ACTIVE";
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-        <Badge variant={active ? "default" : "secondary"}>{active ? "用餐中" : "本轮已结束"}</Badge>
-        <span>开桌：{formatDateTime(session.openedAt)}</span>
-        {active && <span>已提交订单 {session.orderCount} 笔</span>}
+        <Badge variant={active ? "default" : "secondary"}>{active ? m.active : m.ended}</Badge>
+        <span>{m.openedOn(formatDateTime(session.openedAt, language))}</span>
+        {active && <span>{m.orders(session.orderCount)}</span>}
       </div>
       {active &&
         codeRequired &&
         (code?.sessionId === session.sessionId ? (
           <div className="space-y-2 rounded-2xl border border-primary/25 bg-accent p-4">
             <label htmlFor="staff-join-code" className="text-sm font-medium">
-              本轮入桌码 · 仅告知本桌顾客
+              {m.codeLabel}
             </label>
             <Input
               id="staff-join-code"
@@ -112,7 +120,7 @@ export function SessionSummary({
         ) : (
           <Button variant="outline" className="w-full" disabled={disabled} onClick={viewCode}>
             <KeyRound />
-            查看入桌码
+            {m.showCode}
           </Button>
         ))}
     </div>

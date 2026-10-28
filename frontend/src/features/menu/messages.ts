@@ -1,10 +1,18 @@
+import { allergenNames } from "@/features/public-menu/messages";
+import type { Language } from "@/lib/language";
+import type { StaffLanguage } from "@/lib/staff-language";
+
+// Menu content is written in all three guest languages, whatever the staff page's own language.
 export const languages = [
-  { code: "zh", suffix: "Zh", label: "中文" },
-  { code: "it", suffix: "It", label: "意大利语" },
-  { code: "en", suffix: "En", label: "英语" },
+  { code: "zh", suffix: "Zh" },
+  { code: "it", suffix: "It" },
+  { code: "en", suffix: "En" },
 ] as const;
 
-export const messages = {
+const zh = {
+  languageNames: { zh: "中文", it: "意大利语", en: "英语" } as Record<Language, string>,
+  nameIn: (language: string) => `${language}名称`,
+  descriptionIn: (language: string) => `${language}描述（可选）`,
   title: "菜单管理",
   ownerHint: "维护分类、菜品和过敏原，调整菜单的供应状态。",
   staffHint: "查看本店菜单，将暂时无法供应的菜品设为售罄。",
@@ -23,6 +31,9 @@ export const messages = {
   editItem: "编辑菜品",
   edit: "编辑",
   remove: "删除",
+  editOf: (name: string) => `编辑：${name}`,
+  removeOf: (name: string) => `删除：${name}`,
+  removeTitle: (name: string) => `删除「${name}」`,
   confirmDelete: "确认删除",
   deleteHint: "删除后不能恢复。菜品的历史订单快照会保留；非空分类需要先移走或删除菜品。",
   cancel: "取消",
@@ -38,8 +49,6 @@ export const messages = {
   priceHint: "例如 12.50；最多两位小数，也可使用逗号作为小数点。",
   priceInvalid: "请输入大于零、最多两位小数且在安全范围内的价格。",
   namesInvalid: "至少填写一种语言的名称。",
-  name: "名称",
-  description: "描述（可选）",
   allergens: "过敏原审核",
   review: "我已核对配料及制作信息，确认以上过敏原声明。",
   reviewHint: "修改过敏原选项后须重新确认。没有勾选不代表没有交叉接触风险。",
@@ -48,9 +57,11 @@ export const messages = {
   unreviewed: "未完成过敏原审核，请由老板编辑确认后再恢复供应。",
   available: "可供应",
   soldOut: "已售罄",
+  availability: (name: string) => `供应状态：${name}`,
+  settings: "菜单设置",
   defaultLanguage: "菜单默认语言",
   defaultHint:
-    "设置菜单的首选语言，缺少翻译时逐条回退。菜单增删不会改变此设置；后台仍优先显示中文。",
+    "设置菜单的首选语言，缺少翻译时逐条回退。菜单增删不会改变此设置；店铺页面优先显示当前界面语言。",
   setDefault: "保存默认语言",
   fieldError: "请检查以下字段",
   photo: "菜品图片（可选）",
@@ -64,4 +75,102 @@ export const messages = {
   removePhotoHint: "客人菜单将不再显示这张图片，需要时可以重新上传。",
   photoTooLarge: "图片超过 15 MB，请换一张较小的照片。",
   photoSaved: "图片已更新。",
-} as const;
+  // Empty: Chinese pages show the server's own allergen descriptions.
+  allergenHints: {} as Record<string, string>,
+};
+
+export const menuMessages: Record<StaffLanguage, typeof zh> = {
+  zh,
+  it: {
+    languageNames: { zh: "Cinese", it: "Italiano", en: "Inglese" },
+    nameIn: (language) => `Nome in ${language.toLowerCase()}`,
+    descriptionIn: (language) => `Descrizione in ${language.toLowerCase()} (facoltativa)`,
+    title: "Gestione menu",
+    ownerHint: "Gestisci categorie, piatti, allergeni e disponibilità del menu.",
+    staffHint: "Consulta il menu e segna come esauriti i piatti non disponibili.",
+    refresh: "Aggiorna menu",
+    loading: "Caricamento del menu…",
+    retry: "Ricarica il menu e verifica",
+    readError: "Impossibile leggere il menu. Controlla la connessione e riprova.",
+    saved: "Salvato.",
+    refreshFailed: "Operazione riuscita, ma il menu non si è aggiornato: ricaricalo.",
+    unknown:
+      "Esito non confermato. Quando torna la connessione ricarica il menu, verifica e poi decidi se inviare di nuovo.",
+    categories: "Categorie",
+    all: "Tutti i piatti",
+    addCategory: "Nuova categoria",
+    editCategory: "Modifica categoria",
+    addItem: "Nuovo piatto",
+    editItem: "Modifica piatto",
+    edit: "Modifica",
+    remove: "Elimina",
+    editOf: (name) => `Modifica: ${name}`,
+    removeOf: (name) => `Elimina: ${name}`,
+    removeTitle: (name) => `Elimina «${name}»`,
+    confirmDelete: "Elimina",
+    deleteHint:
+      "L’eliminazione è definitiva. Gli ordini passati restano invariati; una categoria va svuotata prima di eliminarla.",
+    cancel: "Annulla",
+    save: "Salva",
+    saving: "Invio…",
+    nameHint: "Inserisci il nome in almeno una lingua; le altre traduzioni puoi aggiungerle dopo.",
+    noCategories: "Nessuna categoria. Aggiungine una prima di inserire i piatti.",
+    noItems: "Questa categoria non ha ancora piatti.",
+    staffEmpty: "Nessun piatto: chiedi al titolare di completare il menu.",
+    category: "Categoria",
+    itemCode: "Codice (facoltativo)",
+    price: "Prezzo (€)",
+    priceHint: "Ad esempio 12,50; massimo due decimali, con virgola o punto.",
+    priceInvalid: "Inserisci un prezzo maggiore di zero, con al massimo due decimali.",
+    namesInvalid: "Inserisci il nome in almeno una lingua.",
+    allergens: "Verifica allergeni",
+    review: "Ho controllato ingredienti e preparazione e confermo gli allergeni indicati.",
+    reviewHint:
+      "Dopo ogni modifica agli allergeni conferma di nuovo. Nessuna selezione non esclude il rischio di contaminazione crociata.",
+    reviewRequired: "Conferma prima la verifica degli allergeni.",
+    reviewedEmpty: "Verificato: nessun allergene da dichiarare",
+    unreviewed:
+      "Allergeni non verificati: il titolare deve modificare il piatto e confermarli prima di renderlo disponibile.",
+    available: "Disponibile",
+    soldOut: "Esaurito",
+    availability: (name) => `Disponibilità: ${name}`,
+    settings: "Impostazioni del menu",
+    defaultLanguage: "Lingua predefinita del menu",
+    defaultHint:
+      "La lingua preferita del menu; se manca una traduzione si passa alla successiva, voce per voce. Aggiungere o eliminare piatti non la cambia; le pagine del locale mostrano prima la lingua dell’interfaccia.",
+    setDefault: "Salva lingua",
+    fieldError: "Controlla questi campi",
+    photo: "Foto del piatto (facoltativa)",
+    photoHint:
+      "JPG, PNG o WebP fino a 15 MB. La foto viene ritagliata al centro in un quadrato e salvata subito, senza premere Salva.",
+    photoAfterCreate: "Dopo aver salvato il piatto potrai aggiungere la foto modificandolo.",
+    choosePhoto: "Scegli foto",
+    replacePhoto: "Cambia foto",
+    removePhoto: "Elimina foto",
+    removePhotoTitle: "Eliminare la foto del piatto?",
+    removePhotoHint: "Il menu dei clienti non la mostrerà più; potrai caricarla di nuovo.",
+    photoTooLarge: "La foto supera 15 MB: scegline una più piccola.",
+    photoSaved: "Foto aggiornata.",
+    allergenHints: {
+      GLUTEN: "Ad esempio frumento, segale, orzo, avena e derivati",
+      CRUSTACEANS: "Ad esempio gamberi, granchi, astici e derivati",
+      EGGS: "Uova e derivati",
+      FISH: "Pesce e derivati",
+      PEANUTS: "Arachidi e derivati",
+      SOY: "Soia e derivati",
+      MILK: "Latte e derivati, incluso il lattosio",
+      NUTS: "Ad esempio mandorle, nocciole, noci, anacardi e derivati",
+      CELERY: "Sedano e derivati",
+      MUSTARD: "Senape e derivati",
+      SESAME: "Sesamo e derivati",
+      SULPHITES: "Oltre 10 mg/kg o 10 mg/L, espressi come anidride solforosa totale",
+      LUPIN: "Lupini e derivati",
+      MOLLUSCS: "Ad esempio cozze, ostriche, calamari, lumache e derivati",
+    },
+  },
+};
+
+// The server names allergens in Chinese; Italian pages reuse the guest menu's names.
+export function allergenLabel(option: { code: string; label: string }, language: StaffLanguage) {
+  return language === "zh" ? option.label : (allergenNames.it[option.code] ?? option.label);
+}

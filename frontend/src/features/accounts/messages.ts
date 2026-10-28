@@ -1,4 +1,6 @@
-export const messages = {
+import type { StaffLanguage } from "@/lib/staff-language";
+
+const zh = {
   brandCaption: "餐厅管理",
   loginTitle: "登录你的店铺",
   loginDescription: "使用店铺账号，开始今天的工作。",
@@ -16,6 +18,7 @@ export const messages = {
   role: "账号角色",
   owner: "老板",
   staff: "员工",
+  language: "界面语言",
   changeTitle: "修改密码",
   firstChangeTitle: "设置你的新密码",
   firstChangeDescription: "首次登录需要更换初始密码，完成后即可进入店铺。",
@@ -34,6 +37,7 @@ export const messages = {
   back: "返回首页",
   showPassword: "显示密码",
   hidePassword: "隐藏密码",
+  passwordToggle: (action: string, field: string) => `${action}：${field}`,
   loading: "正在确认登录状态…",
   retry: "重新尝试",
   connectionError: "暂时无法连接服务器，请检查网络后重试。",
@@ -43,6 +47,7 @@ export const messages = {
   loginUnknown: "登录结果暂时无法确认，请重新核对登录状态。",
   notFound: "页面不存在",
   goToAccount: "返回首页",
+  mainNav: "主导航",
   installSection: "安装到本设备",
   installDescription:
     "安装后可从主屏幕或桌面图标直接打开，不用再找网址。已安装的设备请从图标打开。",
@@ -54,4 +59,115 @@ export const messages = {
   installDesktop: "电脑：在 Chrome 或 Edge 中点按地址栏的安装图标，或在菜单中选择安装。",
   installKitchenSound:
     "厨房提醒声：在 Android 和电脑上从图标打开即可直接播放；iPhone / iPad 仍需先点按一次页面。",
-} as const;
+  // Tab labels must stay one short word: the phone tab bar gives each about 70px.
+  nav: {
+    home: { label: "首页", description: "常用入口与账号" },
+    floor: { label: "桌台", description: "开桌、告知入桌码、查看本桌账单" },
+    kitchen: { label: "厨房", description: "按下单顺序出餐，逐道完成或取消" },
+    orders: { label: "结账", description: "核对整桌账单，线下收款后清桌" },
+    menu: {
+      label: "菜单",
+      ownerDescription: "维护分类、菜品与售罄状态",
+      staffDescription: "把暂时没有的菜设为售罄",
+    },
+    tables: {
+      label: "桌位与二维码",
+      ownerDescription: "添加桌位，下载二维码和桌卡",
+      staffDescription: "查看桌位与用餐状态",
+    },
+    pass: { label: "传菜", description: "出餐口平板：已出餐、待送到桌的菜品" },
+    history: { label: "历史账单", description: "按日期查看已关闭的账单" },
+    settings: { label: "员工账号", description: "重置员工的登录密码" },
+    subscription: { label: "年费与收费周期", description: "查看服务期限和付款记录" },
+  },
+};
+
+export const accountMessages: Record<StaffLanguage, typeof zh> = {
+  zh,
+  it: {
+    brandCaption: "Gestione ristorante",
+    loginTitle: "Accedi al tuo locale",
+    loginDescription: "Usa l’account del locale per iniziare la giornata.",
+    username: "Nome utente",
+    password: "Password",
+    login: "Accedi",
+    loggingIn: "Accesso in corso…",
+    loginFootnote: "Usa l’account titolare o staff fornito dall’amministratore.",
+    sessionNote:
+      "L’accesso dura 30 giorni, anche chiudendo il browser. Sui dispositivi condivisi esci quando hai finito.",
+    greeting: "Ciao, ",
+    workspaces: "Postazioni",
+    management: "Gestione",
+    accountSection: "Account",
+    restaurant: "Ristorante",
+    role: "Ruolo",
+    owner: "Titolare",
+    staff: "Staff",
+    language: "Lingua",
+    changeTitle: "Cambia password",
+    firstChangeTitle: "Imposta la nuova password",
+    firstChangeDescription:
+      "Al primo accesso devi cambiare la password iniziale, poi potrai entrare nel locale.",
+    changeDescription:
+      "Questo browser resta connesso; gli altri dispositivi dovranno accedere di nuovo.",
+    currentPassword: "Password attuale",
+    newPassword: "Nuova password",
+    confirmPassword: "Conferma nuova password",
+    passwordHint: "6–128 caratteri, anche solo cifre, diversa da quella attuale.",
+    passwordMismatch: "Le due nuove password non coincidono.",
+    invalidPassword: "La nuova password deve avere 6–128 caratteri e non solo spazi.",
+    savePassword: "Salva password",
+    savingPassword: "Salvataggio…",
+    changeSuccess: "Password aggiornata. Gli accessi sugli altri dispositivi non sono più validi.",
+    logout: "Esci",
+    loggingOut: "Uscita in corso…",
+    back: "Torna alla home",
+    showPassword: "Mostra password",
+    hidePassword: "Nascondi password",
+    passwordToggle: (action, field) => `${action}: ${field}`,
+    loading: "Verifica dell’accesso…",
+    retry: "Riprova",
+    connectionError: "Server non raggiungibile. Controlla la connessione e riprova.",
+    unknownPasswordResult:
+      "Esito del cambio non confermato. Verifica di nuovo l’accesso, oppure esci e accedi con la nuova password.",
+    verifyIdentity: "Verifica di nuovo l’accesso",
+    unknownLogoutResult: "Uscita non confermata. Verifica di nuovo quando torna la connessione.",
+    loginUnknown: "Esito dell’accesso non confermato. Verifica di nuovo l’accesso.",
+    notFound: "Pagina inesistente",
+    goToAccount: "Torna alla home",
+    mainNav: "Navigazione principale",
+    installSection: "Installa su questo dispositivo",
+    installDescription:
+      "Una volta installata, apri l’app dall’icona sulla schermata Home o sul desktop, senza cercare l’indirizzo. Dove è già installata, aprila dall’icona.",
+    install: "Installa app",
+    installed: "Installata. D’ora in poi aprila dall’icona sulla schermata Home o sul desktop.",
+    installIos:
+      "iPhone / iPad: in Safari tocca «Condividi» (nelle versioni recenti è nel menu «⋯») e scegli «Aggiungi alla schermata Home». Alla prima apertura dall’icona dovrai accedere di nuovo.",
+    installAndroid:
+      "Android: nel menu di Chrome scegli «Aggiungi a schermata Home» o «Installa app».",
+    installDesktop:
+      "Computer: in Chrome o Edge tocca l’icona di installazione nella barra degli indirizzi, oppure scegli Installa dal menu.",
+    installKitchenSound:
+      "Suoni della cucina: su Android e computer suonano subito aprendo dall’icona; su iPhone / iPad serve ancora un tocco sulla pagina.",
+    nav: {
+      home: { label: "Home", description: "Accessi rapidi e account" },
+      floor: { label: "Sala", description: "Apri i tavoli, comunica il codice, vedi il conto" },
+      kitchen: { label: "Cucina", description: "Piatti in ordine di arrivo, uno alla volta" },
+      orders: { label: "Conto", description: "Controlla il conto, incassa e libera il tavolo" },
+      menu: {
+        label: "Menu",
+        ownerDescription: "Categorie, piatti e disponibilità",
+        staffDescription: "Segna come esauriti i piatti finiti",
+      },
+      tables: {
+        label: "Tavoli e QR",
+        ownerDescription: "Aggiungi tavoli, scarica QR e segnatavolo",
+        staffDescription: "Tavoli e stato delle visite",
+      },
+      pass: { label: "Pass", description: "Tablet del pass: piatti pronti da portare ai tavoli" },
+      history: { label: "Storico conti", description: "Conti chiusi, per data" },
+      settings: { label: "Account staff", description: "Reimposta la password dello staff" },
+      subscription: { label: "Abbonamento", description: "Scadenze del servizio e pagamenti" },
+    },
+  },
+};

@@ -8,9 +8,10 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { Spinner } from "@/components/ui/spinner";
 import { FieldSet } from "@/components/ui/field";
 import { ApiError, errorMessage } from "@/lib/api";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { changePassword, type CurrentAccount } from "./api";
 import { replaceAccount } from "./queries";
-import { messages as m } from "./messages";
+import { accountMessages } from "./messages";
 import { VerifyIdentityButton } from "./AccountFeedback";
 import { AccountCard, AccountCardHeader } from "./AccountLayout";
 import { AuthBoundary } from "./AuthBoundary";
@@ -20,6 +21,8 @@ import { LogoutButton } from "./LogoutButton";
 type PasswordValidationError = { field: "newPassword" | "confirmPassword"; message: string };
 
 function PasswordForm({ account }: { account: CurrentAccount }) {
+  const language = useStaffLanguage();
+  const m = accountMessages[language];
   const navigate = useNavigate();
   const [validationError, setValidationError] = useState<PasswordValidationError | null>(null);
   const mutation = useMutation({
@@ -104,7 +107,9 @@ function PasswordForm({ account }: { account: CurrentAccount }) {
             onChange={() => setValidationError(null)}
           />
           {mutation.isError && (
-            <Notice tone="error">{errorMessage(mutation.error, m.unknownPasswordResult)}</Notice>
+            <Notice tone="error">
+              {errorMessage(mutation.error, m.unknownPasswordResult, language)}
+            </Notice>
           )}
           <Button type="submit" size="lg" disabled={mutation.isPending} className="w-full">
             {mutation.isPending && <Spinner />}

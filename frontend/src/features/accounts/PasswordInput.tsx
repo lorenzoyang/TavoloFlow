@@ -3,7 +3,8 @@ import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { messages as m } from "./messages";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
+import { accountMessages } from "./messages";
 
 type PasswordInputProps = {
   name: string;
@@ -26,6 +27,7 @@ export function PasswordInput({
   disabled,
   onChange,
 }: PasswordInputProps) {
+  const m = accountMessages[useStaffLanguage()];
   const id = useId();
   const [visible, setVisible] = useState(false);
   const descriptionId = `${id}-description`;
@@ -56,7 +58,7 @@ export function PasswordInput({
           size="icon"
           disabled={disabled}
           onClick={() => setVisible(!visible)}
-          aria-label={`${visible ? m.hidePassword : m.showPassword}：${label}`}
+          aria-label={m.passwordToggle(visible ? m.hidePassword : m.showPassword, label)}
           aria-pressed={visible}
           className="absolute top-0 right-0 text-muted-foreground"
         >

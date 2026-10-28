@@ -4,28 +4,31 @@ import { Notice } from "@/components/notice";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { accountQuery } from "@/features/accounts/queries";
 import type { CurrentAccount } from "@/features/accounts/api";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import {
   getOwnerSubscription,
   getReminders,
   ownerSubscriptionKey,
   subscriptionRemindersKey,
 } from "./api";
+import { subscriptionMessages } from "./messages";
 import { useSubscriptionQuery } from "./queries";
 
 // One compact line above every owner page; the details live on /staff/subscription.
 function OwnerReminder({ account }: { account: CurrentAccount }) {
+  const m = subscriptionMessages[useStaffLanguage()];
   const detail = useSubscriptionQuery(ownerSubscriptionKey(account), getOwnerSubscription);
   if (!detail.data)
     return detail.isError ? (
       <p role="status" className="mb-4 text-sm text-muted-foreground">
-        年费提醒暂时无法更新。
+        {m.reminderError}
       </p>
     ) : null;
   const summary = detail.data.summary;
   const reminders = [
-    summary.serviceState === "EXPIRED" && "约定服务期限已到期，请安排续费。",
-    summary.unpaidPeriodCount > 0 && `有 ${summary.unpaidPeriodCount} 个已开始的周期待付费。`,
-    summary.dueSoon && "服务将在 7 天内到期，请安排续费。",
+    summary.serviceState === "EXPIRED" && m.expired,
+    summary.unpaidPeriodCount > 0 && m.unpaid(summary.unpaidPeriodCount),
+    summary.dueSoon && m.dueSoon,
   ].filter(Boolean);
   if (!reminders.length) return null;
   return (
@@ -37,12 +40,12 @@ function OwnerReminder({ account }: { account: CurrentAccount }) {
           to="/staff/subscription"
           className={buttonVariants({ variant: "outline", size: "sm" })}
         >
-          查看年费与收费周期
+          {m.viewSubscription}
         </Link>
       }
     >
       {reminders.join(" ")}
-      {detail.stale && " 提醒待刷新。"}
+      {detail.stale && m.reminderStale}
     </Notice>
   );
 }

@@ -5,12 +5,13 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldLabel, FieldDescription, FieldError, FieldSet } from "@/components/ui/field";
-import { ApiError } from "@/lib/api";
+import { ApiError, fieldErrors } from "@/lib/api";
 import { formatCents, parsePrice } from "@/lib/format";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import type { Category, Menu, MenuItem } from "./api";
 import type { Names } from "@/lib/language";
 import { displayName } from "@/lib/language";
-import { languages, messages as m } from "./messages";
+import { allergenLabel, languages, menuMessages } from "./messages";
 
 type FormProps = {
   busy: boolean;
@@ -21,12 +22,14 @@ type FormProps = {
 };
 
 function Errors({ error }: { error: unknown }) {
+  const language = useStaffLanguage();
+  const m = menuMessages[language];
   if (!(error instanceof ApiError) || Object.keys(error.errors).length === 0) return null;
   return (
     <FieldError>
       <p>{m.fieldError}</p>
       <ul className="list-inside list-disc">
-        {Object.entries(error.errors).map(([field, errors]) => (
+        {Object.entries(fieldErrors(error, language)).map(([field, errors]) => (
           <li key={field}>{errors.join(" ")}</li>
         ))}
       </ul>
@@ -44,17 +47,18 @@ function NameFields({
   descriptions?: boolean;
   error: unknown;
 }) {
-  const errors = error instanceof ApiError ? error.errors : {};
+  const language = useStaffLanguage();
+  const m = menuMessages[language];
+  const errors = fieldErrors(error, language);
   return (
     <div className="space-y-4">
-      {languages.map(({ code, suffix, label }) => (
+      {languages.map(({ code, suffix }) => (
         <fieldset key={code} className="space-y-3 rounded-xl border p-3">
-          <legend className="px-1 text-sm font-medium text-muted-foreground">{label}</legend>
+          <legend className="px-1 text-sm font-medium text-muted-foreground">
+            {m.languageNames[code]}
+          </legend>
           <Field>
-            <FieldLabel htmlFor={`name${suffix}`}>
-              {label}
-              {m.name}
-            </FieldLabel>
+            <FieldLabel htmlFor={`name${suffix}`}>{m.nameIn(m.languageNames[code])}</FieldLabel>
             <Input
               id={`name${suffix}`}
               name={`name${suffix}`}
@@ -73,8 +77,7 @@ function NameFields({
           {descriptions && (
             <Field>
               <FieldLabel htmlFor={`description${suffix}`}>
-                {label}
-                {m.description}
+                {m.descriptionIn(m.languageNames[code])}
               </FieldLabel>
               <Textarea
                 id={`description${suffix}`}
@@ -111,6 +114,7 @@ function namesFrom(data: FormData) {
 
 // Stays in view at the bottom of the editor sheet, however long the form is.
 function Actions({ busy, cancel }: Pick<FormProps, "busy" | "cancel">) {
+  const m = menuMessages[useStaffLanguage()];
   return (
     <div className="sticky bottom-0 -mx-4 grid grid-cols-2 gap-3 border-t bg-popover px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
       <Button type="button" variant="outline" onClick={cancel} disabled={busy}>
@@ -131,6 +135,7 @@ export function CategoryForm({
   save,
   feedback,
 }: FormProps & { initial?: Category }) {
+  const m = menuMessages[useStaffLanguage()];
   const [validation, setValidation] = useState("");
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -171,6 +176,8 @@ export function ItemForm({
   menu: Menu;
   categoryId: string;
 }) {
+  const language = useStaffLanguage();
+  const m = menuMessages[language];
   const [codes, setCodes] = useState(initial?.allergenCodes ?? []);
   const [reviewed, setReviewed] = useState(initial?.allergenReviewed ?? false);
   const [validation, setValidation] = useState("");
@@ -221,7 +228,7 @@ export function ItemForm({
             >
               {menu.categories.map((category) => (
                 <NativeSelectOption key={category.id} value={category.id}>
-                  {displayName(category, menu.defaultLanguage, "zh").text}
+                  {displayName(category, menu.defaultLanguage, language).text}
                 </NativeSelectOption>
               ))}
             </NativeSelect>
@@ -271,9 +278,9 @@ export function ItemForm({
                   }}
                 />
                 <span>
-                  {option.label}
+                  {allergenLabel(option, language)}
                   <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                    {option.description}
+                    {m.allergenHints[option.code] ?? option.description}
                   </span>
                 </span>
               </label>

@@ -3,10 +3,11 @@ import { ImageOff, ImagePlus, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { FieldDescription, FieldError } from "@/components/ui/field";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import { menuImageUrl, type MenuItem } from "./api";
 import { usePhoto } from "./usePhoto";
-import { messages as m } from "./messages";
+import { menuMessages } from "./messages";
 
 // Matches the API's upload limit, so an oversized photo is refused before it is sent.
 const maxPhotoBytes = 15 * 1024 * 1024;
@@ -61,6 +62,7 @@ export function ItemImageSection({
   // Drops the result of an earlier photo write, so the confirmation only reports its own failure.
   clear: () => void;
 }) {
+  const m = menuMessages[useStaffLanguage()];
   const input = useRef<HTMLInputElement>(null);
   const photo = usePhoto(item.imageId);
   const [tooLarge, setTooLarge] = useState(false);

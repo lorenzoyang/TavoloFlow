@@ -7,11 +7,13 @@ import { kitchenKey } from "@/features/kitchen/api";
 import { tablesKey } from "@/features/tables/api";
 import { ApiError, errorMessage, request, withTimeout, write } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
+import { staffMessages } from "@/lib/staff-messages";
 import { isLive, onLifecycleChange } from "@/lib/useLiveView";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { billingKey, historyKey } from "./api";
+import { billingMessages } from "./messages";
 import {
   canAcceptResult,
-  closeLabels,
   closureKey,
   closureRequest,
   readClosures,
@@ -23,6 +25,9 @@ import {
 
 export function useClosure(account: CurrentAccount) {
   const client = useQueryClient();
+  const language = useStaffLanguage();
+  const m = billingMessages[language];
+  const c = staffMessages[language];
   const key = closureKey(account.restaurantId, account.userId);
   const scope = useMemo(() => billingKey(account), [account]);
   const [pending, setPending] = useState<PendingClosure[]>(() => {
@@ -108,17 +113,22 @@ export function useClosure(account: CurrentAccount) {
         forget(action.sessionId);
         setError("");
         setConflict(null);
+        const table = c.table(data.tableLabel);
         setNotice(
           data.status === "CLOSED"
-            ? `${data.tableLabel} 桌已结束：${closeLabels[data.closeReason!]}，记录金额 ${formatMoney(data.totalAmountCents)}。请核对实际收款。`
-            : `${data.tableLabel} 桌原用餐仍在进行，请重新核对账单后决定是否关闭。系统不会自动重新提交。`,
+            ? m.recoveredClosed(
+                table,
+                m.close[data.closeReason!],
+                formatMoney(data.totalAmountCents, language),
+              )
+            : m.recoveredActive(table),
         );
       } catch (e) {
         if (!current()) return;
         if (e instanceof ApiError && e.status === 404) {
           forget(action.sessionId);
-          setError("原用餐记录已不可访问，请联系老板核对。不会对同桌下一轮执行关闭。");
-        } else setError(errorMessage(e, "关闭结果仍待确认，请恢复连接后核对原用餐。"));
+          setError(m.recoveredMissing);
+        } else setError(errorMessage(e, m.recoverUnknown, language));
       } finally {
         if (operations.current.get(action.sessionId) === controller)
           operations.current.delete(action.sessionId);
@@ -126,7 +136,7 @@ export function useClosure(account: CurrentAccount) {
           setBusy((ids) => ids.filter((id) => id !== action.sessionId));
       }
     },
-    [acceptSession, forget, sameIdentity],
+    [acceptSession, forget, sameIdentity, m, c, language],
   );
   const recoveryRef = useRef(recover);
   useEffect(() => {
@@ -206,17 +216,21 @@ export function useClosure(account: CurrentAccount) {
       if (!current()) return false;
       forget(id);
       setNotice(
-        `${summary.tableLabel} 桌已结束：${closeLabels[confirmation.kind]}，记录金额 ${formatMoney(summary.totalAmountCents)}。`,
+        m.closedNotice(
+          c.table(summary.tableLabel),
+          m.close[confirmation.kind],
+          formatMoney(summary.totalAmountCents, language),
+        ),
       );
       return true;
     } catch (e) {
       if (!current()) return false;
       if (e instanceof ApiError && e.status < 500) {
         forget(id);
-        setError(errorMessage(e));
+        setError(errorMessage(e, undefined, language));
         setConflict((e.body.currentBill as BillSummary | undefined) ?? null);
         refresh();
-      } else setError("关闭结果待确认。请核对原用餐，系统不会自动重新提交。");
+      } else setError(m.writeUnknown);
       return false;
     } finally {
       if (operations.current.get(id) === controller) operations.current.delete(id);

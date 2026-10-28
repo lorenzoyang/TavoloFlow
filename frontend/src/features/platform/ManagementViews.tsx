@@ -4,7 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
+import type { StaffLanguage } from "@/lib/staff-language";
 import { THEMES, themeAttribute, themeLabels, type RestaurantTheme } from "@/lib/theme";
+import { managementMessages } from "./management-messages";
 import type { TemporaryCredential, ManagedAccount } from "./state";
 
 // Each choice renders in its own palette (data-theme), so the radio card is also the preview.
@@ -79,10 +81,13 @@ export function MapLink({ url, name }: { url: string; name: string }) {
 export function TemporaryPasswords({
   credentials,
   close,
+  language,
 }: {
   credentials: TemporaryCredential[];
   close: () => void;
+  language: StaffLanguage;
 }) {
+  const m = managementMessages[language];
   const [notice, setNotice] = useState("");
   if (!credentials.length) return null;
   return (
@@ -94,11 +99,9 @@ export function TemporaryPasswords({
         <KeyRound aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-warning-foreground" />
         <div>
           <h2 id="temporary-passwords" className="font-semibold">
-            请安全交付临时密码
+            {m.passwordsTitle}
           </h2>
-          <p className="text-sm leading-6">
-            仅本次展示。关闭、离开或隐藏页面后无法再次查看；首次登录必须修改密码。
-          </p>
+          <p className="text-sm leading-6">{m.passwordsHint}</p>
         </div>
       </div>
       {credentials.map((c) => (
@@ -114,14 +117,14 @@ export function TemporaryPasswords({
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(c.temporaryPassword);
-                setNotice("已复制，请通过安全渠道交付。");
+                setNotice(m.copied);
               } catch {
-                setNotice("无法自动复制，请选中文字手动复制。");
+                setNotice(m.copyFailed);
               }
             }}
           >
             <Copy />
-            复制 {c.account.role} 临时密码
+            {m.copyPassword(c.account.role)}
           </Button>
         </div>
       ))}
@@ -130,7 +133,7 @@ export function TemporaryPasswords({
           {notice}
         </p>
       )}
-      <Button onClick={close}>已保存，关闭密码展示</Button>
+      <Button onClick={close}>{m.closePasswords}</Button>
     </section>
   );
 }
@@ -139,13 +142,16 @@ export function AccountActions({
   account,
   disabled,
   platform,
+  language,
   choose,
 }: {
   account: ManagedAccount;
   disabled: boolean;
   platform: boolean;
+  language: StaffLanguage;
   choose: (kind: "reset" | "active", account: ManagedAccount) => void;
 }) {
+  const m = managementMessages[language];
   return (
     <Card size="sm">
       <CardContent className="space-y-3">
@@ -154,10 +160,10 @@ export function AccountActions({
         </p>
         <div className="flex flex-wrap gap-2">
           <Badge variant={account.isActive ? "success" : "outline"}>
-            {account.isActive ? "账号已启用" : "账号已禁用"}
+            {account.isActive ? m.active : m.inactive}
           </Badge>
           <Badge variant={account.mustChangePassword ? "warning" : "secondary"}>
-            {account.mustChangePassword ? "登录后须修改临时密码" : "已完成改密"}
+            {account.mustChangePassword ? m.mustChange : m.changed}
           </Badge>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -166,7 +172,7 @@ export function AccountActions({
             disabled={disabled}
             onClick={() => choose("reset", { ...account })}
           >
-            重置 {account.role} 密码
+            {m.reset(account.role)}
           </Button>
           {platform && (
             <Button
@@ -174,7 +180,7 @@ export function AccountActions({
               disabled={disabled}
               onClick={() => choose("active", { ...account })}
             >
-              {account.isActive ? "禁用" : "启用"} {account.role} 账号
+              {m.toggle(account.isActive, account.role)}
             </Button>
           )}
         </div>

@@ -303,6 +303,7 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
                 key={a.id}
                 account={a}
                 platform
+                language="zh"
                 disabled={locked || !!confirmation}
                 choose={(kind, account) => setConfirmation({ kind, account })}
               />
@@ -321,7 +322,11 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
           查询原操作结果
         </Button>
       )}
-      <TemporaryPasswords credentials={actions.secrets} close={actions.clearSecrets} />
+      <TemporaryPasswords
+        credentials={actions.secrets}
+        close={actions.clearSecrets}
+        language="zh"
+      />
       <PlatformSubscription userId={identity.userId} restaurantId={id} />
     </>
   );

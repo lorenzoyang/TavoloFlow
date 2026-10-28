@@ -11,6 +11,8 @@ import { syncIsFresh, syncIsStalled } from "@/lib/live-view";
 import { isLive, onLifecycleChange } from "@/lib/useLiveView";
 import { orderChime } from "@/lib/alert-sound";
 import { useAlertSound } from "@/lib/useAlertSound";
+import { staffMessages } from "@/lib/staff-messages";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { uniqueBy } from "@/lib/utils";
 import { passKey } from "@/features/pass/api";
 import {
@@ -22,6 +24,7 @@ import {
   type KitchenOrder,
   type KitchenPage,
 } from "./api";
+import { kitchenMessages } from "./messages";
 import {
   arrivals,
   pendingKitchenKey,
@@ -34,6 +37,9 @@ import {
 
 export function useKitchen(account: CurrentAccount) {
   const client = useQueryClient();
+  const language = useStaffLanguage();
+  const m = kitchenMessages[language];
+  const c = staffMessages[language];
   const [status, setStatus] = useState<OrderStatus>("NEW");
   const [active, setActive] = useState(isLive);
   const [resumeAfter, setResumeAfter] = useState(Date.now);
@@ -160,9 +166,7 @@ export function useKitchen(account: CurrentAccount) {
           action,
           order.items.find((i) => i.id === action.itemId)?.status,
         );
-        setNotice(
-          `${order.tableLabel} 桌：${result === "reached" ? "已核对当前状态，操作目标已达到。" : result === "changed" ? "菜品已被处理，请查看最新状态。" : result === "legacy-reviewed" ? "已核对旧版整单操作的当前记录，请查看逐项状态。" : result === "missing" ? "原菜品已不可访问，请由老板核对。" : "菜品仍为待出餐；如需处理，请重新核对并确认。"}`,
-        );
+        setNotice(m.recovered(c.table(order.tableLabel), result));
         setError("");
       } catch (e) {
         if (!current()) return;
@@ -171,9 +175,9 @@ export function useKitchen(account: CurrentAccount) {
           (e.code === "SESSION_CLOSED" || e.code === "ORDER_NOT_FOUND")
         ) {
           forget(action.orderId);
-          setNotice("原订单已结束用餐或已不可访问，请由老板核对。不会重新发送操作。");
+          setNotice(m.recoveryClosed);
           void refresh();
-        } else setError(errorMessage(e, "结果仍待确认，请恢复连接后核对原订单。"));
+        } else setError(errorMessage(e, m.recoveryUnknown, language));
       } finally {
         if (operations.current.get(action.orderId) === controller)
           operations.current.delete(action.orderId);
@@ -181,7 +185,7 @@ export function useKitchen(account: CurrentAccount) {
           setBusy((ids) => ids.filter((id) => id !== action.orderId));
       }
     },
-    [acceptOrder, forget, refresh, sameAccount],
+    [acceptOrder, forget, refresh, sameAccount, m, c, language],
   );
   const recoveryRef = useRef(recover);
   useEffect(() => {
@@ -249,10 +253,10 @@ export function useKitchen(account: CurrentAccount) {
     baseline.current = result.baseline;
     if (result.added > 0) {
       // Server arrivals are an external event, announced even when audio is disabled.
-      setNotice(`收到 ${result.added} 笔新订单；当前待处理 ${head.pendingCount} 笔。`);
+      setNotice(m.arrivals(result.added, head.pendingCount));
       play();
     }
-  }, [head, active, resumeAfter, play]);
+  }, [head, active, resumeAfter, play, m]);
 
   async function perform(order: KitchenOrder, item: OrderLine, kind: "ready" | "cancel") {
     if (
@@ -298,16 +302,15 @@ export function useKitchen(account: CurrentAccount) {
       forget(order.id);
       // Feedback is replaced when the result arrives, not cleared on tap, so it does not flicker.
       setError("");
-      setNotice(
-        `${result.tableLabel} 桌 · ${displayName(item, order.defaultLanguage, "zh").text} ×${item.quantity}：${kind === "ready" ? "菜品已出餐。" : "菜品已取消，账单金额已更新。"}`,
-      );
+      const dish = displayName(item, order.defaultLanguage, language).text;
+      setNotice(m.done(`${c.table(result.tableLabel)} · ${dish} ×${item.quantity}`, kind));
       return result;
     } catch (e) {
       if (!current()) return;
       setNotice("");
       if (e instanceof ApiError && e.status < 500) {
         forget(order.id);
-        setError(errorMessage(e));
+        setError(errorMessage(e, undefined, language));
         if (e.status === 409) {
           // A cancellation confirmation cannot survive the target item becoming terminal.
           try {
@@ -317,7 +320,7 @@ export function useKitchen(account: CurrentAccount) {
             if (current()) void refresh();
           }
         }
-      } else setError("操作结果待确认。请核对原订单，系统不会自动重新提交。");
+      } else setError(m.writeUnknown);
     } finally {
       if (operations.current.get(order.id) === controller) operations.current.delete(order.id);
       if (mounted.current && generation === epoch.current) {

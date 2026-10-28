@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import type { RestaurantTable } from "./api";
+import { tableMessages } from "./messages";
 import { isLocalOnlyUrl, publicMenuUrl } from "./qr-url";
 import { renderTableCard } from "./table-card";
 
@@ -26,12 +28,16 @@ export function TableQr({
   table: RestaurantTable;
   restaurantName: string;
 }) {
+  const language = useStaffLanguage();
+  const m = tableMessages[language];
   let url = "";
   let configurationError = "";
   try {
     url = publicMenuUrl(table.qrPath, window.location.origin, import.meta.env.VITE_PUBLIC_BASE_URL);
   } catch (error) {
-    configurationError = error instanceof Error ? error.message : "二维码地址配置无效。";
+    // The detailed reason is written in Chinese for whoever configures the deployment.
+    configurationError =
+      language === "zh" && error instanceof Error ? error.message : m.configError;
   }
   const [image, setImage] = useState<{ url: string; data?: string; error?: string }>();
   const [notice, setNotice] = useState("");
@@ -50,19 +56,19 @@ export function TableQr({
         if (!cancelled) setImage({ url, data });
       })
       .catch(() => {
-        if (!cancelled) setImage({ url, error: "二维码生成失败，请关闭后重试。" });
+        if (!cancelled) setImage({ url, error: m.qrFailed });
       });
     return () => {
       cancelled = true;
     };
-  }, [url]);
+  }, [url, m]);
   const current = image?.url === url ? image : undefined;
   async function copy() {
     try {
       await navigator.clipboard.writeText(url);
-      setNotice("链接已复制。");
+      setNotice(m.copied);
     } catch {
-      setNotice("无法自动复制，请选中下方链接手动复制。");
+      setNotice(m.copyFailed);
     }
   }
   async function downloadCard(qrDataUrl: string) {
@@ -76,7 +82,7 @@ export function TableQr({
       });
       download(card, `tavoloflow-table-card-${table.id}.png`);
     } catch {
-      setNotice("桌卡生成失败，请稍后重试或改用二维码 PNG。");
+      setNotice(m.cardFailed);
     } finally {
       setRendering(false);
     }
@@ -90,19 +96,15 @@ export function TableQr({
           src={current.data}
           width={256}
           height={256}
-          alt={`${table.tableLabel} 桌公开菜单二维码`}
+          alt={m.qrAlt(table.tableLabel)}
           className="mx-auto w-full max-w-60 rounded-xl border"
         />
       ) : (
-        <LoadingState label="正在生成二维码…" />
+        <LoadingState label={m.generating} />
       )}
-      {url && isLocalOnlyUrl(url) && (
-        <Notice tone="warning">
-          此链接使用本机地址，手机无法直接访问。请使用手机可访问的网站地址后再下载二维码，配置方法见桌位模块文档。
-        </Notice>
-      )}
+      {url && isLocalOnlyUrl(url) && <Notice tone="warning">{m.localOnly}</Notice>}
       <div className="space-y-2">
-        <Label htmlFor="qr-url">公开菜单链接</Label>
+        <Label htmlFor="qr-url">{m.link}</Label>
         <Input id="qr-url" value={url} readOnly onFocus={(event) => event.target.select()} />
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -110,7 +112,7 @@ export function TableQr({
           <>
             <Button disabled={rendering} onClick={() => void downloadCard(current.data!)}>
               <Printer />
-              {rendering ? "正在生成…" : "下载桌卡"}
+              {rendering ? m.rendering : m.downloadCard}
             </Button>
             <a
               className={buttonVariants({ variant: "outline" })}
@@ -118,13 +120,13 @@ export function TableQr({
               download={`tavoloflow-table-${table.id}.png`}
             >
               <Download />
-              下载二维码
+              {m.downloadQr}
             </a>
           </>
         )}
         <Button variant="outline" onClick={() => void copy()}>
           <Copy />
-          复制链接
+          {m.copy}
         </Button>
         <a
           className={buttonVariants({ variant: "outline" })}
@@ -133,13 +135,10 @@ export function TableQr({
           rel="noreferrer"
         >
           <ExternalLink />
-          打开菜单
+          {m.openMenu}
         </a>
       </div>
-      <p className="text-xs leading-5 text-muted-foreground">
-        桌卡包含店名、桌号、二维码和中意英三语“扫码点餐”提示，按 A6（10.5 × 14.8
-        厘米）打印即可摆桌。
-      </p>
+      <p className="text-xs leading-5 text-muted-foreground">{m.cardHint}</p>
       {notice && (
         <p role="status" className="text-sm">
           {notice}

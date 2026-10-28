@@ -3,10 +3,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ApiError, errorMessage, platformRequest, request } from "@/lib/api";
 import { isPlatformQuery, isPrivateQuery } from "@/lib/query-scope";
 import { isLive, onLifecycleChange } from "@/lib/useLiveView";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { accountKey } from "@/features/accounts/queries";
 import { platformKey } from "./identity";
+import { managementMessages } from "./management-messages";
 import {
-  accountRecoveryMessage,
+  credentialsChanged,
   managementKey,
   readPending,
   recoveryUrl,
@@ -25,8 +27,12 @@ function temporaryCredentials(result: unknown): TemporaryCredential[] {
     : [];
 }
 
+// Platform pages stay in Chinese; the OWNER's store page follows the staff language.
 export function useManagement(scope: "platform" | "store", userId: string, restaurantId?: string) {
   const client = useQueryClient();
+  const storeLanguage = useStaffLanguage();
+  const language = scope === "platform" ? "zh" : storeLanguage;
+  const m = managementMessages[language];
   const key = managementKey(scope, `${restaurantId ?? "platform"}:${userId}`);
   const [initial] = useState(() => {
     try {
@@ -40,9 +46,7 @@ export function useManagement(scope: "platform" | "store", userId: string, resta
   const pendingRef = useRef<PendingManagement | null>(initial.pending);
   const [missingCreate, setMissingCreate] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState(
-    initial.damaged ? "待确认记录无法读取，请先联系管理员核对，当前页面暂停写入。" : "",
-  );
+  const [message, setMessage] = useState(initial.damaged ? m.damaged : "");
   const [secrets, setSecrets] = useState<TemporaryCredential[]>([]);
   const epoch = useRef(0);
   const operation = useRef<AbortController | null>(null);
@@ -90,13 +94,15 @@ export function useManagement(scope: "platform" | "store", userId: string, resta
       if (controller.signal.aborted || generation !== epoch.current || !sameIdentity()) return;
       const feedback =
         p.kind === "reset" || p.kind === "active"
-          ? accountRecoveryMessage(
-              p,
-              "accounts" in result ? result.accounts.find((a) => a.id === p.userId) : result,
+          ? m.recoveredAccount(
+              credentialsChanged(
+                p,
+                "accounts" in result ? result.accounts.find((a) => a.id === p.userId) : result,
+              ),
             )
           : p.kind === "create"
-            ? "已查到餐厅。初始密码无法再次读取，请进入餐厅详情，核对后重新重置账号密码。"
-            : "已重新读取餐厅状态，请核对。后续修改需要重新人工确认。";
+            ? m.recoveredCreate
+            : m.recoveredRestaurant;
       remember(null);
       setMessage(feedback);
       await invalidate();
@@ -104,17 +110,15 @@ export function useManagement(scope: "platform" | "store", userId: string, resta
       if (controller.signal.aborted || generation !== epoch.current || !sameIdentity()) return;
       if (error instanceof ApiError && error.status === 404 && p.kind === "create") {
         setMissingCreate(true);
-        setMessage(
-          "暂未查到原餐厅，旧请求仍可能到达。可重新填写并人工确认创建；系统会沿用原创建编号。",
-        );
-      } else setMessage(errorMessage(error, "仍无法核对结果，请恢复网络后重新读取。"));
+        setMessage(m.missingCreate);
+      } else setMessage(errorMessage(error, m.recoverUnknown, language));
     } finally {
       if (operation.current === controller) {
         operation.current = null;
         setBusy(false);
       }
     }
-  }, [scope, sameIdentity, remember, invalidate]);
+  }, [scope, sameIdentity, remember, invalidate, m, language]);
 
   useEffect(() => {
     const cancel = () => {
@@ -161,7 +165,7 @@ export function useManagement(scope: "platform" | "store", userId: string, resta
     try {
       remember(action);
     } catch {
-      setMessage("浏览器无法保存待确认标识，尚未发送修改。请允许此站点的标签页存储。");
+      setMessage(m.storageBlocked);
       return false;
     }
     const controller = new AbortController();
@@ -177,7 +181,7 @@ export function useManagement(scope: "platform" | "store", userId: string, resta
         return false;
       remember(null);
       setSecrets(temporaryCredentials(result));
-      setMessage("操作已完成，请核对当前状态。");
+      setMessage(m.done);
       await invalidate();
       return true;
     } catch (error) {
@@ -195,7 +199,7 @@ export function useManagement(scope: "platform" | "store", userId: string, resta
           /* Keep recovery marker if storage is blocked. */
         }
       }
-      setMessage(errorMessage(error, "操作结果待确认。恢复后只查询状态，不会自动重发修改。"));
+      setMessage(errorMessage(error, m.writeUnknown, language));
       return false;
     } finally {
       if (operation.current === controller) {

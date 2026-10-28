@@ -4,13 +4,12 @@ import { onLifecycleChange } from "./useLiveView";
 
 // Activation-triggering events: a mouse press counts on pointerdown, a touch on pointerup.
 const gestures = ["pointerdown", "pointerup", "keydown"] as const;
-const noAudio = "此浏览器不支持声音提醒；页面仍会正常更新。";
 
 // The on/off switch is a device preference stored under preferenceKey; on by default.
 export function useAlertSound(preferenceKey: string, chime: Chime) {
   const [sound, setSound] = useState(() => readSoundPreference(preferenceKey));
   const [audible, setAudible] = useState(true);
-  const [soundError, setSoundError] = useState("");
+  const [soundUnsupported, setSoundUnsupported] = useState(false);
   const audio = useRef<AlertAudio | null>(null);
 
   useEffect(() => {
@@ -34,7 +33,7 @@ export function useAlertSound(preferenceKey: string, chime: Chime) {
       try {
         player.start();
       } catch {
-        setSoundError(noAudio);
+        setSoundUnsupported(true);
         return;
       }
       settle();
@@ -59,7 +58,7 @@ export function useAlertSound(preferenceKey: string, chime: Chime) {
       audio.current ??= new AlertAudio();
       audio.current.start();
     } catch {
-      setSoundError(noAudio);
+      setSoundUnsupported(true);
     }
   }, []);
 
@@ -67,7 +66,7 @@ export function useAlertSound(preferenceKey: string, chime: Chime) {
     saveSoundPreference(preferenceKey, !sound);
     setSound(!sound);
     setAudible(true);
-    setSoundError("");
+    setSoundUnsupported(false);
     if (!sound) unlockSound();
   }, [preferenceKey, sound, unlockSound]);
 
@@ -75,8 +74,9 @@ export function useAlertSound(preferenceKey: string, chime: Chime) {
 
   return {
     sound,
-    soundBlocked: sound && !audible && !soundError,
-    soundError,
+    soundBlocked: sound && !audible && !soundUnsupported,
+    // The page explains it: this browser cannot play audio at all.
+    soundUnsupported,
     unlockSound,
     toggleSound,
     play,

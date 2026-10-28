@@ -6,10 +6,13 @@ import { passChime } from "@/lib/alert-sound";
 import { ApiError, errorMessage, withTimeout } from "@/lib/api";
 import { displayName } from "@/lib/language";
 import { syncIsFresh, syncIsStalled } from "@/lib/live-view";
+import { staffMessages } from "@/lib/staff-messages";
 import { useAlertSound } from "@/lib/useAlertSound";
 import { onLifecycleChange, useLiveView } from "@/lib/useLiveView";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { uniqueBy } from "@/lib/utils";
 import { markServed, passKey, readPass, type PassItem, type PassPage } from "./api";
+import { passMessages } from "./messages";
 import { groupByTable, readyArrived, type ReadyBaseline } from "./state";
 
 // Codes meaning another device or a closure got there first: the list, not this tap, is the truth.
@@ -22,6 +25,8 @@ const settled = new Set([
 
 export function usePass(account: CurrentAccount) {
   const client = useQueryClient();
+  const language = useStaffLanguage();
+  const m = passMessages[language];
   const view = useLiveView();
   const [openedAt] = useState(Date.now);
   const [notice, setNotice] = useState("");
@@ -101,10 +106,10 @@ export function usePass(account: CurrentAccount) {
     baseline.current = result.baseline;
     if (result.arrived) {
       // Server arrivals are an external event, announced even when audio is disabled.
-      setNotice(`有新的菜品出餐；当前待送 ${head.totalCount} 道。`);
+      setNotice(m.arrived(head.totalCount));
       play();
     }
-  }, [head, view.active, view.resumeAfter, play]);
+  }, [head, view.active, view.resumeAfter, play, m]);
 
   // No pending marker is persisted: the write only applies to a READY dish not yet served, so a repeat
   // is harmless, and the list itself answers whether a lost request went through.
@@ -113,7 +118,8 @@ export function usePass(account: CurrentAccount) {
     const controller = new AbortController();
     operations.current.set(item.id, controller);
     const current = () => mounted.current && !controller.signal.aborted && sameAccount();
-    const label = `${item.tableLabel} 桌 · ${displayName(item, item.defaultLanguage, "zh").text} ×${item.quantity}`;
+    const table = staffMessages[language].table(item.tableLabel);
+    const label = `${table} · ${displayName(item, item.defaultLanguage, language).text} ×${item.quantity}`;
     setBusy((ids) => [...ids, item.id]);
     try {
       await markServed(item, withTimeout(controller.signal));
@@ -133,18 +139,16 @@ export function usePass(account: CurrentAccount) {
           : data,
       );
       setError("");
-      setNotice(`${label}：已送达。`);
+      setNotice(m.done(label));
       void refresh();
     } catch (e) {
       if (!current()) return;
       if (e instanceof ApiError && settled.has(e.code)) {
         setError("");
-        setNotice(`${label}：已由其他设备处理或该桌已结账，列表已更新。`);
+        setNotice(m.settled(label));
       } else {
         setNotice("");
-        setError(
-          errorMessage(e, `${label}：结果未能确认。列表刷新后，若菜品仍在，请再点一次「已送达」。`),
-        );
+        setError(errorMessage(e, m.unknown(label), language));
       }
       void refresh();
     } finally {

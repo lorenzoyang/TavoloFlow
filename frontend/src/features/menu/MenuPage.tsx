@@ -18,6 +18,7 @@ import { isSameAccount, refreshAfterWrite } from "@/features/accounts/queries";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { ApiError, errorMessage } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import {
   deleteItemImage,
@@ -35,7 +36,7 @@ import {
 import { displayName } from "@/lib/language";
 import { ItemImageSection, ItemThumbnail } from "./ItemImage";
 import { CategoryForm, ItemForm } from "./MenuForms";
-import { languages, messages as m } from "./messages";
+import { allergenLabel, languages, menuMessages } from "./messages";
 
 type Editor =
   | { kind: "category"; value?: Category }
@@ -48,6 +49,8 @@ type Editor =
     };
 function MenuContent({ account }: { account: CurrentAccount }) {
   const client = useQueryClient();
+  const language = useStaffLanguage();
+  const m = menuMessages[language];
   const options = menuQuery(account);
   const query = useQuery(options);
   const owner = account.role === "OWNER";
@@ -112,7 +115,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
         )
       }
     >
-      {errorMessage(error, m.unknown)}
+      {errorMessage(error, m.unknown, language)}
     </Notice>
   );
   const feedback = mutation.isError ? failure(mutation.error) : null;
@@ -125,7 +128,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
     displayName(
       menu!.categories.find((category) => category.id === id)!,
       menu!.defaultLanguage,
-      "zh",
+      language,
     ).text;
   const formOpen = editor?.kind === "category" || editor?.kind === "item";
   // The photo section follows the live menu, unlike the form fields, which keep their snapshot.
@@ -192,7 +195,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
               { value: "", label: `${m.all} (${menu.items.length})` },
               ...menu.categories.map((category) => ({
                 value: category.id,
-                label: `${displayName(category, menu.defaultLanguage, "zh").text} (${
+                label: `${displayName(category, menu.defaultLanguage, language).text} (${
                   menu.items.filter((item) => item.categoryId === category.id).length
                 })`,
               })),
@@ -201,7 +204,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
           {selected && owner && (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-semibold wrap-break-word">
-                {displayName(selected, menu.defaultLanguage, "zh").text}
+                {displayName(selected, menu.defaultLanguage, language).text}
               </h2>
               <div className="flex gap-2">
                 <Button
@@ -220,7 +223,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                       kind: "delete",
                       resource: "categories",
                       id: selected.id,
-                      name: displayName(selected, menu.defaultLanguage, "zh").text,
+                      name: displayName(selected, menu.defaultLanguage, language).text,
                     })
                   }
                 >
@@ -238,7 +241,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
           )}
           <ul className="grid gap-3 lg:grid-cols-2">
             {items.map((item) => {
-              const name = displayName(item, menu.defaultLanguage, "zh");
+              const name = displayName(item, menu.defaultLanguage, language);
               const description = {
                 zh: item.descriptionZh,
                 it: item.descriptionIt,
@@ -271,7 +274,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-2">
                       <span className="font-semibold tabular-nums">
-                        {formatMoney(item.priceCents)}
+                        {formatMoney(item.priceCents, language)}
                       </span>
                       {item.imageId && <ItemThumbnail imageId={item.imageId} className="size-16" />}
                     </div>
@@ -284,14 +287,21 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                     <div className="flex flex-wrap gap-1.5">
                       {item.allergenCodes.map((code) => (
                         <Badge variant="outline" key={code}>
-                          {menu.allergens.find((option) => option.code === code)?.label ?? code}
+                          {allergenLabel(
+                            menu.allergens.find((option) => option.code === code) ?? {
+                              code,
+                              label: code,
+                            },
+                            language,
+                          )}
                         </Badge>
                       ))}
                     </div>
                   )}
-                  <div className="mt-auto flex items-center gap-3 border-t pt-3">
+                  {/* Wraps the owner's buttons under the switch when the labels are longer (Italian). */}
+                  <div className="mt-auto flex flex-wrap items-center gap-3 border-t pt-3">
                     <Switch
-                      aria-label={`供应状态：${name.text}`}
+                      aria-label={m.availability(name.text)}
                       checked={item.isAvailable}
                       disabled={busy || editing || (!item.isAvailable && !item.allergenReviewed)}
                       onCheckedChange={() =>
@@ -311,7 +321,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                         <Button
                           variant="ghost"
                           disabled={busy || editing}
-                          aria-label={`${m.edit}：${name.text}`}
+                          aria-label={m.editOf(name.text)}
                           onClick={() =>
                             open({
                               kind: "item",
@@ -326,7 +336,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                         <Button
                           variant="ghost"
                           disabled={busy || editing}
-                          aria-label={`${m.remove}：${name.text}`}
+                          aria-label={m.removeOf(name.text)}
                           onClick={() =>
                             open({
                               kind: "delete",
@@ -351,7 +361,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
             className="rounded-2xl border bg-card p-4 shadow-xs"
           >
             <h2 id="menu-settings" className="mb-3 font-semibold">
-              菜单设置
+              {m.settings}
             </h2>
             <DefaultLanguage
               key={menu.defaultLanguage}
@@ -443,7 +453,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
       <ConfirmDialog
         open={editor?.kind === "delete"}
         tone="destructive"
-        title={editor?.kind === "delete" ? `${m.remove}「${editor.name}」` : ""}
+        title={editor?.kind === "delete" ? m.removeTitle(editor.name) : ""}
         description={m.deleteHint}
         confirmLabel={busy ? m.saving : m.confirmDelete}
         cancelLabel={m.cancel}
@@ -471,6 +481,7 @@ function DefaultLanguage({
   busy: boolean;
   save: (language: string) => void;
 }) {
+  const m = menuMessages[useStaffLanguage()];
   return (
     <form
       className="flex flex-wrap items-end gap-3"
@@ -491,9 +502,9 @@ function DefaultLanguage({
         defaultValue={menu.defaultLanguage}
         disabled={!owner || busy}
       >
-        {languages.map((language) => (
-          <NativeSelectOption value={language.code} key={language.code}>
-            {language.label}
+        {languages.map(({ code }) => (
+          <NativeSelectOption value={code} key={code}>
+            {m.languageNames[code]}
           </NativeSelectOption>
         ))}
       </NativeSelect>

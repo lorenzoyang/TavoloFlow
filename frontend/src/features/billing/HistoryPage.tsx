@@ -14,16 +14,25 @@ import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import { errorMessage } from "@/lib/api";
+import { staffMessages } from "@/lib/staff-messages";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn, uniqueBy } from "@/lib/utils";
 import { historyKey, readHistory } from "./api";
-import { closeBadges, closeLabels, historySearch, type HistorySearch } from "./state";
+import { billingMessages } from "./messages";
+import { closeBadges, historySearch, type HistorySearch } from "./state";
 import { HistoricalBill } from "./BillViews";
 import { OwnerOnlyNotice } from "./BillingPage";
 
 const label = "space-y-2 text-sm font-medium";
+// A native date input needs about 160px for the date and its calendar button, more than half a
+// phone-width card, so on phones each date takes its own row.
+const dateLabel = `${label} col-span-2 sm:col-span-1`;
 
 type Props = { search: HistorySearch; navigate: (search: HistorySearch) => void };
 function HistoryContent({ account, search, navigate }: Props & { account: CurrentAccount }) {
+  const language = useStaffLanguage();
+  const m = billingMessages[language];
+  const c = staffMessages[language];
   const filters = useMemo(
     () => ({
       fromDate: search.fromDate,
@@ -48,14 +57,14 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
   return (
     <div>
       <PageHeader
-        title="历史账单"
-        description="默认查看餐厅当天关闭的用餐。按关桌日期查询，保留原始账单快照。"
-        back={{ to: "/staff", label: "首页" }}
+        title={m.historyTitle}
+        description={m.historyDescription}
+        back={{ to: "/staff", label: c.home }}
         actions={
           <Button
             variant="outline"
             size="icon"
-            aria-label="刷新历史列表"
+            aria-label={m.refreshHistory}
             disabled={query.isFetching}
             onClick={() => void query.refetch()}
           >
@@ -72,8 +81,8 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
           navigate(historySearch(data));
         }}
       >
-        <label className={label}>
-          <span className="block">关桌起始日期</span>
+        <label className={dateLabel}>
+          <span className="block">{m.fromDate}</span>
           <Input
             name="fromDate"
             type="date"
@@ -81,8 +90,8 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
             defaultValue={search.fromDate ?? head?.fromDate ?? ""}
           />
         </label>
-        <label className={label}>
-          <span className="block">关桌结束日期</span>
+        <label className={dateLabel}>
+          <span className="block">{m.toDate}</span>
           <Input
             name="toDate"
             type="date"
@@ -91,19 +100,19 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
           />
         </label>
         <label className={label}>
-          <span className="block">历史桌号（精确匹配）</span>
+          <span className="block">{m.tableLabel}</span>
           <Input name="tableLabel" maxLength={50} defaultValue={search.tableLabel ?? ""} />
         </label>
         <label className={label}>
-          <span className="block">关闭原因</span>
+          <span className="block">{m.closeReason}</span>
           <NativeSelect
             id="history-close-reason"
             name="closeReason"
             defaultValue={search.closeReason ?? ""}
             className="w-full"
           >
-            <NativeSelectOption value="">全部</NativeSelectOption>
-            {Object.entries(closeLabels).map(([value, text]) => (
+            <NativeSelectOption value="">{m.all}</NativeSelectOption>
+            {Object.entries(m.close).map(([value, text]) => (
               <NativeSelectOption key={value} value={value}>
                 {text}
               </NativeSelectOption>
@@ -111,20 +120,21 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
           </NativeSelect>
         </label>
         <div className="col-span-2 flex flex-wrap gap-2 lg:col-span-4">
-          <Button type="submit">查询历史账单</Button>
+          <Button type="submit">{m.search}</Button>
           <Button type="button" variant="outline" onClick={() => navigate({})}>
-            回到当天全部账单
+            {m.today}
           </Button>
         </div>
       </form>
       {query.isError && (
         <Notice tone="error" className="mb-5">
-          {errorMessage(query.error, "历史列表暂时无法更新，请重新读取。")}
+          {errorMessage(query.error, m.historyError, language)}
         </Notice>
       )}
       <MasterDetail
         open={!!search.sessionId}
-        title={selected ? `${selected.tableLabel} 桌 · 历史详情` : "历史详情"}
+        title={selected ? m.historyDetailOf(c.table(selected.tableLabel)) : m.historyDetail}
+        closeLabel={c.close}
         onClose={() => navigate(filters)}
         detail={
           search.sessionId && (
@@ -137,16 +147,19 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
           )
         }
       >
-        {query.isPending && <LoadingState label="正在读取历史账单…" />}
+        {query.isPending && <LoadingState label={m.loadingHistory} />}
         {head && (
           <p className="mb-3 text-sm text-muted-foreground">
-            {head.fromDate} 至 {head.toDate} · {head.timeZone} · 共 {head.totalCount} 笔用餐 ·
-            已显示 {rows.length} 笔
+            {m.historySummary(
+              head.fromDate,
+              head.toDate,
+              head.timeZone,
+              head.totalCount,
+              rows.length,
+            )}
           </p>
         )}
-        {head && rows.length === 0 && (
-          <EmptyState icon={History} title="该筛选范围内没有已关闭账单。" />
-        )}
+        {head && rows.length === 0 && <EmptyState icon={History} title={m.noHistory} />}
         <div className="space-y-3">
           {rows.map((row) => (
             <button
@@ -168,17 +181,17 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
             >
               <span className="min-w-0 flex-1 space-y-1">
                 <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-lg font-semibold wrap-break-word">{row.tableLabel} 桌</span>
-                  <Badge variant={closeBadges[row.closeReason!]}>
-                    {closeLabels[row.closeReason!]}
-                  </Badge>
+                  <span className="text-lg font-semibold wrap-break-word">
+                    {c.table(row.tableLabel)}
+                  </span>
+                  <Badge variant={closeBadges[row.closeReason!]}>{m.close[row.closeReason!]}</Badge>
                 </span>
                 <span className="block text-sm text-muted-foreground">
-                  关桌：{formatDateTime(row.closedAt!, "zh", head?.timeZone)}
+                  {m.closedAt(formatDateTime(row.closedAt!, language, head?.timeZone))}
                 </span>
               </span>
               <span className="shrink-0 text-lg font-semibold tabular-nums">
-                {formatMoney(row.totalAmountCents)}
+                {formatMoney(row.totalAmountCents, language)}
               </span>
             </button>
           ))}
@@ -190,7 +203,7 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
             disabled={query.isFetching}
             onClick={() => void query.fetchNextPage()}
           >
-            加载更多历史账单
+            {m.loadMoreHistory}
           </Button>
         )}
       </MasterDetail>

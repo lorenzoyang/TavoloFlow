@@ -5,9 +5,10 @@ import { LoadingState } from "@/components/loading-state";
 import { Notice } from "@/components/notice";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import type { CurrentAccount } from "./api";
 import { accountQuery } from "./queries";
-import { messages as m } from "./messages";
+import { accountMessages } from "./messages";
 
 type AuthBoundaryProps =
   | { mode: "login"; children: () => ReactNode }
@@ -15,6 +16,7 @@ type AuthBoundaryProps =
 
 // Observe the identity cache so login, logout and rejected credentials update every page.
 export function AuthBoundary(props: AuthBoundaryProps) {
+  const m = accountMessages[useStaffLanguage()];
   const query = useQuery(accountQuery);
   if ((query.isError && !query.data) || (query.isPending && query.fetchStatus === "paused")) {
     return (
