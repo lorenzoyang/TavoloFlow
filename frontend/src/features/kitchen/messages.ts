@@ -1,13 +1,14 @@
 import type { StaffLanguage } from "@/lib/staff-language";
-import type { OrderStatus } from "./state";
+import type { KitchenView, OrderStatus } from "./state";
 
 type Outcome = "reached" | "changed" | "legacy-reviewed" | "missing" | "confirm-again";
 
 const zh = {
   title: "厨房",
-  description: "逐项标记出餐，最早的待处理订单在前。",
+  description: "逐项标记出餐，等待最久的在前。",
   refresh: "刷新订单",
   status: { NEW: "待处理", PROCESSED: "已处理" } as Record<OrderStatus, string>,
+  view: { DISHES: "按菜品", NEW: "按订单", PROCESSED: "已处理" } as Record<KitchenView, string>,
   item: { NEW: "待出餐", READY: "已出餐", CANCELLED: "已取消" },
   orderedAt: (time: string) => `${time} 下单`,
   itemsWaiting: (waiting: number, total: number) => `待出餐 ${waiting} 项／共 ${total} 项`,
@@ -32,11 +33,15 @@ const zh = {
   verify: "核对菜品状态",
   pendingAction: (kind: "ready" | "cancel", order: string, item: string | null) =>
     `${kind === "ready" ? "完成" : "取消"}操作结果待确认 · 订单 #${order}${item ? ` · 菜品 #${item}` : " · 旧版整单操作"}`,
-  statusTabs: "订单状态",
+  viewTabs: "厨房视图",
   listSummary: (status: string, total: number | string, shown: number) =>
     `${status}共 ${total} 笔 · 已显示 ${shown} 笔。仅显示正在用餐的订单。`,
   loading: "正在读取订单…",
   empty: { NEW: "暂无待处理订单。", PROCESSED: "暂无已处理订单。" } as Record<OrderStatus, string>,
+  dishSummary: (dishes: number, portions: number) =>
+    `待出餐 ${dishes} 道菜，共 ${portions} 份。仅显示正在用餐的订单。`,
+  dishesIncomplete: "还有较新的订单未加载，以上数量可能不完整。",
+  emptyDishes: "暂无待出餐菜品。",
   loadMore: "加载更多订单",
   cancelTitle: (table: string) => `确认取消菜品 · ${table}`,
   cancelHint: (dish: string, amount: string) =>
@@ -68,9 +73,10 @@ export const kitchenMessages: Record<StaffLanguage, typeof zh> = {
   zh,
   it: {
     title: "Cucina",
-    description: "Segna i piatti pronti uno alla volta; gli ordini più vecchi sono in alto.",
+    description: "Segna i piatti pronti uno alla volta; chi aspetta da più tempo è in alto.",
     refresh: "Aggiorna ordini",
     status: { NEW: "Da fare", PROCESSED: "Evasi" },
+    view: { DISHES: "Piatti", NEW: "Ordini", PROCESSED: "Evasi" },
     item: { NEW: "Da fare", READY: "Pronto", CANCELLED: "Annullato" },
     orderedAt: (time) => `Ordine delle ${time}`,
     itemsWaiting: (waiting, total) => `Da fare ${waiting} di ${total}`,
@@ -96,11 +102,16 @@ export const kitchenMessages: Record<StaffLanguage, typeof zh> = {
     verify: "Verifica il piatto",
     pendingAction: (kind, order, item) =>
       `Esito da verificare: ${kind === "ready" ? "pronto" : "annullamento"} · ordine #${order}${item ? ` · piatto #${item}` : " · vecchia operazione sull’intero ordine"}`,
-    statusTabs: "Stato degli ordini",
+    viewTabs: "Vista della cucina",
     listSummary: (status, total, shown) =>
       `${status}: ${total} ordini, ${shown} visualizzati. Solo visite in corso.`,
     loading: "Caricamento ordini…",
     empty: { NEW: "Nessun ordine da fare.", PROCESSED: "Nessun ordine evaso." },
+    dishSummary: (dishes, portions) =>
+      `Da fare: ${dishes === 1 ? "1 piatto" : `${dishes} piatti`}, ${portions === 1 ? "1 porzione" : `${portions} porzioni`}. Solo visite in corso.`,
+    dishesIncomplete:
+      "Ci sono ordini più recenti non ancora caricati: i totali potrebbero essere incompleti.",
+    emptyDishes: "Nessun piatto da fare.",
     loadMore: "Carica altri ordini",
     cancelTitle: (table) => `Annulla piatto · ${table}`,
     cancelHint: (dish, amount) =>

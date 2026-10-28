@@ -27,10 +27,12 @@ import {
 import { kitchenMessages } from "./messages";
 import {
   arrivals,
+  dishGroups,
   pendingKitchenKey,
   readPending,
   recoveryOutcome,
   type ArrivalBaseline,
+  type KitchenView,
   type OrderStatus,
   type PendingKitchenAction,
 } from "./state";
@@ -40,7 +42,8 @@ export function useKitchen(account: CurrentAccount) {
   const language = useStaffLanguage();
   const m = kitchenMessages[language];
   const c = staffMessages[language];
-  const [status, setStatus] = useState<OrderStatus>("NEW");
+  const [view, setView] = useState<KitchenView>("DISHES");
+  const status: OrderStatus = view === "PROCESSED" ? "PROCESSED" : "NEW";
   const [active, setActive] = useState(isLive);
   const [resumeAfter, setResumeAfter] = useState(Date.now);
   const [switchedAt, setSwitchedAt] = useState(0);
@@ -335,17 +338,20 @@ export function useKitchen(account: CurrentAccount) {
     (order) => order.id,
   ).filter((order) => order.status === status);
   return {
+    view,
     status,
     // A tab's cached orders stay writable while younger than 30 seconds, like any poll; the switch only
-    // restarts the grace period before an unfinished first load is reported.
-    setStatus: (next: OrderStatus) => {
-      if (next === status) return;
-      setSwitchedAt(Date.now());
-      setStatus(next);
+    // restarts the grace period before an unfinished first load is reported. The two NEW views share
+    // one query, so switching between them changes nothing to wait for.
+    setView: (next: KitchenView) => {
+      if (next === view) return;
+      if ((next === "PROCESSED") !== (status === "PROCESSED")) setSwitchedAt(Date.now());
+      setView(next);
       setError("");
     },
     query,
     orders,
+    dishes: view === "DISHES" ? dishGroups(orders) : [],
     head,
     summary,
     fresh,

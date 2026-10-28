@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import type { KitchenOrder } from "../src/features/kitchen/api.ts";
+import type { OrderLine } from "../src/features/orders/api.ts";
 import {
   arrivals,
   canCancel,
+  dishGroups,
   pendingKitchenKey,
   readPending,
   recoveryOutcome,
@@ -95,4 +98,102 @@ test("legacy whole-order markers are retained only for GET review, never treated
   assert.equal(recoveryOutcome(pending[0], undefined), "legacy-reviewed");
   assert.deepEqual(readPending(JSON.stringify(pending)), pending);
   assert.equal(recoveryOutcome(action, undefined), "missing");
+});
+
+const rice = "00000000-0000-4000-8000-0000000000a1";
+const dumplings = "00000000-0000-4000-8000-0000000000a2";
+const dish = (
+  id: string,
+  menuItemId: string | null,
+  name: string,
+  patch: Partial<OrderLine> = {},
+) =>
+  ({
+    id,
+    menuItemId,
+    itemCode: null,
+    nameZh: name,
+    nameIt: null,
+    nameEn: null,
+    allergenCodes: [],
+    unitPriceCents: 800,
+    quantity: 1,
+    remark: null,
+    status: "NEW",
+    readyAt: null,
+    cancelledAt: null,
+    ...patch,
+  }) satisfies OrderLine;
+const ticket = (id: string, table: string, createdAt: string, items: OrderLine[]) =>
+  ({
+    id,
+    sessionId: action.sessionId,
+    tableLabel: table,
+    status: "NEW",
+    createdAt,
+    processedAt: null,
+    defaultLanguage: "zh",
+    totalAmountCents: 0,
+    payableAmountCents: 0,
+    items,
+  }) satisfies KitchenOrder;
+
+test("dish groups gather one dish across orders, the longest wait first", () => {
+  const t1 = ticket("00000000-0000-4000-8000-000000000011", "1", "2026-10-28T12:00:00Z", [
+    dish("00000000-0000-4000-8000-000000000101", rice, "炒饭"),
+  ]);
+  const t3 = ticket("00000000-0000-4000-8000-000000000013", "3", "2026-10-28T12:01:00Z", [
+    dish("00000000-0000-4000-8000-000000000301", dumplings, "饺子", {
+      quantity: 2,
+      allergenCodes: ["GLUTEN"],
+    }),
+    dish("00000000-0000-4000-8000-000000000302", rice, "炒饭", { remark: "不要葱" }),
+    dish("00000000-0000-4000-8000-000000000303", rice, "炒饭", {
+      status: "READY",
+      readyAt: "2026-10-28T12:05:00Z",
+    }),
+  ]);
+  const t4 = ticket("00000000-0000-4000-8000-000000000014", "4", "2026-10-28T12:02:00Z", [
+    dish("00000000-0000-4000-8000-000000000401", rice, "炒饭", {
+      quantity: 2,
+      allergenCodes: ["SOY"],
+    }),
+    dish("00000000-0000-4000-8000-000000000402", dumplings, "饺子", {
+      status: "CANCELLED",
+      cancelledAt: "2026-10-28T12:03:00Z",
+    }),
+  ]);
+  // Loaded pages arrive in any order; the grouping does not depend on it.
+  const groups = dishGroups([t4, t1, t3]);
+  assert.deepEqual(
+    groups.map((g) => [g.key, g.quantity, g.lines.map((l) => l.order.tableLabel)]),
+    [
+      [rice, 4, ["1", "3", "4"]],
+      [dumplings, 2, ["3"]],
+    ],
+  );
+  // A remark stays on its own line inside the group; terminal lines never appear.
+  assert.equal(groups[0].lines[1].line.remark, "不要葱");
+  assert.deepEqual(groups[0].allergenCodes, ["SOY"]);
+  assert.deepEqual(groups[1].allergenCodes, ["GLUTEN"]);
+  assert.deepEqual(dishGroups([]), []);
+});
+
+test("dishes deleted from the menu are matched by their snapshot", () => {
+  const groups = dishGroups([
+    ticket("00000000-0000-4000-8000-000000000021", "1", "2026-10-28T12:00:00Z", [
+      dish("00000000-0000-4000-8000-000000000201", null, "旧炒饭"),
+      dish("00000000-0000-4000-8000-000000000202", null, "旧面"),
+    ]),
+    ticket("00000000-0000-4000-8000-000000000022", "2", "2026-10-28T12:00:00Z", [
+      dish("00000000-0000-4000-8000-000000000203", null, "旧炒饭", { quantity: 3 }),
+    ]),
+  ]);
+  assert.deepEqual(
+    groups.map((g) => [g.lines[0].line.nameZh, g.quantity]),
+    [
+      ["旧炒饭", 4],
+      ["旧面", 1],
+    ],
+  );
 });

@@ -1,8 +1,17 @@
 import { isUuid } from "../../lib/ids.ts";
 
-import type { OrderItemStatus } from "../orders/api.ts";
+import type { OrderItemStatus, OrderLine } from "../orders/api.ts";
+import type { KitchenOrder } from "./api.ts";
 
 export type OrderStatus = "NEW" | "PROCESSED";
+// DISHES and NEW are two views of the same NEW orders.
+export type KitchenView = "DISHES" | OrderStatus;
+export type DishGroup = {
+  key: string;
+  lines: { order: KitchenOrder; line: OrderLine }[];
+  quantity: number;
+  allergenCodes: string[];
+};
 export type PendingKitchenAction = {
   orderId: string;
   sessionId: string;
@@ -68,4 +77,31 @@ export function recoveryOutcome(action: PendingKitchenAction, status: OrderItemS
   if (status === (action.kind === "ready" ? "READY" : "CANCELLED")) return "reached";
   if (status !== "NEW") return "changed";
   return "confirm-again";
+}
+
+// Gathers the NEW lines of every loaded order by dish, so a cook sees at once what can be made together.
+// Remarks stay on their lines; a deleted dish is matched by its snapshot. Groups and their lines put the
+// longest wait first.
+export function dishGroups(orders: KitchenOrder[]): DishGroup[] {
+  const groups = new Map<string, DishGroup>();
+  const oldestFirst = [...orders].sort(
+    (a, b) =>
+      Date.parse(a.createdAt) - Date.parse(b.createdAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+  );
+  for (const order of oldestFirst)
+    for (const line of order.items) {
+      if (line.status !== "NEW") continue;
+      const key =
+        line.menuItemId ?? JSON.stringify([line.itemCode, line.nameZh, line.nameIt, line.nameEn]);
+      let group = groups.get(key);
+      if (!group) {
+        group = { key, lines: [], quantity: 0, allergenCodes: [] };
+        groups.set(key, group);
+      }
+      group.lines.push({ order, line });
+      group.quantity += line.quantity;
+      for (const code of line.allergenCodes)
+        if (!group.allergenCodes.includes(code)) group.allergenCodes.push(code);
+    }
+  return [...groups.values()];
 }

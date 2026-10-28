@@ -23,7 +23,8 @@ export async function readKitchen(
   cursor: string | null,
   signal: AbortSignal,
 ): Promise<KitchenPage> {
-  const params = new URLSearchParams({ status });
+  // The server's maximum page: the dish view can only merge the orders it has loaded.
+  const params = new URLSearchParams({ status, limit: "100" });
   if (cursor) params.set("cursor", cursor);
   const result = await request<Omit<KitchenPage, "receivedAt">>(`/api/staff/orders?${params}`, {
     signal,

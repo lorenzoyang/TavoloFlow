@@ -37,10 +37,11 @@ import { cn } from "@/lib/utils";
 import { useWakeLock } from "@/lib/useWakeLock";
 import type { KitchenOrder } from "./api";
 import { kitchenMessages } from "./messages";
-import { canCancel, waitLevel, type OrderStatus } from "./state";
+import { canCancel, waitLevel, type DishGroup, type KitchenView } from "./state";
 import { useKitchen } from "./useKitchen";
 
 type ItemConfirmation = { order: KitchenOrder; item: OrderLine };
+type KitchenModel = ReturnType<typeof useKitchen>;
 const waitStyles = {
   normal: "bg-secondary text-secondary-foreground",
   late: "bg-warning text-warning-foreground",
@@ -49,6 +50,158 @@ const waitStyles = {
 const toggleStyle =
   "aria-pressed:border-primary/40 aria-pressed:bg-accent aria-pressed:text-accent-foreground";
 
+// One operation at a time per order, and none on a view that is not known to be current.
+const isLocked = (model: KitchenModel, order: KitchenOrder) =>
+  !model.fresh ||
+  model.busy.includes(order.id) ||
+  model.pending.some((p) => p.orderId === order.id);
+const waitedMinutes = (model: KitchenModel, order: KitchenOrder) =>
+  Math.max(0, Math.floor((model.now - Date.parse(order.createdAt)) / 60_000));
+
+function WaitBadge({ minutes }: { minutes: number }) {
+  const m = kitchenMessages[useStaffLanguage()];
+  return (
+    <span
+      className={cn(
+        "flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-sm font-semibold tabular-nums",
+        waitStyles[waitLevel(minutes)],
+      )}
+    >
+      <Timer aria-hidden="true" className="size-4" />
+      {m.waited(minutes)}
+    </span>
+  );
+}
+
+function AllergenNote({ codes }: { codes: string[] }) {
+  const language = useStaffLanguage();
+  return (
+    <p className="flex items-start gap-1 text-sm text-muted-foreground">
+      <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+      {kitchenMessages[language].allergens}
+      {codes.map((code) => allergenNames[language][code] ?? code).join(" · ")}
+    </p>
+  );
+}
+
+function LineActions({
+  order,
+  line,
+  label,
+  model,
+  cancel,
+}: {
+  order: KitchenOrder;
+  line: OrderLine;
+  label: string;
+  model: KitchenModel;
+  cancel: (order: KitchenOrder, item: OrderLine) => void;
+}) {
+  const m = kitchenMessages[useStaffLanguage()];
+  const locked = isLocked(model, order);
+  return (
+    <>
+      <Button
+        className="flex-1"
+        disabled={locked}
+        onClick={() => void model.perform(order, line, "ready")}
+      >
+        <Check />
+        {m.ready}
+      </Button>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="outline"
+              size="icon"
+              disabled={locked}
+              aria-label={m.moreActions(label)}
+            />
+          }
+        >
+          <MoreHorizontal />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            variant="destructive"
+            disabled={locked}
+            onClick={() => cancel(order, line)}
+          >
+            {m.cancelItem}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  );
+}
+
+// Every NEW line of one dish across the loaded orders, the longest wait first. Each line is still
+// written on its own, so recovery and locking stay per order exactly as on the tickets.
+function DishCard({
+  group,
+  model,
+  cancel,
+}: {
+  group: DishGroup;
+  model: KitchenModel;
+  cancel: (order: KitchenOrder, item: OrderLine) => void;
+}) {
+  const language = useStaffLanguage();
+  const m = kitchenMessages[language];
+  const c = staffMessages[language];
+  const first = group.lines[0];
+  const name = displayName(first.line, first.order.defaultLanguage, language);
+  return (
+    <article className="flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-xs">
+      <header className="flex items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <h2 lang={name.language} className="text-2xl font-bold wrap-break-word">
+            {first.line.itemCode && (
+              <span className="mr-2 text-base font-medium text-muted-foreground">
+                {first.line.itemCode}
+              </span>
+            )}
+            {name.text} ×{group.quantity}
+          </h2>
+          {group.allergenCodes.length > 0 && <AllergenNote codes={group.allergenCodes} />}
+        </div>
+        <WaitBadge minutes={waitedMinutes(model, first.order)} />
+      </header>
+      <ul className="divide-y border-t">
+        {group.lines.map(({ order, line }) => (
+          <li key={line.id} className="space-y-2 py-2.5">
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-lg leading-7 font-semibold wrap-break-word">
+                  {c.table(order.tableLabel)} ×{line.quantity}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {m.waited(waitedMinutes(model, order))}
+                </p>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <LineActions
+                  order={order}
+                  line={line}
+                  label={`${c.table(order.tableLabel)} · ${name.text}`}
+                  model={model}
+                  cancel={cancel}
+                />
+              </div>
+            </div>
+            {line.remark && (
+              <p className="rounded-lg bg-warning/20 px-2.5 py-1.5 font-medium whitespace-pre-wrap wrap-break-word">
+                {c.remark(line.remark)}
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </article>
+  );
+}
+
 // Keep every line in its original position until the whole ticket is processed.
 function OrderTicket({
   order,
@@ -56,17 +209,13 @@ function OrderTicket({
   cancel,
 }: {
   order: KitchenOrder;
-  model: ReturnType<typeof useKitchen>;
+  model: KitchenModel;
   cancel: (order: KitchenOrder, item: OrderLine) => void;
 }) {
   const language = useStaffLanguage();
   const m = kitchenMessages[language];
   const c = staffMessages[language];
-  const locked =
-    !model.fresh ||
-    model.busy.includes(order.id) ||
-    model.pending.some((p) => p.orderId === order.id);
-  const minutes = Math.max(0, Math.floor((model.now - Date.parse(order.createdAt)) / 60_000));
+  const minutes = waitedMinutes(model, order);
   const cancelled = order.items.every((i) => i.status === "CANCELLED");
   const waiting = order.items.filter((i) => i.status === "NEW").length;
   return (
@@ -85,15 +234,7 @@ function OrderTicket({
           <p className="mt-1 text-sm font-medium">{m.itemsWaiting(waiting, order.items.length)}</p>
         </div>
         {order.status === "NEW" ? (
-          <span
-            className={cn(
-              "flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-sm font-semibold tabular-nums",
-              waitStyles[waitLevel(minutes)],
-            )}
-          >
-            <Timer aria-hidden="true" className="size-4" />
-            {m.waited(minutes)}
-          </span>
+          <WaitBadge minutes={minutes} />
         ) : (
           <Badge variant={cancelled ? "outline" : "success"}>
             {cancelled ? m.allCancelled : m.processed}
@@ -144,15 +285,7 @@ function OrderTicket({
                       {c.remark(line.remark)}
                     </p>
                   )}
-                  {line.allergenCodes.length > 0 && (
-                    <p className="flex items-start gap-1 text-sm text-muted-foreground">
-                      <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-                      {m.allergens}
-                      {line.allergenCodes
-                        .map((code) => allergenNames[language][code] ?? code)
-                        .join(" · ")}
-                    </p>
-                  )}
+                  {line.allergenCodes.length > 0 && <AllergenNote codes={line.allergenCodes} />}
                   {line.readyAt && (
                     <p className="text-xs text-muted-foreground">
                       {m.readyAt(formatDateTime(line.readyAt, language))}
@@ -167,37 +300,13 @@ function OrderTicket({
               )}
               {line.status === "NEW" && (
                 <div className="flex gap-2">
-                  <Button
-                    className="flex-1"
-                    disabled={locked}
-                    onClick={() => void model.perform(order, line, "ready")}
-                  >
-                    <Check />
-                    {m.ready}
-                  </Button>
-                  <DropdownMenu modal={false}>
-                    <DropdownMenuTrigger
-                      render={
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          disabled={locked}
-                          aria-label={m.moreActions(name.text)}
-                        />
-                      }
-                    >
-                      <MoreHorizontal />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        variant="destructive"
-                        disabled={locked}
-                        onClick={() => cancel(order, line)}
-                      >
-                        {m.cancelItem}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <LineActions
+                    order={order}
+                    line={line}
+                    label={name.text}
+                    model={model}
+                    cancel={cancel}
+                  />
                 </div>
               )}
             </li>
@@ -364,15 +473,15 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
         )}
       </div>
       <Tabs
-        value={model.status}
-        onValueChange={(status: OrderStatus) => model.setStatus(status)}
+        value={model.view}
+        onValueChange={(view: KitchenView) => model.setView(view)}
         className="gap-4"
       >
-        <TabsList aria-label={m.statusTabs} className="w-full sm:w-auto">
-          {(["NEW", "PROCESSED"] as const).map((status) => (
-            <TabsTrigger key={status} value={status}>
-              {m.status[status]}
-              {status === "NEW" && !!model.summary?.pendingCount && (
+        <TabsList aria-label={m.viewTabs} className="w-full sm:w-auto">
+          {(["DISHES", "NEW", "PROCESSED"] as const).map((view) => (
+            <TabsTrigger key={view} value={view}>
+              {m.view[view]}
+              {view === "NEW" && !!model.summary?.pendingCount && (
                 <Badge variant="warning" className="h-5 px-1.5">
                   {model.summary.pendingCount}
                 </Badge>
@@ -380,22 +489,37 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
             </TabsTrigger>
           ))}
         </TabsList>
-        <TabsContent value={model.status} className="space-y-4">
+        <TabsContent value={model.view} className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            {m.listSummary(
-              m.status[model.status],
-              model.head?.totalCount ?? "—",
-              model.orders.length,
-            )}
+            {model.view === "DISHES"
+              ? m.dishSummary(
+                  model.dishes.length,
+                  model.dishes.reduce((sum, group) => sum + group.quantity, 0),
+                )
+              : m.listSummary(
+                  m.status[model.status],
+                  model.head?.totalCount ?? "—",
+                  model.orders.length,
+                )}
           </p>
+          {model.view === "DISHES" && model.query.hasNextPage && (
+            <Notice tone="warning">{m.dishesIncomplete}</Notice>
+          )}
           {model.query.isPending && <LoadingState label={m.loading} />}
           {!model.query.isPending && !model.query.isError && model.orders.length === 0 && (
-            <EmptyState icon={ChefHat} title={m.empty[model.status]} />
+            <EmptyState
+              icon={ChefHat}
+              title={model.view === "DISHES" ? m.emptyDishes : m.empty[model.status]}
+            />
           )}
           <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-            {model.orders.map((order) => (
-              <OrderTicket key={order.id} order={order} model={model} cancel={cancel} />
-            ))}
+            {model.view === "DISHES"
+              ? model.dishes.map((group) => (
+                  <DishCard key={group.key} group={group} model={model} cancel={cancel} />
+                ))
+              : model.orders.map((order) => (
+                  <OrderTicket key={order.id} order={order} model={model} cancel={cancel} />
+                ))}
           </div>
           {model.query.hasNextPage && (
             <Button
