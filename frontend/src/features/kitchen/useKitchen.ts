@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useInfiniteQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { isSameAccount } from "@/features/accounts/queries";
 import { billingKey } from "@/features/billing/api";
 import { displayName } from "@/lib/language";
 import type { OrderLine } from "@/features/orders/api";
 import { diningKey, floorKey } from "@/features/dining/api";
+import { menuQuery } from "@/features/menu/api";
 import { ApiError, errorMessage, withTimeout } from "@/lib/api";
 import { syncIsFresh, syncIsStalled } from "@/lib/live-view";
 import { isLive, onLifecycleChange } from "@/lib/useLiveView";
@@ -27,12 +33,17 @@ import {
 import { kitchenMessages } from "./messages";
 import {
   arrivals,
+  categoryFilter,
   dishGroups,
+  hiddenCategoriesKey,
   pendingKitchenKey,
+  readHiddenCategories,
   readPending,
   recoveryOutcome,
+  screenArrivals,
   type ArrivalBaseline,
   type KitchenView,
+  type LineBaseline,
   type OrderStatus,
   type PendingKitchenAction,
 } from "./state";
@@ -68,6 +79,7 @@ export function useKitchen(account: CurrentAccount) {
   const epoch = useRef(0);
   const operations = useRef(new Map<string, AbortController>());
   const baseline = useRef<ArrivalBaseline>(null);
+  const lineBaseline = useRef<LineBaseline>(null);
   const [latest, setLatest] = useState<Record<string, KitchenOrder>>({});
   const scope = useMemo(() => kitchenKey({ restaurantId, userId }), [restaurantId, userId]);
   const query = useInfiniteQuery({
@@ -80,6 +92,7 @@ export function useKitchen(account: CurrentAccount) {
     refetchIntervalInBackground: false,
   });
   const head = query.data?.pages[0];
+  const hasNextPage = query.hasNextPage;
   const fresh = syncIsFresh(head?.receivedAt ?? 0, now, resumeAfter, active, query.isError);
   const stalled = syncIsStalled(
     fresh,
@@ -92,6 +105,33 @@ export function useKitchen(account: CurrentAccount) {
   // stay in place while a newly selected tab loads.
   const [summary, setSummary] = useState(head);
   if (head && head.receivedAt > (summary?.receivedAt ?? 0)) setSummary(head);
+  const orders = useMemo(
+    () =>
+      uniqueBy(
+        (query.data?.pages ?? []).flatMap((page) => page.items),
+        (order) => order.id,
+      ).filter((order) => order.status === status),
+    [query.data, status],
+  );
+
+  const hiddenKey = hiddenCategoriesKey(restaurantId);
+  const [hidden, setHidden] = useState(() => {
+    try {
+      return readHiddenCategories(localStorage.getItem(hiddenKey));
+    } catch {
+      return [];
+    }
+  });
+  const [choosing, setChoosing] = useState(false);
+  // The menu maps dishes to categories. It is read only while this screen hides some or is choosing,
+  // and refreshed slowly, because a kitchen tablet can stay in the foreground all day.
+  const menu = useQuery({
+    ...menuQuery(account),
+    enabled: active && (hidden.length > 0 || choosing),
+    refetchInterval: active && hidden.length > 0 ? 5 * 60_000 : false,
+    refetchIntervalInBackground: false,
+  });
+  const filter = useMemo(() => categoryFilter(menu.data?.items, hidden), [menu.data, hidden]);
 
   const sameAccount = useCallback(
     () => isSameAccount(client, { restaurantId, userId, role }),
@@ -201,6 +241,7 @@ export function useKitchen(account: CurrentAccount) {
     const check = () => {
       epoch.current++;
       baseline.current = null;
+      lineBaseline.current = null;
       controllers.forEach((controller) => controller.abort());
       controllers.clear();
       setBusy([]);
@@ -254,12 +295,30 @@ export function useKitchen(account: CurrentAccount) {
     if (baseline.current && head.receivedAt <= baseline.current.at) return;
     const result = arrivals(baseline.current, head.createdOrderCount, head.receivedAt);
     baseline.current = result.baseline;
-    if (result.added > 0) {
+    // A screen hiding categories announces only its own new dishes, judged while every NEW order is
+    // loaded. On another tab, with further pages or without the menu it announces any new order, so a
+    // dish may chime on a screen that does not make it but never goes unannounced.
+    const own =
+      filter && status === "NEW" && !hasNextPage
+        ? screenArrivals(
+            lineBaseline.current,
+            orders.flatMap((order) =>
+              order.items.filter((i) => i.status === "NEW" && filter(i)).map((i) => i.id),
+            ),
+            hidden.join(),
+            head.receivedAt,
+          )
+        : null;
+    lineBaseline.current = own?.baseline ?? null;
+    const added = own?.added ?? result.added;
+    if (added > 0) {
       // Server arrivals are an external event, announced even when audio is disabled.
-      setNotice(m.arrivals(result.added, head.pendingCount));
+      setNotice(
+        own?.added != null ? m.screenArrivals(added) : m.arrivals(added, head.pendingCount),
+      );
       play();
     }
-  }, [head, active, resumeAfter, play, m]);
+  }, [head, active, resumeAfter, play, m, filter, status, hasNextPage, orders, hidden]);
 
   async function perform(order: KitchenOrder, item: OrderLine, kind: "ready" | "cancel") {
     if (
@@ -333,10 +392,6 @@ export function useKitchen(account: CurrentAccount) {
     }
   }
 
-  const orders = uniqueBy(
-    (query.data?.pages ?? []).flatMap((page) => page.items),
-    (order) => order.id,
-  ).filter((order) => order.status === status);
   return {
     view,
     status,
@@ -351,7 +406,24 @@ export function useKitchen(account: CurrentAccount) {
     },
     query,
     orders,
-    dishes: view === "DISHES" ? dishGroups(orders) : [],
+    dishes: view === "DISHES" ? dishGroups(orders, filter ?? undefined) : [],
+    hidden,
+    // Saved on every change, like the sound switch; without storage it still applies to this page.
+    setHidden: (next: string[]) => {
+      setHidden(next);
+      try {
+        if (next.length) localStorage.setItem(hiddenKey, JSON.stringify(next));
+        else localStorage.removeItem(hiddenKey);
+      } catch {
+        /* Kept for this page only. */
+      }
+    },
+    hiddenCount: menu.data
+      ? menu.data.categories.filter((category) => hidden.includes(category.id)).length
+      : hidden.length,
+    choosing,
+    setChoosing,
+    menu,
     head,
     summary,
     fresh,

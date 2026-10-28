@@ -5,7 +5,11 @@ import type { OrderLine } from "../src/features/orders/api.ts";
 import {
   arrivals,
   canCancel,
+  categoryFilter,
   dishGroups,
+  hiddenCategoriesKey,
+  readHiddenCategories,
+  screenArrivals,
   pendingKitchenKey,
   readPending,
   recoveryOutcome,
@@ -188,4 +192,58 @@ test("dishes deleted from the menu are matched by their snapshot", () => {
       ["旧面", 1],
     ],
   );
+});
+
+const noodles = "00000000-0000-4000-8000-0000000000c1";
+const drinks = "00000000-0000-4000-8000-0000000000c2";
+const beer = "00000000-0000-4000-8000-0000000000a3";
+
+test("a screen stores only the categories it hides, per restaurant, and ignores damaged values", () => {
+  assert.notEqual(hiddenCategoriesKey("a"), hiddenCategoriesKey("b"));
+  assert.deepEqual(readHiddenCategories(JSON.stringify([drinks, drinks, "../x", 3])), [drinks]);
+  for (const raw of [null, "{", "{}", JSON.stringify(drinks)])
+    assert.deepEqual(readHiddenCategories(raw), []);
+});
+
+test("hidden categories leave only their dishes out; unknown and deleted dishes always show", () => {
+  const items = [
+    { id: rice, categoryId: noodles },
+    { id: beer, categoryId: drinks },
+  ];
+  assert.equal(categoryFilter(items, []), null);
+  assert.equal(categoryFilter(undefined, [drinks]), null);
+  // A hidden category with no dishes, or one deleted from the menu, hides nothing.
+  assert.equal(categoryFilter(items, ["00000000-0000-4000-8000-0000000000c9"]), null);
+  const shows = categoryFilter(items, [drinks])!;
+  assert.equal(shows({ menuItemId: rice }), true);
+  assert.equal(shows({ menuItemId: beer }), false);
+  assert.equal(shows({ menuItemId: null }), true);
+  assert.equal(shows({ menuItemId: dumplings }), true);
+  const groups = dishGroups(
+    [
+      ticket("00000000-0000-4000-8000-000000000031", "1", "2026-10-28T12:00:00Z", [
+        dish("00000000-0000-4000-8000-000000000501", beer, "啤酒", { quantity: 2 }),
+        dish("00000000-0000-4000-8000-000000000502", rice, "炒饭"),
+      ]),
+    ],
+    shows,
+  );
+  assert.deepEqual(
+    groups.map((g) => g.key),
+    [rice],
+  );
+});
+
+test("a screen chimes only for its own new dishes, after a silent baseline", () => {
+  const first = screenArrivals(null, ["a"], drinks, 1_000);
+  assert.equal(first.added, null);
+  const quiet = screenArrivals(first.baseline, ["a"], drinks, 11_000);
+  assert.equal(quiet.added, 0);
+  // A served line leaves and a new one arrives in the same poll.
+  const next = screenArrivals(quiet.baseline, ["b", "c"], drinks, 21_000);
+  assert.equal(next.added, 2);
+  // Changing the hidden categories or a long gap is not continuous, so the caller uses the order count.
+  assert.equal(screenArrivals(next.baseline, ["b", "c", "d"], "", 31_000).added, null);
+  assert.equal(screenArrivals(next.baseline, ["b", "c", "d"], drinks, 61_000).added, null);
+  assert.equal(screenArrivals(next.baseline, ["b"], drinks, 21_000).added, null);
 });

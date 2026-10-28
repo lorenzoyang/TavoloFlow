@@ -41,6 +41,19 @@ const zh = {
     `待出餐 ${dishes} 道菜，共 ${portions} 份。仅显示正在用餐的订单。`,
   dishesIncomplete: "还有较新的订单未加载，以上数量可能不完整。",
   emptyDishes: "暂无待出餐菜品。",
+  categories: "本屏分类",
+  categoriesTitle: "本屏显示的分类",
+  categoriesHint:
+    "取消勾选不在这块屏上做的分类。以后新加的分类、已从菜单删除的菜都会照常显示。只影响「按菜品」和新菜提示音，设置只保存在这台设备上。",
+  keepOne: "至少保留一个分类。",
+  showAll: "全部显示",
+  finish: "完成",
+  hiddenCategories: (count: number) =>
+    `本屏已隐藏 ${count} 个分类；「按订单」和「已处理」仍显示全部。`,
+  categoriesLoading: "正在读取分类…",
+  categoriesError: "无法读取菜单分类，本屏暂时显示全部菜品。",
+  noCategories: "菜单还没有分类。",
+  screenArrivals: (added: number) => `本屏有 ${added} 道新菜。`,
   loadMore: "加载更多订单",
   cancelTitle: (table: string) => `确认取消菜品 · ${table}`,
   cancelHint: (dish: string, amount: string) =>
@@ -110,6 +123,20 @@ export const kitchenMessages: Record<StaffLanguage, typeof zh> = {
     dishesIncomplete:
       "Ci sono ordini più recenti non ancora caricati: i totali potrebbero essere incompleti.",
     emptyDishes: "Nessun piatto da fare.",
+    categories: "Categorie",
+    categoriesTitle: "Categorie di questo schermo",
+    categoriesHint:
+      "Togli la spunta a ciò che non si prepara qui. Le nuove categorie e i piatti tolti dal menu compaiono comunque. Vale per la vista Piatti e per l’avviso sonoro, solo su questo dispositivo.",
+    keepOne: "Lascia almeno una categoria.",
+    showAll: "Mostra tutte",
+    finish: "Fatto",
+    hiddenCategories: (count) =>
+      `${count === 1 ? "1 categoria nascosta" : `${count} categorie nascoste`} qui; Ordini ed Evasi mostrano tutto.`,
+    categoriesLoading: "Caricamento categorie…",
+    categoriesError: "Impossibile leggere le categorie: per ora lo schermo mostra tutti i piatti.",
+    noCategories: "Il menu non ha ancora categorie.",
+    screenArrivals: (added) =>
+      `${added === 1 ? "1 nuovo piatto" : `${added} nuovi piatti`} per questo schermo.`,
     loadMore: "Carica altri ordini",
     cancelTitle: (table) => `Annulla piatto · ${table}`,
     cancelHint: (dish, amount) =>

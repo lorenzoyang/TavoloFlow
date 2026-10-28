@@ -3,6 +3,7 @@ import {
   Check,
   MoreHorizontal,
   ChefHat,
+  ListFilter,
   RefreshCw,
   Sun,
   Timer,
@@ -34,6 +35,7 @@ import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import { useWakeLock } from "@/lib/useWakeLock";
 import type { KitchenOrder } from "./api";
+import { CategoryDialog } from "./CategoryDialog";
 import { kitchenMessages } from "./messages";
 import { canCancel, waitLevel, type DishGroup, type KitchenView } from "./state";
 import { useKitchen } from "./useKitchen";
@@ -479,28 +481,52 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
           ))}
         </TabsList>
         <TabsContent value={model.view} className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            {model.view === "DISHES"
-              ? m.dishSummary(
+          {model.view === "DISHES" ? (
+            // The category setting sits where it applies: only this view and its chime use it.
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-muted-foreground">
+                {m.dishSummary(
                   model.dishes.length,
                   model.dishes.reduce((sum, group) => sum + group.quantity, 0),
-                )
-              : m.listSummary(
-                  m.status[model.status],
-                  model.head?.totalCount ?? "—",
-                  model.orders.length,
                 )}
-          </p>
+              </p>
+              <Button
+                variant="outline"
+                className="shrink-0"
+                onClick={() => model.setChoosing(true)}
+              >
+                <ListFilter />
+                {m.categories}
+              </Button>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {m.listSummary(
+                m.status[model.status],
+                model.head?.totalCount ?? "—",
+                model.orders.length,
+              )}
+            </p>
+          )}
+          {model.view === "DISHES" &&
+            model.hidden.length > 0 &&
+            (model.menu.isError && !model.menu.data ? (
+              <Notice tone="warning">{m.categoriesError}</Notice>
+            ) : (
+              model.hiddenCount > 0 && <Notice>{m.hiddenCategories(model.hiddenCount)}</Notice>
+            ))}
           {model.view === "DISHES" && model.query.hasNextPage && (
             <Notice tone="warning">{m.dishesIncomplete}</Notice>
           )}
           {model.query.isPending && <LoadingState label={m.loading} />}
-          {!model.query.isPending && !model.query.isError && model.orders.length === 0 && (
-            <EmptyState
-              icon={ChefHat}
-              title={model.view === "DISHES" ? m.emptyDishes : m.empty[model.status]}
-            />
-          )}
+          {!model.query.isPending &&
+            !model.query.isError &&
+            (model.view === "DISHES" ? model.dishes : model.orders).length === 0 && (
+              <EmptyState
+                icon={ChefHat}
+                title={model.view === "DISHES" ? m.emptyDishes : m.empty[model.status]}
+              />
+            )}
           <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
             {model.view === "DISHES"
               ? model.dishes.map((group) => (
@@ -522,6 +548,7 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
           )}
         </TabsContent>
       </Tabs>
+      <CategoryDialog model={model} />
       <ConfirmDialog
         open={!!confirmation}
         tone="destructive"
