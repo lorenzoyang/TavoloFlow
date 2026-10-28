@@ -204,16 +204,6 @@ function OrderTicket({
           );
         })}
       </ul>
-      {order.orderNote && (
-        <p
-          className={cn(
-            "rounded-xl border p-3 font-medium whitespace-pre-wrap wrap-break-word",
-            order.status === "NEW" ? "border-warning/60 bg-warning/12" : "bg-secondary",
-          )}
-        >
-          {m.orderNote(order.orderNote)}
-        </p>
-      )}
       {order.status === "PROCESSED" && (
         <div className="space-y-1 text-sm text-muted-foreground">
           <p>

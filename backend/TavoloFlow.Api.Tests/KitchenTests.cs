@@ -27,7 +27,7 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
     {
         public Guid RestaurantId => Staff.RestaurantId;
         public GuestIdentity Guest => new(RestaurantId, Table.Id, Opened.Session.SessionId);
-        public CreateOrderInput Input() => new(Guest.SessionId, Guid.NewGuid(), [new(Item.Id, 1, 700, "少盐")], "一起上菜");
+        public CreateOrderInput Input() => new(Guest.SessionId, Guid.NewGuid(), [new(Item.Id, 1, 700, "少盐")]);
     }
 
     [Fact]

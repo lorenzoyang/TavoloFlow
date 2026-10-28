@@ -8,7 +8,7 @@ namespace TavoloFlow.Api.Ordering;
 // Only the envelope is validated before recovery. A persisted request takes precedence over its resent contents.
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record CreateOrderInput([Required] Guid? SessionId, [Required] Guid? ClientRequestId,
-    OrderLineInput?[]? Items, string? OrderNote);
+    OrderLineInput?[]? Items);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record OrderLineInput(Guid MenuItemId, int Quantity, long ExpectedUnitPriceCents, string? Remark);
@@ -23,12 +23,11 @@ public sealed record OrderLineResponse(Guid Id, Guid? MenuItemId, string? ItemCo
 }
 
 public sealed record OrderResponse(Guid Id, Guid SessionId, string Status, DateTime CreatedAt,
-    string DefaultLanguage, long TotalAmountCents, long PayableAmountCents, string? OrderNote, OrderLineResponse[] Items)
+    string DefaultLanguage, long TotalAmountCents, long PayableAmountCents, OrderLineResponse[] Items)
 {
     public static OrderResponse From(Order order) => new(order.Id, order.DiningSessionId, ApiEnum.Text(order.Status),
         order.CreatedAt, order.DefaultLanguageSnapshot, order.TotalAmountCents,
-        Payable(order), order.OrderNote,
-        OrderLineResponse.ForOrder(order));
+        Payable(order), OrderLineResponse.ForOrder(order));
 
     public static long Payable(Order order) => order.Items.Where(i => i.Status != OrderItemStatus.Cancelled)
         .Sum(i => checked(i.UnitPriceCents * i.Quantity));

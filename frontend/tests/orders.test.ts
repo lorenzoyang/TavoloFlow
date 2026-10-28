@@ -58,7 +58,6 @@ test("line, total quantity, note and line count limits reject instead of silentl
   throwsIssue(() => editLine(cart, 0, { quantity: 21 }), "limits");
   throwsIssue(() => editLine(cart, 0, { quantity: 1.5 }), "limits");
   throwsIssue(() => editLine(cart, 0, { remark: "x".repeat(201) }), "limits");
-  throwsIssue(() => validateCart({ ...cart, orderNote: "x".repeat(501) }), "limits");
   throwsIssue(
     () => validateCart({ ...cart, lines: Array.from({ length: 31 }, () => cart.lines[0]) }),
     "limits",
@@ -95,12 +94,12 @@ test("unavailable or unreviewed dishes cannot be added; a changed price requires
 });
 
 test("pending intent survives reload with identical request id, content and session and blocks edits", () => {
-  const cart = { ...addItem(blank(), item), orderNote: " 一起上菜 " };
+  const cart = editLine(addItem(blank(), item), 0, { remark: " 少盐 " });
   const pending = createIntent(cart, session, id);
   const frozen = { ...cart, pending };
   const restored = restoreCart(JSON.stringify(frozen), blank());
   assert.deepEqual(restored.pending, pending);
-  assert.equal(restored.pending?.orderNote, "一起上菜");
+  assert.equal(restored.pending?.items[0].remark, "少盐");
   assert.equal(addItem(restored, item), restored);
   assert.equal(editLine(restored, 0, { quantity: 0 }), restored);
 });
@@ -188,7 +187,6 @@ test("only a complete server order with consistent safe amounts may clear the sa
     defaultLanguage: "en",
     totalAmountCents: 1400,
     payableAmountCents: 1400,
-    orderNote: null,
     items: [
       {
         id,
@@ -228,7 +226,6 @@ test("only a complete server order with consistent safe amounts may clear the sa
     { ...order, items: [{}] },
     { ...order, totalAmountCents: 1300 },
     { ...order, defaultLanguage: "fr" },
-    { ...order, orderNote: undefined },
     { ...order, payableAmountCents: 700 },
     { ...order, status: "PROCESSED" },
     { ...order, items: [{ ...order.items[0], status: "READY", readyAt: null }] },

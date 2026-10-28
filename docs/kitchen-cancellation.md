@@ -1,6 +1,6 @@
 # 厨房：逐菜出餐与取消
 
-顾客一次提交仍是一笔订单；厨房按订单查看桌号、下单时间、整单备注和菜品快照，但按明细行处理。
+顾客一次提交仍是一笔订单；厨房按订单查看桌号、下单时间和菜品快照，但按明细行处理。
 “炒饭 ×3”一次出餐或取消三份，不支持分批数量。此处的已出餐只表示厨房完成；服务员送达由[传菜屏](pass-screen.md)单独记录。
 
 ## 状态与页面
@@ -31,7 +31,7 @@
 
 旧 `/orders/{id}/ready`、`/cancel` 已移除。取消不需要 expectedStatus 或 reason，因为唯一合法来源是 NEW。
 
-厨房订单包含 `id, sessionId, tableLabel, status, createdAt, processedAt, defaultLanguage, totalAmountCents, payableAmountCents, orderNote, items`。
+厨房订单包含 `id, sessionId, tableLabel, status, createdAt, processedAt, defaultLanguage, totalAmountCents, payableAmountCents, items`。
 取消原因不存储、不返回。每个 item 在原快照字段上增加 `status, readyAt, cancelledAt`；顾客与账单共用此明细契约。
 `totalAmountCents` 永远是原始下单金额；`payableAmountCents` 为未取消明细的单价乘数量之和。
 

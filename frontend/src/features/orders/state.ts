@@ -11,7 +11,6 @@ export type OrderInput = {
   sessionId: string;
   clientRequestId: string;
   items: OrderLineInput[];
-  orderNote: string | null;
 };
 export type CartLine = { item: MenuItem; quantity: number; remark: string };
 export type Cart = {
@@ -20,7 +19,6 @@ export type Cart = {
   tableId: string;
   sessionId: string | null;
   lines: CartLine[];
-  orderNote: string;
   pending: OrderInput | null;
 };
 type CartIssue = "limits" | "amount" | "unavailable" | "storage" | "damaged";
@@ -43,7 +41,6 @@ export const emptyCart = (
   tableId,
   sessionId,
   lines: [],
-  orderNote: "",
   pending: null,
 });
 const clean = (text: string) => text.trim();
@@ -70,8 +67,7 @@ export function validateCart(cart: Cart) {
       (l) =>
         !Number.isInteger(l.quantity) || l.quantity < 1 || l.quantity > 20 || l.remark.length > 200,
     ) ||
-    cart.lines.reduce((n, l) => n + l.quantity, 0) > 100 ||
-    cart.orderNote.length > 500
+    cart.lines.reduce((n, l) => n + l.quantity, 0) > 100
   )
     throw new CartError("limits");
   totalCents(cart.lines);
@@ -128,7 +124,6 @@ export function createIntent(cart: Cart, sessionId: string, requestId: string): 
   return {
     sessionId,
     clientRequestId: requestId,
-    orderNote: clean(cart.orderNote) || null,
     items: cart.lines.map((l) => ({
       menuItemId: l.item.id,
       quantity: l.quantity,
@@ -173,7 +168,6 @@ export function restoreCart(raw: string | null, fallback: Cart): Cart {
       value.tableId !== fallback.tableId ||
       (value.sessionId !== null && !isUuid(value.sessionId)) ||
       !Array.isArray(value.lines) ||
-      typeof value.orderNote !== "string" ||
       value.lines.some((l) => !l || !validItem(l.item) || typeof l.remark !== "string")
     )
       throw new Error();
@@ -183,7 +177,6 @@ export function restoreCart(raw: string | null, fallback: Cart): Cart {
       tableId: value.tableId,
       sessionId: value.sessionId,
       lines: value.lines.map((l) => ({ item: l.item, quantity: l.quantity, remark: l.remark })),
-      orderNote: value.orderNote,
       pending: null,
     });
     if (value.pending !== null) {
@@ -196,7 +189,6 @@ export function restoreCart(raw: string | null, fallback: Cart): Cart {
         JSON.stringify({
           sessionId: p.sessionId,
           clientRequestId: p.clientRequestId,
-          orderNote: p.orderNote,
           items: p.items?.map((l) => ({
             menuItemId: l.menuItemId,
             quantity: l.quantity,

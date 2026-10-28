@@ -36,8 +36,6 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
 
         builder.Property(order => order.TotalAmountCents).HasColumnName("total_amount_cents");
 
-        builder.Property(order => order.OrderNote).HasColumnName("order_note").HasColumnType("text");
-
         builder.Property(order => order.DefaultLanguageSnapshot).HasColumnName("default_language_snapshot").HasMaxLength(2).IsRequired();
 
         builder.Property(order => order.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz").HasDefaultValueSql("now()");

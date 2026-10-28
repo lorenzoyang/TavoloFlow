@@ -22,7 +22,6 @@ import {
   refreshCart,
   restoreCart,
   submissionFailure,
-  validateCart,
   type Cart,
   type CartLine,
   type OrderInput,
@@ -334,7 +333,6 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
     add: (item: MenuItem) => edit((c) => addItem(c, item)),
     line: (index: number, patch: Partial<Pick<CartLine, "quantity" | "remark">>) =>
       edit((c) => editLine(c, index, patch)),
-    note: (orderNote: string) => edit((c) => validateCart({ ...c, orderNote })),
     prepare,
     confirm: () => send(false),
     retry: () => send(true),

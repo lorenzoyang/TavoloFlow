@@ -25,7 +25,6 @@ export type Order = {
   defaultLanguage: Language;
   totalAmountCents: number;
   payableAmountCents: number;
-  orderNote: string | null;
   items: OrderLine[];
 };
 type OrderPage = { items: Order[]; nextCursor: string | null; totalAmountCents: number };

@@ -7,7 +7,6 @@ const en = {
   empty: "Your cart is empty.",
   quantity: "Quantity",
   remark: "Item note",
-  orderNote: "Order note",
   remove: "Remove",
   decrease: "Decrease quantity",
   increase: "Increase quantity",
@@ -32,8 +31,7 @@ const en = {
   changed: "The menu has changed. Review the latest prices and availability, then confirm again.",
   unavailable:
     "Some dishes are unavailable or awaiting allergen review. Remove or replace them before ordering.",
-  limits:
-    "Use up to 30 lines, 1–20 per line and 100 items total. Item notes: 200 characters; order note: 500.",
+  limits: "Use up to 30 lines, 1–20 per line and 100 items total. Item notes: 200 characters.",
   amount: "The amount exceeds the supported range. Please ask the staff.",
   storage:
     "Your browser cannot save the order safely. Enable tab storage and reload before ordering. You may still browse and edit.",
@@ -80,7 +78,6 @@ export const orderMessages: Record<Language, typeof en> = {
     empty: "购物车还是空的。",
     quantity: "数量",
     remark: "单行备注",
-    orderNote: "整单备注",
     remove: "移除",
     decrease: "减少数量",
     increase: "增加数量",
@@ -101,8 +98,7 @@ export const orderMessages: Record<Language, typeof en> = {
     unverified: "请先加入本轮用餐，再核对并提交订单。",
     changed: "菜单已变化，请重新核对最新价格和供应状态，再确认下单。",
     unavailable: "部分菜品已不可售或尚未完成过敏原审核，请移除或替换后再下单。",
-    limits:
-      "每单最多 30 行，每行 1–20 份，总计最多 100 份；单行备注最多 200 字符，整单备注最多 500 字符。",
+    limits: "每单最多 30 行，每行 1–20 份，总计最多 100 份；单行备注最多 200 字符。",
     amount: "金额超过支持范围，请联系工作人员。",
     storage: "浏览器无法安全保存本次订单。请启用标签页存储并刷新后下单；仍可浏览和编辑。",
     damaged: "无法安全读取已保存的购物车或待确认请求，请联系工作人员核对之前的订单。",
@@ -142,7 +138,6 @@ export const orderMessages: Record<Language, typeof en> = {
     empty: "Il carrello è vuoto.",
     quantity: "Quantità",
     remark: "Nota del piatto",
-    orderNote: "Nota dell’ordine",
     remove: "Rimuovi",
     decrease: "Riduci quantità",
     increase: "Aumenta quantità",
@@ -169,7 +164,7 @@ export const orderMessages: Record<Language, typeof en> = {
     unavailable:
       "Alcuni piatti non sono disponibili o attendono la verifica degli allergeni. Rimuovili o sostituiscili.",
     limits:
-      "Massimo 30 righe, 1–20 porzioni per riga e 100 in totale. Note: 200 caratteri per piatto, 500 per ordine.",
+      "Massimo 30 righe, 1–20 porzioni per riga e 100 in totale. Note: 200 caratteri per piatto.",
     amount: "L’importo supera il limite supportato. Rivolgiti al personale.",
     storage:
       "Il browser non può salvare l’ordine in sicurezza. Abilita la memoria della scheda e ricarica prima di ordinare. Puoi consultare e modificare la bozza.",

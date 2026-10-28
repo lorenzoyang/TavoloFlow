@@ -17,7 +17,6 @@ const zh = {
   unitPrice: (amount: string) => `单价 ${amount}`,
   readyAt: (time: string) => `出餐：${time}`,
   cancelledAt: (time: string) => `取消：${time}`,
-  orderNote: (text: string) => `整单备注：${text}`,
   // The bill total.
   closedAmount: "关闭记录金额",
   totalDue: "整桌应收",
@@ -128,7 +127,6 @@ export const billingMessages: Record<StaffLanguage, typeof zh> = {
     unitPrice: (amount) => `Prezzo unitario ${amount}`,
     readyAt: (time) => `Pronto: ${time}`,
     cancelledAt: (time) => `Annullato: ${time}`,
-    orderNote: (text) => `Nota ordine: ${text}`,
     closedAmount: "Importo registrato",
     totalDue: "Totale da incassare",
     dining: "In corso",

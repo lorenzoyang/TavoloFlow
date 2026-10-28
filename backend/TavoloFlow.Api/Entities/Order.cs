@@ -14,7 +14,6 @@ public sealed class Order
     public Guid ClientRequestId { get; set; }
     public OrderStatus Status { get; set; } = OrderStatus.New;
     public long TotalAmountCents { get; set; }
-    public string? OrderNote { get; set; }
     public required string DefaultLanguageSnapshot { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? ProcessedAt { get; set; }

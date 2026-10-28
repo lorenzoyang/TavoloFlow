@@ -253,7 +253,6 @@ Table orders {
   client_request_id uuid [not null, note: 'Same ID on retry; not a secret']
   status varchar(12) [not null, default: 'NEW']
   total_amount_cents bigint [not null]
-  order_note text
   default_language_snapshot varchar(2) [not null]
   created_at timestamptz [not null, default: `now()`]
   processed_at timestamptz

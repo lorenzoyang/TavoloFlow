@@ -199,7 +199,7 @@ flowchart LR
 - 从空桌变成开桌、切桌、发现旧 Session 被关闭时，禁止直接沿用旧确认状态。允许重新核对菜品、数量和最新金额后再对新的 Session 建立新的提交意图；已明确结束而清空的旧订单草稿不自动恢复。
 - 订单总额、单价最终以服务端数据库为准；前端价格仅作为展示/预览。
 
-**当前购物车实现（第五阶段）**：`/q/{token}` 内提供底部数量/金额入口、购物车、单行及整单备注、核价确认和本桌订单；同菜同规范化备注合并，草稿保存于标签页 `sessionStorage`。空桌草稿须确认新用餐归属。每单 1–30 行、每行 1–20 份、总计最多 100 份，单行/整单备注上限 200/500 字符；金额为整数欧分，行、订单及账单合计均限制在 JavaScript 安全整数范围。存储失败可编辑但不能正式提交。
+**当前购物车实现（第五阶段）**：`/q/{token}` 内提供底部数量/金额入口、购物车、单行备注、核价确认和本桌订单；同菜同规范化备注合并，草稿保存于标签页 `sessionStorage`。空桌草稿须确认新用餐归属。每单 1–30 行、每行 1–20 份、总计最多 100 份，单行备注上限 200 字符；金额为整数欧分，行、订单及账单合计均限制在 JavaScript 安全整数范围。存储失败可编辑但不能正式提交。
 
 ### 3.5 顾客正式下单、断网与未知结果（重点）
 
@@ -352,7 +352,7 @@ flowchart TD
 | GET | `/api/public/sessions/{id}/access` | **已实现**：验证当前顾客 Cookie、绑定归属和 Session ACTIVE，返回最小访问状态 |
 | GET | `/api/public/sessions/{id}/join-code` | **已实现**：当前有效顾客授权及可用入口才允许读取码，`no-store` |
 | GET | `/api/public/sessions/{id}/orders` | **已实现**：整桌订单，`cursor` / `limit` 游标分页、非取消总额、`no-store` |
-| POST | `/api/public/orders` | **已实现**：`sessionId + clientRequestId + orderNote + items`；每行 `menuItemId + quantity + remark + expectedUnitPriceCents`；首次 201、重复 200 |
+| POST | `/api/public/orders` | **已实现**：`sessionId + clientRequestId + items`；每行 `menuItemId + quantity + remark + expectedUnitPriceCents`；首次 201、重复 200 |
 | GET | `/api/public/sessions/{id}/orders/by-request/{requestId}` | **已实现**：核对原提交，未找到返回 `404 ORDER_NOT_FOUND` |
 | POST | `/api/auth/login` / `/api/auth/logout` | 店铺后台登录/本设备退出 |
 | GET | `/api/auth/csrf` | 获取与当前身份匹配的请求 token，写请求通过 `X-CSRF-TOKEN` 提交 |

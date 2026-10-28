@@ -104,11 +104,6 @@ function BillOrder({ order, timeZone }: { order: KitchenOrder; timeZone: string 
           );
         })}
       </ul>
-      {order.orderNote && (
-        <p className="rounded-lg bg-secondary p-2.5 text-sm whitespace-pre-wrap wrap-break-word">
-          {m.orderNote(order.orderNote)}
-        </p>
-      )}
     </article>
   );
 }

@@ -27,7 +27,7 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
     {
         public GuestIdentity Guest => new(User.RestaurantId, Table.Id, Opened.Session.SessionId);
         public CreateOrderInput Input(int quantity = 2) => new(Opened.Session.SessionId, Guid.NewGuid(),
-            [new(Item.Id, quantity, Item.PriceCents, " 少盐 ")], " 一起上菜 ");
+            [new(Item.Id, quantity, Item.PriceCents, " 少盐 ")]);
     }
     private static string ListPath(Setup s) => $"/api/public/sessions/{s.Guest.SessionId}/orders";
     private static string LookupPath(Setup s, Guid id) => ListPath(s) + "/by-request/" + id;
@@ -45,7 +45,6 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
         var order = (await first.Content.ReadFromJsonAsync<OrderResponse>())!;
         Assert.Equal(1400, order.TotalAmountCents);
         Assert.Equal("NEW", order.Status);
-        Assert.Equal("一起上菜", order.OrderNote);
         Assert.Equal("少盐", order.Items.Single().Remark);
         Assert.Equal(["SOY"], order.Items.Single().AllergenCodes);
         Assert.Equal("炒饭", order.Items.Single().NameZh);
@@ -87,7 +86,7 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
             .SetProperty(r => r.OrderingEnabled, false).SetProperty(r => r.ServiceStatus, RestaurantServiceStatus.Suspended));
         await db.RestaurantTables.Where(t => t.Id == setup.Table.Id).ExecuteUpdateAsync(u => u.SetProperty(t => t.IsEnabled, false));
         await db.MenuItems.Where(i => i.Id == setup.Item.Id).ExecuteUpdateAsync(u => u.SetProperty(i => i.IsAvailable, false));
-        var retry = await SubmitAsync(guest, input with { Items = null, OrderNote = new string('x', 501) });
+        var retry = await SubmitAsync(guest, input with { Items = null });
         Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
         Assert.Equal(ids[0], (await retry.Content.ReadFromJsonAsync<OrderResponse>())!.Id);
         Assert.Equal(HttpStatusCode.OK, (await guest.GetAsync(ListPath(setup))).StatusCode);
@@ -110,7 +109,7 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
 
     [Theory]
     [InlineData("empty")][InlineData("too-many-lines")][InlineData("null-line")][InlineData("zero")]
-    [InlineData("too-many-per-line")][InlineData("too-many-total")][InlineData("note")][InlineData("remark")]
+    [InlineData("too-many-per-line")][InlineData("too-many-total")][InlineData("remark")]
     [InlineData("price")][InlineData("missing-id")]
     public async Task Create_InvalidInput_RejectsWholeOrder(string scenario)
     {
@@ -127,7 +126,6 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
             "zero" => input with { Items = [line with { Quantity = 0 }] },
             "too-many-per-line" => input with { Items = [line with { Quantity = 21 }] },
             "too-many-total" => input with { Items = Enumerable.Repeat(line with { Quantity = 20 }, 6).ToArray() },
-            "note" => input with { OrderNote = new string('x', 501) },
             "remark" => input with { Items = [line with { Remark = new string('x', 201) }] },
             "price" => input with { Items = [line with { ExpectedUnitPriceCents = 0 }] },
             _ => input with { ClientRequestId = Guid.Empty }

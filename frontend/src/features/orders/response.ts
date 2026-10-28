@@ -14,7 +14,6 @@ export function confirmedOrder(value: Order, sessionId: string): Order {
     !isLanguage(value.defaultLanguage) ||
     typeof value.createdAt !== "string" ||
     !Number.isFinite(Date.parse(value.createdAt)) ||
-    !text(value.orderNote) ||
     !Number.isSafeInteger(value.totalAmountCents) ||
     value.totalAmountCents <= 0 ||
     !Number.isSafeInteger(value.payableAmountCents) ||

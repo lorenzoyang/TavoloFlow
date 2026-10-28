@@ -6,7 +6,6 @@ import { Notice, type NoticeTone } from "@/components/notice";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { displayName, type Language } from "@/lib/language";
 import { allergenNames } from "@/features/public-menu/messages";
 import type { PublicMenu } from "@/features/public-menu/api";
@@ -92,11 +91,6 @@ function OrderCard({ order, language }: { order: Order; language: Language }) {
           );
         })}
       </ul>
-      {order.orderNote && (
-        <p className="rounded-lg bg-secondary p-3 text-sm whitespace-pre-wrap wrap-break-word">
-          {m.orderNote}: {order.orderNote}
-        </p>
-      )}
       {order.payableAmountCents !== order.totalAmountCents && (
         <p className="text-right text-sm text-muted-foreground">
           {m.originalTotal}: {formatMoney(order.totalAmountCents, language)}
@@ -272,27 +266,6 @@ export function CartPanel({
       )}
       {lines.length > 0 && (
         <>
-          {model.review ? (
-            model.review.cart.orderNote.trim() && (
-              <p className="rounded-lg bg-secondary p-3 text-sm whitespace-pre-wrap wrap-break-word">
-                {m.orderNote}: {model.review.cart.orderNote}
-              </p>
-            )
-          ) : (
-            <div className="space-y-2">
-              <label htmlFor="order-note" className="text-sm font-medium">
-                {m.orderNote}
-              </label>
-              <Textarea
-                id="order-note"
-                className="min-h-20"
-                maxLength={500}
-                value={model.cart.orderNote}
-                disabled={frozen}
-                onChange={(event) => model.note(event.target.value)}
-              />
-            </div>
-          )}
           <p className="flex items-baseline justify-between gap-3 border-t pt-4 text-lg font-semibold">
             <span>{m.total}</span>
             <span className="text-xl tabular-nums">{formatMoney(total, language)}</span>

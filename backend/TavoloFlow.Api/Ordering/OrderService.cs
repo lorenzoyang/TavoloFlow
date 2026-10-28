@@ -64,8 +64,7 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
         {
             Id = Guid.CreateVersion7(), RestaurantId = guest.RestaurantId, DiningSessionId = guest.SessionId,
             ClientRequestId = input.ClientRequestId.Value, TotalAmountCents = total,
-            OrderNote = InputRules.TrimToNull(input.OrderNote), DefaultLanguageSnapshot = restaurant.DefaultLanguage,
-            CreatedAt = clock.GetUtcNow().UtcDateTime
+            DefaultLanguageSnapshot = restaurant.DefaultLanguage, CreatedAt = clock.GetUtcNow().UtcDateTime
         };
         foreach (var line in lines)
         {
@@ -140,7 +139,6 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
     {
         if (input.Items is null || input.Items.Length is < 1 or > 30 || input.Items.Any(x => x is null))
             throw OrderErrors.Invalid("items", "每笔订单须包含 1–30 行菜品。");
-        if (input.OrderNote?.Length > 500) throw OrderErrors.Invalid("orderNote", "整单备注最多 500 个字符。");
         var lines = input.Items.Select(x => x!).ToArray();
         foreach (var (line, index) in lines.Select((line, index) => (line, index)))
         {
