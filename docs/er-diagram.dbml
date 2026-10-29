@@ -303,7 +303,7 @@ Table order_items {
   status varchar(12) [not null, default: 'NEW']
   ready_at timestamptz
   cancelled_at timestamptz
-  served_at timestamptz [note: 'Taken from the pass by a waiter; never affects the bill']
+  served_at timestamptz [note: 'Taken from the pass by a waiter, or set to closed_at by closure; never affects the bill']
 
   Indexes {
     (order_id, restaurant_id)

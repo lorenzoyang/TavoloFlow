@@ -3,7 +3,6 @@ import { test } from "node:test";
 import type { KitchenOrder } from "../src/features/kitchen/api.ts";
 import type { OrderLine } from "../src/features/orders/api.ts";
 import {
-  arrivals,
   canCancel,
   categoryFilter,
   dishGroups,
@@ -16,7 +15,7 @@ import {
   waitLevel,
   type PendingKitchenAction,
 } from "../src/features/kitchen/state.ts";
-import { syncIsFresh, syncIsStalled } from "../src/lib/live-view.ts";
+import { syncIsFresh, syncIsStalled, watermarkAdvanced } from "../src/lib/live-view.ts";
 
 const action: PendingKitchenAction = {
   orderId: "00000000-0000-4000-8000-000000000001",
@@ -56,15 +55,23 @@ test("GET recovery distinguishes achieved target, changed state and a fresh huma
 });
 
 test("arrival detection works beyond the displayed page and does not alarm on processing or reconnect", () => {
-  const first = arrivals(null, 120, 1000);
-  assert.equal(first.added, 0);
-  assert.equal(arrivals(first.baseline, 120, 11_000).added, 0); // Completion/cancellation does not change the creation count.
-  const incoming = arrivals(first.baseline, 123, 11_000);
-  assert.equal(incoming.added, 3); // One chime for the batch, even when none are on the oldest page.
-  assert.equal(arrivals(incoming.baseline, 123, 11_000).added, 0); // Page append / repeated render.
-  assert.equal(arrivals(incoming.baseline, 130, 41_000).added, 0); // Stale connection establishes a baseline.
-  assert.equal(arrivals(null, 150, 42_000).added, 0); // Foreground resume, reconnect or identity change.
-  assert.equal(arrivals(incoming.baseline, 10, 21_000).added, 0); // A counter decrease also resets safely.
+  const first = watermarkAdvanced(null, "2026-10-29T12:00:00Z", 1000);
+  assert.equal(first.advanced, false); // First load establishes a silent baseline.
+  // Completion, cancellation and closure never move the newest order's creation time.
+  assert.equal(watermarkAdvanced(first.baseline, "2026-10-29T12:00:00Z", 11_000).advanced, false);
+  const incoming = watermarkAdvanced(first.baseline, "2026-10-29T12:00:08Z", 11_000);
+  assert.equal(incoming.advanced, true); // One chime for the batch, even when none are on the oldest page.
+  // Page append / repeated render.
+  assert.equal(
+    watermarkAdvanced(incoming.baseline, "2026-10-29T12:00:08Z", 11_000).advanced,
+    false,
+  );
+  // Stale connection, foreground resume, reconnect or identity change establish a baseline.
+  assert.equal(
+    watermarkAdvanced(incoming.baseline, "2026-10-29T12:01:00Z", 41_000).advanced,
+    false,
+  );
+  assert.equal(watermarkAdvanced(null, "2026-10-29T12:01:00Z", 42_000).advanced, false);
 });
 
 test("stale and resumed views cannot authorize UI writes before a fresh successful poll", () => {
@@ -242,7 +249,7 @@ test("a screen chimes only for its own new dishes, after a silent baseline", () 
   // A served line leaves and a new one arrives in the same poll.
   const next = screenArrivals(quiet.baseline, ["b", "c"], drinks, 21_000);
   assert.equal(next.added, 2);
-  // Changing the hidden categories or a long gap is not continuous, so the caller uses the order count.
+  // Changing the hidden categories or a long gap is not continuous, so the caller uses the order watermark.
   assert.equal(screenArrivals(next.baseline, ["b", "c", "d"], "", 31_000).added, null);
   assert.equal(screenArrivals(next.baseline, ["b", "c", "d"], drinks, 61_000).added, null);
   assert.equal(screenArrivals(next.baseline, ["b"], drinks, 21_000).added, null);

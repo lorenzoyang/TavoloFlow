@@ -13,7 +13,12 @@ import type { OrderLine } from "@/features/orders/api";
 import { diningKey, floorKey } from "@/features/dining/api";
 import { menuQuery } from "@/features/menu/api";
 import { ApiError, errorMessage, withTimeout } from "@/lib/api";
-import { syncIsFresh, syncIsStalled } from "@/lib/live-view";
+import {
+  syncIsFresh,
+  syncIsStalled,
+  watermarkAdvanced,
+  type WatermarkBaseline,
+} from "@/lib/live-view";
 import { isLive, onLifecycleChange } from "@/lib/useLiveView";
 import { orderChime } from "@/lib/alert-sound";
 import { useAlertSound } from "@/lib/useAlertSound";
@@ -32,7 +37,6 @@ import {
 } from "./api";
 import { kitchenMessages } from "./messages";
 import {
-  arrivals,
   categoryFilter,
   dishGroups,
   hiddenCategoriesKey,
@@ -41,7 +45,6 @@ import {
   readPending,
   recoveryOutcome,
   screenArrivals,
-  type ArrivalBaseline,
   type KitchenView,
   type LineBaseline,
   type OrderStatus,
@@ -78,7 +81,7 @@ export function useKitchen(account: CurrentAccount) {
   const mounted = useRef(false);
   const epoch = useRef(0);
   const operations = useRef(new Map<string, AbortController>());
-  const baseline = useRef<ArrivalBaseline>(null);
+  const baseline = useRef<WatermarkBaseline>(null);
   const lineBaseline = useRef<LineBaseline>(null);
   const [latest, setLatest] = useState<Record<string, KitchenOrder>>({});
   const scope = useMemo(() => kitchenKey({ restaurantId, userId }), [restaurantId, userId]);
@@ -290,10 +293,10 @@ export function useKitchen(account: CurrentAccount) {
 
   useEffect(() => {
     if (!head || !active || head.receivedAt < resumeAfter) return;
-    // The created count is restaurant-wide, so the polls of every tab share one baseline. A cached tab's
+    // The order watermark is restaurant-wide, so the polls of every tab share one baseline. A cached tab's
     // older head, or another loaded page, is not a new poll.
     if (baseline.current && head.receivedAt <= baseline.current.at) return;
-    const result = arrivals(baseline.current, head.createdOrderCount, head.receivedAt);
+    const result = watermarkAdvanced(baseline.current, head.latestCreatedAt, head.receivedAt);
     baseline.current = result.baseline;
     // A screen hiding categories announces only its own new dishes, judged while every NEW order is
     // loaded. On another tab, with further pages or without the menu it announces any new order, so a
@@ -310,12 +313,10 @@ export function useKitchen(account: CurrentAccount) {
           )
         : null;
     lineBaseline.current = own?.baseline ?? null;
-    const added = own?.added ?? result.added;
-    if (added > 0) {
+    const added = own?.added;
+    if (added != null ? added > 0 : result.advanced) {
       // Server arrivals are an external event, announced even when audio is disabled.
-      setNotice(
-        own?.added != null ? m.screenArrivals(added) : m.arrivals(added, head.pendingCount),
-      );
+      setNotice(added != null ? m.screenArrivals(added) : m.arrivals(head.pendingCount));
       play();
     }
   }, [head, active, resumeAfter, play, m, filter, status, hasNextPage, orders, hidden]);

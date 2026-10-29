@@ -34,7 +34,7 @@
 
 | 方法与路径 | 输入 | 结果 |
 |---|---|---|
-| `GET /api/staff/orders` | `status=NEW/PROCESSED`，默认 NEW；cursor；limit 默认 50/max 100 | `{ items, nextCursor, totalCount, pendingCount, createdOrderCount }` |
+| `GET /api/staff/orders` | `status=NEW/PROCESSED`，默认 NEW；cursor；limit 默认 50/max 100 | `{ items, nextCursor, totalCount, pendingCount, latestCreatedAt }` |
 | `GET /api/staff/orders/{id}` | 订单 ID | 完整当前订单，用于未知结果核对 |
 | `POST /api/staff/orders/{id}/items/{itemId}/ready` | `{}` | 指定行 NEW → READY，返回完整订单 |
 | `POST /api/staff/orders/{id}/items/{itemId}/cancel` | `{}` | 指定行 NEW → CANCELLED，返回完整订单 |
@@ -47,7 +47,7 @@
 
 - 列表只含 ACTIVE 用餐，行与计数来自同一 Repeatable Read 快照；游标绑定餐厅、状态和排序位置。
 - `totalCount` 为当前分类订单数，`pendingCount` 为所有活动待处理订单数；这两个数仍按订单计。
-- `createdOrderCount` 包含餐厅所有现存订单（含已处理、取消和关闭用餐），逐菜处理不会改变它。它用于发现新提交，不是审计序号。
+- `latestCreatedAt` 是全店最新订单的创建时间（含已处理和已关闭用餐的订单），只有新提交会让它前进，逐菜处理和结账都不会改变它。前端据此响铃。它按两种状态各读一次索引末端，不像计数那样随历史订单增多而变慢。
 - 单笔读取在 Session SHARE 锁下执行；关桌后返回 `409 SESSION_CLOSED`，历史另走 OWNER 账单历史接口。
 - 写入时联合验证餐厅、订单、明细绑定，不存在、跨店或错误绑定均返回 `404 ORDER_ITEM_NOT_FOUND`；普通订单 GET 不存在仍返回 `ORDER_NOT_FOUND`。
 - 重复操作、已出餐取消或竞争失败返回 `409 ORDER_ITEM_CHANGED`，不会覆盖时间或重复扣减。

@@ -74,8 +74,7 @@ const zh = {
     }`,
   recoveryClosed: "原订单已结束用餐或已不可访问，请由老板核对。不会重新发送操作。",
   recoveryUnknown: "结果仍待确认，请恢复连接后核对原订单。",
-  arrivals: (added: number, pending: number) =>
-    `收到 ${added} 笔新订单；当前待处理 ${pending} 笔。`,
+  arrivals: (pending: number) => `收到新订单；当前待处理 ${pending} 笔。`,
   done: (label: string, kind: "ready" | "cancel") =>
     `${label}：${kind === "ready" ? "菜品已出餐。" : "菜品已取消，账单金额已更新。"}`,
   writeUnknown: "操作结果待确认。请核对原订单，系统不会自动重新提交。",
@@ -159,8 +158,7 @@ export const kitchenMessages: Record<StaffLanguage, typeof zh> = {
       "La visita dell’ordine è chiusa o non più accessibile: la verifichi il titolare. L’operazione non verrà reinviata.",
     recoveryUnknown:
       "Esito ancora da verificare: ricontrolla l’ordine quando torna la connessione.",
-    arrivals: (added, pending) =>
-      `${added === 1 ? "1 nuovo ordine" : `${added} nuovi ordini`}; da fare: ${pending}.`,
+    arrivals: (pending) => `Nuovi ordini; da fare: ${pending}.`,
     done: (label, kind) =>
       `${label}: ${kind === "ready" ? "piatto pronto." : "piatto annullato, conto aggiornato."}`,
     writeUnknown:

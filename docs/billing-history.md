@@ -74,6 +74,7 @@ sequenceDiagram
         UI-->>O: 展示新账单，要求重新核对实际收款
     else 条件全部满足
         API->>DB: CLOSED / PAID / 最终金额 / 关闭时间 / 清除码密文
+        API->>DB: 未点「已送达」的 READY 菜品补记关闭时间为送达时间
         API->>DB: 提交事务
         API-->>UI: 已保存的关闭结果
     end
@@ -83,7 +84,7 @@ sequenceDiagram
 - 下单/取消先完成时，旧确认得到 `BILL_CHANGED`；关闭先完成时，后续下单/取消/READY 得到 `SESSION_CLOSED`。
 - NEW 尚未完成时返回 `409 ORDERS_PENDING`；不符合 VOIDED 返回 `409 SESSION_NOT_VOIDABLE`；零账单不能 PAID，返回 `409 SESSION_NOT_PAYABLE`。
 - `BILL_CHANGED`、`ORDERS_PENDING` 和关闭条件冲突附带 `currentBill` 摘要，前端保留该信息用于说明，并重新查询明细。
-- 关闭更新原子提交，任何中途异常均回滚；不修改订单快照，不增加 BillVersion。关闭时间至少等于开桌和本轮最新业务时间，容忍服务器时钟向后调整。
+- 关闭更新原子提交，任何中途异常均回滚；不修改订单快照，不增加 BillVersion。结账时菜品必然已经上桌，所以同一事务把仍为 READY 且 `served_at` 为空的菜品补记关闭时间为送达时间，传菜屏不再列出它们。关闭时间至少等于开桌和本轮最新业务时间，容忍服务器时钟向后调整。
 - 同一 Session 以相同类型、版本和金额重复关闭返回已有结果；不重新写时间、金额或原因。不匹配的关闭请求拒绝。
 - 暂停服务、停用桌位或暂停接单不会阻止处理现有账单。关闭不自动开启下一轮。
 - 关闭后的顾客保护沿用每次请求的实时 Session 检查；Cookie 即使留在浏览器，旧访问也被拒绝。

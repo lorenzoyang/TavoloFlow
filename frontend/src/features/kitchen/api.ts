@@ -13,7 +13,7 @@ export type KitchenPage = {
   nextCursor: string | null;
   totalCount: number;
   pendingCount: number;
-  createdOrderCount: number;
+  latestCreatedAt: string | null;
   receivedAt: number;
 };
 export const kitchenKey = (account: AccountScope) =>

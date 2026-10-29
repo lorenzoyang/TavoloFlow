@@ -15,8 +15,9 @@ public sealed record KitchenOrderResponse(Guid Id, Guid SessionId, string TableL
         OrderLineResponse.ForOrder(order));
 }
 
+// LatestCreatedAt is the newest order's creation time, restaurant-wide: it advances only when an order is submitted.
 public sealed record KitchenPage(KitchenOrderResponse[] Items, string? NextCursor,
-    long TotalCount, long PendingCount, long CreatedOrderCount);
+    long TotalCount, long PendingCount, DateTime? LatestCreatedAt);
 
 public sealed record PassItemResponse(Guid Id, Guid OrderId, Guid SessionId, string TableLabel, string DefaultLanguage,
     string? ItemCode, string? NameZh, string? NameIt, string? NameEn, int Quantity, string? Remark,

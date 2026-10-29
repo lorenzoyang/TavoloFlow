@@ -38,6 +38,7 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
         var other = await SeedAsync(host);
         var orders = new List<OrderResponse>();
         for (var i = 0; i < 4; i++) orders.Add(await CreateAsync(host, s));
+        host.Clock.Advance(TimeSpan.FromSeconds(1)); // A newer order elsewhere must not move this restaurant's watermark.
         await CreateAsync(host, other);
         await using (var db = database.CreateContext())
         {
@@ -48,7 +49,9 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
         using var staff = await LoginAsync(host, s.Staff);
         var first = (await staff.GetFromJsonAsync<KitchenPage>(List + "?limit=2"))!;
         var second = (await staff.GetFromJsonAsync<KitchenPage>(List + "?limit=2&cursor=" + first.NextCursor))!;
-        Assert.Equal(4, first.TotalCount); Assert.Equal(4, first.PendingCount); Assert.Equal(4, first.CreatedOrderCount);
+        Assert.Equal(4, first.TotalCount); Assert.Equal(4, first.PendingCount);
+        await using (var db = database.CreateContext())
+            Assert.Equal(await db.Orders.Where(o => o.RestaurantId == s.RestaurantId).MaxAsync(o => o.CreatedAt), first.LatestCreatedAt);
         var rows = first.Items.Concat(second.Items).ToArray();
         Assert.Equal(orders.Select(o => o.Id).Order(), rows.Select(o => o.Id));
         Assert.Null(second.NextCursor);
@@ -136,11 +139,13 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
     }
 
     [Fact]
-    public async Task List_ProcessedOrderingAndClosedSessions_UsesActionTimeAndKeepsCreationCounter()
+    public async Task List_ProcessedOrderingAndClosedSessions_UsesActionTimeAndKeepsCreationWatermark()
     {
         using var host = new AccountTestHost(database);
         var s = await SeedAsync(host);
-        var a = await CreateAsync(host, s); var b = await CreateAsync(host, s); var c = await CreateAsync(host, s);
+        var a = await CreateAsync(host, s); var b = await CreateAsync(host, s);
+        host.Clock.Advance(TimeSpan.FromSeconds(1));
+        var c = await CreateAsync(host, s);
         await using var db = database.CreateContext();
         var service = new KitchenService(db, host.Clock);
         await service.ReadyAsync(s.RestaurantId, b.Id, b.Items.Single().Id, default);
@@ -150,9 +155,12 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
         var first = await service.ListAsync(s.RestaurantId, "PROCESSED", null, 1, default);
         var rest = await service.ListAsync(s.RestaurantId, "PROCESSED", first.NextCursor, 100, default);
         Assert.Equal(new[] { c.Id, a.Id, b.Id }, first.Items.Concat(rest.Items).Select(x => x.Id));
+        // The newest order is already processed, and closing keeps it: the watermark never moves back.
+        var newest = await db.Orders.Where(o => o.Id == c.Id).Select(o => o.CreatedAt).SingleAsync();
+        Assert.Equal(newest, first.LatestCreatedAt);
         await CloseForTest(db, s, host.Clock);
         var empty = await service.ListAsync(s.RestaurantId, "PROCESSED", null, 50, default);
-        Assert.Empty(empty.Items); Assert.Equal(0, empty.TotalCount); Assert.Equal(3, empty.CreatedOrderCount);
+        Assert.Empty(empty.Items); Assert.Equal(0, empty.TotalCount); Assert.Equal(newest, empty.LatestCreatedAt);
         Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => service.ReadAsync(s.RestaurantId, a.Id, default))).Code);
         Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => service.ReadyAsync(s.RestaurantId, b.Id, b.Items.Single().Id, default))).Code);
         Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() => service.CancelAsync(s.RestaurantId, a.Id, a.Items.Single().Id, default))).Code);
@@ -409,13 +417,24 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
             Assert.Equal("ck_order_item_served", violation.ConstraintName);
         }
 
-        await CloseForTest(db, s, host.Clock);
+        // Checkout marks every dish still at the pass served at closing time; one already served keeps its time.
+        await service.ReadyAsync(s.RestaurantId, pending.Id, pending.Items.Single().Id, default);
+        host.Clock.Advance(TimeSpan.FromSeconds(1));
+        var servedA = await service.ServedAsync(s.RestaurantId, a.Id, a.Items.Single().Id, default);
+        host.Clock.Advance(TimeSpan.FromSeconds(1));
+        await new BillingService(db, host.Clock).CheckoutAsync(s.RestaurantId, s.Guest.SessionId,
+            new(await VersionAsync(s), 2100), default);
         var closed = await service.PassAsync(s.RestaurantId, null, 50, default);
         Assert.Empty(closed.Items); Assert.Equal(0, closed.TotalCount);
-        // Closing never moves the watermark, so it cannot sound like a newly ready dish.
-        Assert.Equal(first.LatestReadyAt, closed.LatestReadyAt);
+        // Nothing waits any more, so the watermark falls silently instead of sounding like a newly ready dish.
+        Assert.Null(closed.LatestReadyAt);
+        var closedAt = await db.DiningSessions.Where(x => x.Id == s.Guest.SessionId).Select(x => x.ClosedAt).SingleAsync();
+        var servedAt = await db.OrderItems.Where(i => i.Order.DiningSessionId == s.Guest.SessionId)
+            .ToDictionaryAsync(i => i.OrderId, i => i.ServedAt);
+        Assert.Equal(servedA.ServedAt, servedAt[a.Id]);
+        Assert.All(new[] { b.Id, pending.Id }, id => Assert.Equal(closedAt, servedAt[id]));
         Assert.Equal("SESSION_CLOSED", (await Assert.ThrowsAsync<ApiException>(() =>
-            service.ServedAsync(s.RestaurantId, a.Id, a.Items.Single().Id, default))).Code);
+            service.ServedAsync(s.RestaurantId, b.Id, b.Items.Single().Id, default))).Code);
     }
 
     [Fact]

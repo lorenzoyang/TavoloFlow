@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { PassItem } from "../src/features/pass/api.ts";
-import { groupByTable, passWaitLevel, readyArrived } from "../src/features/pass/state.ts";
+import { groupByTable, passWaitLevel } from "../src/features/pass/state.ts";
+import { watermarkAdvanced } from "../src/lib/live-view.ts";
 
 const dish = (id: string, sessionId: string, tableLabel: string, readyAt: string): PassItem => ({
   id,
@@ -36,21 +37,21 @@ test("dishes are grouped per visit, the longest-waiting table first, in ready or
 });
 
 test("only a newly ready dish during continuous polling chimes", () => {
-  const first = readyArrived(null, "2026-10-27T12:00:00Z", 1000);
-  assert.equal(first.arrived, false); // First load establishes a silent baseline.
-  assert.equal(readyArrived(first.baseline, "2026-10-27T12:00:00Z", 11_000).arrived, false);
-  const next = readyArrived(first.baseline, "2026-10-27T12:00:05Z", 11_000);
-  assert.equal(next.arrived, true);
+  const first = watermarkAdvanced(null, "2026-10-27T12:00:00Z", 1000);
+  assert.equal(first.advanced, false); // First load establishes a silent baseline.
+  assert.equal(watermarkAdvanced(first.baseline, "2026-10-27T12:00:00Z", 11_000).advanced, false);
+  const next = watermarkAdvanced(first.baseline, "2026-10-27T12:00:05Z", 11_000);
+  assert.equal(next.advanced, true);
   // Serving the newest dish or closing a table lowers the watermark silently...
-  const served = readyArrived(next.baseline, "2026-10-27T11:59:00Z", 21_000);
-  assert.equal(served.arrived, false);
-  assert.equal(readyArrived(next.baseline, null, 21_000).arrived, false);
+  const served = watermarkAdvanced(next.baseline, "2026-10-27T11:59:00Z", 21_000);
+  assert.equal(served.advanced, false);
+  assert.equal(watermarkAdvanced(next.baseline, null, 21_000).advanced, false);
   // ...and a dish made ready afterwards still announces itself.
-  assert.equal(readyArrived(served.baseline, "2026-10-27T12:00:06Z", 31_000).arrived, true);
+  assert.equal(watermarkAdvanced(served.baseline, "2026-10-27T12:00:06Z", 31_000).advanced, true);
   // A stale connection, a resume or a repeated poll establishes a baseline instead.
-  assert.equal(readyArrived(next.baseline, "2026-10-27T12:10:00Z", 50_000).arrived, false);
-  assert.equal(readyArrived(null, "2026-10-27T12:10:00Z", 50_000).arrived, false);
-  assert.equal(readyArrived(next.baseline, "2026-10-27T12:10:00Z", 11_000).arrived, false);
+  assert.equal(watermarkAdvanced(next.baseline, "2026-10-27T12:10:00Z", 50_000).advanced, false);
+  assert.equal(watermarkAdvanced(null, "2026-10-27T12:10:00Z", 50_000).advanced, false);
+  assert.equal(watermarkAdvanced(next.baseline, "2026-10-27T12:10:00Z", 11_000).advanced, false);
 });
 
 test("a dish waiting five minutes at the pass is highlighted", () => {

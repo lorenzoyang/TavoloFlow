@@ -95,6 +95,11 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
                 .SetProperty(s => s.ClosedTotalCents, bill.TotalAmountCents)
                 .SetProperty(s => s.JoinCodeCiphertext, (string?)null), ct);
         if (changed != 1) throw DiningErrors.SessionClosed();
+        // A settled bill means every ready dish reached the table, whether or not someone tapped it at the pass.
+        // The clamp only guards ck_order_item_served: closing time is already at least every order's ProcessedAt.
+        await db.OrderItems.Where(i => i.RestaurantId == restaurantId && i.Order.DiningSessionId == id &&
+                i.Status == OrderItemStatus.Ready && i.ServedAt == null)
+            .ExecuteUpdateAsync(u => u.SetProperty(i => i.ServedAt, i => i.ReadyAt > now ? i.ReadyAt : now), ct);
         var result = await SessionSummaries.ReadAsync(db, restaurantId, id, ct);
         await tx.CommitAsync(ct);
         return result;

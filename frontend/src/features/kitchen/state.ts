@@ -19,7 +19,6 @@ export type PendingKitchenAction = {
   itemId: string | null;
   kind: "ready" | "cancel";
 };
-export type ArrivalBaseline = { count: number; at: number } | null;
 // The NEW lines this screen showed at the last poll, under the hidden categories it was judged with.
 export type LineBaseline = { ids: string[]; hidden: string; at: number } | null;
 export type LineFilter = (line: Pick<OrderLine, "menuItemId">) => boolean;
@@ -59,14 +58,9 @@ export function readPending(raw: string | null): PendingKitchenAction[] {
   }
 }
 
-export function arrivals(previous: ArrivalBaseline, count: number, at: number) {
-  const continuous = previous && at > previous.at && at - previous.at < 30_000;
-  return { baseline: { count, at }, added: continuous ? Math.max(0, count - previous.count) : 0 };
-}
-
 // A screen that shows only some categories chimes for its own new dishes. added is null without a
 // continuous baseline (first poll, a gap, or other hidden categories, whose revealed dishes are not new);
-// the caller then falls back to the restaurant-wide order count, so no arrival goes unannounced.
+// the caller then falls back to the restaurant-wide order watermark, so no arrival goes unannounced.
 export function screenArrivals(previous: LineBaseline, ids: string[], hidden: string, at: number) {
   const continuous =
     previous && previous.hidden === hidden && at > previous.at && at - previous.at < 30_000;

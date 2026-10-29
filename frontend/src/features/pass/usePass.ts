@@ -5,7 +5,12 @@ import { isSameAccount } from "@/features/accounts/queries";
 import { passChime } from "@/lib/alert-sound";
 import { ApiError, errorMessage, withTimeout } from "@/lib/api";
 import { displayName } from "@/lib/language";
-import { syncIsFresh, syncIsStalled } from "@/lib/live-view";
+import {
+  syncIsFresh,
+  syncIsStalled,
+  watermarkAdvanced,
+  type WatermarkBaseline,
+} from "@/lib/live-view";
 import { staffMessages } from "@/lib/staff-messages";
 import { useAlertSound } from "@/lib/useAlertSound";
 import { onLifecycleChange, useLiveView } from "@/lib/useLiveView";
@@ -13,7 +18,7 @@ import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { uniqueBy } from "@/lib/utils";
 import { markServed, passKey, readPass, type PassItem, type PassPage } from "./api";
 import { passMessages } from "./messages";
-import { groupByTable, readyArrived, type ReadyBaseline } from "./state";
+import { groupByTable } from "./state";
 
 // Codes meaning another device or a closure got there first: the list, not this tap, is the truth.
 const settled = new Set([
@@ -37,7 +42,7 @@ export function usePass(account: CurrentAccount) {
   const { play, ...sound } = useAlertSound("tavoloflow:pass-sound", passChime);
   const mounted = useRef(false);
   const operations = useRef(new Map<string, AbortController>());
-  const baseline = useRef<ReadyBaseline>(null);
+  const baseline = useRef<WatermarkBaseline>(null);
   const query = useInfiniteQuery({
     queryKey: key,
     initialPageParam: null as string | null,
@@ -102,9 +107,9 @@ export function usePass(account: CurrentAccount) {
     if (!head || !view.active || head.receivedAt < view.resumeAfter) return;
     // Removing a served dish from the cache, or loading another page, is not a new poll.
     if (baseline.current && head.receivedAt <= baseline.current.at) return;
-    const result = readyArrived(baseline.current, head.latestReadyAt, head.receivedAt);
+    const result = watermarkAdvanced(baseline.current, head.latestReadyAt, head.receivedAt);
     baseline.current = result.baseline;
-    if (result.arrived) {
+    if (result.advanced) {
       // Server arrivals are an external event, announced even when audio is disabled.
       setNotice(m.arrived(head.totalCount));
       play();

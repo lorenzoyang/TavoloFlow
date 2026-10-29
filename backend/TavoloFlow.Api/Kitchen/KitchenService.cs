@@ -23,8 +23,13 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
         var filtered = active.Where(o => o.Status == state);
         var total = await filtered.LongCountAsync(ct);
         var pending = await active.LongCountAsync(o => o.Status == OrderStatus.New, ct);
-        // Includes closed/cancelled orders: processing and closing must not look like new submissions.
-        var created = await db.Orders.LongCountAsync(o => o.RestaurantId == restaurantId, ct);
+        // Across both statuses and closed visits, so only a new submission raises it: processing and closing
+        // never move it. A count would scan the whole history on every poll; each maximum reads one index end.
+        var latestCreated = new[]
+        {
+            await LatestCreatedAsync(restaurantId, OrderStatus.New, ct),
+            await LatestCreatedAsync(restaurantId, OrderStatus.Processed, ct)
+        }.Max();
         if (after is not null)
         {
             filtered = state == OrderStatus.New
@@ -37,7 +42,7 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
         var rows = await sorted.Take(limit + 1).ToArrayAsync(ct);
         var (page, next) = Paging.Page(rows, limit, last => new Cursor(restaurantId, status, SortTime(last, state), last.Id));
         await tx.CommitAsync(ct);
-        return new(page.Select(KitchenOrderResponse.From).ToArray(), next, total, pending, created);
+        return new(page.Select(KitchenOrderResponse.From).ToArray(), next, total, pending, latestCreated);
     }
 
     public async Task<KitchenOrderResponse> ReadAsync(Guid restaurantId, Guid id, CancellationToken ct)
@@ -99,7 +104,7 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
         return result;
     }
 
-    // READY items not yet taken from the pass, oldest first. Closed visits drop out with their session.
+    // READY items not yet taken from the pass, oldest first. Closure marks a visit's remaining items served.
     public async Task<PassPage> PassAsync(Guid restaurantId, string? cursor, int limit, CancellationToken ct)
     {
         Paging.EnsureLimit(limit);
@@ -141,6 +146,9 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
         await tx.CommitAsync(ct);
         return result;
     }
+
+    private Task<DateTime?> LatestCreatedAsync(Guid restaurantId, OrderStatus status, CancellationToken ct) =>
+        db.Orders.Where(o => o.RestaurantId == restaurantId && o.Status == status).MaxAsync(o => (DateTime?)o.CreatedAt, ct);
 
     private IQueryable<Order> Orders(Guid restaurantId) => db.Orders.AsNoTracking()
         .Include(o => o.Items).Include(o => o.DiningSession).Where(o => o.RestaurantId == restaurantId);
