@@ -15,7 +15,8 @@ import { ApiError } from "@/lib/api";
 import { cn, uniqueBy } from "@/lib/utils";
 import { ordersKey, readOrders, type Order, type OrderItemStatus } from "./api";
 import { orderMessages, type OrderMessage } from "./messages";
-import { totalCents } from "./state";
+import { totalCents, type CartLine } from "./state";
+import type { MenuItem } from "@/features/menu/api";
 import type { useCart } from "./useCart";
 import { formatDateTime, formatMoney, formatTime, shortId } from "@/lib/format";
 
@@ -103,6 +104,110 @@ function OrderCard({ order, language }: { order: Order; language: Language }) {
   );
 }
 
+// The cart lines with quantity, remark and removal controls, or read-only while a submission is reviewed.
+// Shared by the table cart and the online pickup checkout.
+export function CartLines({
+  lines,
+  menuItems,
+  defaultLanguage,
+  language,
+  frozen,
+  readOnly,
+  edit,
+}: {
+  lines: CartLine[];
+  menuItems: MenuItem[];
+  defaultLanguage: Language;
+  language: Language;
+  frozen: boolean;
+  readOnly: boolean;
+  edit: (index: number, patch: Partial<Pick<CartLine, "quantity" | "remark">>) => void;
+}) {
+  const m = orderMessages[language];
+  return (
+    <ul className="divide-y">
+      {lines.map((line, index) => {
+        const name = displayName(line.item, defaultLanguage, language);
+        const currentItem = menuItems.find((i) => i.id === line.item.id);
+        const available = currentItem?.isAvailable && currentItem.allergenReviewed;
+        return (
+          <li key={index} className="space-y-2.5 py-3.5">
+            <div className="flex items-start justify-between gap-3">
+              <p lang={name.language} className="min-w-0 font-medium wrap-break-word">
+                {readOnly && `${line.quantity} × `}
+                {name.text}
+              </p>
+              <p className="shrink-0 font-semibold tabular-nums">
+                {formatMoney(line.item.priceCents * line.quantity, language)}
+              </p>
+            </div>
+            {!available && <p className="text-sm text-destructive">{m.unavailable}</p>}
+            {readOnly ? (
+              line.remark && (
+                <p className="text-sm whitespace-pre-wrap text-muted-foreground wrap-break-word">
+                  {m.remark}: {line.remark}
+                </p>
+              )
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="rounded-full"
+                    aria-label={`${m.decrease}: ${name.text}`}
+                    disabled={frozen}
+                    onClick={() => edit(index, { quantity: line.quantity - 1 })}
+                  >
+                    <Minus />
+                  </Button>
+                  <span
+                    className="min-w-8 text-center text-lg font-semibold tabular-nums"
+                    aria-label={m.quantity}
+                  >
+                    {line.quantity}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="rounded-full"
+                    aria-label={`${m.increase}: ${name.text}`}
+                    disabled={frozen || !available || line.quantity >= 20}
+                    onClick={() => edit(index, { quantity: line.quantity + 1 })}
+                  >
+                    <Plus />
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    {formatMoney(line.item.priceCents, language)} / {m.portions}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-auto"
+                    disabled={frozen}
+                    onClick={() => edit(index, { quantity: 0 })}
+                    aria-label={`${m.remove}: ${name.text}`}
+                  >
+                    {m.remove}
+                  </Button>
+                </div>
+                <Input
+                  maxLength={200}
+                  placeholder={m.remark}
+                  aria-label={`${m.remark} · ${name.text}`}
+                  value={line.remark}
+                  disabled={frozen}
+                  onChange={(event) => edit(index, { remark: event.target.value })}
+                />
+              </>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 // The cart, its review step and the receipt. Rendered once: a side column on wide screens, a bottom
 // sheet on phones, which adds its close button beside the title and closes itself through
 // onUnverified/onDone.
@@ -183,86 +288,15 @@ export function CartPanel({
           <p className="py-6 text-center text-muted-foreground">{m.empty}</p>
         )
       ) : (
-        <ul className="divide-y">
-          {lines.map((line, index) => {
-            const name = displayName(line.item, data.restaurant.defaultLanguage, language);
-            const currentItem = data.menu.items.find((i) => i.id === line.item.id);
-            const available = currentItem?.isAvailable && currentItem.allergenReviewed;
-            return (
-              <li key={index} className="space-y-2.5 py-3.5">
-                <div className="flex items-start justify-between gap-3">
-                  <p lang={name.language} className="min-w-0 font-medium wrap-break-word">
-                    {model.review && `${line.quantity} × `}
-                    {name.text}
-                  </p>
-                  <p className="shrink-0 font-semibold tabular-nums">
-                    {formatMoney(line.item.priceCents * line.quantity, language)}
-                  </p>
-                </div>
-                {!available && <p className="text-sm text-destructive">{m.unavailable}</p>}
-                {model.review ? (
-                  line.remark && (
-                    <p className="text-sm whitespace-pre-wrap text-muted-foreground wrap-break-word">
-                      {m.remark}: {line.remark}
-                    </p>
-                  )
-                ) : (
-                  <>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="rounded-full"
-                        aria-label={`${m.decrease}: ${name.text}`}
-                        disabled={frozen}
-                        onClick={() => model.line(index, { quantity: line.quantity - 1 })}
-                      >
-                        <Minus />
-                      </Button>
-                      <span
-                        className="min-w-8 text-center text-lg font-semibold tabular-nums"
-                        aria-label={m.quantity}
-                      >
-                        {line.quantity}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="rounded-full"
-                        aria-label={`${m.increase}: ${name.text}`}
-                        disabled={frozen || !available || line.quantity >= 20}
-                        onClick={() => model.line(index, { quantity: line.quantity + 1 })}
-                      >
-                        <Plus />
-                      </Button>
-                      <span className="text-xs text-muted-foreground">
-                        {formatMoney(line.item.priceCents, language)} / {m.portions}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="ml-auto"
-                        disabled={frozen}
-                        onClick={() => model.line(index, { quantity: 0 })}
-                        aria-label={`${m.remove}: ${name.text}`}
-                      >
-                        {m.remove}
-                      </Button>
-                    </div>
-                    <Input
-                      maxLength={200}
-                      placeholder={m.remark}
-                      aria-label={`${m.remark} · ${name.text}`}
-                      value={line.remark}
-                      disabled={frozen}
-                      onChange={(event) => model.line(index, { remark: event.target.value })}
-                    />
-                  </>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+        <CartLines
+          lines={lines}
+          menuItems={data.menu.items}
+          defaultLanguage={data.restaurant.defaultLanguage}
+          language={language}
+          frozen={frozen}
+          readOnly={!!model.review}
+          edit={model.line}
+        />
       )}
       {lines.length > 0 && (
         <>

@@ -461,6 +461,28 @@ namespace TavoloFlow.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TavoloFlow.Api.Entities.PickupCounter", b =>
+                {
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("restaurant_id");
+
+                    b.Property<DateOnly>("BusinessDate")
+                        .HasColumnType("date")
+                        .HasColumnName("business_date");
+
+                    b.Property<int>("LastNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("last_number");
+
+                    b.HasKey("RestaurantId", "BusinessDate");
+
+                    b.ToTable("pickup_counters", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_pickup_counter_number", "last_number > 0");
+                        });
+                });
+
             modelBuilder.Entity("TavoloFlow.Api.Entities.PickupHour", b =>
                 {
                     b.Property<Guid>("RestaurantId")
@@ -492,6 +514,212 @@ namespace TavoloFlow.Api.Data.Migrations
                             t.HasCheckConstraint("ck_pickup_hour_weekday", "weekday BETWEEN 1 AND 7");
 
                             t.HasCheckConstraint("ck_pickup_hour_window", "opens_minute >= 0 AND opens_minute < closes_minute AND closes_minute <= 1440");
+                        });
+                });
+
+            modelBuilder.Entity("TavoloFlow.Api.Entities.PickupRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("AcceptedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("accepted_at");
+
+                    b.Property<DateOnly>("BusinessDate")
+                        .HasColumnType("date")
+                        .HasColumnName("business_date");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_request_id");
+
+                    b.Property<string>("CustomerName")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("customer_name");
+
+                    b.Property<string>("CustomerPhone")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("customer_phone");
+
+                    b.Property<string>("DefaultLanguageSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("default_language_snapshot");
+
+                    b.Property<DateTime?>("EstimatedReadyAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("estimated_ready_at");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("expires_at");
+
+                    b.Property<int>("PickupNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("pickup_number");
+
+                    b.Property<string>("RejectReason")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("reject_reason");
+
+                    b.Property<DateTime?>("RejectedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("rejected_at");
+
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("restaurant_id");
+
+                    b.Property<Guid?>("SessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_id");
+
+                    b.Property<string>("StatusToken")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("status_token");
+
+                    b.Property<DateTime>("SubmittedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<long>("TotalAmountCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("total_amount_cents");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("Id", "RestaurantId")
+                        .HasName("uq_pickup_requests_id_tenant");
+
+                    b.HasIndex("StatusToken")
+                        .IsUnique()
+                        .HasDatabaseName("uq_pickup_request_token");
+
+                    b.HasIndex("RestaurantId", "BusinessDate");
+
+                    b.HasIndex("RestaurantId", "ClientRequestId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_pickup_request_per_client");
+
+                    b.HasIndex("RestaurantId", "ExpiresAt");
+
+                    b.HasIndex("SessionId", "RestaurantId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_pickup_request_session");
+
+                    b.HasIndex("RestaurantId", "BusinessDate", "PickupNumber")
+                        .IsUnique()
+                        .HasDatabaseName("uq_pickup_number");
+
+                    b.ToTable("pickup_requests", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_pickup_request_acceptance", "(accepted_at IS NULL AND estimated_ready_at IS NULL AND session_id IS NULL) OR (accepted_at IS NOT NULL AND estimated_ready_at > accepted_at AND session_id IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_pickup_request_amount", "total_amount_cents > 0");
+
+                            t.HasCheckConstraint("ck_pickup_request_decision_time", "(accepted_at IS NULL OR (accepted_at >= submitted_at AND accepted_at < expires_at)) AND (rejected_at IS NULL OR (rejected_at >= submitted_at AND rejected_at < expires_at))");
+
+                            t.HasCheckConstraint("ck_pickup_request_expiry", "expires_at > submitted_at");
+
+                            t.HasCheckConstraint("ck_pickup_request_language", "default_language_snapshot IN ('zh', 'it', 'en')");
+
+                            t.HasCheckConstraint("ck_pickup_request_name", "customer_name ~ '[^[:space:]]'");
+
+                            t.HasCheckConstraint("ck_pickup_request_number", "pickup_number > 0");
+
+                            t.HasCheckConstraint("ck_pickup_request_one_decision", "accepted_at IS NULL OR rejected_at IS NULL");
+
+                            t.HasCheckConstraint("ck_pickup_request_phone", "customer_phone ~ '^\\+?[0-9]{6,15}$'");
+
+                            t.HasCheckConstraint("ck_pickup_request_reject_reason", "reject_reason IS NULL OR (rejected_at IS NOT NULL AND reject_reason IN ('SOLD_OUT', 'BUSY', 'CLOSING'))");
+                        });
+                });
+
+            modelBuilder.Entity("TavoloFlow.Api.Entities.PickupRequestItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.PrimitiveCollection<string[]>("AllergenCodesSnapshot")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("allergen_codes_snapshot")
+                        .HasDefaultValueSql("'{}'::text[]");
+
+                    b.Property<string>("ItemCodeSnapshot")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("item_code_snapshot");
+
+                    b.Property<Guid?>("MenuItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("menu_item_id");
+
+                    b.Property<string>("NameEnSnapshot")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("name_en_snapshot");
+
+                    b.Property<string>("NameItSnapshot")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("name_it_snapshot");
+
+                    b.Property<string>("NameZhSnapshot")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("name_zh_snapshot");
+
+                    b.Property<Guid>("PickupRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pickup_request_id");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity");
+
+                    b.Property<string>("Remark")
+                        .HasColumnType("text")
+                        .HasColumnName("remark");
+
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("restaurant_id");
+
+                    b.Property<long>("UnitPriceCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("unit_price_cents");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RestaurantId");
+
+                    b.HasIndex("MenuItemId", "RestaurantId");
+
+                    b.HasIndex("PickupRequestId", "RestaurantId");
+
+                    b.ToTable("pickup_request_items", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_pickup_request_item_has_name", "concat(name_zh_snapshot, name_it_snapshot, name_en_snapshot) ~ '[^[:space:]]'");
+
+                            t.HasCheckConstraint("ck_pickup_request_item_quantity", "quantity BETWEEN 1 AND 20");
+
+                            t.HasCheckConstraint("ck_pickup_request_item_remark", "remark IS NULL OR char_length(remark) <= 200");
+
+                            t.HasCheckConstraint("ck_pickup_request_item_unit_price", "unit_price_cents > 0");
                         });
                 });
 
@@ -952,6 +1180,15 @@ namespace TavoloFlow.Api.Data.Migrations
                     b.Navigation("Restaurant");
                 });
 
+            modelBuilder.Entity("TavoloFlow.Api.Entities.PickupCounter", b =>
+                {
+                    b.HasOne("TavoloFlow.Api.Entities.Restaurant", null)
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("TavoloFlow.Api.Entities.PickupHour", b =>
                 {
                     b.HasOne("TavoloFlow.Api.Entities.Restaurant", "Restaurant")
@@ -961,6 +1198,51 @@ namespace TavoloFlow.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Restaurant");
+                });
+
+            modelBuilder.Entity("TavoloFlow.Api.Entities.PickupRequest", b =>
+                {
+                    b.HasOne("TavoloFlow.Api.Entities.Restaurant", "Restaurant")
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TavoloFlow.Api.Entities.DiningSession", "Session")
+                        .WithOne("PickupRequest")
+                        .HasForeignKey("TavoloFlow.Api.Entities.PickupRequest", "SessionId", "RestaurantId")
+                        .HasPrincipalKey("TavoloFlow.Api.Entities.DiningSession", "Id", "RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Restaurant");
+
+                    b.Navigation("Session");
+                });
+
+            modelBuilder.Entity("TavoloFlow.Api.Entities.PickupRequestItem", b =>
+                {
+                    b.HasOne("TavoloFlow.Api.Entities.Restaurant", null)
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TavoloFlow.Api.Entities.MenuItem", "MenuItem")
+                        .WithMany()
+                        .HasForeignKey("MenuItemId", "RestaurantId")
+                        .HasPrincipalKey("Id", "RestaurantId")
+                        .OnDelete(DeleteBehavior.ClientNoAction);
+
+                    b.HasOne("TavoloFlow.Api.Entities.PickupRequest", "PickupRequest")
+                        .WithMany("Items")
+                        .HasForeignKey("PickupRequestId", "RestaurantId")
+                        .HasPrincipalKey("Id", "RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MenuItem");
+
+                    b.Navigation("PickupRequest");
                 });
 
             modelBuilder.Entity("TavoloFlow.Api.Entities.RestaurantSubscriptionPeriod", b =>
@@ -999,6 +1281,8 @@ namespace TavoloFlow.Api.Data.Migrations
             modelBuilder.Entity("TavoloFlow.Api.Entities.DiningSession", b =>
                 {
                     b.Navigation("Orders");
+
+                    b.Navigation("PickupRequest");
                 });
 
             modelBuilder.Entity("TavoloFlow.Api.Entities.MenuCategory", b =>
@@ -1007,6 +1291,11 @@ namespace TavoloFlow.Api.Data.Migrations
                 });
 
             modelBuilder.Entity("TavoloFlow.Api.Entities.Order", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("TavoloFlow.Api.Entities.PickupRequest", b =>
                 {
                     b.Navigation("Items");
                 });

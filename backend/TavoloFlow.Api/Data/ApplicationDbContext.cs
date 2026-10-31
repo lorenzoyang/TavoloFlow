@@ -17,6 +17,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<PickupHour> PickupHours => Set<PickupHour>();
+    public DbSet<PickupCounter> PickupCounters => Set<PickupCounter>();
+    public DbSet<PickupRequest> PickupRequests => Set<PickupRequest>();
+    public DbSet<PickupRequestItem> PickupRequestItems => Set<PickupRequestItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

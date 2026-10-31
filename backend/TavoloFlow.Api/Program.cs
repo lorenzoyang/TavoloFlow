@@ -44,7 +44,7 @@ builder.Services.AddScoped<KitchenService>();
 builder.Services.AddScoped<BillingService>();
 builder.Services.AddScoped<RestaurantAdministration>();
 builder.Services.AddScoped<SubscriptionService>();
-builder.Services.AddScoped<PickupSettingsService>();
+builder.Services.AddPickupOrdering(builder.Configuration);
 
 var app = builder.Build();
 

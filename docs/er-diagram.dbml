@@ -86,6 +86,90 @@ Table pickup_hours {
   }
 }
 
+Table pickup_counters {
+  restaurant_id uuid [not null]
+  business_date date [not null, note: 'Restaurant local day']
+  last_number int [not null, note: 'Last pickup number handed out that day; submissions upsert it and line up on its row lock']
+
+  Indexes {
+    (restaurant_id, business_date) [pk]
+  }
+
+  Checks {
+    `last_number > 0` [name: 'ck_pickup_counter_number']
+  }
+}
+
+Table pickup_requests {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  client_request_id uuid [not null, note: 'Browser-generated duplicate guard; also the recovery credential']
+  status_token varchar(64) [not null, unique, note: 'Server-generated 32-byte Base64URL secret behind /o/{token}']
+  business_date date [not null]
+  pickup_number int [not null]
+  customer_name varchar(20) [not null]
+  customer_phone varchar(16) [not null]
+  total_amount_cents bigint [not null]
+  default_language_snapshot varchar(2) [not null]
+  submitted_at timestamptz [not null]
+  expires_at timestamptz [not null, note: 'submitted_at + 10 minutes; no status column: accepted, rejected, pending before expires_at, expired after']
+  accepted_at timestamptz
+  estimated_ready_at timestamptz
+  session_id uuid [note: 'The PICKUP session created on acceptance']
+  rejected_at timestamptz
+  reject_reason varchar(10) [note: 'NULL, SOLD_OUT, BUSY or CLOSING']
+
+  Indexes {
+    (id, restaurant_id) [unique, name: 'uq_pickup_requests_id_tenant']
+    (restaurant_id, client_request_id) [unique, name: 'uq_pickup_request_per_client']
+    (restaurant_id, business_date, pickup_number) [unique, name: 'uq_pickup_number']
+    (session_id, restaurant_id) [unique, name: 'uq_pickup_request_session']
+    (restaurant_id, expires_at)
+    (restaurant_id, business_date)
+  }
+
+  Checks {
+    `customer_name ~ '[^[:space:]]'` [name: 'ck_pickup_request_name']
+    `customer_phone ~ '^\\+?[0-9]{6,15}$'` [name: 'ck_pickup_request_phone']
+    `pickup_number > 0` [name: 'ck_pickup_request_number']
+    `total_amount_cents > 0` [name: 'ck_pickup_request_amount']
+    `default_language_snapshot IN ('zh', 'it', 'en')` [name: 'ck_pickup_request_language']
+    `expires_at > submitted_at` [name: 'ck_pickup_request_expiry']
+    `(accepted_at IS NULL AND estimated_ready_at IS NULL AND session_id IS NULL) OR (accepted_at IS NOT NULL AND estimated_ready_at > accepted_at AND session_id IS NOT NULL)` [name: 'ck_pickup_request_acceptance']
+    `accepted_at IS NULL OR rejected_at IS NULL` [name: 'ck_pickup_request_one_decision']
+    `reject_reason IS NULL OR (rejected_at IS NOT NULL AND reject_reason IN ('SOLD_OUT', 'BUSY', 'CLOSING'))` [name: 'ck_pickup_request_reject_reason']
+    `(accepted_at IS NULL OR (accepted_at >= submitted_at AND accepted_at < expires_at)) AND (rejected_at IS NULL OR (rejected_at >= submitted_at AND rejected_at < expires_at))` [name: 'ck_pickup_request_decision_time']
+  }
+}
+
+Table pickup_request_items {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  pickup_request_id uuid [not null]
+  menu_item_id uuid [note: 'Cleared when the dish is deleted; the snapshot stays']
+  item_code_snapshot varchar(40)
+  name_zh_snapshot varchar(150)
+  name_it_snapshot varchar(150)
+  name_en_snapshot varchar(150)
+  allergen_codes_snapshot text[] [not null, default: `'{}'::text[]`]
+  unit_price_cents bigint [not null]
+  quantity int [not null]
+  remark text
+  Note: 'Same snapshot columns as order_items; written once and copied into an order item on acceptance (OrderLineSnapshot)'
+
+  Indexes {
+    restaurant_id
+    (pickup_request_id, restaurant_id)
+  }
+
+  Checks {
+    `concat(name_zh_snapshot, name_it_snapshot, name_en_snapshot) ~ '[^[:space:]]'` [name: 'ck_pickup_request_item_has_name']
+    `unit_price_cents > 0` [name: 'ck_pickup_request_item_unit_price']
+    `quantity BETWEEN 1 AND 20` [name: 'ck_pickup_request_item_quantity']
+    `remark IS NULL OR char_length(remark) <= 200` [name: 'ck_pickup_request_item_remark']
+  }
+}
+
 Table restaurant_users {
   id uuid [pk]
   restaurant_id uuid [not null]
@@ -364,6 +448,12 @@ Ref: dining_sessions.restaurant_id > restaurants.id [delete: cascade]
 Ref: orders.restaurant_id > restaurants.id [delete: cascade]
 Ref: order_items.restaurant_id > restaurants.id [delete: cascade]
 Ref: pickup_hours.restaurant_id > restaurants.id [delete: cascade]
+Ref: pickup_counters.restaurant_id > restaurants.id [delete: cascade]
+Ref: pickup_requests.restaurant_id > restaurants.id [delete: cascade]
+Ref: pickup_request_items.restaurant_id > restaurants.id [delete: cascade]
+Ref: pickup_requests.(session_id, restaurant_id) - dining_sessions.(id, restaurant_id) [delete: cascade]
+Ref: pickup_request_items.(pickup_request_id, restaurant_id) > pickup_requests.(id, restaurant_id) [delete: cascade]
+Ref: pickup_request_items.(menu_item_id, restaurant_id) > menu_items.(id, restaurant_id) [delete: no action]
 
 // Nullable historical links are explicitly detached by catalog deletion operations.
 // Composite FKs keep related records in the same restaurant.

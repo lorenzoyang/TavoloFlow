@@ -289,7 +289,7 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
             else if (kind == "disabled") await new TableService(mutationDb, new CatalogDeletionService(mutationDb))
                     .SetEnabledAsync(s.Guest.RestaurantId, s.Table.Id, false, default);
             else if (kind == "service") await new RestaurantAdministration(mutationDb, new PasswordHasher<RestaurantUser>(),
-                    NullLogger<RestaurantAdministration>.Instance, new SubscriptionService(mutationDb, host.Clock, NullLogger<SubscriptionService>.Instance))
+                    NullLogger<RestaurantAdministration>.Instance, new SubscriptionService(mutationDb, host.Clock, NullLogger<SubscriptionService>.Instance), host.Clock)
                 .SetStatusAsync(s.Guest.RestaurantId, "SUSPENDED", Guid.NewGuid(), default);
             else
             {

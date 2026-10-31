@@ -73,7 +73,7 @@ manifest 和 worker 中的路径仍使用相对业务 origin 的 `/staff`、`/sw
    首页只显示手动步骤，添加到主屏幕的只是普通书签。
 2. `/sw.js` 和 `/staff.webmanifest` 加 `Cache-Control: no-cache`，让更新及时生效；manifest 的 MIME 类型为
    `application/manifest+json`，`sw.js` 为 `text/javascript`。
-3. 前端深链接（`/staff/*`、`/q/*`）回退到 SPA 入口 `index.html`（原有要求）。
+3. 前端深链接（`/staff/*`、`/q/*`，以及线上自取的 `/r/*`、`/o/*`）回退到 SPA 入口 `index.html`（原有要求）。
 4. 带哈希的 `/assets/*` 长期缓存。发布脚本保留共享资源池中的历史文件；至少保留一周且保留上一版。已安装的应用
    可能连续开着好几天，仍在运行旧版本的页面切换路由时还会加载旧文件。新版本在应用重新打开或刷新后生效。
 

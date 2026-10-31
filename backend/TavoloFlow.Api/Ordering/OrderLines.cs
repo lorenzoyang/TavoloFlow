@@ -6,11 +6,24 @@ using TavoloFlow.Api.Entities;
 namespace TavoloFlow.Api.Ordering;
 
 // One submitted line, named and priced from the menu at submission time. Guest orders store it as an order
-// item; pickup requests store it first and copy it into an order item when staff accept the request.
-public sealed record OrderLineSnapshot(Guid MenuItemId, string? ItemCode, string? NameZh, string? NameIt,
+// item; pickup requests store it as a request item and copy it into an order item when staff accept.
+// Every copy between the two tables goes through this record: a new snapshot column belongs in all three
+// methods, or accepting a request would silently drop it.
+public sealed record OrderLineSnapshot(Guid? MenuItemId, string? ItemCode, string? NameZh, string? NameIt,
     string? NameEn, string[] AllergenCodes, long UnitPriceCents, int Quantity, string? Remark)
 {
+    public static OrderLineSnapshot From(PickupRequestItem item) => new(item.MenuItemId, item.ItemCodeSnapshot,
+        item.NameZhSnapshot, item.NameItSnapshot, item.NameEnSnapshot, item.AllergenCodesSnapshot.ToArray(),
+        item.UnitPriceCents, item.Quantity, item.Remark);
+
     public OrderItem ToOrderItem(Guid restaurantId) => new()
+    {
+        Id = Guid.CreateVersion7(), RestaurantId = restaurantId, MenuItemId = MenuItemId,
+        ItemCodeSnapshot = ItemCode, NameZhSnapshot = NameZh, NameItSnapshot = NameIt, NameEnSnapshot = NameEn,
+        AllergenCodesSnapshot = AllergenCodes.ToArray(), UnitPriceCents = UnitPriceCents, Quantity = Quantity, Remark = Remark
+    };
+
+    public PickupRequestItem ToPickupRequestItem(Guid restaurantId) => new()
     {
         Id = Guid.CreateVersion7(), RestaurantId = restaurantId, MenuItemId = MenuItemId,
         ItemCodeSnapshot = ItemCode, NameZhSnapshot = NameZh, NameItSnapshot = NameIt, NameEnSnapshot = NameEn,

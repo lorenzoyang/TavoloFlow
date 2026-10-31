@@ -7,11 +7,12 @@ using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Entities;
+using TavoloFlow.Api.Pickup;
 
 namespace TavoloFlow.Api.Platform;
 
 public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordHasher<RestaurantUser> hasher,
-    ILogger<RestaurantAdministration> logger, SubscriptionService subscriptions)
+    ILogger<RestaurantAdministration> logger, SubscriptionService subscriptions, TimeProvider clock)
 {
     public async Task<RestaurantPage> ListAsync(string? search, string? status, string? subscriptionStatus, string? sort,
         int page, int pageSize, CancellationToken ct)
@@ -146,7 +147,8 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
         if (pickup && (restaurant.Phone is null || restaurant.Slug is null)) throw AdministrationErrors.PickupContactRequired();
         if (restaurant.DineInEnabled && !dineIn && await HasActiveSessionsAsync(id, SessionChannel.DineIn, ct))
             throw AdministrationErrors.ServiceHasOpenWork();
-        if (restaurant.PickupEnabled && !pickup && await HasActiveSessionsAsync(id, SessionChannel.Pickup, ct))
+        if (restaurant.PickupEnabled && !pickup && (await HasActiveSessionsAsync(id, SessionChannel.Pickup, ct) ||
+                await PickupState.Pending(db.PickupRequests.Where(r => r.RestaurantId == id), clock.GetUtcNow().UtcDateTime).AnyAsync(ct)))
             throw AdministrationErrors.ServiceHasOpenWork();
         await db.Restaurants.Where(r => r.Id == id).ExecuteUpdateAsync(u => u
             .SetProperty(r => r.DineInEnabled, dineIn).SetProperty(r => r.PickupEnabled, pickup), ct);

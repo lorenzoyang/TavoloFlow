@@ -204,6 +204,31 @@ public sealed class RestaurantServicesTests(PostgreSqlFixture database) : IClass
         Assert.False(await db.PickupHours.AnyAsync(h => h.RestaurantId == s.RestaurantId));
     }
 
+    [Fact]
+    public async Task PlatformServices_PickupRequests_PendingBlocksTurningOffAndExpiredDoesNot()
+    {
+        using var host = new AccountTestHost(database);
+        var s = await SeedAsync();
+        await SetServicesAsync(s.RestaurantId, dineIn: true, pickup: true);
+        var now = host.Clock.GetUtcNow().UtcDateTime;
+        await using (var db = database.CreateContext())
+        {
+            db.PickupRequests.Add(new PickupRequest { RestaurantId = s.RestaurantId, ClientRequestId = Guid.NewGuid(),
+                StatusToken = Guid.NewGuid().ToString("N"), BusinessDate = DateOnly.FromDateTime(now), PickupNumber = 1,
+                CustomerName = "Anna", CustomerPhone = "3471234567", TotalAmountCents = 700, DefaultLanguageSnapshot = "it",
+                SubmittedAt = now, ExpiresAt = now + PickupState.Lifetime });
+            await db.SaveChangesAsync();
+        }
+        using var admin = host.Browser();
+        Assert.Equal(HttpStatusCode.OK, (await PlatformAccountTests.LoginAsync(admin, await PlatformAccountTests.SeedAsync(database))).StatusCode);
+        var path = $"/api/platform/restaurants/{s.RestaurantId}/services";
+        await AssertErrorAsync(await PlatformAccountTests.WriteAsync(admin, path, new { dineIn = true, pickup = false }, HttpMethod.Patch),
+            HttpStatusCode.Conflict, "SERVICE_HAS_OPEN_WORK");
+        // Nothing is written when a request expires; the check must still stop counting it.
+        host.Clock.Advance(PickupState.Lifetime);
+        Assert.Equal(HttpStatusCode.OK, (await PlatformAccountTests.WriteAsync(admin, path, new { dineIn = true, pickup = false }, HttpMethod.Patch)).StatusCode);
+    }
+
     // Pickup needs a phone and an online menu link; the test gives every restaurant the same ones when it turns pickup on.
     private async Task SetServicesAsync(Guid restaurantId, bool dineIn, bool pickup)
     {

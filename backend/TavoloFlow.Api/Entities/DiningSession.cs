@@ -40,5 +40,7 @@ public sealed class DiningSession
 
     public Restaurant Restaurant { get; set; } = null!;
     public RestaurantTable? Table { get; set; }
+    // The accepted request behind a pickup visit; null for dine-in.
+    public PickupRequest? PickupRequest { get; set; }
     public ICollection<Order> Orders { get; } = new List<Order>();
 }

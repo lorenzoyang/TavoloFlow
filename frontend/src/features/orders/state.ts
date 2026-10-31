@@ -139,7 +139,7 @@ export function createIntent(cart: Cart, sessionId: string, requestId: string): 
   };
 }
 
-function validItem(value: unknown): value is MenuItem {
+export function validItem(value: unknown): value is MenuItem {
   if (!value || typeof value !== "object") return false;
   const item = value as MenuItem;
   return (
@@ -215,7 +215,7 @@ export function restoreCart(raw: string | null, fallback: Cart): Cart {
 export function persistCart(
   storage: Pick<Storage, "setItem" | "getItem">,
   key: string,
-  cart: Cart,
+  cart: CartDraft,
 ) {
   const raw = JSON.stringify(cart);
   try {

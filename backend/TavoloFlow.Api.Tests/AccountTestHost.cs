@@ -13,6 +13,7 @@ using Microsoft.Net.Http.Headers;
 using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Guests;
+using TavoloFlow.Api.Pickup;
 using TavoloFlow.Api.Platform;
 
 namespace TavoloFlow.Api.Tests;
@@ -22,6 +23,8 @@ public sealed class TestClock : TimeProvider
     private DateTimeOffset now = DateTimeOffset.UtcNow;
     public override DateTimeOffset GetUtcNow() => now;
     public void Advance(TimeSpan duration) => now += duration;
+    // Pins a local wall-clock moment, such as an opening-hour boundary or a DST night.
+    public void Set(DateTimeOffset value) => now = value;
 }
 
 public sealed class AccountTestHost(PostgreSqlFixture database, bool lowLimits = false, bool production = false)
@@ -58,6 +61,7 @@ public sealed class AccountTestHost(PostgreSqlFixture database, bool lowLimits =
                 options.LoginPerUsernamePerFiveMinutes = lowLimits ? 2 : 1000;
                 options.PasswordChangesPerMinute = lowLimits ? 1 : 1000;
             });
+            services.Configure<PickupRateLimitOptions>(options => options.SubmissionsPerIpPerMinute = lowLimits ? 2 : 1000);
             services.AddControllers().AddApplicationPart(typeof(AccountProbeController).Assembly);
         });
     }
