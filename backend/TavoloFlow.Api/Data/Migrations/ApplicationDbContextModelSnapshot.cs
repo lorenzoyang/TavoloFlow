@@ -100,6 +100,10 @@ namespace TavoloFlow.Api.Data.Migrations
 
                     b.HasIndex("TableId", "Status");
 
+                    b.HasIndex("RestaurantId", "OpenedAt", "Id")
+                        .HasDatabaseName("ix_active_sessions")
+                        .HasFilter("status = 'ACTIVE'");
+
                     b.ToTable("dining_sessions", null, t =>
                         {
                             t.HasCheckConstraint("ck_session_active_table", "channel <> 'DINE_IN' OR status <> 'ACTIVE' OR table_id IS NOT NULL");

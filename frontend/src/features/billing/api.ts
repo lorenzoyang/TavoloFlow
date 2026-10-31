@@ -1,3 +1,4 @@
+import { queryOptions } from "@tanstack/react-query";
 import type { AccountScope } from "@/features/accounts/api";
 import type { KitchenOrder } from "@/features/kitchen/api";
 import { request } from "@/lib/api";
@@ -19,6 +20,13 @@ type HistoryPage = {
 };
 export const billingKey = (account: AccountScope) =>
   ["billing", account.restaurantId, account.userId] as const;
+// Under billingKey, so a closure's refresh of the bills also refreshes this list.
+export const activeSessionsQuery = (account: AccountScope) =>
+  queryOptions({
+    queryKey: [...billingKey(account), "active"] as const,
+    queryFn: ({ signal }) =>
+      request<{ items: BillSummary[] }>("/api/staff/sessions/active", { signal }),
+  });
 export const historyKey = (account: AccountScope) =>
   ["history", account.restaurantId, account.userId] as const;
 export async function readBill(

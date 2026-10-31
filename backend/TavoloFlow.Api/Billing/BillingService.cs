@@ -35,6 +35,13 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         return new(summary, page.Select(KitchenOrderResponse.From).ToArray(), next);
     }
 
+    // Every open visit of both channels, oldest first. The partial index holds open visits only, so this
+    // polled read never scans history; one statement is a consistent snapshot.
+    public async Task<ActiveSessionsResponse> ActiveAsync(Guid restaurantId, CancellationToken ct) =>
+        new(await SessionSummaries.Project(db.DiningSessions.AsNoTracking()
+            .Where(s => s.RestaurantId == restaurantId && s.Status == DiningSessionStatus.Active)
+            .OrderBy(s => s.OpenedAt).ThenBy(s => s.Id)).ToArrayAsync(ct));
+
     public Task<BillSummaryResponse> CheckoutAsync(Guid restaurantId, Guid id, CheckoutInput input, CancellationToken ct) =>
         CloseAsync(restaurantId, id, SessionCloseReason.Paid, input.ExpectedBillVersion, input.ConfirmedTotalCents, ct);
 

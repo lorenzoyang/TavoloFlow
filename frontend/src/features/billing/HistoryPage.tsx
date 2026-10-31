@@ -221,7 +221,7 @@ export function HistoryPage(props: Props) {
             {...props}
           />
         ) : (
-          <OwnerOnlyNotice />
+          <OwnerOnlyNotice account={account} />
         )
       }
     </AuthBoundary>

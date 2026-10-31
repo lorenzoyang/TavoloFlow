@@ -63,6 +63,12 @@ internal sealed class DiningSessionConfiguration : IEntityTypeConfiguration<Dini
 
         builder.HasIndex(session => new { session.TableId, session.Status });
 
+        // Explicit, because EF would otherwise treat the partial index below as covering this foreign key.
+        builder.HasIndex(session => session.RestaurantId);
+        // The bills page's open visits of both channels.
+        builder.HasIndex(session => new { session.RestaurantId, session.OpenedAt, session.Id })
+            .HasFilter("status = 'ACTIVE'").HasDatabaseName("ix_active_sessions");
+
         builder.HasIndex(session => session.TableId).IsUnique()
             .HasFilter("status = 'ACTIVE'").HasDatabaseName("uq_active_session_per_table");
 

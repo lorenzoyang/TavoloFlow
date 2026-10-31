@@ -293,6 +293,22 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
         Assert.Equal(ready.ProcessedAt, closed.ClosedAt);
     }
 
+    [Fact]
+    public async Task Active_OpenVisitsOfBothChannels_ListsOldestFirstWithoutClosedOnes()
+    {
+        using var host = new AccountTestHost(database); var s = await Seed(host);
+        host.Clock.Advance(TimeSpan.FromMinutes(1));
+        var pickup = new DiningSession { Id = Guid.CreateVersion7(), RestaurantId = s.RestaurantId, Channel = SessionChannel.Pickup, OpenedAt = host.Clock.GetUtcNow().UtcDateTime };
+        await using (var db = database.CreateContext()) { db.DiningSessions.Add(pickup); await db.SaveChangesAsync(); }
+        var other = await Seed(host);
+        using var staff = await Login(host, s.Staff);
+        var active = (await staff.GetFromJsonAsync<ActiveSessionsResponse>("/api/staff/sessions/active"))!.Items;
+        Assert.Equal(new[] { (s.Id, "DINE_IN", "8"), (pickup.Id, "PICKUP", (string?)null) }, active.Select(x => (x.SessionId, x.Channel, x.TableLabel)));
+        Assert.DoesNotContain(active, x => x.SessionId == other.Id);
+        Assert.Equal(HttpStatusCode.OK, (await PostAsync(staff, $"/api/staff/sessions/{s.Id}/close-empty", new CloseZeroBillInput(1, 0, true))).StatusCode);
+        Assert.Equal(pickup.Id, Assert.Single((await staff.GetFromJsonAsync<ActiveSessionsResponse>("/api/staff/sessions/active"))!.Items).SessionId);
+    }
+
     private async Task<Setup> Seed(AccountTestHost host)
     {
         await using var db = database.CreateContext();

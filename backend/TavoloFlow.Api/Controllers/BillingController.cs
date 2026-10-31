@@ -11,6 +11,9 @@ public sealed class BillingController(BillingService billing, CurrentAccount cur
 {
     private Guid RestaurantId => current.RequireUser().RestaurantId;
 
+    [HttpGet("api/staff/sessions/active")]
+    public async Task<IActionResult> Active(CancellationToken ct) => Ok(await billing.ActiveAsync(RestaurantId, ct));
+
     [HttpGet("api/staff/sessions/{id:guid}/bill")]
     public async Task<IActionResult> Bill(Guid id, CancellationToken ct, [FromQuery] string? cursor = null,
         [FromQuery] int limit = 50) => Ok(await billing.ReadAsync(RestaurantId, id, false, cursor, limit, ct));
