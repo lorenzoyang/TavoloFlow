@@ -25,20 +25,21 @@ public sealed class ItemProcessingMigrationTests(PostgreSqlFixture database) : I
         var cancelledAt = createdAt.AddMinutes(10);
         var cases = new[] { "NEW", "READY", "CANCELLED", "CANCELLED_AFTER_READY" };
         var ids = new List<(Guid Order, Guid Session, string State)>();
+        db.RestaurantTables.Add(table);
+        await db.SaveChangesAsync();
         foreach (var state in cases)
         {
             var cancelled = state.StartsWith("CANCELLED", StringComparison.Ordinal);
-            var session = new DiningSession
-            {
-                Restaurant = restaurant, Table = table, TableLabelSnapshot = "8", OpenedAt = createdAt,
-                Status = state == "NEW" ? DiningSessionStatus.Active : DiningSessionStatus.Closed,
-                JoinCodeCiphertext = state == "NEW" ? "test-ciphertext" : null,
-                ClosedAt = state == "NEW" ? null : createdAt.AddMinutes(20),
-                CloseReason = state == "NEW" ? null : cancelled ? SessionCloseReason.Voided : SessionCloseReason.Paid,
-                ClosedTotalCents = state == "NEW" ? null : cancelled ? 0 : 2100
-            };
-            db.DiningSessions.Add(session);
-            await db.SaveChangesAsync();
+            // Sessions also gained columns later (channel), so they are written in the old shape too.
+            var session = new { Id = Guid.NewGuid() };
+            var active = state == "NEW";
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO dining_sessions (id, restaurant_id, table_id, status, join_code_ciphertext, table_label_snapshot,
+                    opened_at, closed_at, close_reason, closed_total_cents)
+                VALUES ({session.Id}, {restaurant.Id}, {table.Id}, {(active ? "ACTIVE" : "CLOSED")},
+                    {(active ? "test-ciphertext" : null)}, '8', {createdAt}, {(active ? (DateTime?)null : createdAt.AddMinutes(20))},
+                    {(active ? null : cancelled ? "VOIDED" : "PAID")}, {(active ? (long?)null : cancelled ? 0 : 2100)})
+                """);
             var orderId = Guid.NewGuid(); var requestId = Guid.NewGuid();
             var oldStatus = cancelled ? "CANCELLED" : state;
             DateTime? oldReady = state is "READY" or "CANCELLED_AFTER_READY" ? readyAt : null;
