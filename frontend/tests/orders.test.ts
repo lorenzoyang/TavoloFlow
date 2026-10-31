@@ -8,6 +8,7 @@ import {
   editLine,
   emptyCart,
   persistCart,
+  pickupCartKey,
   refreshCart,
   restoreCart,
   submissionFailure,
@@ -239,4 +240,20 @@ test("the accepting-orders switch restores as a GET-only recovery action", () =>
     enabled: false,
   });
   assert.equal(parsePendingAction('{"kind":"accepting","enabled":"false"}'), null);
+});
+
+test("carts are kept per entrance and the shared rules work on any draft", () => {
+  assert.equal(cartKey("r", session), `tavoloflow:cart:r:${session}`);
+  assert.equal(pickupCartKey("r"), "tavoloflow:cart:r:pickup");
+  assert.notEqual(pickupCartKey("r"), cartKey("r", session));
+  // A pickup draft has no table or session, only its lines and a frozen request.
+  const draft = { restaurantId: "r", lines: [], pending: null };
+  const added = editLine(addItem(addItem(draft, item), item), 0, { remark: "less salt" });
+  assert.equal(added.restaurantId, "r");
+  assert.deepEqual(
+    added.lines.map((l) => [l.quantity, l.remark]),
+    [[2, "less salt"]],
+  );
+  assert.equal(addItem({ ...added, pending: { frozen: true } }, item).lines[0].quantity, 2);
+  throwsIssue(() => refreshCart(added, []), "unavailable");
 });

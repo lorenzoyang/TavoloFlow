@@ -13,6 +13,9 @@ export type OrderInput = {
   items: OrderLineInput[];
 };
 export type CartLine = { item: MenuItem; quantity: number; remark: string };
+// What every channel's cart shares: its lines and the frozen submission, if any. Dine-in and pickup add
+// their own entrance fields and intent shapes.
+export type CartDraft = { lines: CartLine[]; pending: unknown };
 export type Cart = {
   version: 1;
   restaurantId: string;
@@ -29,8 +32,11 @@ export class CartError extends Error {
     this.issue = issue;
   }
 }
+// Carts are kept per entrance: a table's QR menu, or the restaurant's online pickup menu. Table ids are
+// UUIDs, so the pickup key can never collide with a table's, and existing dine-in keys stay unchanged.
 export const cartKey = (restaurantId: string, tableId: string) =>
   `tavoloflow:cart:${restaurantId}:${tableId}`;
+export const pickupCartKey = (restaurantId: string) => `tavoloflow:cart:${restaurantId}:pickup`;
 export const emptyCart = (
   restaurantId: string,
   tableId: string,
@@ -60,7 +66,7 @@ export function totalCents(lines: CartLine[]): number {
   return Number(total);
 }
 
-export function validateCart(cart: Cart) {
+export function validateCart<T extends Pick<CartDraft, "lines">>(cart: T): T {
   if (
     cart.lines.length > 30 ||
     cart.lines.some(
@@ -86,7 +92,7 @@ function merge(lines: CartLine[]) {
   return result;
 }
 
-export function addItem(cart: Cart, item: MenuItem): Cart {
+export function addItem<T extends CartDraft>(cart: T, item: MenuItem): T {
   if (cart.pending) return cart;
   if (!item.isAvailable || !item.allergenReviewed) throw new CartError("unavailable");
   return validateCart({
@@ -94,11 +100,11 @@ export function addItem(cart: Cart, item: MenuItem): Cart {
     lines: merge([...cart.lines, { item, quantity: 1, remark: "" }]),
   });
 }
-export function editLine(
-  cart: Cart,
+export function editLine<T extends CartDraft>(
+  cart: T,
   index: number,
   patch: Partial<Pick<CartLine, "quantity" | "remark">>,
-): Cart {
+): T {
   if (cart.pending) return cart;
   return validateCart({
     ...cart,
@@ -109,7 +115,7 @@ export function editLine(
     ),
   });
 }
-export function refreshCart(cart: Cart, menu: MenuItem[]): Cart {
+export function refreshCart<T extends CartDraft>(cart: T, menu: MenuItem[]): T {
   const lines = cart.lines.map((line) => {
     const item = menu.find((i) => i.id === line.item.id);
     if (!item || !item.isAvailable || !item.allergenReviewed) throw new CartError("unavailable");

@@ -13,7 +13,7 @@ import { useDocumentTheme } from "@/lib/useDocumentTheme";
 import { publicMenuQuery, type PublicMenu } from "./api";
 import { readLanguage, saveLanguage, selectedLanguage } from "./language";
 import { messages } from "./messages";
-import { CartBar, LanguageToggle, MenuHeader, MenuList } from "./PublicMenuViews";
+import { CartBar, LanguageToggle, MenuHeader, MenuList, type MenuCart } from "./PublicMenuViews";
 import { GuestPanel } from "@/features/guests/GuestPanel";
 import { guestKeys } from "@/features/guests/api";
 import { useGuestVisit } from "@/features/guests/useGuestVisit";
@@ -110,11 +110,13 @@ function MenuContent({
       onDone={wide ? undefined : () => setCartOpen(false)}
     />
   );
+  const menuCart: MenuCart = { lines: cart.cart.lines, stage: cart.stage, add: cart.add };
   const menu = (
     <MenuList
-      data={data}
+      menu={data.menu}
+      defaultLanguage={data.restaurant.defaultLanguage}
       language={language}
-      cart={cart}
+      cart={menuCart}
       categoryId={categoryId}
       selectCategory={setCategoryId}
     />
@@ -122,7 +124,8 @@ function MenuContent({
   return (
     <div lang={language} className="min-h-dvh">
       <MenuHeader
-        data={data}
+        restaurantName={data.restaurant.name}
+        subtitle={`${m.table} ${data.table.tableLabel}`}
         language={language}
         selectLanguage={selectLanguage}
         refreshing={refreshing}
@@ -191,7 +194,7 @@ function MenuContent({
       {!wide && !guest.visit.ended && (
         <>
           {cart.cart.lines.length > 0 && (
-            <CartBar cart={cart} language={language} open={() => setCartOpen(true)} />
+            <CartBar cart={menuCart} language={language} open={() => setCartOpen(true)} />
           )}
           <Sheet open={cartOpen} onOpenChange={setCartOpen}>
             <SheetContent

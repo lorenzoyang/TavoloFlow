@@ -14,14 +14,21 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { formatMoney } from "@/lib/format";
 import { displayName, isLanguage, LANGUAGES, type Language } from "@/lib/language";
 import { cn } from "@/lib/utils";
-import type { MenuItem } from "@/features/menu/api";
+import type { Category, MenuItem } from "@/features/menu/api";
 import { DishPhoto } from "@/features/menu/ItemImage";
 import { usePhoto } from "@/features/menu/usePhoto";
 import { orderMessages } from "@/features/orders/messages";
-import { totalCents } from "@/features/orders/state";
-import type { useCart } from "@/features/orders/useCart";
-import type { PublicMenu } from "./api";
+import { totalCents, type CartLine } from "@/features/orders/state";
 import { allergenNames, languageLabels, messages } from "./messages";
+
+// What the menu views need from a cart; the QR table page and the online pickup page each bring their own.
+// Adding dishes is allowed only while editing: never while busy, confirming or waiting on a pending result.
+export type MenuCart = {
+  lines: CartLine[];
+  stage: "editing" | "busy" | "confirming" | "pending";
+  add: (item: MenuItem) => void;
+};
+type MenuData = { categories: Category[]; items: MenuItem[] };
 
 const shortLabels: Record<Language, string> = { zh: "中文", it: "IT", en: "EN" };
 
@@ -59,13 +66,15 @@ export function LanguageToggle({
 }
 
 export function MenuHeader({
-  data,
+  restaurantName,
+  subtitle,
   language,
   selectLanguage,
   refreshing,
   refresh,
 }: {
-  data: PublicMenu;
+  restaurantName: string;
+  subtitle: string;
   language: Language;
   selectLanguage: (value: Language) => void;
   refreshing: boolean;
@@ -77,11 +86,9 @@ export function MenuHeader({
       <div className="mx-auto flex max-w-6xl flex-wrap items-start justify-between gap-3 px-4 py-4">
         <div className="min-w-0 flex-1 basis-48">
           <h1 className="font-display text-2xl leading-tight font-semibold wrap-break-word">
-            {data.restaurant.name}
+            {restaurantName}
           </h1>
-          <p className="mt-1 font-medium text-muted-foreground wrap-break-word">
-            {m.table} {data.table.tableLabel}
-          </p>
+          <p className="mt-1 font-medium text-muted-foreground wrap-break-word">{subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
           <LanguageToggle language={language} select={selectLanguage} />
@@ -205,27 +212,29 @@ function DishRow({
 
 // Categories filter the list; the chip bar stays reachable while scrolling a long menu.
 export function MenuList({
-  data,
+  menu,
+  defaultLanguage,
   language,
   cart,
   categoryId,
   selectCategory,
 }: {
-  data: PublicMenu;
+  menu: MenuData;
+  defaultLanguage: Language;
   language: Language;
-  cart: ReturnType<typeof useCart>;
+  cart: MenuCart;
   categoryId: string;
   selectCategory: (id: string) => void;
 }) {
   const m = messages[language];
   // A removed category falls back to the full menu.
-  const selected = data.menu.categories.find((category) => category.id === categoryId);
-  const categories = selected ? [selected] : data.menu.categories;
+  const selected = menu.categories.find((category) => category.id === categoryId);
+  const categories = selected ? [selected] : menu.categories;
   const counts = new Map<string, number>();
-  for (const line of cart.cart.lines)
+  for (const line of cart.lines)
     counts.set(line.item.id, (counts.get(line.item.id) ?? 0) + line.quantity);
-  const disabled = cart.busy || !!cart.cart.pending || !!cart.review;
-  if (data.menu.items.length === 0) return <EmptyState icon={UtensilsCrossed} title={m.empty} />;
+  const disabled = cart.stage !== "editing";
+  if (menu.items.length === 0) return <EmptyState icon={UtensilsCrossed} title={m.empty} />;
   return (
     <div className="space-y-6">
       <div className="sticky top-0 z-20 -mx-4 bg-background/95 px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 backdrop-blur">
@@ -235,16 +244,16 @@ export function MenuList({
           onChange={selectCategory}
           items={[
             { value: "", label: m.all },
-            ...data.menu.categories.map((category) => {
-              const name = displayName(category, data.restaurant.defaultLanguage, language);
+            ...menu.categories.map((category) => {
+              const name = displayName(category, defaultLanguage, language);
               return { value: category.id, label: name.text, lang: name.language };
             }),
           ]}
         />
       </div>
       {categories.map((category) => {
-        const name = displayName(category, data.restaurant.defaultLanguage, language);
-        const items = data.menu.items.filter((item) => item.categoryId === category.id);
+        const name = displayName(category, defaultLanguage, language);
+        const items = menu.items.filter((item) => item.categoryId === category.id);
         return (
           <section
             key={category.id}
@@ -265,7 +274,7 @@ export function MenuList({
                     key={item.id}
                     item={item}
                     language={language}
-                    defaultLanguage={data.restaurant.defaultLanguage}
+                    defaultLanguage={defaultLanguage}
                     count={counts.get(item.id) ?? 0}
                     add={() => cart.add(item)}
                     disabled={disabled}
@@ -288,13 +297,13 @@ export function CartBar({
   language,
   open,
 }: {
-  cart: ReturnType<typeof useCart>;
+  cart: MenuCart;
   language: Language;
   open: () => void;
 }) {
   const m = orderMessages[language];
-  const portions = cart.cart.lines.reduce((n, line) => n + line.quantity, 0);
-  const pending = !!cart.cart.pending;
+  const portions = cart.lines.reduce((n, line) => n + line.quantity, 0);
+  const pending = cart.stage === "pending";
   return (
     <div className="pb-safe fixed inset-x-0 bottom-0 z-30 bg-linear-to-t from-background via-background/95 to-transparent px-4 pt-6">
       <button
@@ -307,13 +316,13 @@ export function CartBar({
       >
         <ShoppingBag aria-hidden="true" className="size-5 shrink-0" />
         <span className="min-w-0 flex-1 font-medium">
-          {pending ? m.lookup : cart.review ? m.confirming : m.viewCart}
+          {pending ? m.lookup : cart.stage === "confirming" ? m.confirming : m.viewCart}
           <span className="block text-sm opacity-85">
             {portions} {m.portions}
           </span>
         </span>
         <span className="text-lg font-semibold tabular-nums">
-          {formatMoney(totalCents(cart.cart.lines), language)}
+          {formatMoney(totalCents(cart.lines), language)}
         </span>
         <ChevronUp aria-hidden="true" className="size-5 shrink-0" />
       </button>

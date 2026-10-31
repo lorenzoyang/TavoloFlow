@@ -325,6 +325,13 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
 
   return {
     cart,
+    stage: cart.pending
+      ? ("pending" as const)
+      : review
+        ? ("confirming" as const)
+        : busy
+          ? ("busy" as const)
+          : ("editing" as const),
     busy,
     message,
     review,
