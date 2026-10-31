@@ -6,7 +6,9 @@ export type PassItem = Names & {
   id: string;
   orderId: string;
   sessionId: string;
-  tableLabel: string;
+  channel: "DINE_IN" | "PICKUP";
+  // NULL for pickup visits.
+  tableLabel: string | null;
   defaultLanguage: Language;
   itemCode: string | null;
   quantity: number;

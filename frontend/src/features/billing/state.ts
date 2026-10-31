@@ -3,8 +3,10 @@ import { isUuid } from "../../lib/ids.ts";
 export type CloseKind = "PAID" | "EMPTY" | "VOIDED";
 export type BillSummary = {
   sessionId: string;
+  channel: "DINE_IN" | "PICKUP";
+  // Table and label are NULL for pickup visits.
   tableId: string | null;
-  tableLabel: string;
+  tableLabel: string | null;
   status: "ACTIVE" | "CLOSED";
   openedAt: string;
   closedAt: string | null;

@@ -232,6 +232,10 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
     [InlineData("closed_without_reason", "ck_session_lifecycle")]
     [InlineData("closed_before_open", "ck_session_close_time")]
     [InlineData("active_without_table", "ck_session_active_table")]
+    [InlineData("active_dine_in_without_code", "ck_session_lifecycle")]
+    [InlineData("dine_in_without_label", "ck_session_dine_in_label")]
+    [InlineData("pickup_with_table", "ck_session_pickup_fields")]
+    [InlineData("unknown_channel", "ck_session_channel")]
     [InlineData("processed_without_timestamp", "ck_order_lifecycle")]
     [InlineData("item_ready_without_timestamp", "ck_order_item_lifecycle")]
     [InlineData("item_cancelled_without_timestamp", "ck_order_item_lifecycle")]
@@ -254,6 +258,10 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
             "closed_without_reason" => $"UPDATE dining_sessions SET status = 'CLOSED', closed_at = now(), closed_total_cents = 0, join_code_ciphertext = NULL WHERE id = {visit.SessionId}",
             "closed_before_open" => $"UPDATE dining_sessions SET status = 'CLOSED', closed_at = opened_at - interval '1 second', close_reason = 'EMPTY', closed_total_cents = 0, join_code_ciphertext = NULL WHERE id = {visit.SessionId}",
             "active_without_table" => $"UPDATE dining_sessions SET table_id = NULL WHERE id = {visit.SessionId}",
+            "active_dine_in_without_code" => $"UPDATE dining_sessions SET join_code_ciphertext = NULL WHERE id = {visit.SessionId}",
+            "dine_in_without_label" => $"UPDATE dining_sessions SET table_label_snapshot = NULL WHERE id = {visit.SessionId}",
+            "pickup_with_table" => $"UPDATE dining_sessions SET channel = 'PICKUP' WHERE id = {visit.SessionId}",
+            "unknown_channel" => $"UPDATE dining_sessions SET channel = 'DELIVERY' WHERE id = {visit.SessionId}",
             "processed_without_timestamp" => $"UPDATE orders SET status = 'PROCESSED' WHERE id = {order.Id}",
             "item_ready_without_timestamp" => $"UPDATE order_items SET status = 'READY' WHERE id = {line.Id}",
             "item_cancelled_without_timestamp" => $"UPDATE order_items SET status = 'CANCELLED' WHERE id = {line.Id}",

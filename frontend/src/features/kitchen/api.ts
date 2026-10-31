@@ -5,7 +5,9 @@ import { request, write } from "@/lib/api";
 import type { OrderStatus } from "./state";
 
 export type KitchenOrder = Order & {
-  tableLabel: string;
+  channel: "DINE_IN" | "PICKUP";
+  // NULL for pickup visits.
+  tableLabel: string | null;
   processedAt: string | null;
 };
 export type KitchenPage = {
@@ -35,7 +37,9 @@ function confirmedKitchenOrder(order: KitchenOrder, id: string) {
   confirmedOrder(order, order.sessionId);
   if (
     order.id !== id ||
-    typeof order.tableLabel !== "string" ||
+    (order.channel === "DINE_IN"
+      ? typeof order.tableLabel !== "string"
+      : order.channel !== "PICKUP" || order.tableLabel !== null) ||
     (order.status === "NEW"
       ? order.processedAt !== null
       : typeof order.processedAt !== "string" || !Number.isFinite(Date.parse(order.processedAt)))

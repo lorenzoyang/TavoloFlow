@@ -18,7 +18,7 @@ import type { CurrentAccount } from "@/features/accounts/api";
 import { ActiveBillPanel } from "@/features/billing/BillViews";
 import { tablesKey } from "@/features/tables/api";
 import { ApiError, errorMessage, withTimeout } from "@/lib/api";
-import { staffMessages } from "@/lib/staff-messages";
+import { staffMessages, visitTitle } from "@/lib/staff-messages";
 import { isLive } from "@/lib/useLiveView";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
@@ -319,7 +319,7 @@ function FloorContent({
       </div>
       <MasterDetail
         open={!!selected}
-        title={session.data ? c.table(session.data.tableLabel) : m.visit}
+        title={session.data ? visitTitle(session.data, language) : m.visit}
         closeLabel={c.close}
         onClose={() => setSelected("")}
         detail={

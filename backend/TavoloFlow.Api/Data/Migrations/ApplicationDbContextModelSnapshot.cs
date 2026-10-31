@@ -34,6 +34,13 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasDefaultValue(1)
                         .HasColumnName("bill_version");
 
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("DINE_IN")
+                        .HasColumnName("channel");
+
                     b.Property<string>("CloseReason")
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)")
@@ -73,7 +80,6 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnName("table_id");
 
                     b.Property<string>("TableLabelSnapshot")
-                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("table_label_snapshot");
@@ -96,9 +102,11 @@ namespace TavoloFlow.Api.Data.Migrations
 
                     b.ToTable("dining_sessions", null, t =>
                         {
-                            t.HasCheckConstraint("ck_session_active_table", "status <> 'ACTIVE' OR table_id IS NOT NULL");
+                            t.HasCheckConstraint("ck_session_active_table", "channel <> 'DINE_IN' OR status <> 'ACTIVE' OR table_id IS NOT NULL");
 
                             t.HasCheckConstraint("ck_session_bill_version", "bill_version > 0");
+
+                            t.HasCheckConstraint("ck_session_channel", "channel IN ('DINE_IN', 'PICKUP')");
 
                             t.HasCheckConstraint("ck_session_close_reason", "close_reason IS NULL OR close_reason IN ('PAID', 'VOIDED', 'EMPTY')");
 
@@ -106,7 +114,11 @@ namespace TavoloFlow.Api.Data.Migrations
 
                             t.HasCheckConstraint("ck_session_closed_total", "closed_total_cents IS NULL OR closed_total_cents >= 0");
 
-                            t.HasCheckConstraint("ck_session_lifecycle", "(status = 'ACTIVE' AND closed_at IS NULL AND close_reason IS NULL AND closed_total_cents IS NULL AND join_code_ciphertext IS NOT NULL) OR (status = 'CLOSED' AND closed_at IS NOT NULL AND close_reason IS NOT NULL AND closed_total_cents IS NOT NULL AND join_code_ciphertext IS NULL)");
+                            t.HasCheckConstraint("ck_session_dine_in_label", "channel <> 'DINE_IN' OR table_label_snapshot IS NOT NULL");
+
+                            t.HasCheckConstraint("ck_session_lifecycle", "(status = 'ACTIVE' AND closed_at IS NULL AND close_reason IS NULL AND closed_total_cents IS NULL AND (channel = 'PICKUP' OR join_code_ciphertext IS NOT NULL)) OR (status = 'CLOSED' AND closed_at IS NOT NULL AND close_reason IS NOT NULL AND closed_total_cents IS NOT NULL AND join_code_ciphertext IS NULL)");
+
+                            t.HasCheckConstraint("ck_session_pickup_fields", "channel <> 'PICKUP' OR (table_id IS NULL AND table_label_snapshot IS NULL AND join_code_ciphertext IS NULL)");
 
                             t.HasCheckConstraint("ck_session_status", "status IN ('ACTIVE', 'CLOSED')");
                         });

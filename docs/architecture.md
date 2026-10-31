@@ -73,7 +73,9 @@ Store/Platform 密码统一允许 6–128 个字符（包括六位纯数字）�
 
 ## 4. 数据模型与不变量
 
-十张表的完整定义见 `er-diagram.dbml`，其中一张保存餐厅收费周期。理解系统时最重要的是数据库保证的这些不变量：
+十张表的完整定义见 `er-diagram.dbml`，其中一张保存餐厅收费周期。`DiningSession`（表 `dining_sessions`）是“单据”：
+堂食是一桌从开台到结账的一次用餐，线上自取是接单时创建、只有一张订单的单据，由 `channel`（`DINE_IN`/`PICKUP`）区分；
+类名和表名沿用历史名称，API 和界面一直称它为 session。理解系统时最重要的是数据库保证的这些不变量：
 
 | 不变量 | 实现方式 |
 |---|---|
@@ -81,8 +83,9 @@ Store/Platform 密码统一允许 6–128 个字符（包括六位纯数字）�
 | 同一提交意图最多一单 | 唯一索引 `(dining_session_id, client_request_id)` |
 | 租户隔离 | 复合外键 `(id, restaurant_id)`：订单只能指向同店的用餐，明细只能指向同店的订单 |
 | 状态与字段一致 | 检查约束 `ck_session_lifecycle`、`ck_order_lifecycle`：例如 CLOSED 必有关闭时间、原因和金额，且入桌码密文为空 |
+| 渠道与字段一致 | `ck_session_dine_in_label`（堂食必有桌号）、`ck_session_pickup_fields`（自取的桌台、桌号和入桌码密文都为空）；`ck_session_active_table` 只约束堂食 |
 | 历史不可改写 | 订单明细保存名称、价格和过敏原快照；删除菜品或桌位只断开可空引用，快照保留 |
-| 枚举文本 | 数据库与 JSON 都使用大写名称（`ApiEnum` + `UppercaseEnumConverter`），并有检查约束限制取值 |
+| 枚举文本 | 数据库与 JSON 都使用大写名称，多个单词用下划线分隔（`DineIn` 为 `DINE_IN`；`ApiEnum` + `UppercaseEnumConverter`），并有检查约束限制取值 |
 
 金额统一使用整数欧分（`long`），上限是 JavaScript 的安全整数 `InputRules.MaxSafeCents`，保证浏览器能精确表示。时间戳统一存储为 UTC `timestamptz`，界面按 Europe/Rome 显示；收费周期和付费日期使用餐厅当地 `date`，截止日不包含。服务期限和付款状态独立，收款不会移动期限，过期只提醒。详见 [收费周期](restaurant-subscriptions.md)。
 

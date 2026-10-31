@@ -139,6 +139,7 @@ const ticket = (id: string, table: string, createdAt: string, items: OrderLine[]
   ({
     id,
     sessionId: action.sessionId,
+    channel: "DINE_IN",
     tableLabel: table,
     status: "NEW",
     createdAt,

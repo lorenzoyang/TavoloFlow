@@ -13,7 +13,7 @@ import type { KitchenOrder } from "@/features/kitchen/api";
 import { displayName } from "@/lib/language";
 import { formatDateTime, formatMoney, RESTAURANT_TIME_ZONE, shortId } from "@/lib/format";
 import { errorMessage } from "@/lib/api";
-import { staffMessages } from "@/lib/staff-messages";
+import { staffMessages, visitTitle } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import { billingMessages } from "./messages";
@@ -189,7 +189,6 @@ export function ActiveBillPanel({
 }) {
   const language = useStaffLanguage();
   const m = billingMessages[language];
-  const c = staffMessages[language];
   const model = useBill(account, sessionId);
   const closure = useClosure(account);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
@@ -278,7 +277,7 @@ export function ActiveBillPanel({
       {model.closed && model.session.data ? (
         <div className="space-y-3 rounded-2xl border bg-secondary p-4">
           <h3 className="text-lg font-semibold">
-            {m.closedTitle(c.table(model.session.data.tableLabel))}
+            {m.closedTitle(visitTitle(model.session.data, language))}
           </h3>
           <p>
             {m.closedSummary(
@@ -327,7 +326,7 @@ export function ActiveBillPanel({
           <BillDetails model={model} />
           <ConfirmDialog
             open={!!confirmation}
-            title={`${m.confirmTitle[confirmation?.kind ?? "VOIDED"]} · ${c.table(confirmation?.bill.tableLabel ?? "")}`}
+            title={`${m.confirmTitle[confirmation?.kind ?? "VOIDED"]} · ${confirmation ? visitTitle(confirmation.bill, language) : ""}`}
             description={confirmation?.kind === "PAID" ? m.confirmPaid : m.confirmZero}
             confirmLabel={confirmation?.kind === "PAID" ? m.confirmPaidLabel : m.confirmZeroLabel}
             cancelLabel={m.backToBill}

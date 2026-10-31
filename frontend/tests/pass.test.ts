@@ -8,6 +8,7 @@ const dish = (id: string, sessionId: string, tableLabel: string, readyAt: string
   id,
   orderId: "order",
   sessionId,
+  channel: "DINE_IN",
   tableLabel,
   defaultLanguage: "it",
   itemCode: null,

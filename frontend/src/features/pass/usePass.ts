@@ -11,7 +11,7 @@ import {
   watermarkAdvanced,
   type WatermarkBaseline,
 } from "@/lib/live-view";
-import { staffMessages } from "@/lib/staff-messages";
+import { visitTitle } from "@/lib/staff-messages";
 import { useAlertSound } from "@/lib/useAlertSound";
 import { onLifecycleChange, useLiveView } from "@/lib/useLiveView";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
@@ -123,7 +123,7 @@ export function usePass(account: CurrentAccount) {
     const controller = new AbortController();
     operations.current.set(item.id, controller);
     const current = () => mounted.current && !controller.signal.aborted && sameAccount();
-    const table = staffMessages[language].table(item.tableLabel);
+    const table = visitTitle(item, language);
     const label = `${table} · ${displayName(item, item.defaultLanguage, language).text} ×${item.quantity}`;
     setBusy((ids) => [...ids, item.id]);
     try {

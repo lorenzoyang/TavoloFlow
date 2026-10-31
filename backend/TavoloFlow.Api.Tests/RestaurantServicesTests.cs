@@ -8,6 +8,7 @@ using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Dining;
 using TavoloFlow.Api.Entities;
 using TavoloFlow.Api.Guests;
+using TavoloFlow.Api.Kitchen;
 using TavoloFlow.Api.Menus;
 using TavoloFlow.Api.Ordering;
 using static TavoloFlow.Api.Tests.AccountTestHost;
@@ -72,6 +73,34 @@ public sealed class RestaurantServicesTests(PostgreSqlFixture database) : IClass
         var s = await SeedAsync();
         var error = await Assert.ThrowsAsync<PostgresException>(() => SetServicesAsync(s.RestaurantId, dineIn: false, pickup: false));
         Assert.Equal("ck_restaurant_services", error.ConstraintName);
+    }
+
+    [Fact]
+    public async Task PickupSession_WithoutTable_IsListedByChannelAndHasNoJoinCode()
+    {
+        using var host = new AccountTestHost(database);
+        var s = await SeedAsync();
+        await using (var db = database.CreateContext())
+        {
+            var session = new DiningSession { Id = Guid.CreateVersion7(), RestaurantId = s.RestaurantId, Channel = SessionChannel.Pickup,
+                OpenedAt = host.Clock.GetUtcNow().UtcDateTime };
+            session.Orders.Add(new Order { Id = Guid.CreateVersion7(), RestaurantId = s.RestaurantId, ClientRequestId = Guid.NewGuid(),
+                TotalAmountCents = 700, DefaultLanguageSnapshot = "it", CreatedAt = session.OpenedAt,
+                Items = { new OrderItem { Id = Guid.CreateVersion7(), RestaurantId = s.RestaurantId, MenuItemId = s.Item.Id,
+                    NameZhSnapshot = "炒饭", UnitPriceCents = 700, Quantity = 1 } } });
+            db.DiningSessions.Add(session);
+            await db.SaveChangesAsync();
+        }
+        using var staff = await LoginAsync(host, s.Staff);
+        var order = Assert.Single((await staff.GetFromJsonAsync<KitchenPage>("/api/staff/orders"))!.Items);
+        Assert.Equal("PICKUP", order.Channel);
+        Assert.Null(order.TableLabel);
+        var bill = (await staff.GetFromJsonAsync<BillSummaryResponse>($"/api/staff/sessions/{order.SessionId}"))!;
+        Assert.Equal(("PICKUP", (Guid?)null, (string?)null), (bill.Channel, bill.TableId, bill.TableLabel));
+        await AssertErrorAsync(await staff.GetAsync($"/api/staff/sessions/{order.SessionId}/join-code"),
+            HttpStatusCode.NotFound, "SESSION_NOT_FOUND");
+        // The floor starts from tables, so a pickup visit never appears there.
+        Assert.All((await staff.GetFromJsonAsync<FloorResponse>("/api/staff/floor"))!.Tables, t => Assert.Null(t.Session));
     }
 
     private async Task SetServicesAsync(Guid restaurantId, bool dineIn, bool pickup)

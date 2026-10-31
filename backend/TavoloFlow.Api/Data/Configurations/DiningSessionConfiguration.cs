@@ -12,11 +12,16 @@ internal sealed class DiningSessionConfiguration : IEntityTypeConfiguration<Dini
         {
             table.HasCheckConstraint("ck_session_status", "status IN ('ACTIVE', 'CLOSED')");
             table.HasCheckConstraint("ck_session_bill_version", "bill_version > 0");
-            table.HasCheckConstraint("ck_session_active_table", "status <> 'ACTIVE' OR table_id IS NOT NULL");
+            table.HasCheckConstraint("ck_session_channel", "channel IN ('DINE_IN', 'PICKUP')");
+            // An open dine-in visit always has its table; every dine-in visit keeps its label after the table is gone.
+            table.HasCheckConstraint("ck_session_active_table", "channel <> 'DINE_IN' OR status <> 'ACTIVE' OR table_id IS NOT NULL");
+            table.HasCheckConstraint("ck_session_dine_in_label", "channel <> 'DINE_IN' OR table_label_snapshot IS NOT NULL");
+            table.HasCheckConstraint("ck_session_pickup_fields",
+                "channel <> 'PICKUP' OR (table_id IS NULL AND table_label_snapshot IS NULL AND join_code_ciphertext IS NULL)");
             table.HasCheckConstraint("ck_session_close_reason", "close_reason IS NULL OR close_reason IN ('PAID', 'VOIDED', 'EMPTY')");
 
             table.HasCheckConstraint("ck_session_lifecycle",
-                "(status = 'ACTIVE' AND closed_at IS NULL AND close_reason IS NULL AND closed_total_cents IS NULL AND join_code_ciphertext IS NOT NULL) OR " +
+                "(status = 'ACTIVE' AND closed_at IS NULL AND close_reason IS NULL AND closed_total_cents IS NULL AND (channel = 'PICKUP' OR join_code_ciphertext IS NOT NULL)) OR " +
                 "(status = 'CLOSED' AND closed_at IS NOT NULL AND close_reason IS NOT NULL AND closed_total_cents IS NOT NULL AND join_code_ciphertext IS NULL)");
 
             table.HasCheckConstraint("ck_session_closed_total", "closed_total_cents IS NULL OR closed_total_cents >= 0");
@@ -31,6 +36,10 @@ internal sealed class DiningSessionConfiguration : IEntityTypeConfiguration<Dini
 
         builder.Property(session => session.RestaurantId).HasColumnName("restaurant_id");
 
+        builder.Property(session => session.Channel).HasColumnName("channel").HasMaxLength(10)
+            .HasConversion<UppercaseEnumConverter<SessionChannel>>()
+            .HasDefaultValue(SessionChannel.DineIn).ValueGeneratedNever();
+
         builder.Property(session => session.TableId).HasColumnName("table_id");
 
         builder.Property(session => session.Status).HasColumnName("status").HasMaxLength(10)
@@ -41,7 +50,7 @@ internal sealed class DiningSessionConfiguration : IEntityTypeConfiguration<Dini
 
         builder.Property(session => session.BillVersion).HasColumnName("bill_version").HasDefaultValue(1).ValueGeneratedNever();
 
-        builder.Property(session => session.TableLabelSnapshot).HasColumnName("table_label_snapshot").HasMaxLength(50).IsRequired();
+        builder.Property(session => session.TableLabelSnapshot).HasColumnName("table_label_snapshot").HasMaxLength(50);
 
         builder.Property(session => session.OpenedAt).HasColumnName("opened_at").HasColumnType("timestamptz").HasDefaultValueSql("now()");
 

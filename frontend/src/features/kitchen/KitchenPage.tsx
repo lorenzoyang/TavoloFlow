@@ -30,7 +30,7 @@ import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { displayName } from "@/lib/language";
 import { formatDateTime, formatMoney, formatTime, shortId } from "@/lib/format";
-import { staffMessages } from "@/lib/staff-messages";
+import { staffMessages, visitTitle } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import { useWakeLock } from "@/lib/useWakeLock";
@@ -166,7 +166,7 @@ function DishCard({
             <div className="flex items-center gap-2">
               <div className="min-w-0 flex-1">
                 <p className="text-lg leading-7 font-semibold wrap-break-word">
-                  {c.table(order.tableLabel)} ×{line.quantity}
+                  {visitTitle(order, language)} ×{line.quantity}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   {m.waited(waitedMinutes(model, order))}
@@ -176,7 +176,7 @@ function DishCard({
                 <LineActions
                   order={order}
                   line={line}
-                  label={`${c.table(order.tableLabel)} · ${name.text}`}
+                  label={`${visitTitle(order, language)} · ${name.text}`}
                   model={model}
                   cancel={cancel}
                 />
@@ -219,7 +219,7 @@ function OrderTicket({
     >
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-2xl font-bold wrap-break-word">{c.table(order.tableLabel)}</h2>
+          <h2 className="text-2xl font-bold wrap-break-word">{visitTitle(order, language)}</h2>
           <p className="text-sm text-muted-foreground">
             {m.orderedAt(formatTime(order.createdAt, language))} · #{shortId(order.id)}
           </p>
@@ -552,7 +552,7 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
       <ConfirmDialog
         open={!!confirmation}
         tone="destructive"
-        title={m.cancelTitle(c.table(confirmation?.order.tableLabel ?? ""))}
+        title={m.cancelTitle(confirmation ? visitTitle(confirmation.order, language) : "")}
         description={
           confirmation &&
           m.cancelHint(

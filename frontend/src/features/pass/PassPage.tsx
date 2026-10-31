@@ -8,7 +8,7 @@ import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { formatDateTime } from "@/lib/format";
 import { displayName } from "@/lib/language";
-import { staffMessages } from "@/lib/staff-messages";
+import { staffMessages, visitTitle } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { useWakeLock } from "@/lib/useWakeLock";
 import { cn } from "@/lib/utils";
@@ -30,7 +30,9 @@ function TableCard({ table, model }: { table: PassTable; model: ReturnType<typeo
   return (
     <article className="flex flex-col gap-2 rounded-2xl border bg-card p-4 shadow-xs">
       <header className="flex items-baseline justify-between gap-3">
-        <h2 className="min-w-0 text-3xl font-bold wrap-break-word">{c.table(table.tableLabel)}</h2>
+        <h2 className="min-w-0 text-3xl font-bold wrap-break-word">
+          {visitTitle(table, language)}
+        </h2>
         <span className="shrink-0 text-sm text-muted-foreground">
           {m.toServe(table.items.length)}
         </span>
@@ -71,7 +73,7 @@ function TableCard({ table, model }: { table: PassTable; model: ReturnType<typeo
               <Button
                 className="w-full"
                 disabled={!model.fresh || model.busy.includes(item.id)}
-                aria-label={m.servedLabel(c.table(table.tableLabel), name.text)}
+                aria-label={m.servedLabel(visitTitle(table, language), name.text)}
                 onClick={() => void model.serve(item)}
               >
                 <Check />

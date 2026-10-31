@@ -7,7 +7,7 @@ import { kitchenKey } from "@/features/kitchen/api";
 import { tablesKey } from "@/features/tables/api";
 import { ApiError, errorMessage, request, withTimeout, write } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
-import { staffMessages } from "@/lib/staff-messages";
+import { staffMessages, visitTitle } from "@/lib/staff-messages";
 import { isLive, onLifecycleChange } from "@/lib/useLiveView";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { billingKey, historyKey } from "./api";
@@ -113,7 +113,7 @@ export function useClosure(account: CurrentAccount) {
         forget(action.sessionId);
         setError("");
         setConflict(null);
-        const table = c.table(data.tableLabel);
+        const table = visitTitle(data, language);
         setNotice(
           data.status === "CLOSED"
             ? m.recoveredClosed(
@@ -217,7 +217,7 @@ export function useClosure(account: CurrentAccount) {
       forget(id);
       setNotice(
         m.closedNotice(
-          c.table(summary.tableLabel),
+          visitTitle(summary, language),
           m.close[confirmation.kind],
           formatMoney(summary.totalAmountCents, language),
         ),

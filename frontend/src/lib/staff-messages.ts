@@ -3,6 +3,7 @@ import type { StaffLanguage } from "./staff-language";
 // Copy shared by several store pages. Each feature keeps the rest in its own messages.ts.
 const zh = {
   table: (label: string) => `${label} 桌`,
+  pickup: "自取",
   home: "首页",
   close: "关闭",
   cancel: "取消",
@@ -25,6 +26,7 @@ export const staffMessages: Record<StaffLanguage, typeof zh> = {
   zh,
   it: {
     table: (label) => `Tavolo ${label}`,
+    pickup: "Asporto",
     home: "Home",
     close: "Chiudi",
     cancel: "Annulla",
@@ -45,3 +47,12 @@ export const staffMessages: Record<StaffLanguage, typeof zh> = {
     notOfferedHint: "Per attivarlo contatta l’amministratore della piattaforma.",
   },
 };
+
+// A visit as staff pages name it: its table, or a pickup order.
+export type VisitLabel = { channel: "DINE_IN" | "PICKUP"; tableLabel: string | null };
+export function visitTitle(visit: VisitLabel, language: StaffLanguage): string {
+  const c = staffMessages[language];
+  return visit.channel === "PICKUP" || visit.tableLabel === null
+    ? c.pickup
+    : c.table(visit.tableLabel);
+}

@@ -14,7 +14,7 @@ import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import { errorMessage } from "@/lib/api";
-import { staffMessages } from "@/lib/staff-messages";
+import { staffMessages, visitTitle } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn, uniqueBy } from "@/lib/utils";
 import { historyKey, readHistory } from "./api";
@@ -133,7 +133,7 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
       )}
       <MasterDetail
         open={!!search.sessionId}
-        title={selected ? m.historyDetailOf(c.table(selected.tableLabel)) : m.historyDetail}
+        title={selected ? m.historyDetailOf(visitTitle(selected, language)) : m.historyDetail}
         closeLabel={c.close}
         onClose={() => navigate(filters)}
         detail={
@@ -182,7 +182,7 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
               <span className="min-w-0 flex-1 space-y-1">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="text-lg font-semibold wrap-break-word">
-                    {c.table(row.tableLabel)}
+                    {visitTitle(row, language)}
                   </span>
                   <Badge variant={closeBadges[row.closeReason!]}>{m.close[row.closeReason!]}</Badge>
                 </span>

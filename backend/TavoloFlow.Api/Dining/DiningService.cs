@@ -75,6 +75,8 @@ public sealed class DiningService(ApplicationDbContext db, JoinCodes codes, Time
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var session = await RowLocks.SessionAsync(db, restaurantId, sessionId, RowLock.Share, ct)
             ?? throw DiningErrors.SessionNotFound();
+        // Only a table has a join code.
+        if (session.Channel != SessionChannel.DineIn) throw DiningErrors.SessionNotFound();
         var result = new JoinCodeResponse(session.Id, codes.Read(session));
         await transaction.CommitAsync(ct);
         return result;

@@ -22,7 +22,7 @@ import {
 import { isLive, onLifecycleChange } from "@/lib/useLiveView";
 import { orderChime } from "@/lib/alert-sound";
 import { useAlertSound } from "@/lib/useAlertSound";
-import { staffMessages } from "@/lib/staff-messages";
+import { staffMessages, visitTitle } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { uniqueBy } from "@/lib/utils";
 import { passKey } from "@/features/pass/api";
@@ -212,7 +212,7 @@ export function useKitchen(account: CurrentAccount) {
           action,
           order.items.find((i) => i.id === action.itemId)?.status,
         );
-        setNotice(m.recovered(c.table(order.tableLabel), result));
+        setNotice(m.recovered(visitTitle(order, language), result));
         setError("");
       } catch (e) {
         if (!current()) return;
@@ -366,7 +366,7 @@ export function useKitchen(account: CurrentAccount) {
       // Feedback is replaced when the result arrives, not cleared on tap, so it does not flicker.
       setError("");
       const dish = displayName(item, order.defaultLanguage, language).text;
-      setNotice(m.done(`${c.table(result.tableLabel)} · ${dish} ×${item.quantity}`, kind));
+      setNotice(m.done(`${visitTitle(result, language)} · ${dish} ×${item.quantity}`, kind));
       return result;
     } catch (e) {
       if (!current()) return;

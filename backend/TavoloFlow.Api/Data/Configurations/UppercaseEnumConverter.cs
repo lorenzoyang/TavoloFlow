@@ -9,7 +9,7 @@ internal sealed class UppercaseEnumConverter<TEnum> : ValueConverter<TEnum, stri
     public UppercaseEnumConverter()
         : base(
             value => ApiEnum.Text(value),
-            value => Enum.Parse<TEnum>(value, ignoreCase: true))
+            value => Enum.Parse<TEnum>(value.Replace("_", ""), ignoreCase: true))
     {
     }
 }
