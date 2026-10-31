@@ -30,6 +30,7 @@ export const italianErrors: Record<string, string> = {
   CATEGORY_NOT_EMPTY: "Sposta o elimina prima i piatti della categoria.",
   CREDENTIALS_CHANGED: "Le credenziali sono cambiate. Accedi di nuovo.",
   CURRENT_PASSWORD_INCORRECT: "La password attuale non è corretta.",
+  DINE_IN_NOT_OFFERED: "Il ristorante non offre il servizio al tavolo.",
   FORBIDDEN: "Non hai i permessi per questa operazione.",
   IMAGE_INVALID: "Impossibile leggere l’immagine. Carica una foto JPG, PNG o WebP.",
   IMAGE_TOO_LARGE: "Immagine troppo grande: carica una foto fino a 15 MB (circa 50 megapixel).",

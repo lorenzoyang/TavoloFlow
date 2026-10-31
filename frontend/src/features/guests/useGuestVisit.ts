@@ -177,7 +177,10 @@ export function useGuestVisit(
     visible &&
     !menuError &&
     !visit.ended;
-  const entranceAllowed = data.restaurant.serviceStatus === "ACTIVE" && data.table.isEnabled;
+  const entranceAllowed =
+    data.restaurant.serviceStatus === "ACTIVE" &&
+    data.restaurant.dineInEnabled &&
+    data.table.isEnabled;
   const autoJoin =
     !codeRequired &&
     !!visit.sessionId &&
@@ -224,6 +227,7 @@ export function useGuestVisit(
       GUEST_AUTH_REQUIRED: "expired",
       GUEST_SESSION_MISMATCH: "expired",
       SERVICE_SUSPENDED: "unavailable",
+      DINE_IN_NOT_OFFERED: "unavailable",
       TABLE_DISABLED: "unavailable",
     };
     setError(messages[e.code] ?? "unavailable");

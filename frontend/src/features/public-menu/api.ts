@@ -11,6 +11,7 @@ export type PublicMenu = {
     currencyCode: string;
     defaultLanguage: Language;
     serviceStatus: "ACTIVE" | "SUSPENDED";
+    dineInEnabled: boolean;
     orderingEnabled: boolean;
     joinCodeRequired: boolean;
     theme: RestaurantTheme;

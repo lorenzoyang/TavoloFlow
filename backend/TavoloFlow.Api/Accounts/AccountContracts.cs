@@ -12,6 +12,12 @@ public sealed record ChangePasswordRequest(
     [Required, StringLength(128)] string CurrentPassword,
     [Required, StringLength(128, MinimumLength = 6)] string NewPassword);
 
+// The services decide which store pages exist; staff pages follow them on the next identity refresh.
+public sealed record RestaurantServices(bool DineIn, bool Pickup)
+{
+    public static RestaurantServices From(Restaurant restaurant) => new(restaurant.DineInEnabled, restaurant.PickupEnabled);
+}
+
 public sealed record CurrentAccountResponse(
     Guid UserId,
     string Username,
@@ -19,11 +25,13 @@ public sealed record CurrentAccountResponse(
     Guid RestaurantId,
     string RestaurantName,
     string RestaurantTheme,
+    RestaurantServices Services,
     bool MustChangePassword)
 {
     public static CurrentAccountResponse From(RestaurantUser user) => new(
         user.Id, user.Username, ApiEnum.Text(user.Role),
-        user.RestaurantId, user.Restaurant.Name, ApiEnum.Text(user.Restaurant.Theme), user.MustChangePassword);
+        user.RestaurantId, user.Restaurant.Name, ApiEnum.Text(user.Restaurant.Theme),
+        RestaurantServices.From(user.Restaurant), user.MustChangePassword);
 }
 
 public static class AccountInput

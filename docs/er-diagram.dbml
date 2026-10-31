@@ -41,6 +41,8 @@ Table restaurants {
   service_status varchar(16) [not null, default: 'SUSPENDED']
   ordering_enabled boolean [not null, default: false]
   join_code_required boolean [not null, default: true, note: 'Platform-only switch; false lets guests join an open table without its join code']
+  dine_in_enabled boolean [not null, default: true, note: 'Platform-set service: table QR ordering, floor and tables']
+  pickup_enabled boolean [not null, default: false, note: 'Platform-set service: online pickup ordering']
   theme varchar(16) [not null, default: 'TERRACOTTA', note: 'Platform-chosen colour preset for guest and staff pages; colours only']
   owner_contact varchar(500)
   default_annual_fee_cents bigint
@@ -56,6 +58,7 @@ Table restaurants {
     `default_annual_fee_cents IS NULL OR default_annual_fee_cents BETWEEN 0 AND 9007199254740991` [name: 'ck_restaurant_annual_fee']
     `google_maps_url IS NULL OR google_maps_url LIKE 'https://%'` [name: 'ck_restaurant_google_maps_url']
     `theme IN ('TERRACOTTA', 'LACQUER', 'INDIGO', 'INK', 'TARO')` [name: 'ck_restaurant_theme']
+    `dine_in_enabled OR pickup_enabled` [name: 'ck_restaurant_services']
   }
 }
 

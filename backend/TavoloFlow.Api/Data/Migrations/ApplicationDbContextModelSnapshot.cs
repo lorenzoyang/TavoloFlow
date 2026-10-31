@@ -520,6 +520,11 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("character varying(2)")
                         .HasColumnName("default_language");
 
+                    b.Property<bool>("DineInEnabled")
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("dine_in_enabled");
+
                     b.Property<string>("GoogleMapsUrl")
                         .HasMaxLength(2048)
                         .HasColumnType("character varying(2048)")
@@ -545,6 +550,11 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
                         .HasColumnName("owner_contact");
+
+                    b.Property<bool>("PickupEnabled")
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("pickup_enabled");
 
                     b.Property<string>("ServiceStatus")
                         .IsRequired()
@@ -585,6 +595,8 @@ namespace TavoloFlow.Api.Data.Migrations
                             t.HasCheckConstraint("ck_restaurant_google_maps_url", "google_maps_url IS NULL OR google_maps_url LIKE 'https://%'");
 
                             t.HasCheckConstraint("ck_restaurant_service_status", "service_status IN ('ACTIVE', 'SUSPENDED')");
+
+                            t.HasCheckConstraint("ck_restaurant_services", "dine_in_enabled OR pickup_enabled");
 
                             t.HasCheckConstraint("ck_restaurant_subscription_version", "subscription_version > 0");
 

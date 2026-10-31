@@ -107,7 +107,7 @@ function Home({ account, passwordChanged }: { account: CurrentAccount; passwordC
           {m.workspaces}
         </h2>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {staffNavItems(account.role, language)
+          {staffNavItems(account, language)
             .filter((item) => item.to !== "/staff")
             .map((item) => (
               <WorkspaceTile key={item.to} item={item} />
@@ -119,7 +119,7 @@ function Home({ account, passwordChanged }: { account: CurrentAccount; passwordC
           {m.management}
         </h2>
         <div className="divide-y rounded-2xl border bg-card shadow-xs">
-          {staffManagementItems(account.role, language).map((item) => (
+          {staffManagementItems(account, language).map((item) => (
             <ManagementRow key={item.to} item={item} />
           ))}
         </div>

@@ -15,7 +15,8 @@ import type { StaffLanguage } from "@/lib/staff-language";
 import type { CurrentAccount } from "./api";
 import { accountMessages } from "./messages";
 
-type Role = CurrentAccount["role"];
+// Pages follow the role and the restaurant's services: without dine-in there is no floor and no tables.
+type NavAccount = Pick<CurrentAccount, "role" | "services">;
 export type StaffDestination = {
   to:
     | "/staff"
@@ -35,11 +36,14 @@ export type StaffDestination = {
 
 // The daily workspaces: the phone tab bar and the tablet/desktop rail show exactly these, in this order.
 // Everything else is reached from the home page, so a device never needs more than five tabs.
-export function staffNavItems(role: Role, language: StaffLanguage): StaffDestination[] {
+export function staffNavItems(
+  { role, services }: NavAccount,
+  language: StaffLanguage,
+): StaffDestination[] {
   const nav = accountMessages[language].nav;
   return [
     { to: "/staff", ...nav.home, icon: House },
-    { to: "/staff/floor", ...nav.floor, icon: LayoutGrid },
+    ...(services.dineIn ? [{ to: "/staff/floor" as const, ...nav.floor, icon: LayoutGrid }] : []),
     { to: "/staff/kitchen", ...nav.kitchen, icon: ChefHat },
     // STAFF have no bills, so the pass screen they carry dishes from takes that slot.
     role === "OWNER"
@@ -55,17 +59,24 @@ export function staffNavItems(role: Role, language: StaffLanguage): StaffDestina
 }
 
 // Less frequent pages, listed on the home page only.
-export function staffManagementItems(role: Role, language: StaffLanguage): StaffDestination[] {
+export function staffManagementItems(
+  { role, services }: NavAccount,
+  language: StaffLanguage,
+): StaffDestination[] {
   const nav = accountMessages[language].nav;
-  const tables: StaffDestination = {
-    to: "/staff/tables",
-    label: nav.tables.label,
-    description: role === "OWNER" ? nav.tables.ownerDescription : nav.tables.staffDescription,
-    icon: QrCode,
-  };
-  if (role !== "OWNER") return [tables];
+  const tables: StaffDestination[] = services.dineIn
+    ? [
+        {
+          to: "/staff/tables",
+          label: nav.tables.label,
+          description: role === "OWNER" ? nav.tables.ownerDescription : nav.tables.staffDescription,
+          icon: QrCode,
+        },
+      ]
+    : [];
+  if (role !== "OWNER") return tables;
   return [
-    tables,
+    ...tables,
     // STAFF have it as a tab; OWNER's slot holds the bills.
     { to: "/staff/pass", ...nav.pass, icon: HandPlatter },
     { to: "/staff/history", ...nav.history, icon: History },

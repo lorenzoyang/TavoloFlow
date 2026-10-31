@@ -23,6 +23,7 @@ public sealed class PublicMenuService(ApplicationDbContext context)
                 x.Restaurant.CurrencyCode,
                 x.Restaurant.DefaultLanguage,
                 x.Restaurant.ServiceStatus,
+                x.Restaurant.DineInEnabled,
                 x.Restaurant.OrderingEnabled,
                 x.Restaurant.JoinCodeRequired,
                 x.Restaurant.Theme,
@@ -32,7 +33,7 @@ public sealed class PublicMenuService(ApplicationDbContext context)
         var menu = await MenuReader.ReadAsync(context, entrance.RestaurantId, entrance.DefaultLanguage, ct);
         await transaction.CommitAsync(ct);
         return new(new(entrance.RestaurantId, entrance.Name, entrance.CurrencyCode, entrance.DefaultLanguage,
-                ApiEnum.Text(entrance.ServiceStatus), entrance.OrderingEnabled, entrance.JoinCodeRequired,
+                ApiEnum.Text(entrance.ServiceStatus), entrance.DineInEnabled, entrance.OrderingEnabled, entrance.JoinCodeRequired,
                 ApiEnum.Text(entrance.Theme)),
             new(entrance.Id, entrance.TableLabel, entrance.IsEnabled), entrance.ActiveSessionId,
             new(menu.AvailableLanguages, menu.Categories, menu.Items));

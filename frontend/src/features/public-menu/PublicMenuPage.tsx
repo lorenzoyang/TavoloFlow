@@ -65,7 +65,7 @@ function MenuContent({
   const m = messages[language];
   const om = orderMessages[language];
   const serviceNotice =
-    data.restaurant.serviceStatus === "SUSPENDED"
+    data.restaurant.serviceStatus === "SUSPENDED" || !data.restaurant.dineInEnabled
       ? m.suspended
       : !data.table.isEnabled
         ? m.disabled

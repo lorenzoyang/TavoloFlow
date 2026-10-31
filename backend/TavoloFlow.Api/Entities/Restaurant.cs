@@ -26,6 +26,9 @@ public sealed class Restaurant
     public RestaurantServiceStatus ServiceStatus { get; set; } = RestaurantServiceStatus.Suspended;
     public bool OrderingEnabled { get; set; }
     public bool JoinCodeRequired { get; set; } = true;
+    // The two services the platform offers a restaurant; at least one stays on.
+    public bool DineInEnabled { get; set; } = true;
+    public bool PickupEnabled { get; set; }
     public RestaurantTheme Theme { get; set; } = RestaurantTheme.Terracotta;
     public DateTime CreatedAt { get; set; }
     public string? GoogleMapsUrl { get; set; }

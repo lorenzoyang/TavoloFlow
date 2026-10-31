@@ -17,6 +17,8 @@ const zh = {
   notSynced: "尚未同步",
   disconnected: "连接已断开或页面暂停。",
   remark: (text: string) => `备注：${text}`,
+  notOffered: "本餐厅未开通此服务",
+  notOfferedHint: "如需开通，请联系平台管理员。",
 };
 
 export const staffMessages: Record<StaffLanguage, typeof zh> = {
@@ -39,5 +41,7 @@ export const staffMessages: Record<StaffLanguage, typeof zh> = {
     notSynced: "Non ancora aggiornato",
     disconnected: "Connessione persa o pagina in pausa.",
     remark: (text) => `Nota: ${text}`,
+    notOffered: "Servizio non attivo",
+    notOfferedHint: "Per attivarlo contatta l’amministratore della piattaforma.",
   },
 };

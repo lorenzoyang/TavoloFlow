@@ -209,6 +209,7 @@ export const orderError = (code: string): OrderMessage =>
       MENU_CHANGED: "changed",
       ORDERING_PAUSED: "paused",
       SERVICE_SUSPENDED: "suspended",
+      DINE_IN_NOT_OFFERED: "suspended",
       TABLE_DISABLED: "disabled",
       GUEST_AUTH_REQUIRED: "auth",
       GUEST_SESSION_MISMATCH: "auth",

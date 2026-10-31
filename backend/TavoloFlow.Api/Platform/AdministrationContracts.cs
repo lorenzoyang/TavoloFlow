@@ -34,12 +34,12 @@ public sealed record ManagedAccount(Guid Id, string Username, string Role, bool 
 // Platform-only: store and guest responses never carry the map link.
 public sealed record RestaurantSummary(Guid Id, string Name, string DefaultLanguage, string TimeZone,
     string CurrencyCode, string ServiceStatus, bool OrderingEnabled, DateTime CreatedAt, string? GoogleMapsUrl,
-    bool JoinCodeRequired, string Theme, SubscriptionSummary? Subscription = null)
+    bool JoinCodeRequired, string Theme, bool DineInEnabled, bool PickupEnabled, SubscriptionSummary? Subscription = null)
 {
     public static RestaurantSummary From(Restaurant restaurant) => new(restaurant.Id, restaurant.Name,
         restaurant.DefaultLanguage, restaurant.TimeZone, restaurant.CurrencyCode,
         ApiEnum.Text(restaurant.ServiceStatus), restaurant.OrderingEnabled, restaurant.CreatedAt, restaurant.GoogleMapsUrl,
-        restaurant.JoinCodeRequired, ApiEnum.Text(restaurant.Theme));
+        restaurant.JoinCodeRequired, ApiEnum.Text(restaurant.Theme), restaurant.DineInEnabled, restaurant.PickupEnabled);
 }
 public sealed record RestaurantDetail(RestaurantSummary Restaurant, ManagedAccount[] Accounts);
 public sealed record RestaurantPage(RestaurantSummary[] Items, int TotalCount, int Page, int PageSize);
