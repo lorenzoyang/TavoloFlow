@@ -18,7 +18,7 @@ Backend (repository root):
 Frontend (`frontend/`):
 
 - Single test file: `node --test --test-isolation=none tests/orders.test.ts`. Add `--test-name-pattern "<regex>"` to run one test.
-- Node runs these tests by stripping types directly from `src/`. Modules covered by `tests/*.test.ts` (feature `state.ts`, `public-menu/language.ts`, `qr-url.ts`, `response.ts`, and `lib/format.ts`, `lib/ids.ts`, `lib/language.ts`, `lib/live-view.ts`, `lib/query-scope.ts`, `lib/staff-language.ts`, `lib/theme.ts`) therefore use relative imports with explicit `.ts` extensions instead of `@/`. They may only `import type` from modules that use `@/` or browser/React APIs. Keep logic you want to test in these pure modules.
+- Node runs these tests by stripping types directly from `src/`. Modules covered by `tests/*.test.ts` (feature `state.ts`, `public-menu/language.ts`, `qr-url.ts`, `response.ts`, and `lib/format.ts`, `lib/ids.ts`, `lib/language.ts`, `lib/live-view.ts`, `lib/pickup-rules.ts`, `lib/query-scope.ts`, `lib/staff-language.ts`, `lib/theme.ts`) therefore use relative imports with explicit `.ts` extensions instead of `@/`. They may only `import type` from modules that use `@/` or browser/React APIs. Keep logic you want to test in these pure modules.
 
 ## Backend architecture
 

@@ -20,7 +20,7 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database) : ICla
             "SELECT tablename AS \"Value\" FROM pg_tables WHERE schemaname = 'public' AND tablename <> '__EFMigrationsHistory'")
             .ToListAsync();
         Assert.Equal(
-            new[] { "dining_sessions", "menu_categories", "menu_item_images", "menu_items", "order_items", "orders", "platform_users", "restaurant_subscription_periods", "restaurant_tables", "restaurant_users", "restaurants" },
+            new[] { "dining_sessions", "menu_categories", "menu_item_images", "menu_items", "order_items", "orders", "pickup_hours", "platform_users", "restaurant_subscription_periods", "restaurant_tables", "restaurant_users", "restaurants" },
             tables.Order());
     }
 

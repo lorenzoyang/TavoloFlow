@@ -9,6 +9,7 @@ import {
   LayoutGrid,
   QrCode,
   Receipt,
+  ShoppingBag,
   UserCog,
 } from "lucide-react";
 import type { StaffLanguage } from "@/lib/staff-language";
@@ -26,6 +27,7 @@ export type StaffDestination = {
     | "/staff/orders"
     | "/staff/menu"
     | "/staff/tables"
+    | "/staff/pickup"
     | "/staff/history"
     | "/staff/settings"
     | "/staff/subscription";
@@ -74,8 +76,12 @@ export function staffManagementItems(
         },
       ]
     : [];
-  if (role !== "OWNER") return tables;
+  const pickup: StaffDestination[] = services.pickup
+    ? [{ to: "/staff/pickup", ...nav.pickup, icon: ShoppingBag }]
+    : [];
+  if (role !== "OWNER") return [...pickup, ...tables];
   return [
+    ...pickup,
     ...tables,
     // STAFF have it as a tab; OWNER's slot holds the bills.
     { to: "/staff/pass", ...nav.pass, icon: HandPlatter },

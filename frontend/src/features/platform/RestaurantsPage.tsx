@@ -28,6 +28,7 @@ import { useSubscriptionQuery } from "@/features/subscriptions/queries";
 import { formatMoney, parsePrice, RESTAURANT_TIME_ZONE } from "@/lib/format";
 import { useLiveView } from "@/lib/useLiveView";
 import { DEFAULT_THEME, isTheme } from "@/lib/theme";
+import { isSlug, normalizePhone, suggestSlug } from "@/lib/pickup-rules";
 
 function Restaurants({ account }: { account: PlatformIdentity }) {
   const [filter, setFilter] = useState({
@@ -40,6 +41,9 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
   const [annualInput, setAnnualInput] = useState("");
   const [includePeriod, setIncludePeriod] = useState(false);
   const [requireCode, setRequireCode] = useState(true);
+  const [dineIn, setDineIn] = useState(true);
+  const [pickup, setPickup] = useState(false);
+  const [slug, setSlug] = useState("");
   const [createError, setCreateError] = useState("");
   const live = useLiveView();
   const today = new Intl.DateTimeFormat("sv-SE", { timeZone: RESTAURANT_TIME_ZONE }).format(
@@ -74,6 +78,23 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
       )
     )
       return;
+    const phoneText = String(data.get("phone") ?? "").trim();
+    const phone = phoneText ? normalizePhone(phoneText) : null;
+    const slugText = slug.trim().toLowerCase();
+    if (!dineIn && !pickup) {
+      setCreateError("至少开通一项服务。");
+      return;
+    }
+    if ((phoneText && !phone) || (slugText && !isSlug(slugText))) {
+      setCreateError(
+        "电话须为可选 + 加 6–15 位数字；链接名须为 3–40 个小写字母、数字或连字符，不以连字符开头或结尾。",
+      );
+      return;
+    }
+    if (pickup && (!phone || !slugText)) {
+      setCreateError("开通线上自取时，餐厅电话和线上菜单链接名都必须填写。");
+      return;
+    }
     setCreateError("");
     const theme = data.get("theme");
     const input = {
@@ -88,6 +109,10 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
       initialPeriod,
       joinCodeRequired: requireCode,
       theme: isTheme(theme) ? theme : DEFAULT_THEME,
+      dineInEnabled: dineIn,
+      pickupEnabled: pickup,
+      phone,
+      slug: slugText || null,
     };
     const ok = await actions.run({ kind: "create", restaurantId: id }, (signal) =>
       createRestaurant(input, signal),
@@ -97,6 +122,9 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
       setAnnualInput("");
       setIncludePeriod(false);
       setRequireCode(true);
+      setDineIn(true);
+      setPickup(false);
+      setSlug("");
     }
   };
   return (
@@ -150,6 +178,64 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
               </div>
               <div className="sm:col-span-2">
                 <ThemeChoices name="theme" defaultValue={DEFAULT_THEME} />
+              </div>
+              <fieldset className="space-y-1 sm:col-span-2">
+                <legend className="text-sm font-medium">服务（至少一项）</legend>
+                <label className="flex min-h-11 items-center gap-3">
+                  <Checkbox checked={dineIn} onCheckedChange={(checked) => setDineIn(checked)} />
+                  堂食扫码点餐
+                </label>
+                <label className="flex min-h-11 items-center gap-3">
+                  <Checkbox checked={pickup} onCheckedChange={(checked) => setPickup(checked)} />
+                  <span>
+                    线上自取
+                    <span className="block text-sm text-muted-foreground">
+                      须填写餐厅电话和线上菜单链接名；之后可在餐厅详情中修改。
+                    </span>
+                  </span>
+                </label>
+              </fieldset>
+              <div className="space-y-2">
+                <Label htmlFor="create-phone">餐厅电话{pickup ? "" : "（可选）"}</Label>
+                <Input
+                  id="create-phone"
+                  name="phone"
+                  type="tel"
+                  inputMode="tel"
+                  maxLength={32}
+                  required={pickup}
+                  placeholder="+39 06 1234567"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-slug">线上菜单链接名{pickup ? "" : "（可选）"}</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="create-slug"
+                    value={slug}
+                    onChange={(event) => setSlug(event.target.value)}
+                    maxLength={40}
+                    required={pickup}
+                    placeholder="trattoria-roma"
+                    autoComplete="off"
+                    className="min-w-0 flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={(event) => {
+                      const name = event.currentTarget.form?.elements.namedItem("name");
+                      if (name instanceof HTMLInputElement) setSlug(suggestSlug(name.value));
+                    }}
+                  >
+                    按名称生成
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  顾客打开 /r/{slug.trim().toLowerCase() || "链接名"}；3–40
+                  个小写字母、数字或连字符。
+                </p>
               </div>
               <label className="flex min-h-11 items-center gap-3 sm:col-span-2">
                 <Checkbox

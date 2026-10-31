@@ -7,7 +7,7 @@ import { kitchenKey } from "@/features/kitchen/api";
 import { tablesKey } from "@/features/tables/api";
 import { ApiError, errorMessage, request, withTimeout, write } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
-import { staffMessages, visitTitle } from "@/lib/staff-messages";
+import { visitTitle } from "@/lib/staff-messages";
 import { isLive, onLifecycleChange } from "@/lib/useLiveView";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { billingKey, historyKey } from "./api";
@@ -27,7 +27,6 @@ export function useClosure(account: CurrentAccount) {
   const client = useQueryClient();
   const language = useStaffLanguage();
   const m = billingMessages[language];
-  const c = staffMessages[language];
   const key = closureKey(account.restaurantId, account.userId);
   const scope = useMemo(() => billingKey(account), [account]);
   const [pending, setPending] = useState<PendingClosure[]>(() => {
@@ -136,7 +135,7 @@ export function useClosure(account: CurrentAccount) {
           setBusy((ids) => ids.filter((id) => id !== action.sessionId));
       }
     },
-    [acceptSession, forget, sameIdentity, m, c, language],
+    [acceptSession, forget, sameIdentity, m, language],
   );
   const recoveryRef = useRef(recover);
   useEffect(() => {

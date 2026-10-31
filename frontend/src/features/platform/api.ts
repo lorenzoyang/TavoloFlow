@@ -25,6 +25,10 @@ type CreateRestaurantInput = {
   googleMapsUrl?: string | null;
   joinCodeRequired: boolean;
   theme: RestaurantTheme;
+  dineInEnabled: boolean;
+  pickupEnabled: boolean;
+  phone: string | null;
+  slug: string | null;
 };
 
 export const platformLogin = (username: string, password: string, signal: AbortSignal) =>
@@ -103,6 +107,21 @@ export const setJoinCodeRequired = (id: string, joinCodeRequired: boolean, signa
 // Colours only; like the map link, the target value makes a repeated request harmless.
 export const setTheme = (id: string, theme: RestaurantTheme, signal: AbortSignal) =>
   platformWrite<Restaurant>(`/api/platform/restaurants/${id}/theme`, "PATCH", { theme }, signal);
+
+// The services, phone and link name send their target values, so a repeated request is harmless.
+// Turning a service off fails with SERVICE_HAS_OPEN_WORK while it still has unfinished visits or requests.
+export const setServices = (id: string, dineIn: boolean, pickup: boolean, signal: AbortSignal) =>
+  platformWrite<Restaurant>(
+    `/api/platform/restaurants/${id}/services`,
+    "PATCH",
+    { dineIn, pickup },
+    signal,
+  );
+export const setPhone = (id: string, phone: string | null, signal: AbortSignal) =>
+  platformWrite<Restaurant>(`/api/platform/restaurants/${id}/phone`, "PATCH", { phone }, signal);
+// A new link name breaks the old online menu address and every QR code printed for it.
+export const setSlug = (id: string, slug: string | null, signal: AbortSignal) =>
+  platformWrite<Restaurant>(`/api/platform/restaurants/${id}/slug`, "PATCH", { slug }, signal);
 
 // Account writes carry the credential version the administrator saw; a mismatch returns ACCOUNT_CHANGED.
 export const setAccountActive = (

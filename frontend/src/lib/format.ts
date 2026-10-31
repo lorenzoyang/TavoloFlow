@@ -53,3 +53,21 @@ export function formatTime(
 export function shortId(id: string) {
   return id.replaceAll("-", "").slice(-6).toUpperCase();
 }
+
+// When something happens next in the restaurant's time zone: only the time when that is today there,
+// otherwise the short weekday and the time ("周三 18:00", "mer 18:00").
+export function formatOpening(
+  value: string,
+  language: Language = "zh",
+  now: number = Date.now(),
+  timeZone = RESTAURANT_TIME_ZONE,
+) {
+  const day = (at: string | number) => new Date(at).toLocaleDateString("en-CA", { timeZone });
+  const time = formatTime(value, language, timeZone);
+  if (day(value) === day(now)) return time;
+  const weekday = new Date(value).toLocaleDateString(language === "zh" ? "zh-CN" : language, {
+    timeZone,
+    weekday: "short",
+  });
+  return `${weekday} ${time}`;
+}

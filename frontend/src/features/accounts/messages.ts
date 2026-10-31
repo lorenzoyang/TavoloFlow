@@ -76,6 +76,7 @@ const zh = {
       staffDescription: "查看桌位与用餐状态",
     },
     pass: { label: "传菜", description: "出餐口平板：已出餐、待送到桌的菜品" },
+    pickup: { label: "线上点单", description: "线上菜单链接、暂停接单、营业时间" },
     history: { label: "历史账单", description: "按日期查看已关闭的账单" },
     settings: { label: "员工账号", description: "重置员工的登录密码" },
     subscription: { label: "年费与收费周期", description: "查看服务期限和付款记录" },
@@ -165,6 +166,10 @@ export const accountMessages: Record<StaffLanguage, typeof zh> = {
         staffDescription: "Tavoli e stato delle visite",
       },
       pass: { label: "Pass", description: "Tablet del pass: piatti pronti da portare ai tavoli" },
+      pickup: {
+        label: "Asporto online",
+        description: "Link del menu online, pausa degli ordini, orari",
+      },
       history: { label: "Storico conti", description: "Conti chiusi, per data" },
       settings: { label: "Account staff", description: "Reimposta la password dello staff" },
       subscription: { label: "Abbonamento", description: "Scadenze del servizio e pagamenti" },

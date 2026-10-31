@@ -16,6 +16,18 @@ public static class InputRules
     // Optional text fields store blank input as NULL.
     public static string? TrimToNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+    // A public phone number: an optional + and 6–15 digits once whitespace is removed. It is stored without
+    // spaces, and shown and dialled exactly as stored. Restaurant and guest phones share this rule.
+    public static string? NormalizePhone(string? value)
+    {
+        if (value is null) return null;
+        var compact = string.Concat(value.Where(c => !char.IsWhiteSpace(c)));
+        return Regex.IsMatch(compact, @"^\+?[0-9]{6,15}\z") ? compact : null;
+    }
+
+    // The online menu link name (/r/{slug}): 3–40 lowercase letters, digits and hyphens, with no hyphen at either end.
+    public static bool IsSlug(string value) => Regex.IsMatch(value, @"^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]\z");
+
     // A restaurant's map link is rendered as a plain href, so only HTTPS Google Maps share or place URLs pass.
     public static bool IsGoogleMapsUrl(string value) =>
         value.Length <= 2048 && Uri.TryCreate(value, UriKind.Absolute, out var uri) &&

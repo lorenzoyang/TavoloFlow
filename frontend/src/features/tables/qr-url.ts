@@ -16,8 +16,9 @@ export function publicMenuUrl(
       "VITE_PUBLIC_BASE_URL 必须是 HTTP(S) 网站 origin，不含路径、账号、查询参数或片段。",
     );
   }
-  if (!/^\/q\/[A-Za-z0-9_-]{1,128}$/.test(path))
-    throw new Error("二维码路径无效，请重新读取桌位。");
+  // A table's QR path, or the restaurant's online menu link.
+  if (!/^\/(q\/[A-Za-z0-9_-]{1,128}|r\/[a-z0-9][a-z0-9-]{1,38}[a-z0-9])$/.test(path))
+    throw new Error("二维码路径无效，请重新读取桌位或线上菜单链接。");
   return new URL(path, base.origin).href;
 }
 

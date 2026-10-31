@@ -61,11 +61,16 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
             throw ApiException.Validation("请填写餐厅名称、语言和两个不同的登录名。");
         var mapsUrl = MapsUrl(input.GoogleMapsUrl);
         var theme = Theme(input.Theme);
+        var phone = Phone(input.Phone);
+        var slug = Slug(input.Slug);
+        if (!input.DineInEnabled && !input.PickupEnabled) throw NoService();
+        if (input.PickupEnabled && (phone is null || slug is null)) throw AdministrationErrors.PickupContactRequired();
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         if (await db.Restaurants.AnyAsync(r => r.Id == input.Id, ct))
             throw new ApiException(409, "RESTAURANT_EXISTS", "此创建标识已存在，请核对原餐厅。");
         var restaurant = new Restaurant { Id = input.Id, Name = input.Name.Trim(), DefaultLanguage = input.DefaultLanguage,
-            GoogleMapsUrl = mapsUrl, JoinCodeRequired = input.JoinCodeRequired, Theme = theme };
+            GoogleMapsUrl = mapsUrl, JoinCodeRequired = input.JoinCodeRequired, Theme = theme,
+            DineInEnabled = input.DineInEnabled, PickupEnabled = input.PickupEnabled, Phone = phone, Slug = slug };
         var credentials = new List<TemporaryAccount>();
         foreach (var (name, role) in new[] { (owner, RestaurantUserRole.Owner), (staff, RestaurantUserRole.Staff) })
         {
@@ -79,8 +84,11 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
         db.Restaurants.Add(restaurant);
         subscriptions.Initialize(restaurant, input.OwnerContact, input.DefaultAnnualFeeCents, input.InitialPeriod);
         try { await db.SaveChangesAsync(ct); }
-        catch (DbUpdateException error) when (error.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
-        { throw new ApiException(409, "CREATE_CONFLICT", "餐厅标识或登录名已被使用，请核对原结果或修改登录名。"); }
+        catch (DbUpdateException error) when (error.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } unique)
+        {
+            throw unique.ConstraintName == SlugIndex ? AdministrationErrors.SlugTaken()
+                : new ApiException(409, "CREATE_CONFLICT", "餐厅标识或登录名已被使用，请核对原结果或修改登录名。");
+        }
         await transaction.CommitAsync(ct);
         logger.LogInformation("Platform {ActorId} created restaurant {RestaurantId}.", actor, restaurant.Id);
         return new(RestaurantSummary.From(restaurant), credentials.ToArray());
@@ -125,6 +133,66 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
             throw AdministrationErrors.RestaurantNotFound();
         logger.LogInformation("Platform {ActorId} set restaurant {RestaurantId} join code required={Required}.", actor, id, required);
         return RestaurantSummary.From(await db.Restaurants.AsNoTracking().SingleAsync(r => r.Id == id, ct));
+    }
+
+    // UPDATE waits for the restaurant SHARE locks of opening, joining, ordering, pickup submission and acceptance,
+    // so no new visit or request slips in between the open-work check and the change.
+    public async Task<RestaurantSummary> SetServicesAsync(Guid id, bool dineIn, bool pickup, Guid actor, CancellationToken ct)
+    {
+        if (!dineIn && !pickup) throw NoService();
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var restaurant = await RowLocks.RestaurantAsync(db, id, RowLock.Update, ct)
+            ?? throw AdministrationErrors.RestaurantNotFound();
+        if (pickup && (restaurant.Phone is null || restaurant.Slug is null)) throw AdministrationErrors.PickupContactRequired();
+        if (restaurant.DineInEnabled && !dineIn && await HasActiveSessionsAsync(id, SessionChannel.DineIn, ct))
+            throw AdministrationErrors.ServiceHasOpenWork();
+        if (restaurant.PickupEnabled && !pickup && await HasActiveSessionsAsync(id, SessionChannel.Pickup, ct))
+            throw AdministrationErrors.ServiceHasOpenWork();
+        await db.Restaurants.Where(r => r.Id == id).ExecuteUpdateAsync(u => u
+            .SetProperty(r => r.DineInEnabled, dineIn).SetProperty(r => r.PickupEnabled, pickup), ct);
+        await transaction.CommitAsync(ct);
+        restaurant.DineInEnabled = dineIn;
+        restaurant.PickupEnabled = pickup;
+        logger.LogInformation("Platform {ActorId} set restaurant {RestaurantId} services dineIn={DineIn} pickup={Pickup}.",
+            actor, id, dineIn, pickup);
+        return RestaurantSummary.From(restaurant);
+    }
+
+    // Under the restaurant UPDATE lock, so the service switch cannot turn pickup on while the phone is being cleared.
+    public async Task<RestaurantSummary> SetPhoneAsync(Guid id, string? phone, Guid actor, CancellationToken ct)
+    {
+        var value = Phone(phone);
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var restaurant = await RowLocks.RestaurantAsync(db, id, RowLock.Update, ct)
+            ?? throw AdministrationErrors.RestaurantNotFound();
+        if (value is null && restaurant.PickupEnabled) throw AdministrationErrors.PickupContactRequired();
+        await db.Restaurants.Where(r => r.Id == id).ExecuteUpdateAsync(u => u.SetProperty(r => r.Phone, value), ct);
+        await transaction.CommitAsync(ct);
+        restaurant.Phone = value;
+        logger.LogInformation("Platform {ActorId} set restaurant {RestaurantId} phone.", actor, id);
+        return RestaurantSummary.From(restaurant);
+    }
+
+    // Changing the link breaks the old online menu address and every QR code printed for it; table QR codes stay.
+    public async Task<RestaurantSummary> SetSlugAsync(Guid id, string? slug, Guid actor, CancellationToken ct)
+    {
+        var value = Slug(slug);
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var restaurant = await RowLocks.RestaurantAsync(db, id, RowLock.Update, ct)
+            ?? throw AdministrationErrors.RestaurantNotFound();
+        if (value is null && restaurant.PickupEnabled) throw AdministrationErrors.PickupContactRequired();
+        try
+        {
+            await db.Restaurants.Where(r => r.Id == id).ExecuteUpdateAsync(u => u.SetProperty(r => r.Slug, value), ct);
+        }
+        catch (PostgresException error) when (error is { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: SlugIndex })
+        {
+            throw AdministrationErrors.SlugTaken();
+        }
+        await transaction.CommitAsync(ct);
+        restaurant.Slug = value;
+        logger.LogInformation("Platform {ActorId} set restaurant {RestaurantId} online menu link.", actor, id);
+        return RestaurantSummary.From(restaurant);
     }
 
     // Colours only: neither ordering nor billing reads the theme, so the single-column write needs no lock.
@@ -198,6 +266,30 @@ public sealed class RestaurantAdministration(ApplicationDbContext db, IPasswordH
         var value = InputRules.TrimToNull(input);
         if (value is not null && !InputRules.IsGoogleMapsUrl(value))
             throw ApiException.Validation("请填写以 https:// 开头的 Google 地图链接。");
+        return value;
+    }
+
+    private const string SlugIndex = "uq_restaurant_slug";
+
+    private Task<bool> HasActiveSessionsAsync(Guid id, SessionChannel channel, CancellationToken ct) =>
+        db.DiningSessions.AnyAsync(s => s.RestaurantId == id && s.Status == DiningSessionStatus.Active && s.Channel == channel, ct);
+
+    private static ApiException NoService() => ApiException.Validation("至少开通一项服务。");
+
+    private static string? Phone(string? input)
+    {
+        var value = InputRules.TrimToNull(input);
+        if (value is null) return null;
+        return InputRules.NormalizePhone(value)
+            ?? throw ApiException.Validation("请填写有效的电话：可以 + 开头，加 6–15 位数字。", "phone", "电话格式无效。");
+    }
+
+    // Typed in any case, stored in lowercase.
+    private static string? Slug(string? input)
+    {
+        var value = InputRules.TrimToNull(input)?.ToLowerInvariant();
+        if (value is not null && !InputRules.IsSlug(value))
+            throw ApiException.Validation("链接名须为 3–40 个小写字母、数字或连字符，且不以连字符开头或结尾。", "slug", "链接名格式无效。");
         return value;
     }
 

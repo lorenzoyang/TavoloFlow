@@ -37,6 +37,15 @@ public sealed class PlatformRestaurantsController(RestaurantAdministration servi
     [HttpPatch("{id:guid}/theme")]
     public async Task<IActionResult> Theme(Guid id, ThemeInput input, CancellationToken ct) =>
         Ok(await service.SetThemeAsync(id, input.Theme, Actor, ct));
+    [HttpPatch("{id:guid}/services")]
+    public async Task<IActionResult> Services(Guid id, ServicesInput input, CancellationToken ct) =>
+        Ok(await service.SetServicesAsync(id, input.DineIn!.Value, input.Pickup!.Value, Actor, ct));
+    [HttpPatch("{id:guid}/phone")]
+    public async Task<IActionResult> Phone(Guid id, PhoneInput input, CancellationToken ct) =>
+        Ok(await service.SetPhoneAsync(id, input.Phone, Actor, ct));
+    [HttpPatch("{id:guid}/slug")]
+    public async Task<IActionResult> Slug(Guid id, SlugInput input, CancellationToken ct) =>
+        Ok(await service.SetSlugAsync(id, input.Slug, Actor, ct));
     [HttpPatch("{id:guid}/users/{userId:guid}/active")]
     public async Task<IActionResult> Active(Guid id, Guid userId, AccountActiveInput input, CancellationToken ct) =>
         Ok(await service.SetActiveAsync(id, userId, input.ExpectedCredentialVersion!.Value, input.IsActive!.Value, Actor, ct));

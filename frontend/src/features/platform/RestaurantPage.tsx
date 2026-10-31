@@ -7,9 +7,11 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/api";
+import { isSlug, normalizePhone, suggestSlug } from "@/lib/pickup-rules";
 import { isTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import {
@@ -19,7 +21,10 @@ import {
   setAccountActive,
   setGoogleMapsUrl,
   setJoinCodeRequired,
+  setPhone,
+  setServices,
   setServiceStatus,
+  setSlug,
   setTheme,
 } from "./api";
 import { PlatformBoundary, PlatformNavigation } from "./PlatformAuth";
@@ -35,10 +40,13 @@ import type { ManagedAccount } from "./state";
 import type { PlatformIdentity } from "./identity";
 import { PlatformSubscription } from "@/features/subscriptions/PlatformSubscription";
 
+type Services = { dineIn: boolean; pickup: boolean };
 type Confirmation =
   | { kind: "reset" | "active"; account: ManagedAccount }
   | { kind: "status"; status: "ACTIVE" | "SUSPENDED" }
   | { kind: "joinCode"; required: boolean }
+  | { kind: "services"; from: Services; to: Services }
+  | { kind: "slug"; from: string | null; to: string | null }
   | { kind: "delete" };
 // status and required are the values the administrator saw; confirming switches them.
 function describe(c: Exclude<Confirmation, { kind: "delete" }>) {
@@ -46,6 +54,25 @@ function describe(c: Exclude<Confirmation, { kind: "delete" }>) {
     return c.status === "ACTIVE"
       ? "停用服务将同时关闭接单，既有订单和账单仍可处理。"
       : "启用服务后，店铺仍须手动开启接单。";
+  if (c.kind === "services")
+    return [
+      c.from.dineIn !== c.to.dineIn &&
+        (c.to.dineIn
+          ? "开通堂食：店铺出现桌台页，顾客可以扫桌台二维码点餐。"
+          : "关闭堂食：桌台页和扫码点餐停用，扫码只能浏览菜单；有用餐中的桌时会被拒绝。"),
+      c.from.pickup !== c.to.pickup &&
+        (c.to.pickup
+          ? "开通线上自取：店铺首页出现“线上点单”，老板设置营业时间后，顾客可以在线上菜单下单。"
+          : "关闭线上自取：线上菜单只能浏览，顾客不能下单；有待接单的请求或未完成的自取单时会被拒绝。"),
+    ]
+      .filter(Boolean)
+      .join(" ");
+  if (c.kind === "slug")
+    return c.from
+      ? `旧链接 /r/${c.from} 和为它印的二维码（传单、外卖袋等）会立即失效${
+          c.to ? `，新链接为 /r/${c.to}` : ""
+        }；桌台二维码不受影响。`
+      : `线上菜单链接将设为 /r/${c.to}。`;
   if (c.kind === "joinCode")
     return c.required
       ? "关闭后，开桌期间任何扫描本桌二维码的人都可直接加入并下单，对正在用餐的桌位立即生效。"
@@ -72,6 +99,10 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
   const [typedName, setTypedName] = useState("");
   const [editingMap, setEditingMap] = useState(false);
   const [editingTheme, setEditingTheme] = useState(false);
+  const [editingServices, setEditingServices] = useState<Services | null>(null);
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [editingSlug, setEditingSlug] = useState(false);
+  const [formError, setFormError] = useState("");
   const panel = useRef<HTMLElement>(null);
   const current =
     confirmation?.kind === "reset" || confirmation?.kind === "active"
@@ -82,9 +113,15 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
       ? query.data?.restaurant.serviceStatus !== confirmation.status
       : confirmation?.kind === "joinCode"
         ? query.data?.restaurant.joinCodeRequired !== confirmation.required
-        : confirmation?.kind === "delete"
-          ? query.data?.restaurant.serviceStatus !== "SUSPENDED"
-          : !!confirmation && current?.credentialVersion !== confirmation.account.credentialVersion;
+        : confirmation?.kind === "services"
+          ? query.data?.restaurant.dineInEnabled !== confirmation.from.dineIn ||
+            query.data?.restaurant.pickupEnabled !== confirmation.from.pickup
+          : confirmation?.kind === "slug"
+            ? query.data?.restaurant.slug !== confirmation.from
+            : confirmation?.kind === "delete"
+              ? query.data?.restaurant.serviceStatus !== "SUSPENDED"
+              : !!confirmation &&
+                current?.credentialVersion !== confirmation.account.credentialVersion;
   const nameConfirmed = typedName.trim() === query.data?.restaurant.name;
   const locked =
     actions.busy ||
@@ -126,6 +163,18 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
       await actions.run({ kind: "joinCode", restaurantId: id }, (signal) =>
         setJoinCodeRequired(id, !c.required, signal),
       );
+    } else if (c.kind === "services") {
+      if (
+        await actions.run({ kind: "services", restaurantId: id }, (signal) =>
+          setServices(id, c.to.dineIn, c.to.pickup, signal),
+        )
+      )
+        setEditingServices(null);
+    } else if (c.kind === "slug") {
+      if (
+        await actions.run({ kind: "slug", restaurantId: id }, (signal) => setSlug(id, c.to, signal))
+      )
+        setEditingSlug(false);
     } else {
       const pending = {
         kind: c.kind,
@@ -149,6 +198,40 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
       setGoogleMapsUrl(id, value || null, signal),
     );
     if (saved) setEditingMap(false);
+  };
+  // A single column, like the map link: no inline confirmation. Pickup needs it, so it cannot be cleared then.
+  const savePhone = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (locked) return;
+    const text = String(new FormData(event.currentTarget).get("phone") ?? "").trim();
+    const phone = text ? normalizePhone(text) : null;
+    if (text && !phone) {
+      setFormError("电话须为可选 + 加 6–15 位数字。");
+      return;
+    }
+    setFormError("");
+    const saved = await actions.run({ kind: "phone", restaurantId: id }, (signal) =>
+      setPhone(id, phone, signal),
+    );
+    if (saved) setEditingPhone(false);
+  };
+  // The link name changes only after the inline confirmation, because the old link stops working.
+  const reviewSlug = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (locked || !query.data) return;
+    const text = String(new FormData(event.currentTarget).get("slug") ?? "")
+      .trim()
+      .toLowerCase();
+    if (text && !isSlug(text)) {
+      setFormError("链接名须为 3–40 个小写字母、数字或连字符，不以连字符开头或结尾。");
+      return;
+    }
+    setFormError("");
+    if ((text || null) === query.data.restaurant.slug) {
+      setEditingSlug(false);
+      return;
+    }
+    setConfirmation({ kind: "slug", from: query.data.restaurant.slug, to: text || null });
   };
   // Colours only, so no inline confirmation either; the next page load or poll applies it.
   const saveTheme = async (event: FormEvent<HTMLFormElement>) => {
@@ -246,6 +329,54 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
                     {restaurant.joinCodeRequired ? "关闭入桌码" : "开启入桌码"}
                   </Button>
                 </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={restaurant.dineInEnabled ? "secondary" : "outline"}>
+                    {restaurant.dineInEnabled ? "堂食已开通" : "堂食未开通"}
+                  </Badge>
+                  <Badge variant={restaurant.pickupEnabled ? "secondary" : "outline"}>
+                    {restaurant.pickupEnabled
+                      ? restaurant.pickupPaused
+                        ? "线上自取已开通 · 店铺已暂停"
+                        : "线上自取已开通"
+                      : "线上自取未开通"}
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    disabled={locked || !!confirmation || !!editingServices}
+                    onClick={() =>
+                      setEditingServices({
+                        dineIn: restaurant.dineInEnabled,
+                        pickup: restaurant.pickupEnabled,
+                      })
+                    }
+                  >
+                    修改服务
+                  </Button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm text-muted-foreground">
+                    电话：{restaurant.phone ?? "未登记"}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    disabled={locked || !!confirmation || editingPhone}
+                    onClick={() => setEditingPhone(true)}
+                  >
+                    编辑电话
+                  </Button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm break-all text-muted-foreground">
+                    线上菜单：{restaurant.slug ? `/r/${restaurant.slug}` : "未设置链接名"}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    disabled={locked || !!confirmation || editingSlug}
+                    onClick={() => setEditingSlug(true)}
+                  >
+                    修改链接名
+                  </Button>
+                </div>
               </div>
               <Button
                 variant={restaurant.serviceStatus === "ACTIVE" ? "outline" : "default"}
@@ -303,6 +434,142 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
                   保存主题
                 </Button>
                 <Button type="button" variant="outline" onClick={() => setEditingTheme(false)}>
+                  取消
+                </Button>
+              </div>
+            </form>
+          )}
+          {editingServices && (
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (locked) return;
+                const from = { dineIn: restaurant.dineInEnabled, pickup: restaurant.pickupEnabled };
+                if (!editingServices.dineIn && !editingServices.pickup) {
+                  setFormError("至少开通一项服务。");
+                  return;
+                }
+                setFormError("");
+                if (
+                  from.dineIn === editingServices.dineIn &&
+                  from.pickup === editingServices.pickup
+                ) {
+                  setEditingServices(null);
+                  return;
+                }
+                setConfirmation({ kind: "services", from, to: editingServices });
+              }}
+              className="space-y-3 rounded-2xl border bg-card p-4 shadow-xs"
+              aria-label="修改服务"
+            >
+              <label className="flex min-h-11 items-center gap-3">
+                <Checkbox
+                  checked={editingServices.dineIn}
+                  onCheckedChange={(dineIn) => setEditingServices({ ...editingServices, dineIn })}
+                />
+                堂食扫码点餐
+              </label>
+              <label className="flex min-h-11 items-center gap-3">
+                <Checkbox
+                  checked={editingServices.pickup}
+                  onCheckedChange={(pickup) => setEditingServices({ ...editingServices, pickup })}
+                />
+                <span>
+                  线上自取
+                  <span className="block text-sm text-muted-foreground">
+                    须已登记电话和线上菜单链接名。
+                  </span>
+                </span>
+              </label>
+              {formError && <Notice tone="error">{formError}</Notice>}
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" disabled={locked || !!confirmation}>
+                  核对修改
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setEditingServices(null);
+                    setFormError("");
+                  }}
+                >
+                  取消
+                </Button>
+              </div>
+            </form>
+          )}
+          {editingPhone && (
+            <form
+              onSubmit={savePhone}
+              className="space-y-4 rounded-2xl border bg-card p-4 shadow-xs"
+              aria-label="编辑餐厅电话"
+            >
+              <div className="space-y-2">
+                <Label htmlFor="restaurant-phone">
+                  餐厅电话（顾客在线上订单状态页拨打；开通自取期间不能清空）
+                </Label>
+                <Input
+                  id="restaurant-phone"
+                  name="phone"
+                  type="tel"
+                  inputMode="tel"
+                  maxLength={32}
+                  defaultValue={restaurant.phone ?? ""}
+                  placeholder="+39 06 1234567"
+                  autoComplete="off"
+                />
+              </div>
+              {formError && <Notice tone="error">{formError}</Notice>}
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" disabled={locked}>
+                  保存电话
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setEditingPhone(false);
+                    setFormError("");
+                  }}
+                >
+                  取消
+                </Button>
+              </div>
+            </form>
+          )}
+          {editingSlug && (
+            <form
+              onSubmit={reviewSlug}
+              className="space-y-4 rounded-2xl border bg-card p-4 shadow-xs"
+              aria-label="修改线上菜单链接名"
+            >
+              <div className="space-y-2">
+                <Label htmlFor="restaurant-slug">
+                  线上菜单链接名（3–40 个小写字母、数字或连字符；开通自取期间不能清空）
+                </Label>
+                <Input
+                  id="restaurant-slug"
+                  name="slug"
+                  maxLength={40}
+                  defaultValue={restaurant.slug ?? suggestSlug(restaurant.name)}
+                  placeholder="trattoria-roma"
+                  autoComplete="off"
+                />
+              </div>
+              {formError && <Notice tone="error">{formError}</Notice>}
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" disabled={locked || !!confirmation}>
+                  核对修改
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setEditingSlug(false);
+                    setFormError("");
+                  }}
+                >
                   取消
                 </Button>
               </div>

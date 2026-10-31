@@ -22,7 +22,7 @@ import {
 import { isLive, onLifecycleChange } from "@/lib/useLiveView";
 import { orderChime } from "@/lib/alert-sound";
 import { useAlertSound } from "@/lib/useAlertSound";
-import { staffMessages, visitTitle } from "@/lib/staff-messages";
+import { visitTitle } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { uniqueBy } from "@/lib/utils";
 import { passKey } from "@/features/pass/api";
@@ -55,7 +55,6 @@ export function useKitchen(account: CurrentAccount) {
   const client = useQueryClient();
   const language = useStaffLanguage();
   const m = kitchenMessages[language];
-  const c = staffMessages[language];
   const [view, setView] = useState<KitchenView>("DISHES");
   const status: OrderStatus = view === "PROCESSED" ? "PROCESSED" : "NEW";
   const [active, setActive] = useState(isLive);
@@ -231,7 +230,7 @@ export function useKitchen(account: CurrentAccount) {
           setBusy((ids) => ids.filter((id) => id !== action.orderId));
       }
     },
-    [acceptOrder, forget, refresh, sameAccount, m, c, language],
+    [acceptOrder, forget, refresh, sameAccount, m, language],
   );
   const recoveryRef = useRef(recover);
   useEffect(() => {

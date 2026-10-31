@@ -9,6 +9,7 @@ using TavoloFlow.Api.Kitchen;
 using TavoloFlow.Api.Menus;
 using TavoloFlow.Api.Operations;
 using TavoloFlow.Api.Ordering;
+using TavoloFlow.Api.Pickup;
 using TavoloFlow.Api.Platform;
 using TavoloFlow.Api.Tables;
 
@@ -43,6 +44,7 @@ builder.Services.AddScoped<KitchenService>();
 builder.Services.AddScoped<BillingService>();
 builder.Services.AddScoped<RestaurantAdministration>();
 builder.Services.AddScoped<SubscriptionService>();
+builder.Services.AddScoped<PickupSettingsService>();
 
 var app = builder.Build();
 

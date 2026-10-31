@@ -10,7 +10,9 @@ public sealed record CreateRestaurantInput(Guid Id, [Required, StringLength(150)
     [Required, RegularExpression("^(zh|it|en)$")] string DefaultLanguage,
     [Required, StringLength(50)] string OwnerUsername, [Required, StringLength(50)] string StaffUsername,
     [StringLength(500)] string? OwnerContact = null, long? DefaultAnnualFeeCents = null, InitialSubscriptionPeriod? InitialPeriod = null,
-    [StringLength(2048)] string? GoogleMapsUrl = null, bool JoinCodeRequired = true, string Theme = "TERRACOTTA");
+    [StringLength(2048)] string? GoogleMapsUrl = null, bool JoinCodeRequired = true, string Theme = "TERRACOTTA",
+    bool DineInEnabled = true, bool PickupEnabled = false, [StringLength(32)] string? Phone = null,
+    [StringLength(40)] string? Slug = null);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record ServiceStatusInput([Required, RegularExpression("^(ACTIVE|SUSPENDED)$")] string Status);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -19,6 +21,12 @@ public sealed record GoogleMapsUrlInput([StringLength(2048)] string? GoogleMapsU
 public sealed record JoinCodeRequiredInput([Required] bool? JoinCodeRequired);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record ThemeInput([Required] string? Theme);
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record ServicesInput([Required] bool? DineIn, [Required] bool? Pickup);
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record PhoneInput([StringLength(32)] string? Phone);
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record SlugInput([StringLength(40)] string? Slug);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record ResetAccountInput([Required, Range(1, int.MaxValue - 1)] int? ExpectedCredentialVersion);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -34,12 +42,14 @@ public sealed record ManagedAccount(Guid Id, string Username, string Role, bool 
 // Platform-only: store and guest responses never carry the map link.
 public sealed record RestaurantSummary(Guid Id, string Name, string DefaultLanguage, string TimeZone,
     string CurrencyCode, string ServiceStatus, bool OrderingEnabled, DateTime CreatedAt, string? GoogleMapsUrl,
-    bool JoinCodeRequired, string Theme, bool DineInEnabled, bool PickupEnabled, SubscriptionSummary? Subscription = null)
+    bool JoinCodeRequired, string Theme, bool DineInEnabled, bool PickupEnabled, string? Phone, string? Slug,
+    bool PickupPaused, SubscriptionSummary? Subscription = null)
 {
     public static RestaurantSummary From(Restaurant restaurant) => new(restaurant.Id, restaurant.Name,
         restaurant.DefaultLanguage, restaurant.TimeZone, restaurant.CurrencyCode,
         ApiEnum.Text(restaurant.ServiceStatus), restaurant.OrderingEnabled, restaurant.CreatedAt, restaurant.GoogleMapsUrl,
-        restaurant.JoinCodeRequired, ApiEnum.Text(restaurant.Theme), restaurant.DineInEnabled, restaurant.PickupEnabled);
+        restaurant.JoinCodeRequired, ApiEnum.Text(restaurant.Theme), restaurant.DineInEnabled, restaurant.PickupEnabled,
+        restaurant.Phone, restaurant.Slug, restaurant.PickupPaused);
 }
 public sealed record RestaurantDetail(RestaurantSummary Restaurant, ManagedAccount[] Accounts);
 public sealed record RestaurantPage(RestaurantSummary[] Items, int TotalCount, int Page, int PageSize);
@@ -53,4 +63,10 @@ public static class AdministrationErrors
     public static ApiException AccountNotFound() => new(404, "ACCOUNT_NOT_FOUND", "账号不存在或不属于此餐厅。");
     public static ApiException InvalidTheme() => ApiException.Validation("请选择有效的主题。", "theme", "主题不存在。");
     public static ApiException AccountChanged() => new(409, "ACCOUNT_CHANGED", "目标账号已变化，请重新读取并确认。");
+    public static ApiException ServiceHasOpenWork() =>
+        new(409, "SERVICE_HAS_OPEN_WORK", "这项服务还有未完成的用餐、自取单或待接单请求，请处理完后再关闭。");
+    public static ApiException PickupContactRequired() =>
+        new(409, "PICKUP_CONTACT_REQUIRED", "开通线上自取时，餐厅电话和线上菜单链接名都必须填写。");
+    public static ApiException SlugTaken() => new(409, "SLUG_TAKEN", "这个线上菜单链接名已被其他餐厅使用。", new Dictionary<string, string[]>
+        { ["slug"] = ["链接名已被使用。"] });
 }

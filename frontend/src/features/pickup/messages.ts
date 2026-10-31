@@ -1,0 +1,127 @@
+import type { StaffLanguage } from "@/lib/staff-language";
+import type { PickupStatus } from "./api";
+import type { HoursProblem } from "./state";
+
+const zh = {
+  title: "线上点单",
+  description: "线上菜单链接、接单状态和每周营业时间。",
+  loading: "正在读取线上点单设置…",
+  loadError: "线上点单设置暂时无法读取，请恢复连接后刷新。",
+  refresh: "刷新",
+  link: "线上菜单链接",
+  linkHint: "放在官网、Google 商家资料或 Instagram 上。顾客打开后自助下单，到店取餐时付款。",
+  noLink: "平台尚未设置线上菜单链接。",
+  copy: "复制链接",
+  copied: "链接已复制。",
+  copyFailed: "无法自动复制，请长按或选中链接手动复制。",
+  open: "打开线上菜单",
+  downloadQr: "下载二维码",
+  qrAlt: "线上菜单二维码",
+  qrFailed: "二维码生成失败，请刷新页面重试。",
+  generating: "正在生成二维码…",
+  localOnly: "这是本机地址，顾客手机打不开。请在部署时配置公开网址。",
+  configError: "线上菜单地址配置无效，请联系管理员。",
+  phone: "餐厅电话",
+  phoneHint: "顾客在订单状态页可以直接拨打。如需修改，请联系平台管理员。",
+  noPhone: "尚未设置",
+  status: "当前状态",
+  statuses: {
+    OPEN: "正在接单",
+    PAUSED: "已暂停接单",
+    CLOSED_HOURS: "营业时间外",
+    NOT_OFFERED: "未开通",
+    SUSPENDED: "餐厅服务已暂停",
+  } satisfies Record<PickupStatus, string>,
+  nextOpens: (time: string) => `下次开始接单：${time}`,
+  pause: "暂停线上接单",
+  pausedOn: "顾客暂时不能提交线上订单，已提交的订单仍要处理。",
+  pausedOff: "营业时间内自动接单。",
+  pauseSaved: (paused: boolean): string => (paused ? "已暂停线上接单。" : "已恢复线上接单。"),
+  hours: "每周营业时间",
+  hoursHint:
+    "结束时间是最后可以下单的时间，请按厨房最后接单的时间设置。每天最多两段，结束时间 00:00 表示到午夜。",
+  noHours: "尚未设置营业时间，线上不会接单。",
+  closedDay: "休息",
+  addSlot: "添加时段",
+  removeSlot: (day: string, slot: number) => `删除${day}第 ${slot} 段`,
+  opens: "开始",
+  closes: "结束",
+  saveHours: "保存营业时间",
+  resetHours: "放弃修改",
+  hoursSaved: "营业时间已保存。",
+  hoursProblem: (day: string, problem: HoursProblem) =>
+    `${day}：${
+      {
+        format: "请填写完整的开始和结束时间。",
+        order: "开始时间须早于结束时间。",
+        overlap: "第二段须在第一段结束之后开始。",
+      }[problem]
+    }`,
+  ownerHours: "只有老板可以修改营业时间。",
+  weekdays: ["周一", "周二", "周三", "周四", "周五", "周六", "周日"],
+};
+
+export const pickupMessages: Record<StaffLanguage, typeof zh> = {
+  zh,
+  it: {
+    title: "Asporto online",
+    description: "Link del menu online, stato degli ordini e orari settimanali.",
+    loading: "Caricamento delle impostazioni…",
+    loadError: "Impossibile leggere le impostazioni: aggiorna quando torna la connessione.",
+    refresh: "Aggiorna",
+    link: "Link del menu online",
+    linkHint:
+      "Mettilo sul sito, sul profilo Google o su Instagram. I clienti ordinano da soli e pagano al ritiro.",
+    noLink: "La piattaforma non ha ancora impostato il link del menu online.",
+    copy: "Copia link",
+    copied: "Link copiato.",
+    copyFailed: "Copia automatica non riuscita: seleziona il link e copialo a mano.",
+    open: "Apri menu online",
+    downloadQr: "Scarica QR",
+    qrAlt: "Codice QR del menu online",
+    qrFailed: "Impossibile generare il codice QR. Ricarica la pagina.",
+    generating: "Generazione del codice QR…",
+    localOnly:
+      "È un indirizzo locale: i telefoni dei clienti non lo aprono. Configura l’indirizzo pubblico.",
+    configError: "Indirizzo del menu online non valido: contatta l’amministratore.",
+    phone: "Telefono del ristorante",
+    phoneHint:
+      "I clienti possono chiamarlo dalla pagina dell’ordine. Per cambiarlo contatta la piattaforma.",
+    noPhone: "Non impostato",
+    status: "Stato attuale",
+    statuses: {
+      OPEN: "Ordini aperti",
+      PAUSED: "Ordini in pausa",
+      CLOSED_HOURS: "Fuori orario",
+      NOT_OFFERED: "Non attivo",
+      SUSPENDED: "Servizio sospeso",
+    },
+    nextOpens: (time) => `Prossima apertura: ${time}`,
+    pause: "Metti in pausa l’asporto",
+    pausedOn: "I clienti non possono inviare ordini; quelli già inviati vanno gestiti.",
+    pausedOff: "Negli orari impostati gli ordini si aprono da soli.",
+    pauseSaved: (paused) => (paused ? "Asporto online in pausa." : "Asporto online riattivato."),
+    hours: "Orari settimanali",
+    hoursHint:
+      "La fine è l’ultimo momento per ordinare: impostala sull’ultimo ordine che la cucina accetta. Al massimo due fasce al giorno; 00:00 come fine vuol dire mezzanotte.",
+    noHours: "Nessun orario impostato: l’asporto online non riceve ordini.",
+    closedDay: "Chiuso",
+    addSlot: "Aggiungi fascia",
+    removeSlot: (day, slot) => `Rimuovi la fascia ${slot} di ${day}`,
+    opens: "Dalle",
+    closes: "Alle",
+    saveHours: "Salva orari",
+    resetHours: "Annulla modifiche",
+    hoursSaved: "Orari salvati.",
+    hoursProblem: (day, problem) =>
+      `${day}: ${
+        {
+          format: "inserisci inizio e fine.",
+          order: "l’inizio deve precedere la fine.",
+          overlap: "la seconda fascia deve iniziare dopo la fine della prima.",
+        }[problem]
+      }`,
+    ownerHours: "Solo il titolare può modificare gli orari.",
+    weekdays: ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"],
+  },
+};

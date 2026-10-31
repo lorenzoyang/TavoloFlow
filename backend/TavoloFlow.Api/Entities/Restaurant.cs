@@ -29,6 +29,11 @@ public sealed class Restaurant
     // The two services the platform offers a restaurant; at least one stays on.
     public bool DineInEnabled { get; set; } = true;
     public bool PickupEnabled { get; set; }
+    // Public contact and online menu link name (/r/{slug}); both are required while pickup is on.
+    public string? Phone { get; set; }
+    public string? Slug { get; set; }
+    // Staff pause online pickup without touching the weekly hours.
+    public bool PickupPaused { get; set; }
     public RestaurantTheme Theme { get; set; } = RestaurantTheme.Terracotta;
     public DateTime CreatedAt { get; set; }
     public string? GoogleMapsUrl { get; set; }
@@ -43,4 +48,5 @@ public sealed class Restaurant
     public ICollection<DiningSession> DiningSessions { get; } = new List<DiningSession>();
     public ICollection<Order> Orders { get; } = new List<Order>();
     public ICollection<OrderItem> OrderItems { get; } = new List<OrderItem>();
+    public ICollection<PickupHour> PickupHours { get; } = new List<PickupHour>();
 }
