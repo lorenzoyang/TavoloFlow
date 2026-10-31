@@ -41,7 +41,10 @@ export function staffNavItems(role: Role, language: StaffLanguage): StaffDestina
     { to: "/staff", ...nav.home, icon: House },
     { to: "/staff/floor", ...nav.floor, icon: LayoutGrid },
     { to: "/staff/kitchen", ...nav.kitchen, icon: ChefHat },
-    ...(role === "OWNER" ? [{ to: "/staff/orders" as const, ...nav.orders, icon: Receipt }] : []),
+    // STAFF have no bills, so the pass screen they carry dishes from takes that slot.
+    role === "OWNER"
+      ? { to: "/staff/orders", ...nav.orders, icon: Receipt }
+      : { to: "/staff/pass", ...nav.pass, icon: HandPlatter },
     {
       to: "/staff/menu",
       label: nav.menu.label,
@@ -60,12 +63,11 @@ export function staffManagementItems(role: Role, language: StaffLanguage): Staff
     description: role === "OWNER" ? nav.tables.ownerDescription : nav.tables.staffDescription,
     icon: QrCode,
   };
-  // Lives on the counter tablet: waiters carrying dishes do not use their phones for it.
-  const pass: StaffDestination = { to: "/staff/pass", ...nav.pass, icon: HandPlatter };
-  if (role !== "OWNER") return [tables, pass];
+  if (role !== "OWNER") return [tables];
   return [
     tables,
-    pass,
+    // STAFF have it as a tab; OWNER's slot holds the bills.
+    { to: "/staff/pass", ...nav.pass, icon: HandPlatter },
     { to: "/staff/history", ...nav.history, icon: History },
     { to: "/staff/settings", ...nav.settings, icon: UserCog },
     { to: "/staff/subscription", ...nav.subscription, icon: CalendarClock },
