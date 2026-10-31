@@ -9,8 +9,6 @@ namespace TavoloFlow.Api.Ordering;
 
 public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
 {
-    private const long MaxCents = InputRules.MaxSafeCents;
-
     public async Task<OrderCreation> CreateAsync(GuestIdentity guest, CreateOrderInput input, CancellationToken ct)
     {
         if (input.SessionId is null || input.SessionId == Guid.Empty || input.ClientRequestId is null || input.ClientRequestId == Guid.Empty)
@@ -32,32 +30,12 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
         DiningEntrance.Require(restaurant, table);
         if (!restaurant.OrderingEnabled)
             throw new ApiException(409, "ORDERING_PAUSED", "餐厅暂未接受扫码订单。");
-        var lines = Validate(input);
-        var ids = lines.Select(x => x.MenuItemId).Distinct().ToArray();
-        var menu = await db.MenuItems.AsNoTracking().Where(x => x.RestaurantId == guest.RestaurantId && ids.Contains(x.Id))
-            .ToDictionaryAsync(x => x.Id, ct);
-        var changes = new List<MenuChange>();
-        foreach (var line in lines)
-        {
-            if (!menu.TryGetValue(line.MenuItemId, out var item)) changes.Add(new(line.MenuItemId, "MISSING", null, null));
-            else if (!item.IsAvailable || !item.AllergenReviewed) changes.Add(new(item.Id, "UNAVAILABLE", item.PriceCents, false));
-            else if (item.PriceCents != line.ExpectedUnitPriceCents) changes.Add(new(item.Id, "PRICE_CHANGED", item.PriceCents, true));
-        }
-        if (changes.Count > 0)
-            throw OrderErrors.MenuChanged(changes.Distinct().ToArray());
-
-        long total = 0;
-        foreach (var line in lines)
-        {
-            var price = menu[line.MenuItemId].PriceCents;
-            if (price <= 0 || price > MaxCents / line.Quantity || total > MaxCents - price * line.Quantity)
-                throw OrderErrors.Invalid("items", "订单金额超出安全整数范围。");
-            total += price * line.Quantity;
-        }
+        var lines = OrderLines.Validate(input.Items);
+        var (snapshots, total) = await OrderLines.BuildAsync(db, guest.RestaurantId, lines, ct);
         var existingTotal = await db.Orders.Where(o => o.RestaurantId == guest.RestaurantId &&
             o.DiningSessionId == guest.SessionId).SelectMany(o => o.Items)
             .Where(i => i.Status != OrderItemStatus.Cancelled).SumAsync(i => i.UnitPriceCents * i.Quantity, ct);
-        if (existingTotal > MaxCents - total || session.BillVersion == int.MaxValue)
+        if (existingTotal > InputRules.MaxSafeCents - total || session.BillVersion == int.MaxValue)
             throw new ApiException(409, "BILL_LIMIT_REACHED", "本轮账单已达到支持的上限，请联系工作人员。");
 
         var order = new Order
@@ -66,17 +44,7 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
             ClientRequestId = input.ClientRequestId.Value, TotalAmountCents = total,
             DefaultLanguageSnapshot = restaurant.DefaultLanguage, CreatedAt = clock.GetUtcNow().UtcDateTime
         };
-        foreach (var line in lines)
-        {
-            var item = menu[line.MenuItemId];
-            order.Items.Add(new OrderItem
-            {
-                Id = Guid.CreateVersion7(), RestaurantId = guest.RestaurantId, MenuItemId = item.Id,
-                ItemCodeSnapshot = item.ItemCode, NameZhSnapshot = item.NameZh, NameItSnapshot = item.NameIt,
-                NameEnSnapshot = item.NameEn, AllergenCodesSnapshot = item.AllergenCodes.ToArray(),
-                UnitPriceCents = item.PriceCents, Quantity = line.Quantity, Remark = InputRules.TrimToNull(line.Remark)
-            });
-        }
+        foreach (var line in snapshots) order.Items.Add(line.ToOrderItem(guest.RestaurantId));
         db.Orders.Add(order);
         await db.SaveChangesAsync(ct);
         await db.DiningSessions.Where(s => s.Id == session.Id && s.RestaurantId == guest.RestaurantId)
@@ -133,21 +101,6 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
     private static void RequireTarget(GuestIdentity guest, Guid target)
     {
         if (guest.SessionId != target) throw GuestErrors.SessionMismatch();
-    }
-
-    private static OrderLineInput[] Validate(CreateOrderInput input)
-    {
-        if (input.Items is null || input.Items.Length is < 1 or > 30 || input.Items.Any(x => x is null))
-            throw OrderErrors.Invalid("items", "每笔订单须包含 1–30 行菜品。");
-        var lines = input.Items.Select(x => x!).ToArray();
-        foreach (var (line, index) in lines.Select((line, index) => (line, index)))
-        {
-            if (line.MenuItemId == Guid.Empty || line.Quantity is < 1 or > 20 ||
-                line.ExpectedUnitPriceCents < 1 || line.ExpectedUnitPriceCents > MaxCents || line.Remark?.Length > 200)
-                throw OrderErrors.Invalid($"items[{index}]", "菜品须有效，每行 1–20 份，备注最多 200 字符，确认价格须为正整数欧分。");
-        }
-        if (lines.Sum(x => x.Quantity) > 100) throw OrderErrors.Invalid("items", "每单最多 100 份。");
-        return lines;
     }
 
     private sealed record OrderCursor(Guid SessionId, DateTime CreatedAt, Guid Id);
