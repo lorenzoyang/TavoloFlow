@@ -14,6 +14,7 @@ import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { FilterChips } from "@/components/filter-chips";
 import { formatMoney, formatTime } from "@/lib/format";
+import { VisitTitle } from "@/components/visit-title";
 import { staffMessages, visitTitle } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
@@ -131,7 +132,7 @@ function BillingContent({ account, sessionId, select }: Props & { account: Curre
               >
                 <span className="flex items-start justify-between gap-3">
                   <span className="min-w-0 text-xl font-semibold wrap-break-word">
-                    {visitTitle(visit, language)}
+                    <VisitTitle visit={visit} language={language} />
                   </span>
                   {visit.newItemCount > 0 && (
                     <Badge variant="warning">{m.pendingBadge(visit.newItemCount)}</Badge>

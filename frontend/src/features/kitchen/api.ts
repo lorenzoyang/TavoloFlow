@@ -4,10 +4,13 @@ import { confirmedOrder } from "@/features/orders/response";
 import { request, write } from "@/lib/api";
 import type { OrderStatus } from "./state";
 
+// How kitchen and pass name a pickup visit: the pickup number first, the name only to help.
+export type SessionPickup = { number: number; customerName: string; estimatedReadyAt: string };
 export type KitchenOrder = Order & {
   channel: "DINE_IN" | "PICKUP";
-  // NULL for pickup visits.
+  // NULL for pickup visits, which carry pickup instead.
   tableLabel: string | null;
+  pickup: SessionPickup | null;
   processedAt: string | null;
 };
 export type KitchenPage = {

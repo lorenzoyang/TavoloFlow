@@ -1,6 +1,6 @@
 import type { PassItem } from "./api.ts";
 
-export type PassTable = Pick<PassItem, "sessionId" | "channel" | "tableLabel"> & {
+export type PassTable = Pick<PassItem, "sessionId" | "channel" | "tableLabel" | "pickup"> & {
   items: PassItem[];
 };
 
@@ -13,6 +13,7 @@ export function groupByTable(items: readonly PassItem[]): PassTable[] {
       sessionId: item.sessionId,
       channel: item.channel,
       tableLabel: item.tableLabel,
+      pickup: item.pickup,
       items: [],
     };
     table.items.push(item);

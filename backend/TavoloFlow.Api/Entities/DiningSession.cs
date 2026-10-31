@@ -6,11 +6,13 @@ public enum DiningSessionStatus
     Closed
 }
 
+// EMPTY is dine-in only, NO_SHOW (a pickup nobody collected) pickup only; PAID and VOIDED serve both.
 public enum SessionCloseReason
 {
     Paid,
     Voided,
-    Empty
+    Empty,
+    NoShow
 }
 
 // How the visit reached the restaurant: a table's QR code, or an accepted online pickup request.

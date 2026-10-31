@@ -44,6 +44,9 @@ export const italianErrors: Record<string, string> = {
   ORDER_NOT_FOUND: "L’ordine non esiste.",
   PASSWORD_CHANGE_REQUIRED: "Cambia prima la password iniziale.",
   PASSWORD_UNCHANGED: "La nuova password deve essere diversa da quella attuale.",
+  PICKUP_CHANGED: "Ordine online già gestito o scaduto. Aggiorna l’elenco.",
+  PICKUP_NOT_FOUND: "Ordine online inesistente.",
+  PICKUP_NOT_OFFERED: "Il ristorante non ha l’asporto online attivo.",
   RATE_LIMITED: "Troppi tentativi. Riprova tra poco.",
   SERVICE_SUSPENDED: "Il servizio del ristorante è sospeso.",
   SESSION_ALREADY_ACTIVE: "Il tavolo è già aperto. Ricarica lo stato attuale.",
@@ -52,6 +55,7 @@ export const italianErrors: Record<string, string> = {
   SESSION_NOT_FOUND: "Visita inesistente.",
   SESSION_NOT_PAYABLE:
     "Un conto a zero si chiude come tavolo vuoto o annullato, non come incassato.",
+  SESSION_NOT_PICKUP: "Solo un asporto si può chiudere come non ritirato.",
   SESSION_NOT_VOIDABLE: "Si chiude a zero solo se ci sono ordini e tutti i piatti sono annullati.",
   TABLE_DISABLED: "Questo tavolo è disattivato.",
   TABLE_HAS_ACTIVE_SESSION: "Il tavolo ha una visita in corso: chiudila prima di eliminarlo.",

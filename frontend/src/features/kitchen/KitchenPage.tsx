@@ -30,6 +30,7 @@ import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { displayName } from "@/lib/language";
 import { formatDateTime, formatMoney, formatTime, shortId } from "@/lib/format";
+import { VisitTitle } from "@/components/visit-title";
 import { staffMessages, visitTitle } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
@@ -165,8 +166,9 @@ function DishCard({
           <li key={line.id} className="space-y-2 py-2.5">
             <div className="flex items-center gap-2">
               <div className="min-w-0 flex-1">
-                <p className="text-lg leading-7 font-semibold wrap-break-word">
-                  {visitTitle(order, language)} ×{line.quantity}
+                <p className="flex min-w-0 items-baseline gap-1.5 text-lg leading-7 font-semibold wrap-break-word">
+                  <VisitTitle visit={order} language={language} />
+                  <span className="shrink-0">×{line.quantity}</span>
                 </p>
                 <p className="text-sm text-muted-foreground">
                   {m.waited(waitedMinutes(model, order))}
@@ -219,7 +221,9 @@ function OrderTicket({
     >
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-2xl font-bold wrap-break-word">{visitTitle(order, language)}</h2>
+          <h2 className="min-w-0 text-2xl font-bold wrap-break-word">
+            <VisitTitle visit={order} language={language} />
+          </h2>
           <p className="text-sm text-muted-foreground">
             {m.orderedAt(formatTime(order.createdAt, language))} · #{shortId(order.id)}
           </p>

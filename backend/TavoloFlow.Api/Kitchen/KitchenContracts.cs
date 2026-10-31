@@ -4,14 +4,22 @@ using TavoloFlow.Api.Ordering;
 
 namespace TavoloFlow.Api.Kitchen;
 
-// TableLabel is NULL for pickup visits.
-public sealed record KitchenOrderResponse(Guid Id, Guid SessionId, string Channel, string? TableLabel, string Status,
-    DateTime CreatedAt, DateTime? ProcessedAt,
+// How kitchen and pass name a pickup visit: the pickup number first, the name only to help.
+public sealed record SessionPickupResponse(int Number, string CustomerName, DateTime EstimatedReadyAt)
+{
+    public static SessionPickupResponse? From(DiningSession session) => session.PickupRequest is { } r
+        ? new(r.PickupNumber, r.CustomerName, r.EstimatedReadyAt!.Value) : null;
+}
+
+// TableLabel is NULL and Pickup is set for pickup visits.
+public sealed record KitchenOrderResponse(Guid Id, Guid SessionId, string Channel, string? TableLabel,
+    SessionPickupResponse? Pickup, string Status, DateTime CreatedAt, DateTime? ProcessedAt,
     string DefaultLanguage, long TotalAmountCents, long PayableAmountCents, OrderLineResponse[] Items)
 {
-    // Requires Items and DiningSession to be loaded.
+    // Requires Items and DiningSession with its PickupRequest to be loaded.
     public static KitchenOrderResponse From(Order order) => new(order.Id, order.DiningSessionId,
-        ApiEnum.Text(order.DiningSession.Channel), order.DiningSession.TableLabelSnapshot, ApiEnum.Text(order.Status), order.CreatedAt, order.ProcessedAt,
+        ApiEnum.Text(order.DiningSession.Channel), order.DiningSession.TableLabelSnapshot,
+        SessionPickupResponse.From(order.DiningSession), ApiEnum.Text(order.Status), order.CreatedAt, order.ProcessedAt,
         order.DefaultLanguageSnapshot, order.TotalAmountCents, OrderResponse.Payable(order),
         OrderLineResponse.ForOrder(order));
 }
@@ -20,13 +28,15 @@ public sealed record KitchenOrderResponse(Guid Id, Guid SessionId, string Channe
 public sealed record KitchenPage(KitchenOrderResponse[] Items, string? NextCursor,
     long TotalCount, long PendingCount, DateTime? LatestCreatedAt);
 
-public sealed record PassItemResponse(Guid Id, Guid OrderId, Guid SessionId, string Channel, string? TableLabel, string DefaultLanguage,
+public sealed record PassItemResponse(Guid Id, Guid OrderId, Guid SessionId, string Channel, string? TableLabel,
+    SessionPickupResponse? Pickup, string DefaultLanguage,
     string? ItemCode, string? NameZh, string? NameIt, string? NameEn, int Quantity, string? Remark,
     DateTime ReadyAt, DateTime? ServedAt)
 {
-    // Requires Order and its DiningSession to be loaded.
+    // Requires Order, its DiningSession and that session's PickupRequest to be loaded.
     public static PassItemResponse From(OrderItem item) => new(item.Id, item.OrderId, item.Order.DiningSessionId,
-        ApiEnum.Text(item.Order.DiningSession.Channel), item.Order.DiningSession.TableLabelSnapshot, item.Order.DefaultLanguageSnapshot, item.ItemCodeSnapshot,
+        ApiEnum.Text(item.Order.DiningSession.Channel), item.Order.DiningSession.TableLabelSnapshot,
+        SessionPickupResponse.From(item.Order.DiningSession), item.Order.DefaultLanguageSnapshot, item.ItemCodeSnapshot,
         item.NameZhSnapshot, item.NameItSnapshot, item.NameEnSnapshot, item.Quantity, item.Remark,
         item.ReadyAt!.Value, item.ServedAt);
 }

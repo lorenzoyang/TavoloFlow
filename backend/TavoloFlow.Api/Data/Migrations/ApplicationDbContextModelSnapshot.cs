@@ -112,7 +112,7 @@ namespace TavoloFlow.Api.Data.Migrations
 
                             t.HasCheckConstraint("ck_session_channel", "channel IN ('DINE_IN', 'PICKUP')");
 
-                            t.HasCheckConstraint("ck_session_close_reason", "close_reason IS NULL OR close_reason IN ('PAID', 'VOIDED', 'EMPTY')");
+                            t.HasCheckConstraint("ck_session_close_reason", "close_reason IS NULL OR (channel = 'DINE_IN' AND close_reason IN ('PAID', 'VOIDED', 'EMPTY')) OR (channel = 'PICKUP' AND close_reason IN ('PAID', 'VOIDED', 'NO_SHOW'))");
 
                             t.HasCheckConstraint("ck_session_close_time", "closed_at IS NULL OR closed_at >= opened_at");
 

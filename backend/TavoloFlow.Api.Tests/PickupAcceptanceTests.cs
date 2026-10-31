@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using TavoloFlow.Api.Billing;
 using TavoloFlow.Api.Common;
@@ -212,6 +213,85 @@ public sealed class PickupAcceptanceTests(PostgreSqlFixture database) : IClassFi
         // The next local day starts an empty list.
         host.Clock.Advance(TimeSpan.FromDays(1));
         Assert.Empty((await staff.GetFromJsonAsync<UnacceptedPickupsResponse>("/api/staff/pickup/unaccepted"))!.Items);
+    }
+
+    [Fact]
+    public async Task Closure_PickupVisits_PickedUpNoShowAndVoidedReachHistoryByChannel()
+    {
+        using var host = Host();
+        var s = await SeedAsync();
+        using var staff = await LoginAsync(host, s.Staff);
+        using var owner = await LoginAsync(host, s.Owner);
+        using var guest = host.Browser();
+        async Task<(KitchenOrderResponse Order, string Token)> AcceptedAsync()
+        {
+            var (request, token) = await SubmitAsync(host, s);
+            var accepted = (await (await PostAsync(staff, Accept(request.Id), new { estimatedMinutes = 15 }))
+                .Content.ReadFromJsonAsync<AcceptedPickupResponse>())!;
+            var order = (await staff.GetFromJsonAsync<KitchenPage>("/api/staff/orders"))!.Items.Single(o => o.SessionId == accepted.SessionId);
+            return (order, token);
+        }
+        var (paid, paidToken) = await AcceptedAsync();
+        var (noShow, noShowToken) = await AcceptedAsync();
+        var (voided, voidedToken) = await AcceptedAsync();
+        Assert.Equal(new SessionPickupResponse(1, "Marco", Monday.UtcDateTime.AddMinutes(15)), paid.Pickup);
+        await using var db = database.CreateContext();
+        var kitchen = new KitchenService(db, host.Clock);
+        await kitchen.ReadyAsync(s.RestaurantId, paid.Id, paid.Items.Single().Id, default);
+        var pass = Assert.Single((await staff.GetFromJsonAsync<PassPage>("/api/staff/pass"))!.Items);
+        Assert.Equal(("PICKUP", (string?)null, 1, "Marco"), (pass.Channel, pass.TableLabel, pass.Pickup!.Number, pass.Pickup.CustomerName));
+        var bill = (await staff.GetFromJsonAsync<BillSummaryResponse>($"/api/staff/sessions/{paid.SessionId}"))!;
+        Assert.Equal(new BillPickupResponse(1, "Marco", "+393331234567", Monday.UtcDateTime.AddMinutes(15)), bill.Pickup);
+
+        // Picked up: the ordinary PAID checkout, which also marks the dish served.
+        Assert.Equal(HttpStatusCode.OK, (await PostAsync(owner, $"/api/owner/sessions/{paid.SessionId}/checkout", new CheckoutInput(1, 1400))).StatusCode);
+        Assert.Equal("PICKED_UP", (await guest.GetFromJsonAsync<PickupStatusResponse>($"/api/public/pickup-requests/{paidToken}"))!.Status);
+        Assert.Empty((await staff.GetFromJsonAsync<PassPage>("/api/staff/pass"))!.Items);
+
+        // Not collected: OWNER only, after the kitchen finished, with an explicit confirmation.
+        var noShowPath = $"/api/owner/sessions/{noShow.SessionId}/close-no-show";
+        await AssertErrorAsync(await PostAsync(staff, noShowPath, new CloseNoShowInput(1, 1400, true)), HttpStatusCode.Forbidden, "FORBIDDEN");
+        await AssertErrorAsync(await PostAsync(owner, noShowPath, new CloseNoShowInput(1, 1400, true)), HttpStatusCode.Conflict, "ORDERS_PENDING");
+        await kitchen.ReadyAsync(s.RestaurantId, noShow.Id, noShow.Items.Single().Id, default);
+        await AssertErrorAsync(await PostAsync(owner, noShowPath, new CloseNoShowInput(1, 1400, false)), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
+        var closed = (await (await PostAsync(owner, noShowPath, new CloseNoShowInput(1, 1400, true))).Content.ReadFromJsonAsync<BillSummaryResponse>())!;
+        Assert.Equal(("CLOSED", "NO_SHOW", 1400L), (closed.Status, closed.CloseReason, closed.TotalAmountCents));
+        Assert.Equal("CLOSED", (await guest.GetFromJsonAsync<PickupStatusResponse>($"/api/public/pickup-requests/{noShowToken}"))!.Status);
+
+        // Every dish cancelled: EMPTY and NO_SHOW are refused, VOIDED closes it.
+        await kitchen.CancelAsync(s.RestaurantId, voided.Id, voided.Items.Single().Id, default);
+        Assert.Equal("CANCELLED", (await guest.GetFromJsonAsync<PickupStatusResponse>($"/api/public/pickup-requests/{voidedToken}"))!.Status);
+        await AssertErrorAsync(await PostAsync(staff, $"/api/staff/sessions/{voided.SessionId}/close-empty", new CloseZeroBillInput(2, 0, true)),
+            HttpStatusCode.Conflict, "SESSION_HAS_ORDERS");
+        await AssertErrorAsync(await PostAsync(owner, $"/api/owner/sessions/{voided.SessionId}/close-no-show", new CloseNoShowInput(2, 0, true)),
+            HttpStatusCode.Conflict, "SESSION_NOT_PAYABLE");
+        Assert.Equal(HttpStatusCode.OK, (await PostAsync(staff, $"/api/staff/sessions/{voided.SessionId}/close-void", new CloseZeroBillInput(2, 0, true))).StatusCode);
+        Assert.Equal("CLOSED", (await guest.GetFromJsonAsync<PickupStatusResponse>($"/api/public/pickup-requests/{voidedToken}"))!.Status);
+
+        // A table visit can never be closed as not collected.
+        var table = new RestaurantTable { RestaurantId = s.RestaurantId, TableLabel = "5", QrToken = Guid.NewGuid().ToString("N") };
+        db.RestaurantTables.Add(table);
+        await db.SaveChangesAsync();
+        var dineIn = await new DiningService(db, host.Services.GetRequiredService<JoinCodes>(), host.Clock).OpenAsync(s.RestaurantId, table.Id, default);
+        await AssertErrorAsync(await PostAsync(owner, $"/api/owner/sessions/{dineIn.Session.SessionId}/close-no-show", new CloseNoShowInput(1, 0, true)),
+            HttpStatusCode.Conflict, "SESSION_NOT_PICKUP");
+        Assert.Equal(HttpStatusCode.OK, (await PostAsync(staff, $"/api/staff/sessions/{dineIn.Session.SessionId}/close-empty", new CloseZeroBillInput(1, 0, true))).StatusCode);
+
+        // History filters by channel; a table label only finds table visits.
+        async Task<BillSummaryResponse[]> History(string query) =>
+            (await owner.GetFromJsonAsync<HistoryPage>("/api/owner/history" + query))!.Items;
+        Assert.Equal(4, (await History("")).Length);
+        var pickups = await History("?channel=PICKUP");
+        Assert.Equal(new[] { 3, 2, 1 }, pickups.Select(x => x.Pickup!.Number));
+        Assert.Equal(new[] { "VOIDED", "NO_SHOW", "PAID" }, pickups.Select(x => x.CloseReason));
+        Assert.Equal("EMPTY", Assert.Single(await History("?channel=DINE_IN")).CloseReason);
+        Assert.Equal(noShow.SessionId, Assert.Single(await History("?closeReason=NO_SHOW")).SessionId);
+        Assert.Equal(dineIn.Session.SessionId, Assert.Single(await History("?tableLabel=5")).SessionId);
+        await AssertErrorAsync(await owner.GetAsync("/api/owner/history?channel=pickup"), HttpStatusCode.BadRequest, "VALIDATION_FAILED");
+        var page = (await owner.GetFromJsonAsync<HistoryPage>("/api/owner/history?channel=PICKUP&limit=1"))!;
+        await AssertErrorAsync(await owner.GetAsync($"/api/owner/history?channel=DINE_IN&limit=1&cursor={page.NextCursor}"),
+            HttpStatusCode.BadRequest, "VALIDATION_FAILED");
+        Assert.Equal(2, (await owner.GetFromJsonAsync<HistoryPage>($"/api/owner/history?channel=PICKUP&limit=1&cursor={page.NextCursor}"))!.Items.Single().Pickup!.Number);
     }
 
     [Fact]

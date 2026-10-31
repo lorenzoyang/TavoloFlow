@@ -14,6 +14,7 @@ import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import { errorMessage } from "@/lib/api";
+import { VisitTitle } from "@/components/visit-title";
 import { staffMessages, visitTitle } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn, uniqueBy } from "@/lib/utils";
@@ -39,8 +40,9 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
       toDate: search.toDate,
       tableLabel: search.tableLabel,
       closeReason: search.closeReason,
+      channel: search.channel,
     }),
-    [search.fromDate, search.toDate, search.tableLabel, search.closeReason],
+    [search.fromDate, search.toDate, search.tableLabel, search.closeReason, search.channel],
   );
   const query = useInfiniteQuery({
     queryKey: [...historyKey(account), filters],
@@ -119,6 +121,21 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
             ))}
           </NativeSelect>
         </label>
+        {(account.services.pickup || search.channel) && (
+          <label className={label}>
+            <span className="block">{m.channelFilter}</span>
+            <NativeSelect
+              id="history-channel"
+              name="channel"
+              defaultValue={search.channel ?? ""}
+              className="w-full"
+            >
+              <NativeSelectOption value="">{m.channelAll}</NativeSelectOption>
+              <NativeSelectOption value="DINE_IN">{m.channelDineIn}</NativeSelectOption>
+              <NativeSelectOption value="PICKUP">{m.channelPickup}</NativeSelectOption>
+            </NativeSelect>
+          </label>
+        )}
         <div className="col-span-2 flex flex-wrap gap-2 lg:col-span-4">
           <Button type="submit">{m.search}</Button>
           <Button type="button" variant="outline" onClick={() => navigate({})}>
@@ -181,8 +198,8 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
             >
               <span className="min-w-0 flex-1 space-y-1">
                 <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-lg font-semibold wrap-break-word">
-                    {visitTitle(row, language)}
+                  <span className="min-w-0 text-lg font-semibold wrap-break-word">
+                    <VisitTitle visit={row} language={language} />
                   </span>
                   <Badge variant={closeBadges[row.closeReason!]}>{m.close[row.closeReason!]}</Badge>
                 </span>

@@ -10,6 +10,7 @@ const dish = (id: string, sessionId: string, tableLabel: string, readyAt: string
   sessionId,
   channel: "DINE_IN",
   tableLabel,
+  pickup: null,
   defaultLanguage: "it",
   itemCode: null,
   nameZh: "炒饭",

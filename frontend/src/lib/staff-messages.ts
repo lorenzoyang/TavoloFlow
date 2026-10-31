@@ -1,3 +1,4 @@
+import { formatTime } from "./format";
 import type { StaffLanguage } from "./staff-language";
 
 // Copy shared by several store pages. Each feature keeps the rest in its own messages.ts.
@@ -48,11 +49,17 @@ export const staffMessages: Record<StaffLanguage, typeof zh> = {
   },
 };
 
-// A visit as staff pages name it: its table, or a pickup order.
-export type VisitLabel = { channel: "DINE_IN" | "PICKUP"; tableLabel: string | null };
+// A visit as staff pages name it: its table, or "自取 #12 · Marco · 18:25" for a pickup order (the number
+// identifies it, the name and the expected time only help). VisitTitle renders it with a truncated name.
+export type VisitLabel = {
+  channel: "DINE_IN" | "PICKUP";
+  tableLabel: string | null;
+  pickup?: { number: number; customerName: string; estimatedReadyAt: string } | null;
+};
 export function visitTitle(visit: VisitLabel, language: StaffLanguage): string {
   const c = staffMessages[language];
-  return visit.channel === "PICKUP" || visit.tableLabel === null
-    ? c.pickup
-    : c.table(visit.tableLabel);
+  if (visit.channel === "DINE_IN" && visit.tableLabel !== null) return c.table(visit.tableLabel);
+  if (!visit.pickup) return c.pickup;
+  const { number, customerName, estimatedReadyAt } = visit.pickup;
+  return `${c.pickup} #${number} · ${customerName} · ${formatTime(estimatedReadyAt, language)}`;
 }

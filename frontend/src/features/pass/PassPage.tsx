@@ -8,6 +8,7 @@ import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { formatDateTime } from "@/lib/format";
 import { displayName } from "@/lib/language";
+import { VisitTitle } from "@/components/visit-title";
 import { staffMessages, visitTitle } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { useWakeLock } from "@/lib/useWakeLock";
@@ -31,7 +32,7 @@ function TableCard({ table, model }: { table: PassTable; model: ReturnType<typeo
     <article className="flex flex-col gap-2 rounded-2xl border bg-card p-4 shadow-xs">
       <header className="flex items-baseline justify-between gap-3">
         <h2 className="min-w-0 text-3xl font-bold wrap-break-word">
-          {visitTitle(table, language)}
+          <VisitTitle visit={table} language={language} />
         </h2>
         <span className="shrink-0 text-sm text-muted-foreground">
           {m.toServe(table.items.length)}

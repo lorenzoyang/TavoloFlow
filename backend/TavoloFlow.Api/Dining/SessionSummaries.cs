@@ -6,10 +6,13 @@ using TavoloFlow.Api.Entities;
 namespace TavoloFlow.Api.Dining;
 
 // One visit's bill. Staff read it before closing; opening, closing and history all return it.
-// TableId and TableLabel are NULL for pickup visits.
+// The bill's pickup details: staff collecting the money may need to call the guest.
+public sealed record BillPickupResponse(int Number, string CustomerName, string CustomerPhone, DateTime EstimatedReadyAt);
+
+// TableId and TableLabel are NULL and Pickup is set for pickup visits.
 public sealed record BillSummaryResponse(Guid SessionId, string Channel, Guid? TableId, string? TableLabel, string Status,
     DateTime OpenedAt, DateTime? ClosedAt, string? CloseReason, int BillVersion, int OrderCount,
-    int ItemCount, int NewItemCount, int CancelledItemCount, long TotalAmountCents);
+    int ItemCount, int NewItemCount, int CancelledItemCount, long TotalAmountCents, BillPickupResponse? Pickup);
 
 public static class SessionSummaries
 {
@@ -22,7 +25,9 @@ public static class SessionSummaries
             s.Orders.SelectMany(o => o.Items).Count(i => i.Status == OrderItemStatus.New),
             s.Orders.SelectMany(o => o.Items).Count(i => i.Status == OrderItemStatus.Cancelled),
             s.ClosedTotalCents ?? s.Orders.SelectMany(o => o.Items).Where(i => i.Status != OrderItemStatus.Cancelled)
-                .Sum(i => i.UnitPriceCents * i.Quantity)));
+                .Sum(i => i.UnitPriceCents * i.Quantity),
+            s.PickupRequest == null ? null : new BillPickupResponse(s.PickupRequest.PickupNumber, s.PickupRequest.CustomerName,
+                s.PickupRequest.CustomerPhone, s.PickupRequest.EstimatedReadyAt!.Value)));
 
     public static async Task<BillSummaryResponse> ReadAsync(ApplicationDbContext db, Guid restaurantId, Guid id,
         CancellationToken ct) =>

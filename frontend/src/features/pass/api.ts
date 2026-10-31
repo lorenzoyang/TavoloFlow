@@ -1,5 +1,6 @@
 import type { AccountScope } from "@/features/accounts/api";
 import { request, write } from "@/lib/api";
+import type { SessionPickup } from "@/features/kitchen/api";
 import type { Language, Names } from "@/lib/language";
 
 export type PassItem = Names & {
@@ -7,8 +8,9 @@ export type PassItem = Names & {
   orderId: string;
   sessionId: string;
   channel: "DINE_IN" | "PICKUP";
-  // NULL for pickup visits.
+  // NULL for pickup visits, which carry pickup instead.
   tableLabel: string | null;
+  pickup: SessionPickup | null;
   defaultLanguage: Language;
   itemCode: string | null;
   quantity: number;

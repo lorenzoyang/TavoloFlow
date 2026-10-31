@@ -18,7 +18,9 @@ internal sealed class DiningSessionConfiguration : IEntityTypeConfiguration<Dini
             table.HasCheckConstraint("ck_session_dine_in_label", "channel <> 'DINE_IN' OR table_label_snapshot IS NOT NULL");
             table.HasCheckConstraint("ck_session_pickup_fields",
                 "channel <> 'PICKUP' OR (table_id IS NULL AND table_label_snapshot IS NULL AND join_code_ciphertext IS NULL)");
-            table.HasCheckConstraint("ck_session_close_reason", "close_reason IS NULL OR close_reason IN ('PAID', 'VOIDED', 'EMPTY')");
+            table.HasCheckConstraint("ck_session_close_reason",
+                "close_reason IS NULL OR (channel = 'DINE_IN' AND close_reason IN ('PAID', 'VOIDED', 'EMPTY')) OR " +
+                "(channel = 'PICKUP' AND close_reason IN ('PAID', 'VOIDED', 'NO_SHOW'))");
 
             table.HasCheckConstraint("ck_session_lifecycle",
                 "(status = 'ACTIVE' AND closed_at IS NULL AND close_reason IS NULL AND closed_total_cents IS NULL AND (channel = 'PICKUP' OR join_code_ciphertext IS NOT NULL)) OR " +

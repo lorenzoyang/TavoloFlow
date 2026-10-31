@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { RefreshCw } from "lucide-react";
+import { Phone, RefreshCw } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { LoadingState } from "@/components/loading-state";
 import { Notice } from "@/components/notice";
@@ -11,7 +11,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import type { CurrentAccount } from "@/features/accounts/api";
 import type { KitchenOrder } from "@/features/kitchen/api";
 import { displayName } from "@/lib/language";
-import { formatDateTime, formatMoney, RESTAURANT_TIME_ZONE, shortId } from "@/lib/format";
+import {
+  formatDateTime,
+  formatMoney,
+  formatTime,
+  RESTAURANT_TIME_ZONE,
+  shortId,
+} from "@/lib/format";
 import { errorMessage } from "@/lib/api";
 import { staffMessages, visitTitle } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
@@ -19,9 +25,10 @@ import { cn } from "@/lib/utils";
 import { billingMessages } from "./messages";
 import {
   closeBadges,
-  closureKind,
+  closureKinds,
   confirmationChanged,
   type BillSummary,
+  type CloseKind,
   type Confirmation,
 } from "./state";
 import { useBill } from "./useBill";
@@ -195,7 +202,20 @@ export function ActiveBillPanel({
   const [checked, setChecked] = useState(false);
   const checkbox = useRef<HTMLElement>(null);
   const bill = model.head?.summary;
-  const kind = bill ? closureKind(bill, account.role) : null;
+  const kinds = bill ? closureKinds(bill, account.role) : [];
+  // A pickup visit is picked up, not collected or voided; the wording says so instead of "table".
+  const copy = (kind: CloseKind, visit: BillSummary) => {
+    if (visit.channel === "PICKUP" && kind !== "EMPTY") return m.pickupClose[kind];
+    const paid = kind === "PAID";
+    return {
+      button: m.closeButton[kind],
+      title: m.confirmTitle[kind],
+      description: paid ? m.confirmPaid : m.confirmZero,
+      checked: paid ? m.checkedPaid : m.checkedZero,
+      confirm: paid ? m.confirmPaidLabel : m.confirmZeroLabel,
+    };
+  };
+  const confirming = confirmation ? copy(confirmation.kind, confirmation.bill) : null;
   const changed = !!confirmation && (!bill || confirmationChanged(confirmation, bill));
   const busy = closure.busy.includes(sessionId);
   const locked = busy || closure.pending.some((p) => p.sessionId === sessionId);
@@ -285,7 +305,9 @@ export function ActiveBillPanel({
               formatMoney(model.session.data.totalAmountCents, language),
             )}
           </p>
-          <p className="text-sm text-muted-foreground">{m.closedHint}</p>
+          <p className="text-sm text-muted-foreground">
+            {model.session.data.channel === "PICKUP" ? m.closedHintPickup : m.closedHint}
+          </p>
           {account.role === "OWNER" && (
             <Link
               to="/staff/history"
@@ -302,9 +324,31 @@ export function ActiveBillPanel({
           {bill?.newItemCount ? (
             <Notice tone="warning">{m.waiting(bill.newItemCount)}</Notice>
           ) : null}
-          {kind && (
+          {bill?.pickup && (
+            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 rounded-xl border bg-card p-3 text-sm">
+              <dt className="text-muted-foreground">{m.pickupInfo.number}</dt>
+              <dd className="font-semibold tabular-nums">#{bill.pickup.number}</dd>
+              <dt className="text-muted-foreground">{m.pickupInfo.name}</dt>
+              <dd className="truncate">{bill.pickup.customerName}</dd>
+              <dt className="self-center text-muted-foreground">{m.pickupInfo.phone}</dt>
+              <dd>
+                <a
+                  href={`tel:${bill.pickup.customerPhone}`}
+                  className="inline-flex min-h-11 items-center gap-1.5 font-medium tabular-nums"
+                >
+                  <Phone aria-hidden="true" className="size-3.5" />
+                  {bill.pickup.customerPhone}
+                </a>
+              </dd>
+              <dt className="text-muted-foreground">{m.pickupInfo.ready}</dt>
+              <dd className="tabular-nums">{formatTime(bill.pickup.estimatedReadyAt, language)}</dd>
+            </dl>
+          )}
+          {kinds.map((kind, index) => (
             <Button
+              key={kind}
               size="lg"
+              variant={index === 0 ? "default" : "outline"}
               className="w-full"
               disabled={!model.fresh || locked}
               onClick={() => {
@@ -313,11 +357,11 @@ export function ActiveBillPanel({
                 setConfirmation({ kind, bill: { ...bill! } });
               }}
             >
-              {m.closeButton[kind]}
+              {copy(kind, bill!).button}
             </Button>
-          )}
+          ))}
           {bill &&
-            !kind &&
+            !kinds.length &&
             bill.newItemCount === 0 &&
             account.role === "STAFF" &&
             bill.totalAmountCents > 0 && (
@@ -326,9 +370,13 @@ export function ActiveBillPanel({
           <BillDetails model={model} />
           <ConfirmDialog
             open={!!confirmation}
-            title={`${m.confirmTitle[confirmation?.kind ?? "VOIDED"]} · ${confirmation ? visitTitle(confirmation.bill, language) : ""}`}
-            description={confirmation?.kind === "PAID" ? m.confirmPaid : m.confirmZero}
-            confirmLabel={confirmation?.kind === "PAID" ? m.confirmPaidLabel : m.confirmZeroLabel}
+            title={
+              confirmation && confirming
+                ? `${confirming.title} · ${visitTitle(confirmation.bill, language)}`
+                : ""
+            }
+            description={confirming?.description}
+            confirmLabel={confirming?.confirm ?? ""}
             cancelLabel={m.backToBill}
             busy={busy}
             confirmDisabled={!checked || changed || locked || !model.fresh}
@@ -349,7 +397,7 @@ export function ActiveBillPanel({
                     disabled={locked || changed}
                     onCheckedChange={setChecked}
                   />
-                  {confirmation.kind === "PAID" ? m.checkedPaid : m.checkedZero}
+                  {confirming?.checked}
                 </label>
               </div>
             )}

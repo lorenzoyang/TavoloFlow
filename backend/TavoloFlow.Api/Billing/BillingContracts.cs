@@ -15,6 +15,10 @@ public sealed record CheckoutInput([Required, Range(1, int.MaxValue)] int? Expec
 public sealed record CloseZeroBillInput([Required, Range(1, int.MaxValue)] int? ExpectedBillVersion,
     [Required] long? ConfirmedTotalCents, [Required] bool? GuestsLeftConfirmed);
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record CloseNoShowInput([Required, Range(1, int.MaxValue)] int? ExpectedBillVersion,
+    [Required] long? ConfirmedTotalCents, [Required] bool? NoShowConfirmed);
+
 public sealed record ActiveSessionsResponse(BillSummaryResponse[] Items);
 public sealed record BillPage(BillSummaryResponse Summary, KitchenOrderResponse[] Orders, string? NextCursor);
 public sealed record HistoryPage(BillSummaryResponse[] Items, string? NextCursor, long TotalCount,

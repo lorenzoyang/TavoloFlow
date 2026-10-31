@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  closureKind,
+  closureKinds,
   confirmationChanged,
   closureRequest,
   readClosures,
@@ -29,21 +29,56 @@ const bill: BillSummary = {
   newItemCount: 0,
   cancelledItemCount: 0,
   totalAmountCents: 1400,
+  pickup: null,
+};
+const pickup: BillSummary = {
+  ...bill,
+  channel: "PICKUP",
+  tableId: null,
+  tableLabel: null,
+  orderCount: 1,
+  pickup: {
+    number: 12,
+    customerName: "Marco",
+    customerPhone: "3331234567",
+    estimatedReadyAt: "2026-10-23T12:20:00Z",
+  },
 };
 
 test("only the owner can pay a positive bill; NEW or CLOSED blocks closure", () => {
-  assert.equal(closureKind(bill, "OWNER"), "PAID");
-  assert.equal(closureKind(bill, "STAFF"), null);
-  assert.equal(closureKind({ ...bill, newItemCount: 1 }, "OWNER"), null);
-  assert.equal(closureKind({ ...bill, status: "CLOSED" }, "OWNER"), null);
+  assert.deepEqual(closureKinds(bill, "OWNER"), ["PAID"]);
+  assert.deepEqual(closureKinds(bill, "STAFF"), []);
+  assert.deepEqual(closureKinds({ ...bill, newItemCount: 1 }, "OWNER"), []);
+  assert.deepEqual(closureKinds({ ...bill, status: "CLOSED" }, "OWNER"), []);
 });
 test("empty and fully cancelled visits have different zero closure rules", () => {
-  assert.equal(closureKind({ ...bill, orderCount: 0, totalAmountCents: 0 }, "STAFF"), "EMPTY");
-  assert.equal(
-    closureKind({ ...bill, cancelledItemCount: 2, totalAmountCents: 0 }, "STAFF"),
+  assert.deepEqual(closureKinds({ ...bill, orderCount: 0, totalAmountCents: 0 }, "STAFF"), [
+    "EMPTY",
+  ]);
+  assert.deepEqual(closureKinds({ ...bill, cancelledItemCount: 2, totalAmountCents: 0 }, "STAFF"), [
     "VOIDED",
+  ]);
+  assert.deepEqual(
+    closureKinds({ ...bill, cancelledItemCount: 1, totalAmountCents: 0 }, "OWNER"),
+    [],
   );
-  assert.equal(closureKind({ ...bill, cancelledItemCount: 1, totalAmountCents: 0 }, "OWNER"), null);
+});
+test("a pickup is picked up or not collected by the owner, voided by anyone, never closed empty", () => {
+  assert.deepEqual(closureKinds(pickup, "OWNER"), ["PAID", "NO_SHOW"]);
+  assert.deepEqual(closureKinds(pickup, "STAFF"), []);
+  assert.deepEqual(closureKinds({ ...pickup, newItemCount: 1 }, "OWNER"), []);
+  assert.deepEqual(
+    closureKinds({ ...pickup, itemCount: 2, cancelledItemCount: 2, totalAmountCents: 0 }, "STAFF"),
+    ["VOIDED"],
+  );
+  assert.deepEqual(closureKinds({ ...pickup, orderCount: 0, totalAmountCents: 0 }, "OWNER"), []);
+  assert.deepEqual(closureRequest({ kind: "NO_SHOW", bill: pickup }), {
+    path: `/api/owner/sessions/${id}/close-no-show`,
+    body: { expectedBillVersion: 3, confirmedTotalCents: 1400, noShowConfirmed: true },
+  });
+  assert.deepEqual(readClosures(JSON.stringify([{ sessionId: id, kind: "NO_SHOW" }])), [
+    { sessionId: id, kind: "NO_SHOW" },
+  ]);
 });
 test("confirmation keeps its original amount and version after a background change", () => {
   const snapshot: Confirmation = { kind: "PAID", bill: { ...bill } };
@@ -113,8 +148,17 @@ test("history URL keeps exact filter values and validates session identifiers", 
       toDate: "2026-10-25",
       tableLabel: "8",
       closeReason: "VOIDED",
+      channel: undefined,
     },
   );
+  assert.deepEqual(
+    [historySearch({ channel: "PICKUP", closeReason: "NO_SHOW" })].map((x) => [
+      x.channel,
+      x.closeReason,
+    ]),
+    [["PICKUP", "NO_SHOW"]],
+  );
+  assert.equal(historySearch({ channel: "pickup" }).channel, undefined);
   const invalid = historySearch({
     sessionId: "../../other",
     closeReason: "unknown",

@@ -23,6 +23,11 @@ public sealed class BillingController(BillingService billing, CurrentAccount cur
     public async Task<IActionResult> Checkout(Guid id, CheckoutInput input, CancellationToken ct) =>
         Ok(await billing.CheckoutAsync(RestaurantId, id, input, ct));
 
+    [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
+    [HttpPost("api/owner/sessions/{id:guid}/close-no-show")]
+    public async Task<IActionResult> CloseNoShow(Guid id, CloseNoShowInput input, CancellationToken ct) =>
+        Ok(await billing.CloseNoShowAsync(RestaurantId, id, input, ct));
+
     [HttpPost("api/staff/sessions/{id:guid}/close-empty")]
     public async Task<IActionResult> CloseEmpty(Guid id, CloseZeroBillInput input, CancellationToken ct) =>
         Ok(await billing.CloseEmptyAsync(RestaurantId, id, input, ct));
@@ -35,8 +40,8 @@ public sealed class BillingController(BillingService billing, CurrentAccount cur
     [HttpGet("api/owner/history")]
     public async Task<IActionResult> History(CancellationToken ct, [FromQuery] string? fromDate = null,
         [FromQuery] string? toDate = null, [FromQuery] string? tableLabel = null, [FromQuery] string? closeReason = null,
-        [FromQuery] string? cursor = null, [FromQuery] int limit = 50) =>
-        Ok(await billing.HistoryAsync(RestaurantId, fromDate, toDate, tableLabel, closeReason, cursor, limit, ct));
+        [FromQuery] string? channel = null, [FromQuery] string? cursor = null, [FromQuery] int limit = 50) =>
+        Ok(await billing.HistoryAsync(RestaurantId, fromDate, toDate, tableLabel, closeReason, channel, cursor, limit, ct));
 
     [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
     [HttpGet("api/owner/history/{id:guid}")]

@@ -97,6 +97,7 @@ Store/Platform 密码统一允许 6–128 个字符（包括六位纯数字）�
 
 ```
 restaurant → table → dining session          restaurant → menu item
+restaurant → pickup counter（提交自取请求）     restaurant → pickup request（接单）
 ```
 
 | 操作 | 加锁 |
@@ -105,9 +106,12 @@ restaurant → table → dining session          restaurant → menu item
 | 顾客入桌、读码 | restaurant SHARE → table SHARE → session SHARE（`DiningEntrance.LockAsync`） |
 | 顾客下单 | restaurant SHARE → table SHARE → session UPDATE |
 | 顾客读订单、员工读账单 | session SHARE |
-| 厨房完成或取消、三种关桌 | 只锁 session UPDATE，此后不再反向锁餐厅或桌位 |
+| 厨房完成或取消、四种关闭（含自取的未取） | 只锁 session UPDATE，此后不再反向锁餐厅或桌位 |
+| 提交线上自取请求 | restaurant SHARE → 当天的 pickup counter（`INSERT … ON CONFLICT DO UPDATE`，同一餐厅当天的提交因此依次进行） |
+| 接单 | restaurant SHARE → pickup request UPDATE → 新建 session、order 和 order items |
+| 拒单 | 只锁 pickup request UPDATE |
 | 菜单写入、删除菜品 | restaurant UPDATE（删除菜品时再加 menu item UPDATE） |
-| 接单开关、平台启停服务 | restaurant UPDATE |
+| 接单开关、平台启停服务、平台改服务开关、电话或 slug、自取暂停和营业时间 | restaurant UPDATE |
 | 桌位改名、启停、删除 | table UPDATE |
 
 为什么下单对餐厅加 SHARE？菜单写入持有餐厅 UPDATE，二者互斥，所以下单时读到的价格和快照不会与改价交错；而不同桌的下单都只持有 SHARE，彼此兼容，可以并行。

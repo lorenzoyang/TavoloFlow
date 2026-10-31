@@ -176,18 +176,18 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
             db.DiningSessions.Add(row); await db.SaveChangesAsync(); ids.Add(row.Id);
         }
         var service = new BillingService(db, host.Clock);
-        var first = await service.HistoryAsync(s.RestaurantId, date, date, " 旧桌 ", "EMPTY", null, 1, default);
+        var first = await service.HistoryAsync(s.RestaurantId, date, date, " 旧桌 ", "EMPTY", null, null, 1, default);
         Assert.Equal(2, first.TotalCount); Assert.Equal(ids[2], first.Items.Single().SessionId);
-        var second = await service.HistoryAsync(s.RestaurantId, date, date, "旧桌", "EMPTY", first.NextCursor, 1, default);
+        var second = await service.HistoryAsync(s.RestaurantId, date, date, "旧桌", "EMPTY", null, first.NextCursor, 1, default);
         Assert.Equal(ids[1], second.Items.Single().SessionId); Assert.Null(second.NextCursor);
-        await Assert.ThrowsAsync<ApiException>(() => service.HistoryAsync(s.RestaurantId, date, date, "别桌", "EMPTY", first.NextCursor, 1, default));
-        await Assert.ThrowsAsync<ApiException>(() => service.HistoryAsync(s.RestaurantId, date, date, "旧桌", "PAID", first.NextCursor, 1, default));
-        await Assert.ThrowsAsync<ApiException>(() => service.HistoryAsync(s.RestaurantId, "invalid", date, null, null, null, 1, default));
+        await Assert.ThrowsAsync<ApiException>(() => service.HistoryAsync(s.RestaurantId, date, date, "别桌", "EMPTY", null, first.NextCursor, 1, default));
+        await Assert.ThrowsAsync<ApiException>(() => service.HistoryAsync(s.RestaurantId, date, date, "旧桌", "PAID", null, first.NextCursor, 1, default));
+        await Assert.ThrowsAsync<ApiException>(() => service.HistoryAsync(s.RestaurantId, "invalid", date, null, null, null, null, 1, default));
         host.Clock.Advance(new DateTimeOffset(start.AddHours(10)) - host.Clock.GetUtcNow());
-        var today = await service.HistoryAsync(s.RestaurantId, null, null, null, null, null, 1, default);
+        var today = await service.HistoryAsync(s.RestaurantId, null, null, null, null, null, null, 1, default);
         Assert.Equal(DateOnly.Parse(date), today.FromDate); Assert.Equal(today.FromDate, today.ToDate);
         host.Clock.Advance(TimeSpan.FromDays(1));
-        var pinned = await service.HistoryAsync(s.RestaurantId, null, null, null, null, today.NextCursor, 1, default);
+        var pinned = await service.HistoryAsync(s.RestaurantId, null, null, null, null, null, today.NextCursor, 1, default);
         Assert.Equal(today.FromDate, pinned.FromDate);
     }
 
@@ -209,9 +209,9 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
         Assert.Equal(new[] { a.Id, b.Id }, first.Orders.Concat(second.Orders).Select(o => o.Id));
         Assert.All(first.Orders.Concat(second.Orders), o => Assert.Equal("炒饭", o.Items.Single().NameZh));
         await Assert.ThrowsAsync<ApiException>(() => service.ReadAsync(other.RestaurantId, s.Id, true, first.NextCursor, 1, default));
-        var history = await service.HistoryAsync(s.RestaurantId, null, null, "8", "PAID", null, 50, default);
+        var history = await service.HistoryAsync(s.RestaurantId, null, null, "8", "PAID", null, null, 50, default);
         Assert.Single(history.Items); Assert.Equal("Europe/Rome", history.TimeZone);
-        Assert.Empty((await service.HistoryAsync(other.RestaurantId, null, null, null, null, null, 50, default)).Items);
+        Assert.Empty((await service.HistoryAsync(other.RestaurantId, null, null, null, null, null, null, 50, default)).Items);
     }
 
     [Theory]

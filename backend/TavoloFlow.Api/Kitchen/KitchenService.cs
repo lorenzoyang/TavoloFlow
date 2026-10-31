@@ -119,7 +119,7 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
         if (after is not null)
             active = active.Where(i => EF.Functions.GreaterThan(ValueTuple.Create(i.ReadyAt!.Value, i.Id),
                 ValueTuple.Create(after.At, after.Id)));
-        var rows = await active.Include(i => i.Order).ThenInclude(o => o.DiningSession)
+        var rows = await active.Include(i => i.Order).ThenInclude(o => o.DiningSession).ThenInclude(s => s.PickupRequest)
             .OrderBy(i => i.ReadyAt).ThenBy(i => i.Id).Take(limit + 1).ToArrayAsync(ct);
         var (page, next) = Paging.Page(rows, limit, last => new PassCursor(restaurantId, last.ReadyAt!.Value, last.Id));
         await tx.CommitAsync(ct);
@@ -142,7 +142,7 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
             .ExecuteUpdateAsync(u => u.SetProperty(i => i.ServedAt, now), ct);
         if (changed != 1) throw Changed();
         var result = PassItemResponse.From(await target.AsNoTracking()
-            .Include(i => i.Order).ThenInclude(o => o.DiningSession).SingleAsync(ct));
+            .Include(i => i.Order).ThenInclude(o => o.DiningSession).ThenInclude(s => s.PickupRequest).SingleAsync(ct));
         await tx.CommitAsync(ct);
         return result;
     }
@@ -151,7 +151,8 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
         db.Orders.Where(o => o.RestaurantId == restaurantId && o.Status == status).MaxAsync(o => (DateTime?)o.CreatedAt, ct);
 
     private IQueryable<Order> Orders(Guid restaurantId) => db.Orders.AsNoTracking()
-        .Include(o => o.Items).Include(o => o.DiningSession).Where(o => o.RestaurantId == restaurantId);
+        .Include(o => o.Items).Include(o => o.DiningSession).ThenInclude(s => s.PickupRequest)
+        .Where(o => o.RestaurantId == restaurantId);
 
     private async Task<Order> FindAsync(Guid restaurantId, Guid id, CancellationToken ct) =>
         await Orders(restaurantId).SingleOrDefaultAsync(o => o.Id == id, ct) ?? throw Missing();

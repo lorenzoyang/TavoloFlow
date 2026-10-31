@@ -1,12 +1,23 @@
 import { isUuid } from "../../lib/ids.ts";
 
-export type CloseKind = "PAID" | "EMPTY" | "VOIDED";
+// EMPTY is dine-in only and NO_SHOW (a pickup nobody collected) pickup only.
+export type CloseKind = "PAID" | "EMPTY" | "VOIDED" | "NO_SHOW";
+const closeKinds: readonly string[] = ["PAID", "EMPTY", "VOIDED", "NO_SHOW"];
+export const isCloseKind = (value: unknown): value is CloseKind =>
+  typeof value === "string" && closeKinds.includes(value);
+export type Channel = "DINE_IN" | "PICKUP";
 export type BillSummary = {
   sessionId: string;
-  channel: "DINE_IN" | "PICKUP";
-  // Table and label are NULL for pickup visits.
+  channel: Channel;
+  // Table and label are NULL, and pickup is set, for pickup visits.
   tableId: string | null;
   tableLabel: string | null;
+  pickup: {
+    number: number;
+    customerName: string;
+    customerPhone: string;
+    estimatedReadyAt: string;
+  } | null;
   status: "ACTIVE" | "CLOSED";
   openedAt: string;
   closedAt: string | null;
@@ -22,19 +33,28 @@ export type Confirmation = { kind: CloseKind; bill: BillSummary };
 export type PendingClosure = { sessionId: string; kind: CloseKind };
 export const closureKey = (restaurantId: string, userId: string) =>
   `tavoloflow:billing:${restaurantId}:${userId}`;
-export const closeBadges = { PAID: "success", EMPTY: "outline", VOIDED: "outline" } as const;
+export const closeBadges = {
+  PAID: "success",
+  EMPTY: "outline",
+  VOIDED: "outline",
+  NO_SHOW: "outline",
+} as const;
 
-export function closureKind(bill: BillSummary, role: "OWNER" | "STAFF"): CloseKind | null {
-  if (bill.status !== "ACTIVE" || bill.newItemCount > 0) return null;
-  if (bill.orderCount === 0 && bill.totalAmountCents === 0) return "EMPTY";
+// The closures this bill allows now, in display order. A pickup with money due offers both "picked up"
+// (PAID) and "not collected" (NO_SHOW); both are OWNER's, like every closure that records an amount.
+export function closureKinds(bill: BillSummary, role: "OWNER" | "STAFF"): CloseKind[] {
+  if (bill.status !== "ACTIVE" || bill.newItemCount > 0) return [];
+  if (bill.orderCount === 0 && bill.totalAmountCents === 0)
+    return bill.channel === "DINE_IN" ? ["EMPTY"] : [];
   if (
     bill.orderCount > 0 &&
     bill.itemCount > 0 &&
     bill.cancelledItemCount === bill.itemCount &&
     bill.totalAmountCents === 0
   )
-    return "VOIDED";
-  return role === "OWNER" && bill.totalAmountCents > 0 ? "PAID" : null;
+    return ["VOIDED"];
+  if (role !== "OWNER" || bill.totalAmountCents <= 0) return [];
+  return bill.channel === "PICKUP" ? ["PAID", "NO_SHOW"] : ["PAID"];
 }
 
 export function confirmationChanged(confirmation: Confirmation, bill: BillSummary) {
@@ -60,7 +80,7 @@ export function readClosures(raw: string | null): PendingClosure[] {
       if (
         row &&
         isUuid(row.sessionId) &&
-        (row.kind === "PAID" || row.kind === "EMPTY" || row.kind === "VOIDED") &&
+        isCloseKind(row.kind) &&
         !result.some((x) => x.sessionId === row.sessionId)
       )
         result.push({ sessionId: row.sessionId, kind: row.kind });
@@ -73,16 +93,20 @@ export function readClosures(raw: string | null): PendingClosure[] {
 
 export function closureRequest(confirmation: Confirmation) {
   const { bill, kind } = confirmation;
+  const confirmed = {
+    expectedBillVersion: bill.billVersion,
+    confirmedTotalCents: bill.totalAmountCents,
+  };
+  if (kind === "PAID")
+    return { path: `/api/owner/sessions/${bill.sessionId}/checkout`, body: confirmed };
+  if (kind === "NO_SHOW")
+    return {
+      path: `/api/owner/sessions/${bill.sessionId}/close-no-show`,
+      body: { ...confirmed, noShowConfirmed: true },
+    };
   return {
-    path:
-      kind === "PAID"
-        ? `/api/owner/sessions/${bill.sessionId}/checkout`
-        : `/api/staff/sessions/${bill.sessionId}/${kind === "EMPTY" ? "close-empty" : "close-void"}`,
-    body: {
-      expectedBillVersion: bill.billVersion,
-      confirmedTotalCents: bill.totalAmountCents,
-      ...(kind === "PAID" ? {} : { guestsLeftConfirmed: true }),
-    },
+    path: `/api/staff/sessions/${bill.sessionId}/${kind === "EMPTY" ? "close-empty" : "close-void"}`,
+    body: { ...confirmed, guestsLeftConfirmed: true },
   };
 }
 
@@ -101,6 +125,7 @@ export type HistoryFilters = {
   toDate?: string;
   tableLabel?: string;
   closeReason?: CloseKind;
+  channel?: Channel;
 };
 type BillingSearch = { sessionId?: string };
 export type HistorySearch = BillingSearch & HistoryFilters;
@@ -118,11 +143,8 @@ export function historySearch(search: Record<string, unknown>): HistorySearch {
       typeof search.tableLabel === "string"
         ? search.tableLabel.trim().slice(0, 50) || undefined
         : undefined,
-    closeReason:
-      search.closeReason === "PAID" ||
-      search.closeReason === "EMPTY" ||
-      search.closeReason === "VOIDED"
-        ? search.closeReason
-        : undefined,
+    closeReason: isCloseKind(search.closeReason) ? search.closeReason : undefined,
+    channel:
+      search.channel === "DINE_IN" || search.channel === "PICKUP" ? search.channel : undefined,
   };
 }

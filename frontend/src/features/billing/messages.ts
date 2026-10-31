@@ -4,10 +4,12 @@ import type { CloseKind } from "./state";
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
 const zh = {
-  close: { PAID: "已收款", EMPTY: "空桌关闭", VOIDED: "全部取消后关闭" } as Record<
-    CloseKind,
-    string
-  >,
+  close: {
+    PAID: "已收款",
+    EMPTY: "空桌关闭",
+    VOIDED: "全部取消后关闭",
+    NO_SHOW: "未取",
+  } as Record<CloseKind, string>,
   // One order inside a bill.
   orderNew: "待处理",
   orderProcessed: "已处理",
@@ -53,13 +55,44 @@ const zh = {
     PAID: "核对收款并清桌",
     EMPTY: "关闭空桌",
     VOIDED: "关闭全部取消的零账单",
+    NO_SHOW: "顾客未取",
   } as Record<CloseKind, string>,
   ownerCollects: "本轮仍有应收，请由老板核对收款。",
   confirmTitle: {
     PAID: "确认线下收款并清桌",
     EMPTY: "确认关闭空桌",
     VOIDED: "确认全部取消后关闭",
+    NO_SHOW: "确认顾客未取",
   } as Record<CloseKind, string>,
+  // A pickup visit closes differently: picked up (PAID), not collected (NO_SHOW) or all cancelled (VOIDED).
+  pickupClose: {
+    PAID: {
+      button: "核对收款 · 已取走",
+      title: "确认已收款、顾客已取走",
+      description: "请在顾客取餐时完成线下收款，再确认。",
+      checked: "已核对取餐号和金额，并完成线下收款",
+      confirm: "已收款并取走",
+    },
+    NO_SHOW: {
+      button: "顾客未取",
+      title: "确认顾客未取",
+      description: "顾客没有来取餐。记录的金额是没收到的应收款，不算收款。",
+      checked: "已核对取餐号和金额，确认顾客没有来取餐",
+      confirm: "按未取关闭",
+    },
+    VOIDED: {
+      button: "关闭全部取消的自取单",
+      title: "确认全部取消后关闭",
+      description: "此操作不记录收款。请核对订单并确认已通知顾客。",
+      checked: "已核对零账单，并已通知顾客",
+      confirm: "关闭自取单",
+    },
+  } as Record<
+    "PAID" | "NO_SHOW" | "VOIDED",
+    { button: string; title: string; description: string; checked: string; confirm: string }
+  >,
+  pickupInfo: { number: "取餐号", name: "姓名", phone: "电话", ready: "预计取餐" },
+  closedHintPickup: "顾客的订单状态页会显示订单已结束。",
   confirmPaid: "请完成线下收款，再确认关闭本轮用餐。",
   confirmZero: "此操作不记录收款。请核对订单并确认顾客已离桌。",
   confirmPaidLabel: "已线下收款并清桌",
@@ -123,7 +156,12 @@ const zh = {
 export const billingMessages: Record<StaffLanguage, typeof zh> = {
   zh,
   it: {
-    close: { PAID: "Pagato", EMPTY: "Chiuso vuoto", VOIDED: "Tutto annullato" },
+    close: {
+      PAID: "Pagato",
+      EMPTY: "Chiuso vuoto",
+      VOIDED: "Tutto annullato",
+      NO_SHOW: "Non ritirato",
+    },
     orderNew: "Da fare",
     orderProcessed: "Evaso",
     payable: (amount) => `Da incassare ${amount}`,
@@ -170,13 +208,42 @@ export const billingMessages: Record<StaffLanguage, typeof zh> = {
       PAID: "Incassa e libera il tavolo",
       EMPTY: "Chiudi tavolo vuoto",
       VOIDED: "Chiudi conto a zero",
+      NO_SHOW: "Non ritirato",
     },
     ownerCollects: "C’è ancora da incassare: il titolare deve verificare il pagamento.",
     confirmTitle: {
       PAID: "Incasso e tavolo libero",
       EMPTY: "Chiudi tavolo vuoto",
       VOIDED: "Chiudi dopo l’annullamento",
+      NO_SHOW: "Conferma mancato ritiro",
     },
+    pickupClose: {
+      PAID: {
+        button: "Incassato · ritirato",
+        title: "Conferma incasso e ritiro",
+        description: "Incassa al momento del ritiro, poi conferma.",
+        checked: "Ho controllato numero e importo e ho incassato",
+        confirm: "Incassato e ritirato",
+      },
+      NO_SHOW: {
+        button: "Non ritirato",
+        title: "Conferma mancato ritiro",
+        description:
+          "Il cliente non è venuto. L’importo registrato è il credito non incassato, non un incasso.",
+        checked: "Ho controllato numero e importo: il cliente non è venuto",
+        confirm: "Chiudi come non ritirato",
+      },
+      VOIDED: {
+        button: "Chiudi asporto annullato",
+        title: "Conferma chiusura a zero",
+        description:
+          "Non registra incassi. Controlla l’ordine e conferma di aver avvisato il cliente.",
+        checked: "Ho controllato il conto a zero e avvisato il cliente",
+        confirm: "Chiudi l’asporto",
+      },
+    },
+    pickupInfo: { number: "Numero", name: "Nome", phone: "Telefono", ready: "Pronto verso" },
+    closedHintPickup: "La pagina dell’ordine del cliente mostra che è chiuso.",
     confirmPaid: "Prima incassa il pagamento, poi conferma la chiusura della visita.",
     confirmZero:
       "Non viene registrato alcun incasso. Controlla gli ordini e conferma che i clienti sono andati via.",
