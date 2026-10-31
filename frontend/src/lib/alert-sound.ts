@@ -31,6 +31,15 @@ export const passChime: Chime = [
   [0.5, 1047],
 ];
 
+// Alternating high and low tones, repeated while online pickup requests wait: unlike the kitchen's and
+// the pass's chimes, it keeps ringing until someone accepts or rejects.
+export const pickupChime: Chime = [
+  [0, 1319],
+  [0.3, 988],
+  [0.6, 1319],
+  [0.9, 988],
+];
+
 // Near full scale but below 1, so the decaying tail of one tone plus the next stays unclipped. A page
 // cannot exceed the device volume, which the tablet itself must keep up.
 const peak = 0.85;

@@ -5,9 +5,12 @@ import { onLifecycleChange } from "./useLiveView";
 // Activation-triggering events: a mouse press counts on pointerdown, a touch on pointerup.
 const gestures = ["pointerdown", "pointerup", "keydown"] as const;
 
-// The on/off switch is a device preference stored under preferenceKey; on by default.
-export function useAlertSound(preferenceKey: string, chime: Chime) {
-  const [sound, setSound] = useState(() => readSoundPreference(preferenceKey));
+// The on/off switch is a device preference stored under preferenceKey; on by default. Without a key the
+// sound cannot be turned off (the pending pickup alert).
+export function useAlertSound(preferenceKey: string | null, chime: Chime) {
+  const [sound, setSound] = useState(
+    () => preferenceKey === null || readSoundPreference(preferenceKey),
+  );
   const [audible, setAudible] = useState(true);
   const [soundUnsupported, setSoundUnsupported] = useState(false);
   const audio = useRef<AlertAudio | null>(null);
@@ -63,6 +66,7 @@ export function useAlertSound(preferenceKey: string, chime: Chime) {
   }, []);
 
   const toggleSound = useCallback(() => {
+    if (preferenceKey === null) return;
     saveSoundPreference(preferenceKey, !sound);
     setSound(!sound);
     setAudible(true);

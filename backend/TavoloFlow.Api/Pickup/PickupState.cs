@@ -25,6 +25,10 @@ public static class PickupState
     public static IQueryable<PickupRequest> Pending(IQueryable<PickupRequest> requests, DateTime now) =>
         requests.Where(r => r.AcceptedAt == null && r.RejectedAt == null && r.ExpiresAt > now);
 
+    // Never became an order: rejected, or expired. Today's list of these reads one business date.
+    public static IQueryable<PickupRequest> Unaccepted(IQueryable<PickupRequest> requests, DateTime now) =>
+        requests.Where(r => r.AcceptedAt == null && (r.RejectedAt != null || r.ExpiresAt <= now));
+
     public static PickupRequestState Of(PickupRequest request, DateTime now) =>
         request.AcceptedAt is not null ? PickupRequestState.Accepted
         : request.RejectedAt is not null ? PickupRequestState.Rejected

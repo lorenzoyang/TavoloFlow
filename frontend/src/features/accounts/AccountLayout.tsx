@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { BrandMark } from "@/components/brand";
 import { Card, CardContent } from "@/components/ui/card";
+import { PickupDesk } from "@/features/pickup/PickupDesk";
 import { OwnerSubscriptionReminder } from "@/features/subscriptions/SubscriptionReminders";
 import { useDocumentTheme } from "@/lib/useDocumentTheme";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
@@ -13,7 +14,8 @@ import { useInstallableStaffApp } from "./useInstallApp";
 
 // Observes the same identity query as AuthBoundary (no extra request). Signed-out, loading and
 // first-password states show only the brand, because navigation would lead nowhere yet.
-// The shell sets the available width; each page chooses its own content width.
+// The shell sets the available width; each page chooses its own content width. With pickup on, every
+// signed-in page carries the pending-request banner and its ringing (PickupDesk).
 // Every staff page, sign-in included, makes the staff app installable. Only signed-in pages take the
 // restaurant's theme; sign-in and the first password change keep the default palette.
 // Before signing in, the language switch sits under the brand, so a new employee can change it
@@ -45,7 +47,11 @@ export function StaffLayout({ children }: { children: ReactNode }) {
       <main className="min-w-0 flex-1 px-4 pt-[max(1.25rem,env(safe-area-inset-top))] pb-28 sm:px-6 md:pt-8 md:pb-12 lg:px-8">
         <div className="mx-auto w-full max-w-6xl">
           <OwnerSubscriptionReminder />
-          {children}
+          {account.services.pickup ? (
+            <PickupDesk account={account}>{children}</PickupDesk>
+          ) : (
+            children
+          )}
         </div>
       </main>
     </div>

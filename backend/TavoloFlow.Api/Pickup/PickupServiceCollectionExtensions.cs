@@ -7,6 +7,7 @@ public static class PickupServiceCollectionExtensions
     {
         services.AddScoped<PickupSettingsService>();
         services.AddScoped<PickupOrderService>();
+        services.AddScoped<PickupDeskService>();
         services.AddOptions<PickupRateLimitOptions>().Bind(configuration.GetSection("PickupRateLimits"))
             .ValidateDataAnnotations().ValidateOnStart();
         services.AddSingleton<PickupRateLimiter>();

@@ -1,5 +1,5 @@
 import type { StaffLanguage } from "@/lib/staff-language";
-import type { PickupStatus } from "./api";
+import type { PickupStatus, RejectReason } from "./api";
 import type { HoursProblem } from "./state";
 
 const zh = {
@@ -59,6 +59,38 @@ const zh = {
     }`,
   ownerHours: "只有老板可以修改营业时间。",
   weekdays: ["周一", "周二", "周三", "周四", "周五", "周六", "周日"],
+  banner: (count: number) => `${count} 个线上订单待接单`,
+  bannerFull: (limit: number) => `已有 ${limit} 个待接单，顾客暂时无法下单`,
+  view: "查看",
+  deskTitle: "待接单的线上订单",
+  soundBlocked: "点按页面任意位置，开启线上订单提示音。",
+  deskEmpty: "没有待接单的线上订单。",
+  deskError: "待接单列表暂时无法更新，请检查网络。",
+  waited: (minutes: number) => `已等 ${minutes} 分钟`,
+  left: (minutes: number) => `剩 ${minutes} 分钟`,
+  acceptWith: "接单 · 预计取餐",
+  minutes: (minutes: number) => `${minutes} 分钟`,
+  acceptLabel: (number: number, minutes: number) => `接单 #${number}，${minutes} 分钟后可取`,
+  reject: "拒单",
+  rejectTitle: (number: number) => `拒绝线上订单 #${number}？`,
+  rejectDescription: "顾客会看到餐厅无法接单，并被提示打电话。拒单不能撤销。",
+  reasonLabel: "原因（可选，顾客可见）",
+  noReason: "不说明",
+  reasons: { SOLD_OUT: "部分售完", BUSY: "太忙", CLOSING: "即将打烊" } satisfies Record<
+    RejectReason,
+    string
+  >,
+  confirmReject: "确认拒单",
+  accepted: (number: number, time: string) => `已接单 #${number}，预计 ${time} 可取。`,
+  rejected: (number: number) => `已拒绝 #${number}。`,
+  changed: "这个订单已被处理或已超时，列表已刷新。",
+  unknown: "结果未确认。列表已刷新：如果订单还在，请再点一次。",
+  total: "合计",
+  unaccepted: "今日未接单",
+  unacceptedHint: "今天超时或被拒的请求，可以回电给顾客。",
+  noUnaccepted: "今天没有未接单的请求。",
+  unacceptedError: "今日未接单列表暂时无法读取，请恢复连接后刷新。",
+  outcomes: { EXPIRED: "超时", REJECTED: "已拒绝" },
 };
 
 export const pickupMessages: Record<StaffLanguage, typeof zh> = {
@@ -123,5 +155,37 @@ export const pickupMessages: Record<StaffLanguage, typeof zh> = {
       }`,
     ownerHours: "Solo il titolare può modificare gli orari.",
     weekdays: ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"],
+    banner: (count) =>
+      count === 1 ? "1 ordine online da accettare" : `${count} ordini online da accettare`,
+    bannerFull: (limit) => `${limit} ordini in attesa: i clienti non possono ordinare`,
+    view: "Vedi",
+    deskTitle: "Ordini online da accettare",
+    soundBlocked:
+      "Tocca un punto qualsiasi della pagina per attivare il suono degli ordini online.",
+    deskEmpty: "Nessun ordine online in attesa.",
+    deskError: "Impossibile aggiornare gli ordini in attesa: controlla la connessione.",
+    waited: (minutes) => `In attesa da ${minutes} min`,
+    left: (minutes) => `Restano ${minutes} min`,
+    acceptWith: "Accetta · pronto tra",
+    minutes: (minutes) => `${minutes} min`,
+    acceptLabel: (number, minutes) => `Accetta #${number}, pronto tra ${minutes} minuti`,
+    reject: "Rifiuta",
+    rejectTitle: (number) => `Rifiutare l’ordine online #${number}?`,
+    rejectDescription:
+      "Il cliente vedrà che il ristorante non può accettarlo e che deve chiamare. Non si può annullare.",
+    reasonLabel: "Motivo (facoltativo, visibile al cliente)",
+    noReason: "Nessuno",
+    reasons: { SOLD_OUT: "Esaurito", BUSY: "Troppo lavoro", CLOSING: "In chiusura" },
+    confirmReject: "Rifiuta ordine",
+    accepted: (number, time) => `Ordine #${number} accettato, pronto verso le ${time}.`,
+    rejected: (number) => `Ordine #${number} rifiutato.`,
+    changed: "Ordine già gestito o scaduto: elenco aggiornato.",
+    unknown: "Esito non confermato. Elenco aggiornato: se l’ordine c’è ancora, tocca di nuovo.",
+    total: "Totale",
+    unaccepted: "Non accettati oggi",
+    unacceptedHint: "Richieste di oggi scadute o rifiutate: puoi richiamare i clienti.",
+    noUnaccepted: "Oggi nessuna richiesta non accettata.",
+    unacceptedError: "Impossibile leggere l’elenco di oggi: aggiorna quando torna la connessione.",
+    outcomes: { EXPIRED: "Scaduto", REJECTED: "Rifiutato" },
   },
 };

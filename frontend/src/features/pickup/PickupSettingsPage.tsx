@@ -18,7 +18,7 @@ import { isSameAccount } from "@/features/accounts/queries";
 import { ServiceNotOffered } from "@/features/accounts/ServiceNotOffered";
 import { isLocalOnlyUrl, publicMenuUrl } from "@/features/tables/qr-url";
 import { errorMessage } from "@/lib/api";
-import { formatOpening } from "@/lib/format";
+import { formatMoney, formatOpening, formatTime } from "@/lib/format";
 import { staffMessages } from "@/lib/staff-messages";
 import { useLiveView } from "@/lib/useLiveView";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
@@ -28,6 +28,7 @@ import {
   pickupSettingsQuery,
   savePickupHours,
   setPickupPaused,
+  unacceptedPickupsQuery,
   type PickupSettings,
 } from "./api";
 import { pickupMessages } from "./messages";
@@ -268,6 +269,56 @@ function HoursEditor({
   );
 }
 
+// Today's requests that never became orders, so staff can call guests back and the owner sees what was missed.
+function UnacceptedList({ account }: { account: CurrentAccount }) {
+  const language = useStaffLanguage();
+  const m = pickupMessages[language];
+  const view = useLiveView();
+  const list = useQuery({ ...unacceptedPickupsQuery(account), enabled: view.active });
+  return (
+    <Card>
+      <CardContent className="space-y-3">
+        <h2 className="font-semibold">{m.unaccepted}</h2>
+        <p className="text-sm leading-6 text-muted-foreground">{m.unacceptedHint}</p>
+        {list.isError && <Notice tone="error">{m.unacceptedError}</Notice>}
+        {list.data && list.data.items.length === 0 && (
+          <p className="text-muted-foreground">{m.noUnaccepted}</p>
+        )}
+        <ul className="divide-y">
+          {list.data?.items.map((row) => (
+            <li key={row.pickupNumber} className="space-y-1 py-3">
+              <div className="flex items-start justify-between gap-3">
+                <p className="flex min-w-0 items-baseline gap-2">
+                  <span className="font-semibold tabular-nums">#{row.pickupNumber}</span>
+                  <span className="truncate">{row.customerName}</span>
+                </p>
+                <Badge variant="outline" className="shrink-0">
+                  {row.rejectReason
+                    ? `${m.outcomes[row.outcome]} · ${m.reasons[row.rejectReason]}`
+                    : m.outcomes[row.outcome]}
+                </Badge>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-x-3 text-sm text-muted-foreground">
+                <a
+                  href={`tel:${row.customerPhone}`}
+                  className="inline-flex min-h-11 items-center gap-1.5 tabular-nums"
+                >
+                  <Phone aria-hidden="true" className="size-3.5" />
+                  {row.customerPhone}
+                </a>
+                <span className="tabular-nums">
+                  {formatTime(row.submittedAt, language)} ·{" "}
+                  {formatMoney(row.totalAmountCents, language)}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
 function PickupSettingsContent({ account }: { account: CurrentAccount }) {
   const language = useStaffLanguage();
   const m = pickupMessages[language];
@@ -425,6 +476,7 @@ function PickupSettingsContent({ account }: { account: CurrentAccount }) {
               )}
             </CardContent>
           </Card>
+          <UnacceptedList account={account} />
         </div>
       )}
     </div>

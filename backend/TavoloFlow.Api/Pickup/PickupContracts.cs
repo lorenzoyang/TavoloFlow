@@ -51,9 +51,37 @@ public sealed record PickupStatusResponse(PickupStatusRestaurant Restaurant, int
     DateTime SubmittedAt, DateTime ExpiresAt, DateTime? EstimatedReadyAt, string Status, string? RejectReason,
     PickupStatusLine[] Items, long PayableAmountCents);
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record AcceptPickupInput([Required] int? EstimatedMinutes);
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record RejectPickupInput(string? Reason);
+
+public sealed record PickupLineResponse(string? ItemCode, string? NameZh, string? NameIt, string? NameEn,
+    int Quantity, string? Remark, long UnitPriceCents)
+{
+    public static PickupLineResponse From(PickupRequestItem item) => new(item.ItemCodeSnapshot, item.NameZhSnapshot,
+        item.NameItSnapshot, item.NameEnSnapshot, item.Quantity, item.Remark, item.UnitPriceCents);
+}
+// What staff need to decide: who, how to reach them, what and how long it has waited.
+public sealed record PendingPickupResponse(Guid Id, int PickupNumber, string CustomerName, string CustomerPhone,
+    DateTime SubmittedAt, DateTime ExpiresAt, string DefaultLanguage, long TotalAmountCents, PickupLineResponse[] Items)
+{
+    public static PendingPickupResponse From(PickupRequest r) => new(r.Id, r.PickupNumber, r.CustomerName, r.CustomerPhone,
+        r.SubmittedAt, r.ExpiresAt, r.DefaultLanguageSnapshot, r.TotalAmountCents,
+        r.Items.OrderBy(i => i.Id).Select(PickupLineResponse.From).ToArray());
+}
+// Every waiting request, oldest first; at most Limit can wait, so the list is never paged.
+public sealed record PendingPickupsResponse(PendingPickupResponse[] Items, int Limit);
+public sealed record AcceptedPickupResponse(Guid SessionId, int PickupNumber, DateTime EstimatedReadyAt);
+// Outcome is EXPIRED or REJECTED.
+public sealed record UnacceptedPickupResponse(int PickupNumber, string CustomerName, string CustomerPhone,
+    DateTime SubmittedAt, long TotalAmountCents, string Outcome, string? RejectReason);
+public sealed record UnacceptedPickupsResponse(UnacceptedPickupResponse[] Items, DateOnly BusinessDate);
+
 public static class PickupErrors
 {
     public static ApiException NotOffered() => new(409, "PICKUP_NOT_OFFERED", "这家餐厅暂不提供线上点单。");
     public static ApiException MenuLinkNotFound() => new(404, "MENU_LINK_NOT_FOUND", "线上菜单链接无效。");
     public static ApiException NotFound() => new(404, "PICKUP_NOT_FOUND", "暂未查到这个订单。");
+    public static ApiException Changed() => new(409, "PICKUP_CHANGED", "这个线上订单已被处理或已超时，请刷新列表。");
 }

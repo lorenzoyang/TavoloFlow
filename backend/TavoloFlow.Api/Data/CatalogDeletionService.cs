@@ -39,6 +39,10 @@ public sealed class CatalogDeletionService(ApplicationDbContext context)
         await context.OrderItems
             .Where(line => line.RestaurantId == restaurantId && line.MenuItemId == menuItemId)
             .ExecuteUpdateAsync(update => update.SetProperty(line => line.MenuItemId, (Guid?)null), cancellationToken);
+        // Pickup requests keep their snapshot names; an acceptance after this copies a NULL reference.
+        await context.PickupRequestItems
+            .Where(line => line.RestaurantId == restaurantId && line.MenuItemId == menuItemId)
+            .ExecuteUpdateAsync(update => update.SetProperty(line => line.MenuItemId, (Guid?)null), cancellationToken);
 
         await context.MenuItems
             .Where(menuItem => menuItem.RestaurantId == restaurantId && menuItem.Id == menuItemId)

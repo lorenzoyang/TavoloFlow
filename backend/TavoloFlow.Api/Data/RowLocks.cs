@@ -13,7 +13,9 @@ public enum RowLock
 
 // PostgreSQL row locks, held until the caller's transaction ends; call them only inside a transaction you own.
 // Every operation locks in one global order so that no two transactions can deadlock:
-//   restaurant -> table -> dining session, and restaurant -> menu item.
+//   restaurant -> table -> dining session, restaurant -> menu item,
+//   restaurant -> pickup counter (submission) and restaurant -> pickup request (acceptance; rejection
+//   locks only the request). A session created by an acceptance is new, so nothing else holds it yet.
 // Each method returns a no-tracking snapshot of the locked row, or null when the tenant has no such row.
 public static class RowLocks
 {
@@ -40,6 +42,15 @@ public static class RowLocks
                 $"SELECT * FROM dining_sessions WHERE restaurant_id = {restaurantId} AND id = {id} FOR SHARE")
             : db.DiningSessions.FromSql(
                 $"SELECT * FROM dining_sessions WHERE restaurant_id = {restaurantId} AND id = {id} FOR UPDATE"))
+        .AsNoTracking().SingleOrDefaultAsync(ct);
+
+    public static Task<PickupRequest?> PickupRequestAsync(ApplicationDbContext db, Guid restaurantId, Guid id,
+        RowLock mode, CancellationToken ct) =>
+        (mode == RowLock.Share
+            ? db.PickupRequests.FromSql(
+                $"SELECT * FROM pickup_requests WHERE restaurant_id = {restaurantId} AND id = {id} FOR SHARE")
+            : db.PickupRequests.FromSql(
+                $"SELECT * FROM pickup_requests WHERE restaurant_id = {restaurantId} AND id = {id} FOR UPDATE"))
         .AsNoTracking().SingleOrDefaultAsync(ct);
 
     public static Task<MenuItem?> MenuItemAsync(ApplicationDbContext db, Guid restaurantId, Guid id,
