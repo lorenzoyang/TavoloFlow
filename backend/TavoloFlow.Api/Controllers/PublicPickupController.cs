@@ -1,12 +1,14 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TavoloFlow.Api.Common;
+using TavoloFlow.Api.Guests;
 using TavoloFlow.Api.Pickup;
 
 namespace TavoloFlow.Api.Controllers;
 
 // Anonymous like the QR bootstrap; the submission still needs the /api/public CSRF token.
 [ApiController]
+[Authorize(Policy = GuestAuthentication.Policy)]
 [AllowAnonymous]
 public sealed class PublicPickupController(PickupOrderService pickup, PickupRateLimiter limiter,
     ILogger<PublicPickupController> logger) : ControllerBase

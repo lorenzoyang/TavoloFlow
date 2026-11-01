@@ -28,10 +28,10 @@ export const pickupSettingsQuery = (account: AccountScope) =>
   });
 
 // Both writes send the target state, so repeating one after a lost result is harmless.
-export const setPickupPaused = (paused: boolean) =>
-  write<PickupSettings>("/api/staff/pickup/paused", "PATCH", { paused });
-export const savePickupHours = (hours: PickupHour[]) =>
-  write<PickupSettings>("/api/owner/pickup/hours", "PUT", { hours });
+export const setPickupPaused = (paused: boolean, signal: AbortSignal) =>
+  write<PickupSettings>("/api/staff/pickup/paused", "PATCH", { paused }, signal);
+export const savePickupHours = (hours: PickupHour[], signal: AbortSignal) =>
+  write<PickupSettings>("/api/owner/pickup/hours", "PUT", { hours }, signal);
 
 export const onlineMenuPath = (slug: string) => `/r/${slug}`;
 
@@ -65,13 +65,18 @@ export type UnacceptedPickup = {
   outcome: "EXPIRED" | "REJECTED";
   rejectReason: RejectReason | null;
 };
+type PendingPickups = { items: PendingPickup[]; limit: number; receivedAt: number };
 
 // Every waiting request, oldest first; at most `limit` wait at once, so the list is never paged.
 export const pendingPickupsQuery = (account: AccountScope) =>
   queryOptions({
     queryKey: [...pickupKey(account), "pending"] as const,
-    queryFn: ({ signal }) =>
-      request<{ items: PendingPickup[]; limit: number }>("/api/staff/pickup/pending", { signal }),
+    queryFn: async ({ signal }): Promise<PendingPickups> => {
+      const data = await request<Omit<PendingPickups, "receivedAt">>("/api/staff/pickup/pending", {
+        signal,
+      });
+      return { ...data, receivedAt: Date.now() };
+    },
   });
 export const unacceptedPickupsQuery = (account: AccountScope) =>
   queryOptions({

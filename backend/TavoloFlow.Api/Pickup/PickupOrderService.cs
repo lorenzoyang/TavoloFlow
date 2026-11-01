@@ -42,54 +42,62 @@ public sealed class PickupOrderService(ApplicationDbContext db, TimeProvider clo
         var restaurantId = await db.Restaurants.Where(r => r.Slug == slug).Select(r => (Guid?)r.Id).SingleOrDefaultAsync(ct)
             ?? throw PickupErrors.MenuLinkNotFound();
 
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
-        // Menu writers, item deletion and every pickup or service setting take restaurant UPDATE, so prices,
-        // snapshots, hours and switches stay as read here until this request is saved.
-        var restaurant = await RowLocks.RestaurantAsync(db, restaurantId, RowLock.Share, ct);
-        if (restaurant?.Slug != slug) throw PickupErrors.MenuLinkNotFound();
-        var now = Now();
-        var zone = TimeZoneInfo.FindSystemTimeZoneById(restaurant.TimeZone);
-        var businessDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(now, zone));
-        // Locks the day's counter row, so a restaurant's submissions of the day run one at a time from here on:
-        // the duplicate lookup and the pending count below see every earlier submission.
-        var number = (await db.Database.SqlQuery<int>($"""
-            INSERT INTO pickup_counters (restaurant_id, business_date, last_number) VALUES ({restaurantId}, {businessDate}, 1)
-            ON CONFLICT (restaurant_id, business_date) DO UPDATE SET last_number = pickup_counters.last_number + 1
-            RETURNING last_number AS "Value"
-            """).ToListAsync(ct)).Single();
-        var original = await db.PickupRequests.AsNoTracking()
-            .SingleOrDefaultAsync(r => r.RestaurantId == restaurantId && r.ClientRequestId == input.ClientRequestId, ct);
-        // A repeat returns the stored request before any gate, like guest orders; leaving without commit
-        // also gives the number back.
-        if (original is not null) return new(PickupSubmissionResponse.From(original), false);
-
-        var availability = await AvailabilityAsync(restaurant, now, ct);
-        switch (availability.Status)
+        while (true)
         {
-            case PickupStatus.Suspended: throw new ApiException(409, "SERVICE_SUSPENDED", "餐厅服务已暂停。");
-            case PickupStatus.NotOffered: throw PickupErrors.NotOffered();
-            case PickupStatus.Paused: throw new ApiException(409, "PICKUP_PAUSED", "餐厅暂停了线上接单，请稍后再试。");
-            case PickupStatus.ClosedHours:
-                throw new ApiException(409, "PICKUP_CLOSED", "现在不在接单时间。")
-                    { Extensions = new() { ["nextOpensAt"] = availability.NextOpensAt } };
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            // Menu writers, item deletion and every pickup or service setting take restaurant UPDATE, so prices,
+            // snapshots, hours and switches stay as read here until this request is saved.
+            var restaurant = await RowLocks.RestaurantAsync(db, restaurantId, RowLock.Share, ct);
+            if (restaurant?.Slug != slug) throw PickupErrors.MenuLinkNotFound();
+            await RowLocks.PickupSubmissionAsync(db, restaurantId, ct);
+            var now = Now();
+            var zone = TimeZoneInfo.FindSystemTimeZoneById(restaurant.TimeZone);
+            var businessDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(now, zone));
+            // Reserve a number only inside this transaction; failures and duplicate lookups give it back.
+            var number = (await db.Database.SqlQuery<int>($"""
+                INSERT INTO pickup_counters (restaurant_id, business_date, last_number) VALUES ({restaurantId}, {businessDate}, 1)
+                ON CONFLICT (restaurant_id, business_date) DO UPDATE SET last_number = pickup_counters.last_number + 1
+                RETURNING last_number AS "Value"
+                """).ToListAsync(ct)).Single();
+            var original = await db.PickupRequests.AsNoTracking()
+                .SingleOrDefaultAsync(r => r.RestaurantId == restaurantId && r.ClientRequestId == input.ClientRequestId, ct);
+            // A repeat returns the stored request before any gate, like guest orders; leaving without commit
+            // also gives the number back.
+            if (original is not null) return new(PickupSubmissionResponse.From(original), false);
+
+            // A counter can also be held by maintenance. Recheck the clock after waiting: neither hours
+            // nor the pending count may use the time from before that wait. A new day needs its own number.
+            now = Now();
+            if (businessDate != DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(now, zone))) continue;
+
+            var availability = await AvailabilityAsync(restaurant, now, ct);
+            switch (availability.Status)
+            {
+                case PickupStatus.Suspended: throw new ApiException(409, "SERVICE_SUSPENDED", "餐厅服务已暂停。");
+                case PickupStatus.NotOffered: throw PickupErrors.NotOffered();
+                case PickupStatus.Paused: throw new ApiException(409, "PICKUP_PAUSED", "餐厅暂停了线上接单，请稍后再试。");
+                case PickupStatus.ClosedHours:
+                    throw new ApiException(409, "PICKUP_CLOSED", "现在不在接单时间。")
+                        { Extensions = new() { ["nextOpensAt"] = availability.NextOpensAt } };
+            }
+            if (await PickupState.Pending(db.PickupRequests.Where(r => r.RestaurantId == restaurantId), now).CountAsync(ct)
+                >= PickupState.PendingLimit)
+                throw new ApiException(409, "PICKUP_BUSY", "餐厅现在订单太多，请稍后再试。");
+            var (snapshots, total) = await OrderLines.BuildAsync(db, restaurantId, lines, ct);
+
+            var request = new PickupRequest
+            {
+                Id = Guid.CreateVersion7(), RestaurantId = restaurantId, ClientRequestId = input.ClientRequestId.Value,
+                StatusToken = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32)), BusinessDate = businessDate,
+                PickupNumber = number, CustomerName = name, CustomerPhone = phone, TotalAmountCents = total,
+                DefaultLanguageSnapshot = restaurant.DefaultLanguage, SubmittedAt = now, ExpiresAt = now + PickupState.Lifetime
+            };
+            foreach (var line in snapshots) request.Items.Add(line.ToPickupRequestItem(restaurantId));
+            db.PickupRequests.Add(request);
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            return new(PickupSubmissionResponse.From(request), true);
         }
-        if (await PickupState.Pending(db.PickupRequests.Where(r => r.RestaurantId == restaurantId), now).CountAsync(ct)
-            >= PickupState.PendingLimit)
-            throw new ApiException(409, "PICKUP_BUSY", "餐厅现在订单太多，请稍后再试。");
-        var (snapshots, total) = await OrderLines.BuildAsync(db, restaurantId, lines, ct);
-
-        var request = new PickupRequest
-        {
-            Id = Guid.CreateVersion7(), RestaurantId = restaurantId, ClientRequestId = input.ClientRequestId.Value,
-            StatusToken = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32)), BusinessDate = businessDate,
-            PickupNumber = number, CustomerName = name, CustomerPhone = phone, TotalAmountCents = total,
-            DefaultLanguageSnapshot = restaurant.DefaultLanguage, SubmittedAt = now, ExpiresAt = now + PickupState.Lifetime
-        };
-        foreach (var line in snapshots) request.Items.Add(line.ToPickupRequestItem(restaurantId));
-        db.PickupRequests.Add(request);
-        await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
-        return new(PickupSubmissionResponse.From(request), true);
     }
 
     // The random client request id only this device knows is itself the credential. 404 means "not found yet".

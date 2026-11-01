@@ -4,6 +4,7 @@ import type { Category, MenuItem } from "@/features/menu/api";
 import type { Language } from "@/lib/language";
 import type { RestaurantTheme } from "@/lib/theme";
 import type { PickupIntent, PickupOrderStatus, RejectReason } from "./state";
+import { confirmedPickupSubmission } from "./state";
 
 export type PickupAvailability = "OPEN" | "PAUSED" | "CLOSED_HOURS" | "NOT_OFFERED" | "SUSPENDED";
 export type OnlineMenu = {
@@ -78,13 +79,13 @@ export const submitPickupRequest = (slug: string, intent: PickupIntent, signal: 
     `/api/public/r/${encodeURIComponent(slug)}/pickup-requests`,
     intent,
     signal,
-  );
+  ).then(confirmedPickupSubmission);
 // Recovery after an unknown result: 404 only means "not found yet".
 export const readPickupByClientId = (slug: string, clientRequestId: string, signal: AbortSignal) =>
   publicRequest<PickupSubmission>(
     `/api/public/r/${encodeURIComponent(slug)}/pickup-requests/by-client-id/${clientRequestId}`,
     { signal },
-  );
+  ).then(confirmedPickupSubmission);
 
 export const readPickupOrder = (token: string, signal?: AbortSignal) =>
   publicRequest<PickupOrder>(`/api/public/pickup-requests/${encodeURIComponent(token)}`, {

@@ -73,7 +73,7 @@ Store/Platform 密码统一允许 6–128 个字符（包括六位纯数字）�
 
 ## 4. 数据模型与不变量
 
-十张表的完整定义见 `er-diagram.dbml`，其中一张保存餐厅收费周期。`DiningSession`（表 `dining_sessions`）是“单据”：
+十五张表的完整定义见 `er-diagram.dbml`，其中一张保存餐厅收费周期。`DiningSession`（表 `dining_sessions`）是“单据”：
 堂食是一桌从开台到结账的一次用餐，线上自取是接单时创建、只有一张订单的单据，由 `channel`（`DINE_IN`/`PICKUP`）区分；
 类名和表名沿用历史名称，API 和界面一直称它为 session。理解系统时最重要的是数据库保证的这些不变量：
 
@@ -97,7 +97,7 @@ Store/Platform 密码统一允许 6–128 个字符（包括六位纯数字）�
 
 ```
 restaurant → table → dining session          restaurant → menu item
-restaurant → pickup counter（提交自取请求）     restaurant → pickup request（接单）
+restaurant → pickup submission advisory lock → pickup counter（提交自取请求）     restaurant → pickup request（接单）
 ```
 
 | 操作 | 加锁 |
@@ -107,7 +107,7 @@ restaurant → pickup counter（提交自取请求）     restaurant → pickup 
 | 顾客下单 | restaurant SHARE → table SHARE → session UPDATE |
 | 顾客读订单、员工读账单 | session SHARE |
 | 厨房完成或取消、四种关闭（含自取的未取） | 只锁 session UPDATE，此后不再反向锁餐厅或桌位 |
-| 提交线上自取请求 | restaurant SHARE → 当天的 pickup counter（`INSERT … ON CONFLICT DO UPDATE`，同一餐厅当天的提交因此依次进行） |
+| 提交线上自取请求 | restaurant SHARE → 餐厅级事务 advisory lock → 当天的 pickup counter（`INSERT … ON CONFLICT DO UPDATE`；跨午夜也按餐厅串行化，重复请求和失败回滚计数） |
 | 接单 | restaurant SHARE → pickup request UPDATE → 新建 session、order 和 order items |
 | 拒单 | 只锁 pickup request UPDATE |
 | 菜单写入、删除菜品 | restaurant UPDATE（删除菜品时再加 menu item UPDATE） |

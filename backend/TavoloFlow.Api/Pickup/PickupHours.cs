@@ -29,24 +29,40 @@ public static class PickupHours
         return hours.Any(h => h.Weekday == day && h.OpensMinute <= minute && minute < h.ClosesMinute);
     }
 
-    // The next opening within seven days, in UTC. An opening inside the hour skipped when clocks go forward
-    // moves to the end of the jump; one inside the repeated hour when clocks go back is its first occurrence.
+    // The next real opening within seven local dates. Normal days need only the configured starts.
+    // On a clock-change day, walk UTC minute boundaries (the precision of the weekly hours): this also
+    // handles an entirely skipped window and reopening when the clock moves back inside an earlier window.
     public static DateTime? NextOpening(IReadOnlyCollection<PickupHour> hours, TimeZoneInfo zone, DateTimeOffset now)
     {
         var today = TimeZoneInfo.ConvertTime(now, zone).Date;
         for (var days = 0; days <= 7; days++)
         {
             var date = today.AddDays(days);
-            foreach (var hour in hours.Where(h => h.Weekday == Weekday(date)).OrderBy(h => h.OpensMinute))
+            var dayHours = hours.Where(h => h.Weekday == Weekday(date)).OrderBy(h => h.OpensMinute).ToArray();
+            if (dayHours.Length == 0) continue;
+            var start = UtcDayStart(date, zone);
+            var end = UtcDayStart(date.AddDays(1), zone);
+            if (end - start != TimeSpan.FromDays(1))
             {
-                var local = date.AddMinutes(hour.OpensMinute);
-                while (zone.IsInvalidTime(local)) local = local.AddMinutes(1);
-                var offset = zone.IsAmbiguousTime(local) ? zone.GetAmbiguousTimeOffsets(local).Max() : zone.GetUtcOffset(local);
-                var utc = DateTime.SpecifyKind(local - offset, DateTimeKind.Utc);
+                for (var at = start; at < end; at = at.AddMinutes(1))
+                    if (at > now.UtcDateTime && IsOpen(hours, zone, at) && !IsOpen(hours, zone, at.AddTicks(-1)))
+                        return at;
+                continue;
+            }
+            foreach (var hour in dayHours)
+            {
+                var utc = TimeZoneInfo.ConvertTimeToUtc(date.AddMinutes(hour.OpensMinute), zone);
                 if (utc > now.UtcDateTime) return utc;
             }
         }
         return null;
+    }
+
+    private static DateTime UtcDayStart(DateTime date, TimeZoneInfo zone)
+    {
+        while (zone.IsInvalidTime(date)) date = date.AddMinutes(1);
+        var offset = zone.IsAmbiguousTime(date) ? zone.GetAmbiguousTimeOffsets(date).Max() : zone.GetUtcOffset(date);
+        return DateTime.SpecifyKind(date - offset, DateTimeKind.Utc);
     }
 
     // The single answer to "can a guest submit now", shared by the online menu, the settings page and submission.

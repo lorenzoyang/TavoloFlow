@@ -39,13 +39,14 @@ const en = {
   messages: {
     name: "Please enter a name of 1–20 characters.",
     phone: "Please enter a phone number: digits only, optionally starting with +.",
-    changed: "Some dishes or prices changed. Please check your cart.",
+    changed: "Some dishes or prices changed. Check the updated total, then submit again.",
     unavailable: "A dish in your cart is no longer available. Please remove it.",
     limits: "Please check quantities: at most 30 lines, 20 per dish and 100 in total.",
     amount: "The order total is too large.",
     storage:
       "This browser cannot save the order, so it cannot be sent safely. Try another browser.",
-    damaged: "The saved order was damaged and has been cleared.",
+    damaged:
+      "The saved order cannot be read safely. Contact the restaurant to check whether it arrived before placing another order.",
     notOffered: "This restaurant does not take online orders.",
     paused: "The restaurant has paused online orders. Please try again later.",
     closed: "Online orders are closed right now.",
@@ -64,6 +65,8 @@ const en = {
     loading: "Loading your order…",
     notFound: "This order cannot be found. Orders are visible for 24 hours after they end.",
     error: "Your order cannot be loaded right now. Check your connection.",
+    stale:
+      "The order could not be refreshed. This is the last known status; check your connection or call the restaurant.",
     PENDING: "Sent — waiting for the restaurant to confirm.",
     EXPIRED: "The restaurant could not confirm in time, so this order is not valid. Please call.",
     rejected: "The restaurant cannot accept this order right now. Please call.",
@@ -131,12 +134,12 @@ export const onlineOrderMessages: Record<Language, OnlineOrderMessages> = {
     messages: {
       name: "请填写 1–20 个字符的姓名。",
       phone: "请填写电话：数字，可以 + 开头。",
-      changed: "部分菜品或价格已变化，请核对购物车。",
+      changed: "部分菜品或价格已变化，请核对更新后的金额，再次点击提交。",
       unavailable: "购物车里有菜品已不可点，请删除后再提交。",
       limits: "请检查数量：最多 30 行，每道菜 20 份，合计 100 份。",
       amount: "订单金额过大。",
       storage: "此浏览器无法保存订单，不能安全提交，请换用其他浏览器。",
-      damaged: "保存的订单已损坏，已清空。",
+      damaged: "无法安全读取保存的订单。请先致电餐厅核对是否已收到，再决定是否重新下单。",
       notOffered: "这家餐厅暂不提供线上点单。",
       paused: "餐厅暂停了线上接单，请稍后再试。",
       closed: "现在不在接单时间。",
@@ -155,6 +158,7 @@ export const onlineOrderMessages: Record<Language, OnlineOrderMessages> = {
       loading: "正在读取订单…",
       notFound: "找不到这个订单。订单结束 24 小时后不再显示。",
       error: "暂时无法读取订单，请检查网络。",
+      stale: "订单状态未能更新，当前显示上次读取的结果。请检查网络，或致电餐厅核对。",
       PENDING: "已提交，等待餐厅确认。",
       EXPIRED: "餐厅未能及时确认，订单未生效，请打电话。",
       rejected: "餐厅暂时无法接单，请打电话。",
@@ -216,12 +220,13 @@ export const onlineOrderMessages: Record<Language, OnlineOrderMessages> = {
     messages: {
       name: "Inserisci un nome di 1–20 caratteri.",
       phone: "Inserisci un telefono: solo cifre, con + iniziale facoltativo.",
-      changed: "Alcuni piatti o prezzi sono cambiati. Controlla il carrello.",
+      changed: "Piatti o prezzi cambiati. Controlla il nuovo totale, poi invia di nuovo.",
       unavailable: "Un piatto nel carrello non è più disponibile: toglilo.",
       limits: "Controlla le quantità: al massimo 30 righe, 20 per piatto e 100 in totale.",
       amount: "Il totale dell’ordine è troppo alto.",
       storage: "Questo browser non può salvare l’ordine, quindi non può inviarlo in modo sicuro.",
-      damaged: "L’ordine salvato era danneggiato ed è stato cancellato.",
+      damaged:
+        "Non possiamo leggere in sicurezza l’ordine salvato. Chiama il ristorante per verificare se è arrivato prima di ordinare di nuovo.",
       notOffered: "Questo ristorante non accetta ordini online.",
       paused: "Il ristorante ha messo in pausa gli ordini online. Riprova più tardi.",
       closed: "Gli ordini online sono chiusi in questo momento.",
@@ -240,6 +245,8 @@ export const onlineOrderMessages: Record<Language, OnlineOrderMessages> = {
       loading: "Caricamento dell’ordine…",
       notFound: "Ordine non trovato. Gli ordini restano visibili 24 ore dopo la fine.",
       error: "Impossibile caricare l’ordine. Controlla la connessione.",
+      stale:
+        "Stato non aggiornato: vedi l’ultima versione caricata. Controlla la connessione o chiama il ristorante.",
       PENDING: "Inviato: in attesa della conferma del ristorante.",
       EXPIRED:
         "Il ristorante non ha confermato in tempo: l’ordine non è valido. Chiama, per favore.",

@@ -3,12 +3,15 @@ import { test } from "node:test";
 import { addItem, CartError, persistCart, pickupCartKey } from "../src/features/orders/state.ts";
 import {
   contactProblem,
+  confirmedPickupSubmission,
   createPickupIntent,
   emptyPickupCart,
+  loadPickupCart,
   orderTokenKey,
   pickupFailure,
   readOrderToken,
   restorePickupCart,
+  reviewPickupCart,
   saveOrderToken,
   statusView,
 } from "../src/features/online-order/state.ts";
@@ -99,6 +102,47 @@ test("only an understood first rejection releases the frozen request", () => {
   assert.equal(pickupFailure(400, "SOMETHING_ELSE", false), "unknown");
 });
 
+test("a refreshed price is displayed for another deliberate submission before freezing", () => {
+  const original = addItem(emptyPickupCart("r"), item);
+  const reviewed = reviewPickupCart(original, [{ ...item, priceCents: 900 }]);
+  assert.equal(reviewed.priceChanged, true);
+  assert.equal(reviewed.cart.lines[0].item.priceCents, 900);
+  assert.equal(reviewed.cart.pending, null);
+  assert.equal(original.lines[0].item.priceCents, 700);
+  assert.equal(reviewPickupCart(reviewed.cart, [{ ...item, priceCents: 900 }]).priceChanged, false);
+  assert.equal(
+    createPickupIntent(reviewed.cart, "Marco", "3331234567", id).items[0].expectedUnitPriceCents,
+    900,
+  );
+});
+
+test("damaged or unreadable storage blocks a new intent and retains the original bytes", () => {
+  const storage = memory();
+  const raw = JSON.stringify({ ...emptyPickupCart("r"), pending: { clientRequestId: id } });
+  storage.setItem(pickupCartKey("r"), raw);
+  assert.equal(loadPickupCart("r", () => storage).problem, "damaged");
+  assert.equal(storage.getItem(pickupCartKey("r")), raw);
+  assert.equal(
+    loadPickupCart("r", () => {
+      throw new Error("blocked getter");
+    }).problem,
+    "storage",
+  );
+});
+
+test("only a complete submission receipt can clear an unknown intent", () => {
+  const good = { statusToken: "A".repeat(43), pickupNumber: 1, expiresAt: "2026-11-02T10:10:00Z" };
+  assert.deepEqual(confirmedPickupSubmission(good), good);
+  for (const value of [
+    null,
+    {},
+    { ...good, statusToken: "bad" },
+    { ...good, pickupNumber: 0 },
+    { ...good, expiresAt: "bad" },
+  ])
+    assert.throws(() => confirmedPickupSubmission(value));
+});
+
 test("the status page leads with the phone when the guest has to call", () => {
   assert.deepEqual(statusView("PENDING", null), {
     headline: "PENDING",
@@ -146,4 +190,15 @@ test("the latest order token is kept per restaurant and must look like a token",
     },
   };
   assert.equal(readOrderToken("r", broken), null);
+  assert.equal(
+    readOrderToken("r", () => {
+      throw new Error("blocked getter");
+    }),
+    null,
+  );
+  assert.doesNotThrow(() =>
+    saveOrderToken("r", token, () => {
+      throw new Error("blocked getter");
+    }),
+  );
 });

@@ -47,11 +47,7 @@ export function StaffLayout({ children }: { children: ReactNode }) {
       <main className="min-w-0 flex-1 px-4 pt-[max(1.25rem,env(safe-area-inset-top))] pb-28 sm:px-6 md:pt-8 md:pb-12 lg:px-8">
         <div className="mx-auto w-full max-w-6xl">
           <OwnerSubscriptionReminder />
-          {account.services.pickup ? (
-            <PickupDesk account={account}>{children}</PickupDesk>
-          ) : (
-            children
-          )}
+          <PickupDesk account={account}>{children}</PickupDesk>
         </div>
       </main>
     </div>

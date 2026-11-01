@@ -52,8 +52,7 @@ public sealed class PickupDeskService(ApplicationDbContext db, TimeProvider cloc
         db.DiningSessions.Add(session);
         await db.SaveChangesAsync(ct);
         var ready = now.AddMinutes(estimate);
-        var changed = await db.PickupRequests.Where(r => r.RestaurantId == restaurantId && r.Id == id &&
-                r.AcceptedAt == null && r.RejectedAt == null && r.ExpiresAt > now)
+        var changed = await PickupState.Pending(db.PickupRequests.Where(r => r.RestaurantId == restaurantId && r.Id == id), now)
             .ExecuteUpdateAsync(u => u.SetProperty(r => r.AcceptedAt, now).SetProperty(r => r.EstimatedReadyAt, ready)
                 .SetProperty(r => r.SessionId, session.Id), ct);
         if (changed != 1) throw PickupErrors.Changed();
@@ -76,8 +75,7 @@ public sealed class PickupDeskService(ApplicationDbContext db, TimeProvider cloc
             ?? throw PickupErrors.NotFound();
         var now = Now();
         if (PickupState.Of(request, now) != PickupRequestState.Pending) throw PickupErrors.Changed();
-        var changed = await db.PickupRequests.Where(r => r.RestaurantId == restaurantId && r.Id == id &&
-                r.AcceptedAt == null && r.RejectedAt == null && r.ExpiresAt > now)
+        var changed = await PickupState.Pending(db.PickupRequests.Where(r => r.RestaurantId == restaurantId && r.Id == id), now)
             .ExecuteUpdateAsync(u => u.SetProperty(r => r.RejectedAt, now).SetProperty(r => r.RejectReason, value), ct);
         if (changed != 1) throw PickupErrors.Changed();
         await tx.CommitAsync(ct);

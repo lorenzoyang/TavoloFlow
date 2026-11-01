@@ -76,6 +76,11 @@ class Browser:
         _, data = self.request(method, path, body, token, status)
         return json.loads(data) if data else None
 
+    def write_json(self, method, path, body, scope="store", status=200):
+        result = self.write(method, path, body, scope, status)
+        assert isinstance(result, dict), f"{method} {path}: expected a JSON object response"
+        return result
+
 
 browser = Browser()
 for path in ["/", "/staff", "/staff/kitchen", "/platform/login", "/q/smoke-qr", "/r/smoke-menu", "/o/smoke-order"]:
@@ -120,7 +125,7 @@ if phase == "create":
         "username": "smokeadmin", "password": "Deployment-smoke-123"
     }, "platform")
     restaurant_id = str(uuid.uuid4())
-    created = browser.write("POST", "/api/platform/restaurants", {
+    created = browser.write_json("POST", "/api/platform/restaurants", {
         "id": restaurant_id, "name": "Disposable deployment test", "defaultLanguage": "zh",
         "ownerUsername": "smokeowner", "staffUsername": "smokestaff"
     }, "platform", 201)
@@ -131,22 +136,22 @@ if phase == "create":
         "currentPassword": owner["temporaryPassword"], "newPassword": "Deployment-owner-123"
     })
     browser.request("GET", "/api/not-found", status=404)
-    category = browser.write("POST", "/api/owner/menu/categories", {
+    category = browser.write_json("POST", "/api/owner/menu/categories", {
         "nameZh": "冒烟分类", "nameIt": None, "nameEn": None
     }, status=201)
-    item = browser.write("POST", "/api/owner/menu/items", {
+    item = browser.write_json("POST", "/api/owner/menu/items", {
         "categoryId": category["id"], "itemCode": None, "nameZh": "冒烟菜品", "nameIt": None, "nameEn": None,
         "descriptionZh": None, "descriptionIt": None, "descriptionEn": None, "priceCents": 100,
         "allergenCodes": [], "allergenReviewed": True
     }, status=201)
-    image_id = browser.write("PUT", f"/api/owner/menu/items/{item['id']}/image", PHOTO)["imageId"]
+    image_id = browser.write_json("PUT", f"/api/owner/menu/items/{item['id']}/image", PHOTO)["imageId"]
     # Caddy's menu-image route must not add the no-store that every other /api response gets.
     headers, _ = browser.request("GET", f"/api/public/menu-images/{image_id}")
     assert headers["content-type"] == "image/webp" and headers["x-content-type-options"] == "nosniff"
     assert "immutable" in headers["cache-control"] and "no-store" not in headers["cache-control"]
-    table = browser.write("POST", "/api/owner/tables", {"tableLabel": "Smoke table"}, status=201)
+    table = browser.write_json("POST", "/api/owner/tables", {"tableLabel": "Smoke table"}, status=201)
     browser.write("PATCH", "/api/staff/accepting-orders", {"enabled": True})
-    opened = browser.write("POST", f"/api/staff/tables/{table['id']}/open", None, status=201)
+    opened = browser.write_json("POST", f"/api/staff/tables/{table['id']}/open", None, status=201)
     session_id = opened["session"]["sessionId"]
     token = table["qrPath"].rsplit("/", 1)[-1]
     browser.write("POST", f"/api/public/qr/{token}/join", {

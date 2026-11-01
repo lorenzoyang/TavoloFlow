@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Phone, RefreshCw, X } from "lucide-react";
+import { RefreshCw, X } from "lucide-react";
 import { BrandMark } from "@/components/brand";
 import { Notice } from "@/components/notice";
 import { Button } from "@/components/ui/button";
@@ -25,35 +25,17 @@ import { formatMoney, formatOpening } from "@/lib/format";
 import type { Language } from "@/lib/language";
 import { useDocumentTheme } from "@/lib/useDocumentTheme";
 import { useMediaQuery, WIDE_SCREEN } from "@/lib/useMediaQuery";
-import { onlineMenuQuery, pickupOrderQuery, type OnlineMenu } from "./api";
+import { onlineMenuQuery, type OnlineMenu } from "./api";
+import { CallButton } from "./CallButton";
+import { usePickupOrder } from "./usePickupOrder";
 import { onlineOrderMessages } from "./messages";
 import { readOrderToken, statusView } from "./state";
 import { usePickupCart } from "./usePickupCart";
 
-export function CallButton({
-  phone,
-  language,
-  prominent = false,
-}: {
-  phone: string;
-  language: Language;
-  prominent?: boolean;
-}) {
-  return (
-    <a
-      href={`tel:${phone}`}
-      className={buttonVariants({ variant: prominent ? "default" : "outline", size: "lg" })}
-    >
-      <Phone />
-      {onlineOrderMessages[language].call(phone)}
-    </a>
-  );
-}
-
 // The guest's latest request at this restaurant, while it is still running.
 function OngoingOrder({ restaurantId, language }: { restaurantId: string; language: Language }) {
-  const [token] = useState(() => readOrderToken(restaurantId, localStorage));
-  const order = useQuery({ ...pickupOrderQuery(token ?? ""), enabled: !!token });
+  const [token] = useState(() => readOrderToken(restaurantId, () => localStorage));
+  const { query: order, stale } = usePickupOrder(token);
   const m = onlineOrderMessages[language];
   if (!token || !order.data || statusView(order.data.status, order.data.rejectReason).finished)
     return null;
@@ -67,6 +49,7 @@ function OngoingOrder({ restaurantId, language }: { restaurantId: string; langua
       }
     >
       {m.ongoing(order.data.pickupNumber)}
+      {stale && <span className="block text-sm">{m.status.stale}</span>}
     </Notice>
   );
 }
@@ -100,7 +83,7 @@ function Checkout({
         </div>
         {headerAction}
       </div>
-      {message && (
+      {message && message.key !== model.blocked && (
         <Notice tone="warning">
           {message.key === "closed" && message.until
             ? m.messages.closedUntil(formatOpening(message.until, language))
@@ -240,12 +223,12 @@ function OnlineMenuContent({
   const ordering = status !== "NOT_OFFERED" && status !== "SUSPENDED";
   const cart: MenuCart = {
     lines: model.cart.lines,
-    stage: ordering ? model.stage : "busy",
+    stage: ordering && model.blocked !== "damaged" ? model.stage : "busy",
     add: model.add,
   };
   function selectLanguage(value: Language) {
     setPreference(value);
-    saveLanguage(data.restaurant.id, value, window.localStorage);
+    saveLanguage(data.restaurant.id, value, () => window.localStorage);
   }
   const checkout = (
     <Checkout
@@ -283,6 +266,18 @@ function OnlineMenuContent({
       <div className="mx-auto max-w-6xl px-4 pb-36 lg:grid lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start lg:gap-8 lg:pb-12">
         <main className="min-w-0 space-y-5 pt-5">
           <OngoingOrder restaurantId={data.restaurant.id} language={language} />
+          {model.blocked && (
+            <Notice
+              tone="error"
+              action={
+                data.restaurant.phone ? (
+                  <CallButton phone={data.restaurant.phone} language={language} />
+                ) : undefined
+              }
+            >
+              {m.messages[model.blocked]}
+            </Notice>
+          )}
           <Notice
             tone={status === "OPEN" ? "info" : "warning"}
             action={

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import QRCode from "qrcode";
 import { Copy, Download, ExternalLink, Phone, Plus, RefreshCw, X } from "lucide-react";
 import { LoadingState } from "@/components/loading-state";
@@ -14,25 +14,17 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
-import { isSameAccount } from "@/features/accounts/queries";
 import { ServiceNotOffered } from "@/features/accounts/ServiceNotOffered";
 import { isLocalOnlyUrl, publicMenuUrl } from "@/features/tables/qr-url";
-import { errorMessage } from "@/lib/api";
 import { formatMoney, formatOpening, formatTime } from "@/lib/format";
 import { staffMessages } from "@/lib/staff-messages";
 import { useLiveView } from "@/lib/useLiveView";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
-import {
-  onlineMenuPath,
-  pickupSettingsQuery,
-  savePickupHours,
-  setPickupPaused,
-  unacceptedPickupsQuery,
-  type PickupSettings,
-} from "./api";
+import { onlineMenuPath, unacceptedPickupsQuery, type PickupSettings } from "./api";
 import { pickupMessages } from "./messages";
-import { draftHours, hoursDraft, windowText, type HourDraft } from "./state";
+import { draftHours, hoursDraft, windowText, type HourDraft, type PickupHour } from "./state";
+import { usePickupSettings } from "./usePickupSettings";
 
 // The online menu link as text, copy button and a downloadable QR code for flyers and bags.
 function OnlineMenuLink({ slug }: { slug: string }) {
@@ -137,7 +129,7 @@ function HoursEditor({
   busy,
 }: {
   settings: PickupSettings;
-  save: (draft: HourDraft[]) => string | null;
+  save: (hours: PickupHour[]) => Promise<boolean>;
   busy: boolean;
 }) {
   const language = useStaffLanguage();
@@ -152,12 +144,15 @@ function HoursEditor({
   return (
     <form
       className="space-y-4"
-      onSubmit={(event) => {
+      onSubmit={async (event) => {
         event.preventDefault();
         if (!draft) return;
-        const result = save(draft);
-        if (result) setProblem(result);
-        else setDraft(null);
+        const result = draftHours(draft);
+        if ("problem" in result) {
+          setProblem(m.hoursProblem(m.weekdays[result.weekday - 1], result.problem));
+          return;
+        }
+        if (await save(result.hours)) setDraft(null);
       }}
     >
       <ul className="divide-y">
@@ -323,38 +318,10 @@ function PickupSettingsContent({ account }: { account: CurrentAccount }) {
   const language = useStaffLanguage();
   const m = pickupMessages[language];
   const c = staffMessages[language];
-  const client = useQueryClient();
-  const view = useLiveView();
-  const options = pickupSettingsQuery(account);
-  const settings = useQuery({ ...options, enabled: view.active });
-  const [notice, setNotice] = useState("");
-  // Each write sends the whole target state; the response is the fresh settings.
-  const mutation = useMutation({
-    mutationFn: (send: () => Promise<PickupSettings>) => send(),
-    onMutate: () => setNotice(""),
-    onSuccess: (data) => {
-      if (isSameAccount(client, account)) client.setQueryData(options.queryKey, data);
-    },
-    onError: () => void settings.refetch(),
-  });
+  const model = usePickupSettings(account);
+  const { settings, view, notice, busy, error } = model;
   const data = settings.data;
-  const busy = mutation.isPending;
   const owner = account.role === "OWNER";
-  function togglePause() {
-    if (!data || busy) return;
-    const paused = !data.paused;
-    mutation.mutate(() => setPickupPaused(paused), {
-      onSuccess: () => setNotice(m.pauseSaved(paused)),
-    });
-  }
-  function saveHours(draft: HourDraft[]) {
-    const result = draftHours(draft);
-    if ("problem" in result) return m.hoursProblem(m.weekdays[result.weekday - 1], result.problem);
-    mutation.mutate(() => savePickupHours(result.hours), {
-      onSuccess: () => setNotice(m.hoursSaved),
-    });
-    return null;
-  }
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader
@@ -379,12 +346,12 @@ function PickupSettingsContent({ account }: { account: CurrentAccount }) {
           {m.loadError}
         </Notice>
       )}
-      {mutation.isError && (
+      {error && (
         <Notice tone="error" className="mb-5">
-          {errorMessage(mutation.error, undefined, language)}
+          {error}
         </Notice>
       )}
-      {notice && !mutation.isError && (
+      {notice && !error && (
         <Notice tone="success" className="mb-5">
           {notice}
         </Notice>
@@ -419,8 +386,8 @@ function PickupSettingsContent({ account }: { account: CurrentAccount }) {
                   <Switch
                     aria-labelledby="pickup-paused"
                     checked={data.paused}
-                    disabled={busy || settings.isError}
-                    onCheckedChange={togglePause}
+                    disabled={busy || settings.isError || !view.active}
+                    onCheckedChange={model.togglePause}
                   />
                 </div>
               </div>
@@ -455,7 +422,7 @@ function PickupSettingsContent({ account }: { account: CurrentAccount }) {
               <h2 className="font-semibold">{m.hours}</h2>
               <p className="text-sm leading-6 text-muted-foreground">{m.hoursHint}</p>
               {owner ? (
-                <HoursEditor settings={data} save={saveHours} busy={busy} />
+                <HoursEditor settings={data} save={model.saveHours} busy={busy || !view.active} />
               ) : (
                 <>
                   <dl className="divide-y">

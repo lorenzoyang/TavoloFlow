@@ -10,8 +10,15 @@ import {
   inputTime,
   parseTime,
   windowText,
+  waitingPickups,
   type HourDraft,
 } from "../src/features/pickup/state.ts";
+
+test("expired cached requests stop authorizing cards and ringing at their expiry boundary", () => {
+  const rows = [{ expiresAt: "2026-11-02T10:10:00Z" }, { expiresAt: "2026-11-02T10:11:00Z" }];
+  assert.deepEqual(waitingPickups(rows, Date.parse("2026-11-02T10:10:00Z")), [rows[1]]);
+  assert.deepEqual(waitingPickups(rows, Date.parse("2026-11-02T10:11:00Z")), []);
+});
 
 test("phones keep an optional plus and 6–15 digits, stored without spaces", () => {
   assert.equal(normalizePhone(" +39 333 123 4567 "), "+393331234567");

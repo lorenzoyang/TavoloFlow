@@ -7,7 +7,7 @@ const gestures = ["pointerdown", "pointerup", "keydown"] as const;
 
 // The on/off switch is a device preference stored under preferenceKey; on by default. Without a key the
 // sound cannot be turned off (the pending pickup alert).
-export function useAlertSound(preferenceKey: string | null, chime: Chime) {
+export function useAlertSound(preferenceKey: string | null, chime: Chime, enabled = true) {
   const [sound, setSound] = useState(
     () => preferenceKey === null || readSoundPreference(preferenceKey),
   );
@@ -16,7 +16,7 @@ export function useAlertSound(preferenceKey: string | null, chime: Chime) {
   const audio = useRef<AlertAudio | null>(null);
 
   useEffect(() => {
-    if (!sound) return;
+    if (!sound || !enabled) return;
     const player = (audio.current ??= new AlertAudio());
     let timer = 0;
     // Reported as blocked only if audio is still not running shortly after an attempt in the foreground,
@@ -53,7 +53,7 @@ export function useAlertSound(preferenceKey: string | null, chime: Chime) {
       player.close();
       audio.current = null;
     };
-  }, [sound]);
+  }, [sound, enabled]);
 
   // Called inside a click, where every browser lets audio start.
   const unlockSound = useCallback(() => {
@@ -74,11 +74,13 @@ export function useAlertSound(preferenceKey: string | null, chime: Chime) {
     if (!sound) unlockSound();
   }, [preferenceKey, sound, unlockSound]);
 
-  const play = useCallback(() => audio.current?.play(chime), [chime]);
+  const play = useCallback(() => {
+    if (enabled) audio.current?.play(chime);
+  }, [chime, enabled]);
 
   return {
     sound,
-    soundBlocked: sound && !audible && !soundUnsupported,
+    soundBlocked: enabled && sound && !audible && !soundUnsupported,
     // The page explains it: this browser cannot play audio at all.
     soundUnsupported,
     unlockSound,

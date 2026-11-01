@@ -58,6 +58,33 @@ public sealed class PickupHoursTests
     }
 
     [Fact]
+    public void NextOpening_EntireWindowSkipped_DoesNotAdvertiseAClosedTime()
+    {
+        Assert.Null(PickupHours.NextOpening([Hour(7, 150, 165)], Rome, Utc("2027-03-27T22:00:00")));
+        Assert.Null(PickupHours.NextOpening([Hour(7, 150, 180)], Rome, Utc("2027-03-27T22:00:00")));
+        var next = PickupHours.NextOpening([Hour(7, 150, 165), Hour(7, 240, 300, 2)], Rome, Utc("2027-03-27T22:00:00"));
+        Assert.Equal(Utc("2027-03-28T02:00:00").UtcDateTime, next);
+    }
+
+    [Theory]
+    [InlineData(150, 165, "2026-10-25T00:50:00", "2026-10-25T01:30:00")]
+    [InlineData(90, 135, "2026-10-25T00:30:00", "2026-10-25T01:00:00")]
+    public void NextOpening_AfterFirstOccurrence_ReturnsActualReopening(int opens, int closes, string now, string expected)
+    {
+        PickupHour[] hours = [Hour(7, opens, closes)];
+        var next = PickupHours.NextOpening(hours, Rome, Utc(now));
+        Assert.Equal(Utc(expected).UtcDateTime, next);
+        Assert.True(PickupHours.IsOpen(hours, Rome, next!.Value));
+    }
+
+    [Fact]
+    public void NextOpening_RepeatedWindows_ChoosesEarliestUtcOpeningAcrossBothSlots()
+    {
+        var next = PickupHours.NextOpening([Hour(7, 130, 140), Hour(7, 150, 160, 2)], Rome, Utc("2026-10-25T00:25:00"));
+        Assert.Equal(Utc("2026-10-25T00:30:00").UtcDateTime, next);
+    }
+
+    [Fact]
     public void Validate_WeekRules_AcceptTouchingWindowsAndRejectTheRest()
     {
         var id = Guid.NewGuid();

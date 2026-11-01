@@ -11,7 +11,6 @@ import {
   editLine,
   persistCart,
   pickupCartKey,
-  refreshCart,
   type CartLine,
 } from "@/features/orders/state";
 import {
@@ -28,7 +27,8 @@ import {
   createPickupIntent,
   emptyPickupCart,
   pickupFailure,
-  restorePickupCart,
+  loadPickupCart,
+  reviewPickupCart,
   saveOrderToken,
   type PickupCart,
 } from "./state";
@@ -82,25 +82,9 @@ export function usePickupCart(slug: string, data: OnlineMenu) {
   const navigate = useNavigate();
   const restaurantId = data.restaurant.id;
   const key = pickupCartKey(restaurantId);
-  const [initial] = useState(() => {
-    const blank = emptyPickupCart(restaurantId);
-    try {
-      return { cart: restorePickupCart(sessionStorage.getItem(key), blank), problem: null };
-    } catch (e) {
-      // A damaged draft is dropped; unreadable storage blocks submitting, since the request could not be kept.
-      if (e instanceof CartError && e.issue === "damaged") {
-        try {
-          sessionStorage.removeItem(key);
-          return { cart: blank, problem: "damaged" as const };
-        } catch {
-          /* Fall through to blocked storage. */
-        }
-      }
-      return { cart: blank, problem: "storage" as const };
-    }
-  });
+  const [initial] = useState(() => loadPickupCart(restaurantId, () => sessionStorage));
   const [cart, setCart] = useState(initial.cart);
-  const [blocked] = useState(initial.problem === "storage" ? initial.problem : null);
+  const [blocked] = useState(initial.problem);
   const [message, setMessage] = useState<Message | null>(
     initial.problem ? { key: initial.problem } : null,
   );
@@ -168,7 +152,7 @@ export function usePickupCart(slug: string, data: OnlineMenu) {
   const success = useCallback(
     (result: PickupSubmission) => {
       remember(emptyPickupCart(restaurantId));
-      saveOrderToken(restaurantId, result.statusToken, localStorage);
+      saveOrderToken(restaurantId, result.statusToken, () => localStorage);
       void navigate({ to: "/o/$token", params: { token: result.statusToken } });
     },
     [remember, restaurantId, navigate],
@@ -218,7 +202,7 @@ export function usePickupCart(slug: string, data: OnlineMenu) {
   }, [pendingId, recover]);
 
   function edit(change: (value: PickupCart) => PickupCart) {
-    if (current.current.pending || operation.current) return;
+    if (current.current.pending || operation.current || blocked === "damaged") return;
     try {
       const next = change(current.current);
       setMessage(null);
@@ -258,7 +242,13 @@ export function usePickupCart(slug: string, data: OnlineMenu) {
         );
         return;
       }
-      const next = refreshCart(current.current, latest.menu.items);
+      const reviewed = reviewPickupCart(current.current, latest.menu.items);
+      const next = reviewed.cart;
+      if (reviewed.priceChanged) {
+        remember(next);
+        setMessage({ key: "changed" });
+        return;
+      }
       const pending = createPickupIntent(next, name, phone, randomUuid());
       if (!remember({ ...next, pending }, true)) return;
       frozen = true;

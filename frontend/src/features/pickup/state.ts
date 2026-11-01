@@ -9,6 +9,11 @@ export type PickupHour = {
 export type HourDraft = { weekday: number; slots: { opens: string; closes: string }[] };
 export type HoursProblem = "format" | "order" | "overlap";
 
+// A cached pending list can outlive a request when a poll fails. Expired cards never ring or authorize
+// another decision; the server's PickupState remains the authority when a write reaches it.
+export const waitingPickups = <T extends { expiresAt: string }>(items: readonly T[], now: number) =>
+  items.filter((item) => Date.parse(item.expiresAt) > now);
+
 export const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 const pad = (value: number) => String(value).padStart(2, "0");
 

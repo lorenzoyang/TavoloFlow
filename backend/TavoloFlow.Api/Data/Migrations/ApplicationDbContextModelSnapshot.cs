@@ -624,7 +624,7 @@ namespace TavoloFlow.Api.Data.Migrations
 
                     b.ToTable("pickup_requests", null, t =>
                         {
-                            t.HasCheckConstraint("ck_pickup_request_acceptance", "(accepted_at IS NULL AND estimated_ready_at IS NULL AND session_id IS NULL) OR (accepted_at IS NOT NULL AND estimated_ready_at > accepted_at AND session_id IS NOT NULL)");
+                            t.HasCheckConstraint("ck_pickup_request_acceptance", "(accepted_at IS NULL AND estimated_ready_at IS NULL AND session_id IS NULL) OR (accepted_at IS NOT NULL AND estimated_ready_at IS NOT NULL AND estimated_ready_at > accepted_at AND session_id IS NOT NULL)");
 
                             t.HasCheckConstraint("ck_pickup_request_amount", "total_amount_cents > 0");
 

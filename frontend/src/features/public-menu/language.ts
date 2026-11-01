@@ -10,10 +10,12 @@ export function languageStorageKey(restaurantId: string) {
 
 export function readLanguage(
   restaurantId: string,
-  storage: Pick<Storage, "getItem">,
+  storage: Pick<Storage, "getItem"> | (() => Pick<Storage, "getItem">),
 ): Language | null {
   try {
-    const value = storage.getItem(languageStorageKey(restaurantId));
+    const value = (typeof storage === "function" ? storage() : storage).getItem(
+      languageStorageKey(restaurantId),
+    );
     return isLanguage(value) ? value : null;
   } catch {
     return null;
@@ -23,10 +25,13 @@ export function readLanguage(
 export function saveLanguage(
   restaurantId: string,
   language: Language,
-  storage: Pick<Storage, "setItem">,
+  storage: Pick<Storage, "setItem"> | (() => Pick<Storage, "setItem">),
 ) {
   try {
-    storage.setItem(languageStorageKey(restaurantId), language);
+    (typeof storage === "function" ? storage() : storage).setItem(
+      languageStorageKey(restaurantId),
+      language,
+    );
   } catch {
     /* Browsing works without storage. */
   }

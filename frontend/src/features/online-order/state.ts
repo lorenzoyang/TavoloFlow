@@ -1,6 +1,14 @@
 import { isUuid } from "../../lib/ids.ts";
 import { normalizePhone } from "../../lib/pickup-rules.ts";
-import { CartError, validateCart, validItem, type CartLine } from "../orders/state.ts";
+import {
+  CartError,
+  pickupCartKey,
+  refreshCart,
+  validateCart,
+  validItem,
+  type CartLine,
+} from "../orders/state.ts";
+import type { MenuItem } from "../menu/api.ts";
 
 // What the guest submits: the persisted, frozen request that a manual retry resends unchanged.
 export type PickupIntent = {
@@ -32,6 +40,18 @@ export const emptyPickupCart = (restaurantId: string): PickupCart => ({
   lines: [],
   pending: null,
 });
+
+// Refresh prices for display first. A changed price requires another deliberate tap before any intent
+// is frozen or POST sent, including when a background menu refresh has already arrived.
+export function reviewPickupCart(cart: PickupCart, menu: MenuItem[]) {
+  const refreshed = refreshCart(cart, menu);
+  return {
+    cart: refreshed,
+    priceChanged: refreshed.lines.some(
+      (line, index) => line.item.priceCents !== cart.lines[index].item.priceCents,
+    ),
+  };
+}
 
 // The server's contact rules: a one-line name of 1–20 characters and the shared phone rule.
 export function contactProblem(name: string, phone: string): ContactProblem | null {
@@ -95,6 +115,37 @@ export function restorePickupCart(raw: string | null, fallback: PickupCart): Pic
   }
 }
 
+// Reading storage itself may throw. Never remove or overwrite damaged bytes: they may be the only
+// recovery record for a submission the restaurant has already received.
+export function loadPickupCart(restaurantId: string, storage: () => Pick<Storage, "getItem">) {
+  const blank = emptyPickupCart(restaurantId);
+  try {
+    return {
+      cart: restorePickupCart(storage().getItem(pickupCartKey(restaurantId)), blank),
+      problem: null,
+    };
+  } catch (error) {
+    return {
+      cart: blank,
+      problem: error instanceof CartError ? error.issue : ("storage" as const),
+    };
+  }
+}
+
+export function confirmedPickupSubmission(value: unknown) {
+  const result = value as { statusToken: string; pickupNumber: number; expiresAt: string } | null;
+  if (
+    !result ||
+    !isStatusToken(result.statusToken) ||
+    !Number.isSafeInteger(result.pickupNumber) ||
+    result.pickupNumber < 1 ||
+    typeof result.expiresAt !== "string" ||
+    !Number.isFinite(Date.parse(result.expiresAt))
+  )
+    throw new Error("Invalid pickup submission response");
+  return result;
+}
+
 // Only an understood rejection of a first attempt releases the frozen request; anything else may have
 // been saved, so the guest recovers by GET or retries the same request.
 export function pickupFailure(
@@ -143,9 +194,14 @@ export function statusView(status: PickupOrderStatus, reason: RejectReason | nul
 export const orderTokenKey = (restaurantId: string) => `tavoloflow:pickup-order:${restaurantId}`;
 export const isStatusToken = (value: unknown): value is string =>
   typeof value === "string" && /^[A-Za-z0-9_-]{43}$/.test(value);
-export function readOrderToken(restaurantId: string, storage: Pick<Storage, "getItem">) {
+export function readOrderToken(
+  restaurantId: string,
+  storage: Pick<Storage, "getItem"> | (() => Pick<Storage, "getItem">),
+) {
   try {
-    const value = storage.getItem(orderTokenKey(restaurantId));
+    const value = (typeof storage === "function" ? storage() : storage).getItem(
+      orderTokenKey(restaurantId),
+    );
     return isStatusToken(value) ? value : null;
   } catch {
     return null;
@@ -154,10 +210,13 @@ export function readOrderToken(restaurantId: string, storage: Pick<Storage, "get
 export function saveOrderToken(
   restaurantId: string,
   token: string,
-  storage: Pick<Storage, "setItem">,
+  storage: Pick<Storage, "setItem"> | (() => Pick<Storage, "setItem">),
 ) {
   try {
-    storage.setItem(orderTokenKey(restaurantId), token);
+    (typeof storage === "function" ? storage() : storage).setItem(
+      orderTokenKey(restaurantId),
+      token,
+    );
   } catch {
     /* The status page link still works without storage. */
   }

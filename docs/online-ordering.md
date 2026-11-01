@@ -143,7 +143,7 @@
 
 取餐号来自 `pickup_counters(restaurant_id, business_date, last_number)`：提交事务执行
 `INSERT ... ON CONFLICT DO UPDATE SET last_number = last_number + 1 RETURNING`。这一步会锁住当天的计数行，
-让同一餐厅的提交依次进行，因此之后的幂等查找是安全的（见 5.2）。
+在它之前先取得餐厅级事务 advisory lock，因此跨午夜的提交也依次进行，之后的幂等查找和待接单上限检查才是安全的（见 5.2）。
 
 ### 4.3 pickup_request_items（请求菜品）
 
@@ -265,11 +265,11 @@ stateDiagram-v2
   顾客电话和餐厅电话用同一条规则，写在 `InputRules` 里，前后端各校验一次。
 - 提交接口是 `POST /api/public/r/{slug}/pickup-requests`，输入
   `{ clientRequestId, customerName, customerPhone, items: [{ menuItemId, quantity, expectedUnitPriceCents, remark }] }`。
-- 这是匿名请求，使用 `/api/public/csrf` 发的匿名 CSRF 令牌，和加入用餐一样。按 IP 限流（新的 `PickupRateLimits`，复用 `FixedWindowLimiter`）。
+- 这是允许匿名访问的请求，显式使用 Guest policy 选择身份，与 `/api/public/csrf` 一致；没有顾客 Cookie 时令牌是匿名的，有顾客 Cookie 时绑定当前顾客身份，和加入用餐一样。按 IP 限流（新的 `PickupRateLimits`，复用 `FixedWindowLimiter`）。
 - 服务器按顺序处理：
   1. 校验输入格式。
   2. 按 slug 找到餐厅，锁餐厅 SHARE。
-  3. 更新当天的取餐号计数（锁住计数行）。
+  3. 取得餐厅级事务 advisory lock，再更新当天的取餐号计数（锁住计数行）。等待后重新读取注入时钟；若营业日改变，回滚并重新确定日期。
   4. 如果已有相同 `(restaurant_id, client_request_id)` 的请求，直接返回原结果，不检查后面的条件。这和堂食下单一样。
      这时事务回滚，计数不变。
   5. 依次检查：餐厅为 ACTIVE（否则返回现有的 `SERVICE_SUSPENDED`）、已开通自取、没有暂停、在营业时间内、
@@ -451,7 +451,7 @@ stateDiagram-v2
 
 ## 9. 锁顺序
 
-- 提交请求：餐厅 SHARE → 当天的取餐号计数行 → 写入新行。改菜单的操作持有餐厅 UPDATE 锁，
+- 提交请求：餐厅 SHARE → 餐厅级事务 advisory lock → 当天的取餐号计数行 → 写入新行。改菜单的操作持有餐厅 UPDATE 锁，
   所以价格检查和快照不会和改菜单交错，这和堂食相同。
 - 接单：餐厅 SHARE → 请求行 UPDATE → 写入新的单据、订单和订单菜品。
 - 拒单：只锁请求行 UPDATE。
@@ -596,7 +596,7 @@ stateDiagram-v2
 实现中按代码实际情况调整的：
 
 9. **枚举文本**：`ApiEnum.Text` 原来只把名称转大写（`DineIn` 会变成 `DINEIN`），现在在单词之间加下划线，得到
-   `DINE_IN`、`NO_SHOW`、`CLOSED_HOURS`、`SOLD_OUT`；现有枚举都是单个单词，不受影响。
+   `DINE_IN`、`NO_SHOW`、`CLOSED_HOURS`、`SOLD_OUT`；此前持久化及公开响应中的枚举值都是单个单词，不受影响（内部操作结果枚举不用于存储或 API 文本）。
 10. **进行中单据列表的索引**：账单页每 30 秒轮询 `GET /api/staff/sessions/active`，为了不扫描历史，新增部分索引
     `ix_active_sessions (restaurant_id, opened_at, id) WHERE status = 'ACTIVE'`。
 11. **关闭原因约束**：没有另加约束，而是把 `ck_session_close_reason` 改成按渠道限定（EMPTY 只堂食、NO_SHOW 只自取）。
@@ -620,3 +620,39 @@ stateDiagram-v2
 20. **接单不检查餐厅是否被平台暂停**：正文只说不检查暂停和营业时间；实现与此一致，也不检查 SUSPENDED，
     与“暂停的入口不阻止已有工作”的现有规则相同。
 21. **测试设施**：`TestClock` 增加 `Set`，用来固定营业时间边界和夏令时夜里的时刻。
+
+
+### 2026-11-01 审查修复补充
+
+22. **跨午夜串行化**：当天计数行不能保护跨营业日的幂等和 20 单上限。提交现在先在餐厅 SHARE 后取得事务 advisory lock：
+    `pg_advisory_xact_lock(hashtextextended('tavoloflow:pickup-submit:{restaurantId}', 0))`，再锁当天计数行。
+    锁随事务释放；不同餐厅独立，哈希碰撞最多让无关餐厅多等待。计数行等待后重新读取 `TimeProvider`，营业日变更则回滚重试。
+23. **公共 CSRF 身份**：自取控制器保留 `AllowAnonymous`，同时显式声明 Guest policy，防止全局 Store fallback policy 替换身份。
+    浏览器有顾客 Cookie、店铺 Cookie 或两者都有时，公共 CSRF token 都与 POST 的身份一致，不改变任何登录权限。
+24. **价格核对**：提交前读到新价格时只更新购物车、提示核对金额；顾客再次点击才冻结并发送，不自动接受新金额。
+25. **损坏记录与浏览器存储**：损坏的购物车可能包含结果未知的请求，不再删除后放行新单，保留原始字节并提示先联系餐厅核对。
+    `localStorage` 对象本身不可访问时也允许浏览菜单；保存最新状态链接失败不能阻断成功跳转。只有完整有效的提交回执才清除冻结意图。
+26. **页面与草稿**：全局接单面板始终保留页面挂载位置，跨断点、开关自取服务不再重建页面。宽屏嵌套详情在剩余列内上下排列；
+    营业时间仅在收到当前操作的成功结果后清除草稿，错误、超时或生命周期中断均保留。保存前和成功后取消旧读取，避免旧轮询覆盖新设置。
+27. **轮询与迟到响应**：接单、拒单和设置写入绑定当前账号与生命周期，离线、后台、卸载后丢弃结果；恢复时先 GET。
+    缓存中过期的请求停止响铃和操作，列表读取失败在面板外也可见；接单提示使用服务器预计时间。
+    状态页和菜单的进行中提示共用前台在线轮询，旧状态旁明确显示更新失败，并保留顾客语言。
+28. **夏令时**：`nextOpensAt` 跳过整体落在跳时空档中的营业时段；回拨日按真实 UTC 顺序查找下一次开放，包括时钟回拨到原时段内的重新开放。
+    普通日期直接检查配置的开始时间，仅跳时/回拨日检查分钟边界，与营业时间的分钟精度一致。
+29. **数据库约束**：前向迁移 `RequirePickupReadyEstimate` 为接单字段补上 `estimated_ready_at IS NOT NULL`，防止 SQL CHECK 的 NULL 语义绕过“三列同时有值”。
+    已有有效数据直接兼容，不重写历史迁移；DBML 同步按渠道限定的关闭原因。
+
+
+### 本次审查验证（2026-11-01）
+
+- `dotnet test TavoloFlow.slnx --no-restore`：330 项通过。新增真实 Cookie 组合、跨午夜同 ID/容量竞争、跨餐厅锁隔离、
+  旧日重复请求回滚新日号码、夏令时空时段/回拨重新开放、旧数据库升级及接单约束、既有枚举文本回归。
+- 前端 Node 测试：90 项通过，补充价格核对、损坏意图保留、存储对象获取失败、完整提交回执和缓存过期边界。
+  `npm run build`、`npm run lint`、`npm run format:check` 通过；EF 检查无待生成模型变化。
+- 使用独立的临时 PostgreSQL、测试账号和真实 API，以 Chromium 走通：开桌确认 → 顾客入桌码加入 → 扫码下单 → 厨房出餐 →
+  传菜送达 → 老板收款关闭；同一顾客浏览器保留 Guest Cookie 再提交自取 → 员工选时间接单 → 厨房/传菜 → 顾客 READY →
+  已取走关闭 → 顾客 PICKED_UP → 历史按 PICKUP 筛选。
+- 隔离浏览器模拟异常响应：价格变化时不发送 POST；提交前读回完整意图；未知结果仅 GET，手动重发内容/ID 相同；
+  存储获取抛错不阻断浏览或成功跳转；损坏记录保留；保存失败及后台迟到响应不清草稿；旧轮询不能覆盖成功响应；
+  缓存过期停止响铃，后台停止读取/响铃，恢复只 GET；接单提示采用服务器预计时间。
+- 检查 360px 员工中意和顾客中意英布局，以及 1024px/1280px 嵌套详情、断点切换和自取服务变更时的页面表单保留。

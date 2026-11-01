@@ -27,7 +27,7 @@ import { OwnerOnlyNotice } from "./BillingPage";
 const label = "space-y-2 text-sm font-medium";
 // A native date input needs about 160px for the date and its calendar button, more than half a
 // phone-width card, so on phones each date takes its own row.
-const dateLabel = `${label} col-span-2 sm:col-span-1`;
+const dateLabel = `${label} col-span-2 @sm/history:col-span-1`;
 
 type Props = { search: HistorySearch; navigate: (search: HistorySearch) => void };
 function HistoryContent({ account, search, navigate }: Props & { account: CurrentAccount }) {
@@ -57,7 +57,7 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
   );
   const selected = rows.find((row) => row.sessionId === search.sessionId);
   return (
-    <div>
+    <div className="@container/history">
       <PageHeader
         title={m.historyTitle}
         description={m.historyDescription}
@@ -76,7 +76,7 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
       />
       <form
         key={JSON.stringify(filters) + (head?.fromDate ?? "") + (head?.toDate ?? "")}
-        className="mb-5 grid grid-cols-2 gap-3 rounded-2xl border bg-card p-4 shadow-xs lg:grid-cols-4"
+        className="mb-5 grid grid-cols-2 gap-3 rounded-2xl border bg-card p-4 shadow-xs @3xl/history:grid-cols-4"
         onSubmit={(event) => {
           event.preventDefault();
           const data = Object.fromEntries(new FormData(event.currentTarget));
@@ -136,7 +136,7 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
             </NativeSelect>
           </label>
         )}
-        <div className="col-span-2 flex flex-wrap gap-2 lg:col-span-4">
+        <div className="col-span-2 flex flex-wrap gap-2 @3xl/history:col-span-4">
           <Button type="submit">{m.search}</Button>
           <Button type="button" variant="outline" onClick={() => navigate({})}>
             {m.today}

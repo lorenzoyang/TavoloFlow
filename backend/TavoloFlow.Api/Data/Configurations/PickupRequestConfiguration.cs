@@ -18,7 +18,7 @@ internal sealed class PickupRequestConfiguration : IEntityTypeConfiguration<Pick
             table.HasCheckConstraint("ck_pickup_request_expiry", "expires_at > submitted_at");
             table.HasCheckConstraint("ck_pickup_request_acceptance",
                 "(accepted_at IS NULL AND estimated_ready_at IS NULL AND session_id IS NULL) OR " +
-                "(accepted_at IS NOT NULL AND estimated_ready_at > accepted_at AND session_id IS NOT NULL)");
+                "(accepted_at IS NOT NULL AND estimated_ready_at IS NOT NULL AND estimated_ready_at > accepted_at AND session_id IS NOT NULL)");
             table.HasCheckConstraint("ck_pickup_request_one_decision", "accepted_at IS NULL OR rejected_at IS NULL");
             table.HasCheckConstraint("ck_pickup_request_reject_reason",
                 "reject_reason IS NULL OR (rejected_at IS NOT NULL AND reject_reason IN ('SOLD_OUT', 'BUSY', 'CLOSING'))");

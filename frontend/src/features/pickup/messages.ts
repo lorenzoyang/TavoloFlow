@@ -7,6 +7,7 @@ const zh = {
   description: "线上菜单链接、接单状态和每周营业时间。",
   loading: "正在读取线上点单设置…",
   loadError: "线上点单设置暂时无法读取，请恢复连接后刷新。",
+  settingsUnknown: "尚未确认设置是否保存，正在重新读取。你的营业时间修改仍保留，请核对后再保存。",
   refresh: "刷新",
   link: "线上菜单链接",
   linkHint: "放在官网、Google 商家资料或 Instagram 上。顾客打开后自助下单，到店取餐时付款。",
@@ -100,6 +101,8 @@ export const pickupMessages: Record<StaffLanguage, typeof zh> = {
     description: "Link del menu online, stato degli ordini e orari settimanali.",
     loading: "Caricamento delle impostazioni…",
     loadError: "Impossibile leggere le impostazioni: aggiorna quando torna la connessione.",
+    settingsUnknown:
+      "Salvataggio non confermato: aggiorniamo le impostazioni. Le modifiche agli orari restano nel modulo; verifica prima di salvare di nuovo.",
     refresh: "Aggiorna",
     link: "Link del menu online",
     linkHint:

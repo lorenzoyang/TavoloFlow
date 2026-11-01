@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
 import { BrandMark } from "@/components/brand";
@@ -12,11 +11,11 @@ import { LanguageToggle } from "@/features/public-menu/PublicMenuViews";
 import { formatMoney, formatTime } from "@/lib/format";
 import { displayName, type Language } from "@/lib/language";
 import { useDocumentTheme } from "@/lib/useDocumentTheme";
-import { useLiveView } from "@/lib/useLiveView";
 import { cn } from "@/lib/utils";
-import { pickupOrderQuery, type PickupOrder } from "./api";
+import type { PickupOrder } from "./api";
 import { onlineOrderMessages } from "./messages";
-import { CallButton } from "./OnlineMenuPage";
+import { CallButton } from "./CallButton";
+import { usePickupOrder } from "./usePickupOrder";
 import { statusView, type PickupOrderStatus } from "./state";
 
 const tones: Record<PickupOrderStatus, NoticeTone> = {
@@ -30,7 +29,17 @@ const tones: Record<PickupOrderStatus, NoticeTone> = {
   CLOSED: "info",
 };
 
-function OrderStatus({ order, now }: { order: PickupOrder; now: number }) {
+function OrderStatus({
+  order,
+  now,
+  stale,
+  rememberLanguage,
+}: {
+  order: PickupOrder;
+  now: number;
+  stale: boolean;
+  rememberLanguage: (language: Language) => void;
+}) {
   const [preference, setPreference] = useState<Language | null>(() => {
     try {
       return readLanguage(order.restaurant.id, window.localStorage);
@@ -39,6 +48,9 @@ function OrderStatus({ order, now }: { order: PickupOrder; now: number }) {
     }
   });
   const language = selectedLanguage(preference, order.restaurant.defaultLanguage);
+  useEffect(() => {
+    rememberLanguage(language);
+  }, [language, rememberLanguage]);
   useDocumentTheme(order.restaurant.theme);
   const m = onlineOrderMessages[language];
   const s = m.status;
@@ -59,12 +71,13 @@ function OrderStatus({ order, now }: { order: PickupOrder; now: number }) {
             language={language}
             select={(value) => {
               setPreference(value);
-              saveLanguage(order.restaurant.id, value, window.localStorage);
+              saveLanguage(order.restaurant.id, value, () => window.localStorage);
             }}
           />
         </div>
       </header>
       <main className="mx-auto max-w-xl space-y-5 px-4 pt-5 pb-12">
+        {stale && <Notice tone="error">{s.stale}</Notice>}
         <Notice tone={tones[order.status]}>
           <span className="block text-base font-semibold">{s[view.headline]}</span>
           {order.status === "ACCEPTED" && order.estimatedReadyAt && (
@@ -134,7 +147,7 @@ function OrderStatus({ order, now }: { order: PickupOrder; now: number }) {
               {s.backToMenu}
             </Link>
           )}
-          {!view.finished && <p className="text-xs text-muted-foreground">{s.updated}</p>}
+          {!view.finished && !stale && <p className="text-xs text-muted-foreground">{s.updated}</p>}
         </div>
       </main>
     </div>
@@ -143,17 +156,19 @@ function OrderStatus({ order, now }: { order: PickupOrder; now: number }) {
 
 // Polls every 10 seconds while the order runs; the query pauses offline and in the background.
 export function PickupStatusPage({ token }: { token: string }) {
-  const live = useLiveView();
-  const query = useQuery({
-    ...pickupOrderQuery(token),
-    refetchInterval: (q) =>
-      q.state.data && !statusView(q.state.data.status, q.state.data.rejectReason).finished
-        ? 10_000
-        : false,
-  });
+  const { query, view, stale } = usePickupOrder(token);
   const [language, setLanguage] = useState<Language>("it");
   const m = onlineOrderMessages[language];
-  if (query.data) return <OrderStatus order={query.data} now={live.now} />;
+  if (query.data)
+    return (
+      <OrderStatus
+        key={query.data.restaurant.id}
+        order={query.data}
+        now={view.now}
+        stale={stale}
+        rememberLanguage={setLanguage}
+      />
+    );
   const failed = query.isError || query.fetchStatus === "paused";
   return (
     <main

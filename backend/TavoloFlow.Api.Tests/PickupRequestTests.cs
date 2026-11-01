@@ -2,6 +2,7 @@ using System.Data.Common;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Query;
@@ -277,6 +278,133 @@ public sealed class PickupRequestTests(PostgreSqlFixture database) : IClassFixtu
         return host;
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task Submit_BrowserCookieCombinations_UsesGuestCsrfScope(bool storeCookie, bool guestCookie)
+    {
+        using var host = Host();
+        var s = await SeedAsync();
+        using var browser = host.Browser();
+        await using var db = database.CreateContext();
+        if (storeCookie)
+        {
+            const string password = "Review-password-123";
+            var user = new RestaurantUser { RestaurantId = s.RestaurantId, Username = "cookie." + Guid.NewGuid().ToString("N"),
+                Role = RestaurantUserRole.Owner, MustChangePassword = false, PasswordHash = "" };
+            user.PasswordHash = new PasswordHasher<RestaurantUser>().HashPassword(user, password);
+            db.RestaurantUsers.Add(user);
+            await db.SaveChangesAsync();
+            Assert.Equal(HttpStatusCode.OK, (await PostAsync(browser, "/api/auth/login", new { user.Username, password })).StatusCode);
+        }
+        if (guestCookie)
+        {
+            await db.Restaurants.Where(r => r.Id == s.RestaurantId).ExecuteUpdateAsync(u => u.SetProperty(r => r.JoinCodeRequired, false));
+            var table = new RestaurantTable { RestaurantId = s.RestaurantId, TableLabel = "1", QrToken = Guid.NewGuid().ToString("N") };
+            var session = new DiningSession { RestaurantId = s.RestaurantId, Table = table, TableLabelSnapshot = "1",
+                JoinCodeCiphertext = "test", OpenedAt = Monday.UtcDateTime };
+            db.DiningSessions.Add(session);
+            await db.SaveChangesAsync();
+            Assert.Equal(HttpStatusCode.OK, (await PostAsync(browser, $"/api/public/qr/{table.QrToken}/join",
+                new { sessionId = session.Id }, await GuestCsrfAsync(browser))).StatusCode);
+        }
+        await AssertErrorAsync(await SubmitAsync(browser, s, s.Input(), await CsrfAsync(browser)),
+            HttpStatusCode.BadRequest, "CSRF_VALIDATION_FAILED");
+        Assert.Equal(HttpStatusCode.Created, (await SubmitAsync(browser, s, s.Input())).StatusCode);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Submit_ConcurrentAcrossMidnight_PreservesIdempotencyAndPendingLimit(bool sameRequest)
+    {
+        using var host = Host();
+        var s = await SeedAsync();
+        host.Clock.Set(DateTimeOffset.Parse("2026-11-02T22:59:59Z"));
+        if (!sameRequest)
+        {
+            await using var seed = database.CreateContext();
+            for (var i = 0; i < PickupState.PendingLimit - 1; i++)
+                await new PickupOrderService(seed, host.Clock).SubmitAsync(s.Slug, s.Input(), default);
+        }
+        var gate = new CounterGate(true);
+        var secondGate = new CounterGate(false);
+        await using var first = Intercepted(gate);
+        await using var second = Intercepted(secondGate);
+        var input = s.Input();
+        async Task<(PickupSubmission? Result, string? Error)> Send(ApplicationDbContext db, PickupRequestInput body)
+        {
+            try { return (await new PickupOrderService(db, host.Clock).SubmitAsync(s.Slug, body, default), null); }
+            catch (ApiException e) { return (null, e.Code); }
+        }
+        var a = Send(first, input);
+        Task<(PickupSubmission? Result, string? Error)> b;
+        try
+        {
+            await gate.Acquired.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            host.Clock.Advance(TimeSpan.FromSeconds(2));
+            b = Send(second, sameRequest ? input : s.Input());
+            await secondGate.Attempted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.False(secondGate.Acquired.Task.IsCompleted);
+        }
+        finally { gate.Release.TrySetResult(); }
+        var results = await Task.WhenAll(a, b);
+        await using var read = database.CreateContext();
+        if (sameRequest)
+        {
+            Assert.All(results, x => Assert.Null(x.Error));
+            Assert.Single(results, x => x.Result!.Created);
+            Assert.Equal(results[0].Result!.Response, results[1].Result!.Response);
+            Assert.Equal(1, await read.PickupRequests.CountAsync(r => r.RestaurantId == s.RestaurantId));
+        }
+        else
+        {
+            Assert.Single(results, x => x.Result is not null);
+            Assert.Equal("PICKUP_BUSY", Assert.Single(results, x => x.Error is not null).Error);
+            Assert.Equal(PickupState.PendingLimit, await PickupState.Pending(read.PickupRequests
+                .Where(r => r.RestaurantId == s.RestaurantId), host.Clock.GetUtcNow().UtcDateTime).CountAsync());
+        }
+        Assert.Equal(1, await read.PickupCounters.Where(c => c.RestaurantId == s.RestaurantId &&
+            c.BusinessDate == new DateOnly(2026, 11, 3)).Select(c => c.LastNumber).SingleAsync());
+    }
+
+    [Fact]
+    public async Task Submit_RepeatNextDay_RollsBackTheNewDaysNumber()
+    {
+        using var host = Host();
+        var s = await SeedAsync();
+        using var browser = host.Browser();
+        var input = s.Input();
+        var original = await (await SubmitAsync(browser, s, input)).Content.ReadFromJsonAsync<PickupSubmissionResponse>();
+        host.Clock.Advance(TimeSpan.FromDays(1));
+        var repeated = await SubmitAsync(browser, s, input);
+        Assert.Equal(HttpStatusCode.OK, repeated.StatusCode);
+        Assert.Equal(original, await repeated.Content.ReadFromJsonAsync<PickupSubmissionResponse>());
+        Assert.Equal(1, await NumberAsync(browser, s));
+    }
+
+    [Fact]
+    public async Task Submit_DifferentRestaurants_DoNotShareAnAdmissionLock()
+    {
+        using var host = Host();
+        var a = await SeedAsync();
+        var b = await SeedAsync();
+        var gate = new CounterGate(true);
+        await using var first = Intercepted(gate);
+        await using var second = database.CreateContext();
+        var blocked = new PickupOrderService(first, host.Clock).SubmitAsync(a.Slug, a.Input(), default);
+        try
+        {
+            await gate.Acquired.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.True((await new PickupOrderService(second, host.Clock).SubmitAsync(b.Slug, b.Input(), default)
+                .WaitAsync(TimeSpan.FromSeconds(5))).Created);
+        }
+        finally { gate.Release.TrySetResult(); }
+        await blocked;
+    }
+
     private async Task<Setup> SeedAsync(bool always = true)
     {
         await using var db = database.CreateContext();
@@ -323,8 +451,8 @@ public sealed class PickupRequestTests(PostgreSqlFixture database) : IClassFixtu
         public TaskCompletionSource Acquired { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private static bool Matches(DbCommand cmd) => cmd.CommandText.Contains("INSERT INTO pickup_counters", StringComparison.Ordinal);
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand cmd, CommandEventData data, InterceptionResult<DbDataReader> result, CancellationToken ct = default)
-        { if (Matches(cmd)) Attempted.TrySetResult(); return ValueTask.FromResult(result); }
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(DbCommand cmd, CommandEventData data, InterceptionResult<int> result, CancellationToken ct = default)
+        { if (cmd.CommandText.Contains("pg_advisory_xact_lock", StringComparison.Ordinal)) Attempted.TrySetResult(); return ValueTask.FromResult(result); }
         public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand cmd, CommandExecutedEventData data, DbDataReader result, CancellationToken ct = default)
         { if (Matches(cmd)) { Acquired.TrySetResult(); if (hold) await Release.Task.WaitAsync(TimeSpan.FromSeconds(10), ct); } return result; }
     }

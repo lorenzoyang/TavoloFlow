@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState, type ReactNode } from "react";
 import { BellRing, Phone } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { FilterChips } from "@/components/filter-chips";
@@ -7,26 +6,15 @@ import { MasterDetail } from "@/components/master-detail";
 import { Notice } from "@/components/notice";
 import { Button } from "@/components/ui/button";
 import type { CurrentAccount } from "@/features/accounts/api";
-import { isSameAccount } from "@/features/accounts/queries";
-import { billingKey } from "@/features/billing/api";
-import { kitchenKey } from "@/features/kitchen/api";
 import { pickupChime } from "@/lib/alert-sound";
-import { ApiError, errorMessage, withTimeout } from "@/lib/api";
 import { formatMoney, formatTime } from "@/lib/format";
 import { displayName } from "@/lib/language";
 import { staffMessages } from "@/lib/staff-messages";
 import { useAlertSound } from "@/lib/useAlertSound";
-import { useLiveView } from "@/lib/useLiveView";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
-import {
-  acceptPickup,
-  pendingPickupsQuery,
-  pickupKey,
-  rejectPickup,
-  type PendingPickup,
-  type RejectReason,
-} from "./api";
+import type { PendingPickup, RejectReason } from "./api";
 import { pickupMessages } from "./messages";
+import { usePickupDesk } from "./usePickupDesk";
 
 const ESTIMATES = [15, 20, 30, 45] as const;
 const RING_EVERY_MS = 4000;
@@ -125,17 +113,11 @@ export function PickupDesk({
   const language = useStaffLanguage();
   const m = pickupMessages[language];
   const c = staffMessages[language];
-  const client = useQueryClient();
-  const view = useLiveView();
-  const pending = useQuery({
-    ...pendingPickupsQuery(account),
-    enabled: view.active,
-    refetchInterval: view.active ? 10_000 : false,
-  });
-  const requests = pending.data?.items ?? [];
-  const limit = pending.data?.limit ?? 20;
-  const { play, ...sound } = useAlertSound(null, pickupChime);
-  const ringing = requests.length > 0 && view.active;
+  const model = usePickupDesk(account);
+  const { requests, limit, view, busy, notice, fresh } = model;
+  const enabled = account.services.pickup;
+  const { play, ...sound } = useAlertSound(null, pickupChime, enabled);
+  const ringing = model.ringing;
   useEffect(() => {
     if (!ringing) return;
     play();
@@ -143,70 +125,23 @@ export function PickupDesk({
     return () => window.clearInterval(timer);
   }, [ringing, play]);
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
-  const [rejecting, setRejecting] = useState<PendingPickup | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const rejecting = requests.find((request) => request.id === rejectingId);
   const [reason, setReason] = useState<RejectReason | "">("");
-  const operation = useRef<AbortController | null>(null);
-  useEffect(() => () => operation.current?.abort(), []);
-
-  // No pending marker is stored: a decision only applies to a request still waiting, so a repeat returns
-  // PICKUP_CHANGED, and the refreshed list shows whether a lost write went through.
-  async function decide(
-    id: string,
-    send: (signal: AbortSignal) => Promise<unknown>,
-    done: () => string,
-  ) {
-    if (busy || operation.current) return;
-    const controller = new AbortController();
-    operation.current = controller;
-    setBusy(id);
-    setNotice(null);
-    try {
-      await send(withTimeout(controller.signal));
-      if (isSameAccount(client, account)) setNotice({ tone: "success", text: done() });
-    } catch (e) {
-      if (!controller.signal.aborted && isSameAccount(client, account))
-        setNotice({
-          tone: "error",
-          text:
-            e instanceof ApiError && e.code === "PICKUP_CHANGED"
-              ? m.changed
-              : errorMessage(e, m.unknown, language),
-        });
-    } finally {
-      operation.current = null;
-      setBusy(null);
-      setRejecting(null);
-      for (const key of [pickupKey(account), kitchenKey(account), billingKey(account)])
-        void client.invalidateQueries({ queryKey: key });
-    }
-  }
   const panel = (
     <div className="space-y-4">
       {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
-      {pending.isError && <Notice tone="error">{m.deskError}</Notice>}
       {requests.length === 0 && <p className="text-muted-foreground">{m.deskEmpty}</p>}
       {requests.map((request) => (
         <PendingCard
           key={request.id}
           request={request}
           now={view.now}
-          busy={!!busy || !view.active}
-          accept={(minutes) =>
-            void decide(
-              request.id,
-              (signal) => acceptPickup(request.id, minutes, signal),
-              () =>
-                m.accepted(
-                  request.pickupNumber,
-                  formatTime(Date.now() + minutes * 60_000, language),
-                ),
-            )
-          }
+          busy={busy || !fresh}
+          accept={(minutes) => void model.accept(request, minutes)}
           reject={() => {
             setReason("");
-            setRejecting(request);
+            setRejectingId(request.id);
           }}
         />
       ))}
@@ -214,18 +149,28 @@ export function PickupDesk({
   );
   return (
     <MasterDetail
-      open={open}
+      open={enabled && open}
       title={m.deskTitle}
       closeLabel={c.close}
       onClose={() => setOpen(false)}
       detail={panel}
     >
+      {enabled && model.stalled && (
+        <Notice tone="error" className="mb-4">
+          {m.deskError}
+        </Notice>
+      )}
+      {notice && !open && (
+        <Notice tone={notice.tone} className="mb-4">
+          {notice.text}
+        </Notice>
+      )}
       {sound.soundBlocked && (
         <Notice tone="warning" className="mb-4">
           {m.soundBlocked}
         </Notice>
       )}
-      {requests.length > 0 && (
+      {enabled && requests.length > 0 && (
         <button
           type="button"
           aria-expanded={open}
@@ -241,22 +186,19 @@ export function PickupDesk({
       )}
       {children}
       <ConfirmDialog
-        open={!!rejecting}
+        open={enabled && fresh && !!rejecting}
         title={rejecting ? m.rejectTitle(rejecting.pickupNumber) : ""}
         description={m.rejectDescription}
         confirmLabel={m.confirmReject}
         cancelLabel={c.cancel}
         tone="destructive"
-        busy={!!busy}
-        onCancel={() => setRejecting(null)}
+        busy={busy}
+        onCancel={() => setRejectingId(null)}
         onConfirm={() => {
           if (!rejecting) return;
-          const target = rejecting;
-          void decide(
-            target.id,
-            (signal) => rejectPickup(target.id, reason || null, signal),
-            () => m.rejected(target.pickupNumber),
-          );
+          void model.reject(rejecting, reason || null).then((handled) => {
+            if (handled) setRejectingId(null);
+          });
         }}
       >
         {/* min-w-0 lets the chips scroll inside the dialog instead of widening it past a phone screen. */}
