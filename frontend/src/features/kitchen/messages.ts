@@ -1,4 +1,4 @@
-import type { StaffLanguage } from "@/lib/staff-language";
+import type { Language } from "@/lib/language";
 import type { KitchenView, OrderStatus } from "./state";
 
 type Outcome = "reached" | "changed" | "legacy-reviewed" | "missing" | "confirm-again";
@@ -80,7 +80,7 @@ const zh = {
   writeUnknown: "操作结果待确认。请核对原订单，系统不会自动重新提交。",
 };
 
-export const kitchenMessages: Record<StaffLanguage, typeof zh> = {
+export const kitchenMessages: Record<Language, typeof zh> = {
   zh,
   it: {
     title: "Cucina",
@@ -163,5 +163,83 @@ export const kitchenMessages: Record<StaffLanguage, typeof zh> = {
       `${label}: ${kind === "ready" ? "piatto pronto." : "piatto annullato, conto aggiornato."}`,
     writeUnknown:
       "Esito da verificare: controlla l’ordine originale. Nulla verrà reinviato automaticamente.",
+  },
+  en: {
+    title: "Kitchen",
+    description: "Mark dishes ready one at a time; the longest wait is at the top.",
+    refresh: "Refresh orders",
+    status: { NEW: "To do", PROCESSED: "Done" },
+    view: { DISHES: "Dishes", NEW: "Orders", PROCESSED: "Done" },
+    item: { NEW: "To do", READY: "Ready", CANCELLED: "Cancelled" },
+    orderedAt: (time) => `Ordered at ${time}`,
+    itemsWaiting: (waiting, total) => `To do ${waiting} of ${total}`,
+    waited: (minutes) => `${minutes} min`,
+    allCancelled: "All cancelled",
+    processed: "Done",
+    readyAt: (time) => `Ready: ${time}`,
+    cancelledAt: (time) => `Cancelled: ${time} · not charged`,
+    ready: "Ready",
+    moreActions: (name) => `More actions: ${name}`,
+    cancelItem: "Cancel dish",
+    amounts: (total, payable) => `Original total: ${total} · Due: ${payable}`,
+    processedAt: (time) => `Done: ${time}`,
+    pendingTotal: (count) => `Orders to do: ${count}`,
+    syncing: "Updating orders.",
+    maybeStale: "Orders may be out of date.",
+    writesPaused: "Changes paused until the next successful update.",
+    readError: "Can’t update the orders. Check the connection and refresh.",
+    storageWarning:
+      "The browser can’t save action notices. Check pending results here and note the order number before reloading.",
+    pendingSection: "Actions to check",
+    verify: "Check the dish",
+    pendingAction: (kind, order, item) =>
+      `Result to check: ${kind === "ready" ? "ready" : "cancellation"} · order #${order}${item ? ` · dish #${item}` : " · old whole-order action"}`,
+    viewTabs: "Kitchen view",
+    listSummary: (status, total, shown) =>
+      `${status}: ${total} orders, ${shown} shown. Open visits only.`,
+    loading: "Loading orders…",
+    empty: { NEW: "No orders to do.", PROCESSED: "No orders done." },
+    dishSummary: (dishes, portions) =>
+      `To do: ${dishes === 1 ? "1 dish" : `${dishes} dishes`}, ${portions === 1 ? "1 portion" : `${portions} portions`}. Open visits only.`,
+    dishesIncomplete: "Newer orders aren’t loaded yet: the totals may be incomplete.",
+    emptyDishes: "No dishes to do.",
+    categories: "Categories",
+    categoriesTitle: "Categories on this screen",
+    categoriesHint:
+      "Untick what isn’t prepared here. New categories and dishes removed from the menu still show. Applies to the Dishes view and the alert sound, on this device only.",
+    keepOne: "Keep at least one category.",
+    showAll: "Show all",
+    finish: "Done",
+    hiddenCategories: (count) =>
+      `${count === 1 ? "1 category hidden" : `${count} categories hidden`} here; Orders and Done show everything.`,
+    categoriesLoading: "Loading categories…",
+    categoriesError: "Can’t read the categories: for now this screen shows every dish.",
+    noCategories: "The menu has no categories yet.",
+    screenArrivals: (added) =>
+      `${added === 1 ? "1 new dish" : `${added} new dishes`} for this screen.`,
+    loadMore: "Load more orders",
+    cancelTitle: (table) => `Cancel dish · ${table}`,
+    cancelHint: (dish, amount) =>
+      `If you cancel «${dish}», ${amount} leaves the bill. First check with the kitchen that it won’t be made.`,
+    confirmCancel: "Cancel dish",
+    changed: (status) => `The dish is now «${status}»: this confirmation no longer applies.`,
+    unknownStatus: "unknown",
+    recovered: (table, outcome) =>
+      `${table}: ${
+        {
+          reached: "status checked, the action went through.",
+          changed: "the dish was already handled, check its current status.",
+          "legacy-reviewed": "old whole-order action checked, check each dish.",
+          missing: "the original dish is no longer available, ask the owner to check.",
+          "confirm-again": "the dish is still to do; if needed, check again and confirm.",
+        }[outcome]
+      }`,
+    recoveryClosed:
+      "The order’s visit is closed or no longer available: ask the owner to check. The action won’t be resent.",
+    recoveryUnknown: "Result still to check: check the order when the connection is back.",
+    arrivals: (pending) => `New orders; to do: ${pending}.`,
+    done: (label, kind) =>
+      `${label}: ${kind === "ready" ? "dish ready." : "dish cancelled, bill updated."}`,
+    writeUnknown: "Result to check: check the original order. Nothing is resent automatically.",
   },
 };

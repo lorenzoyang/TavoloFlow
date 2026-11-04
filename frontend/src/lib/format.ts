@@ -26,12 +26,15 @@ export function formatMoney(cents: number, language: Language = "zh"): string {
   return `€ ${language === "it" ? amount.replace(".", ",") : amount}`;
 }
 
+// Locales for dates and times. English uses the British day/month order of the restaurant's region.
+const locales: Record<Language, string> = { zh: "zh-CN", it: "it-IT", en: "en-GB" };
+
 export function formatDateTime(
   value: string | number,
   language: Language = "zh",
   timeZone = RESTAURANT_TIME_ZONE,
 ) {
-  return new Date(value).toLocaleString(language === "zh" ? "zh-CN" : language, { timeZone });
+  return new Date(value).toLocaleString(locales[language], { timeZone });
 }
 
 // "19:05" in the restaurant's time zone, for compact rows where the date is implied.
@@ -40,7 +43,7 @@ export function formatTime(
   language: Language = "zh",
   timeZone = RESTAURANT_TIME_ZONE,
 ) {
-  return new Date(value).toLocaleTimeString(language === "zh" ? "zh-CN" : language, {
+  return new Date(value).toLocaleTimeString(locales[language], {
     timeZone,
     hour: "2-digit",
     minute: "2-digit",

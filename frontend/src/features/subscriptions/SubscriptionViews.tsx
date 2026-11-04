@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { formatMoney } from "@/lib/format";
-import type { StaffLanguage } from "@/lib/staff-language";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { subscriptionMessages } from "./messages";
 import type { SubscriptionPeriod, SubscriptionSummary } from "./state";
 
@@ -11,15 +11,9 @@ const stateBadges = {
   EXPIRED: "destructive",
 } as const;
 
-// Shared by the OWNER page (in the staff language) and the platform pages (in Chinese).
-export function SubscriptionStatus({
-  summary,
-  language,
-}: {
-  summary: SubscriptionSummary;
-  language: StaffLanguage;
-}) {
-  const m = subscriptionMessages[language];
+// Shared by the OWNER page and the platform pages, which use the same device language.
+export function SubscriptionStatus({ summary }: { summary: SubscriptionSummary }) {
+  const m = subscriptionMessages[useStaffLanguage()];
   const periodLabel = m.period(summary.serviceState);
   return (
     <div className="space-y-2">
@@ -56,13 +50,8 @@ export function SubscriptionStatus({
   );
 }
 
-export function PeriodDetails({
-  period,
-  language,
-}: {
-  period: SubscriptionPeriod;
-  language: StaffLanguage;
-}) {
+export function PeriodDetails({ period }: { period: SubscriptionPeriod }) {
+  const language = useStaffLanguage();
   const m = subscriptionMessages[language];
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">

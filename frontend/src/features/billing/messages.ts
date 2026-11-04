@@ -1,4 +1,4 @@
-import type { StaffLanguage } from "@/lib/staff-language";
+import type { Language } from "@/lib/language";
 import type { CloseKind } from "./state";
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
@@ -115,7 +115,7 @@ const zh = {
   loadMoreHistory: "加载更多历史账单",
 };
 
-export const billingMessages: Record<StaffLanguage, typeof zh> = {
+export const billingMessages: Record<Language, typeof zh> = {
   zh,
   it: {
     close: { PAID: "Pagato", EMPTY: "Chiuso vuoto", VOIDED: "Tutto annullato" },
@@ -229,5 +229,113 @@ export const billingMessages: Record<StaffLanguage, typeof zh> = {
     noHistory: "Nessun conto chiuso con questi filtri.",
     closedAt: (time) => `Chiuso: ${time}`,
     loadMoreHistory: "Carica altri conti",
+  },
+  en: {
+    close: { PAID: "Paid", EMPTY: "Closed empty", VOIDED: "All cancelled" },
+    orderNew: "To do",
+    orderProcessed: "Done",
+    payable: (amount) => `Due ${amount}`,
+    originalTotal: (amount) => `Original total: ${amount}`,
+    item: { NEW: "To do", READY: "Ready", CANCELLED: "Cancelled · not charged" },
+    unitPrice: (amount) => `Unit price ${amount}`,
+    readyAt: (time) => `Ready: ${time}`,
+    cancelledAt: (time) => `Cancelled: ${time}`,
+    closedAmount: "Recorded amount",
+    totalDue: "Total due",
+    dining: "Dining",
+    counts: (orders, items, waiting, cancelled) =>
+      `${plural(orders, "order", "orders")}, ${plural(items, "dish", "dishes")} · to do ${waiting} · cancelled ${cancelled}`,
+    times: (opened, closed) => `Opened: ${opened}${closed ? ` · Closed: ${closed}` : ""}`,
+    sessionId: (id) => `Visit ID: ${id}`,
+    details: "Bill details",
+    readError: "Can’t update the bill: refresh when the connection is back.",
+    loading: "Loading the bill…",
+    shown: (shown, total) =>
+      `Showing ${shown} of ${total} orders. The total includes every dish of the visit that isn’t cancelled, loaded or not.`,
+    noOrders: "No orders in this visit.",
+    loadMore: "Load more orders",
+    checkout: "Close the visit",
+    bill: "Visit bill",
+    toKitchen: "Go to kitchen",
+    refresh: "Refresh bill",
+    conflict: (amount, waiting) =>
+      `When it was rejected: due ${amount}, to do ${waiting}. Check the updated bill below.`,
+    storageWarning:
+      "The browser can’t save pending notices: check the result here and note the visit ID before reloading.",
+    verify: "Check the visit",
+    pending: (id) => `Closing to be checked · visit #${id}. Nothing is resent automatically.`,
+    closedTitle: (table) => `${table} · visit closed`,
+    closedSummary: (reason, amount) => `${reason} · recorded amount ${amount}`,
+    closedHint: "Guest access is no longer valid. For a new visit, open the table again.",
+    toHistory: "See in history",
+    stalled:
+      "The bill is updating or out of date: you can close it after the next successful update.",
+    waiting: (count) =>
+      `${plural(count, "dish", "dishes")} still to do: finish them in the kitchen or cancel them.`,
+    closeButton: {
+      PAID: "Take payment, free table",
+      EMPTY: "Close empty table",
+      VOIDED: "Close zero bill",
+    },
+    ownerCollects: "There’s still money due: the owner must check the payment.",
+    confirmTitle: {
+      PAID: "Payment taken, table free",
+      EMPTY: "Close empty table",
+      VOIDED: "Close after cancellation",
+    },
+    confirmPaid: "Take the payment first, then confirm closing the visit.",
+    confirmZero: "No payment is recorded. Check the orders and confirm the guests have left.",
+    confirmPaidLabel: "Paid, free table",
+    confirmZeroLabel: "Close the visit",
+    backToBill: "Back to bill",
+    checkAmount: (amount) => `Amount: ${amount}`,
+    changed:
+      "The bill has changed and this confirmation no longer applies. Go back to the bill, check the updated amount and confirm again.",
+    checkedPaid: "I checked the table and amount and took the payment",
+    checkedZero: "I checked the zero bill and the guests have left",
+    historyHint: "Closed bills are read-only and show the orders as they were when sent.",
+    refreshHistoryDetail: "Refresh details",
+    closedNotice: (table, reason, amount) =>
+      `${table} closed: ${reason}, recorded amount ${amount}.`,
+    recoveredClosed: (table, reason, amount) =>
+      `${table} closed: ${reason}, recorded amount ${amount}. Check the actual payment.`,
+    recoveredActive: (table) =>
+      `${table}: the visit is still open. Check the bill again before closing it; nothing is resent automatically.`,
+    recoveredMissing:
+      "The original visit is no longer available: ask the owner to check. The table’s next visit won’t be closed.",
+    recoverUnknown: "Closing still to be checked: check the visit when the connection is back.",
+    writeUnknown:
+      "Closing to be checked: check the original visit. Nothing is resent automatically.",
+    ownerOnly: "This page is for the owner only.",
+    toFloor: "Back to floor",
+    title: "Bill",
+    description: "Check the table’s bill and close the visit after payment.",
+    refreshTables: "Refresh tables",
+    tablesError: "Can’t update the tables: refresh when the connection is back.",
+    loadingTables: "Loading occupied tables…",
+    noVisits: "No open visits",
+    noVisitsHint: "Open tables show up here.",
+    pendingBadge: (count) => `To do ${count}`,
+    tableSummary: (orders, time) => `${plural(orders, "order", "orders")} · opened ${time}`,
+    historyTitle: "Bill history",
+    historyDescription:
+      "Shows visits closed today. Search by closing date; bills stay as they were when closed.",
+    refreshHistory: "Refresh history",
+    fromDate: "Closed from",
+    toDate: "Closed to",
+    tableLabel: "Table (exact name)",
+    closeReason: "Closing reason",
+    all: "All",
+    search: "Search",
+    today: "Back to today",
+    historyError: "Can’t update the history: reload.",
+    historyDetail: "Details",
+    historyDetailOf: (table) => `${table} · details`,
+    loadingHistory: "Loading history…",
+    historySummary: (from, to, zone, total, shown) =>
+      `${from} to ${to} · ${zone} · ${plural(total, "visit", "visits")} · ${shown} shown`,
+    noHistory: "No closed bills match these filters.",
+    closedAt: (time) => `Closed: ${time}`,
+    loadMoreHistory: "Load more bills",
   },
 };

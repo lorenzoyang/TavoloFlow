@@ -1,7 +1,7 @@
-import type { StaffLanguage } from "@/lib/staff-language";
+import type { Language } from "@/lib/language";
 
-// Account management copy. Platform pages always use Chinese; the OWNER's staff account page
-// (/staff/settings) follows the staff language.
+// Account management copy, shared by the platform pages and the OWNER's staff account page
+// (/staff/settings); both follow the device's interface language.
 const zh = {
   damaged: "待确认记录无法读取，请先联系管理员核对，当前页面暂停写入。",
   recoveredCreate: "已查到餐厅。初始密码无法再次读取，请进入餐厅详情，核对后重新重置账号密码。",
@@ -42,7 +42,7 @@ const zh = {
   ownerOnly: "仅老板可以管理员工密码。",
 };
 
-export const managementMessages: Record<StaffLanguage, typeof zh> = {
+export const managementMessages: Record<Language, typeof zh> = {
   zh,
   it: {
     damaged:
@@ -88,5 +88,48 @@ export const managementMessages: Record<StaffLanguage, typeof zh> = {
     confirmReset: "Reimposta",
     accountChanged: "L’account è cambiato: annulla e verifica di nuovo.",
     ownerOnly: "Solo il titolare può gestire la password dello staff.",
+  },
+  en: {
+    damaged:
+      "Can’t read the pending actions: contact the administrator. Changes are paused on this page.",
+    recoveredCreate:
+      "Restaurant found. The initial passwords can’t be read again: open it and reset the passwords.",
+    recoveredRestaurant:
+      "Restaurant status reloaded: check it. Every new change must be confirmed again.",
+    recoveredMissing: "No longer there (perhaps deleted): the pending action was cleared.",
+    recoveredAccount: (changed) =>
+      `${changed ? "The account’s credentials have changed, by this action or another change." : "The credentials haven’t changed yet: the original request may still arrive."} The temporary password can’t be read again; to reset it, check the current state and confirm again.`,
+    missingCreate:
+      "Restaurant not found yet: the original request may still arrive. You can fill in the form again and confirm; the same ID will be used.",
+    recoverUnknown: "Result still can’t be checked: reload when the connection is back.",
+    storageBlocked:
+      "The browser can’t save the pending action, so the change wasn’t sent. Allow storage for this site.",
+    done: "Done: check the current state.",
+    writeUnknown:
+      "Result to check: when the connection is back, only the state is read again; the change isn’t resent.",
+    passwordsTitle: "Hand over the temporary password safely",
+    passwordsHint:
+      "Shown only now: once you close, leave or hide the page it can’t be seen again. It must be changed at first sign-in.",
+    copied: "Copied: hand it over through a safe channel.",
+    copyFailed: "Automatic copy unavailable: select the text and copy it.",
+    copyPassword: (role) => `Copy ${role} password`,
+    closePasswords: "Saved, hide the password",
+    active: "Account enabled",
+    inactive: "Account disabled",
+    mustChange: "Temporary password to change",
+    changed: "Password changed",
+    reset: (role) => `Reset ${role} password`,
+    toggle: (active, role) => `${active ? "Disable" : "Enable"} ${role} account`,
+    staffTitle: "Staff account",
+    staffDescription: (restaurant) => `${restaurant} · Every staff device uses this STAFF account.`,
+    refreshStaff: "Refresh staff account",
+    loadingStaff: "Loading the staff account…",
+    verify: "Check the result",
+    resetTitle: "Reset the staff password",
+    resetHint: (restaurant, username) =>
+      `${restaurant} · ${username}: after the reset, every staff device must sign in again and change the temporary password.`,
+    confirmReset: "Reset",
+    accountChanged: "The account has changed: cancel and check again.",
+    ownerOnly: "Only the owner can manage the staff password.",
   },
 };

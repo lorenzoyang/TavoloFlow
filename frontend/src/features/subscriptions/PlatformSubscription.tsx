@@ -30,6 +30,8 @@ import {
 } from "./state";
 import { PeriodDetails, SubscriptionStatus } from "./SubscriptionViews";
 import { useSubscriptionActions } from "./useSubscriptionActions";
+import { platformSubscriptionMessages } from "./messages";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 
 type Editor = {
   kind: "metadata" | "create" | "edit" | "expiry" | "payment";
@@ -49,6 +51,9 @@ export function PlatformSubscription({
   userId: string;
   restaurantId: string;
 }) {
+  const language = useStaffLanguage();
+  const m = platformSubscriptionMessages[language];
+  const money = (cents: number) => formatMoney(cents, language);
   const detail = useSubscriptionQuery(platformSubscriptionKey(userId, restaurantId), (signal) =>
     getSubscription(restaurantId, signal),
   );
@@ -77,11 +82,11 @@ export function PlatformSubscription({
       if (editor.kind === "metadata") {
         const raw = String(data.get("annualFee") ?? "").trim();
         const annualFee = raw ? parsePrice(raw, true) : null;
-        if (raw && annualFee === null) throw new Error("请填写最多两位小数的有效年费。");
+        if (raw && annualFee === null) throw new Error(m.annualInvalid);
         const ownerContact = String(data.get("ownerContact") ?? "").trim() || null;
         next = {
           version: expectedVersion,
-          description: `保存联系方式及下次新建周期的默认年费：${annualFee === null ? "未设置" : formatMoney(annualFee)}。已有周期约定保持原值。`,
+          description: m.metadataConfirm(annualFee === null ? m.notSet : money(annualFee)),
           send: (signal) =>
             saveSubscription(
               restaurantId,
@@ -90,10 +95,22 @@ export function PlatformSubscription({
             ),
         };
       } else if (editor.kind === "create" || editor.kind === "edit") {
-        const period = periodFromForm(data, "period", editor.period?.id ?? randomUuid());
+        let period;
+        try {
+          period = periodFromForm(data, "period", editor.period?.id ?? randomUuid());
+        } catch {
+          throw new Error(m.periodInvalid);
+        }
         next = {
           version: expectedVersion,
-          description: `${editor.kind === "create" ? "登记" : "修改"} ${period.startsOn} 至 ${period.endsOn}，${period.years} 年，整个周期总金额 ${formatMoney(period.amountCents)}。${period.paidOn ? `已收全款，付费日期 ${period.paidOn}。` : "未付费。"}`,
+          description: m.periodConfirm(
+            editor.kind === "create",
+            period.startsOn,
+            period.endsOn,
+            period.years,
+            money(period.amountCents),
+            period.paidOn,
+          ),
           send: (signal) =>
             editor.kind === "create"
               ? createPeriod(restaurantId, { ...period, expectedVersion }, signal)
@@ -112,21 +129,24 @@ export function PlatformSubscription({
         };
       } else if (editor.kind === "expiry") {
         const endsOn = String(data.get("endsOn"));
-        if (!endsOn || endsOn <= editor.period!.startsOn)
-          throw new Error("截止日期必须晚于开始日期。");
+        if (!endsOn || endsOn <= editor.period!.startsOn) throw new Error(m.endAfterStart);
         next = {
           version: expectedVersion,
-          description: `把截止日期从 ${editor.period!.endsOn} 调整到 ${endsOn}。本次只调整期限，不登记收款。`,
+          description: m.expiryConfirm(editor.period!.endsOn, endsOn),
           send: (signal) =>
             adjustExpiry(restaurantId, editor.period!.id, { expectedVersion, endsOn }, signal),
         };
       } else {
         const paidOn = String(data.get("paidOn"));
-        if (!paidOn || paidOn > editor.summary.localToday)
-          throw new Error("请填写不晚于今天的实际付费日期。");
+        if (!paidOn || paidOn > editor.summary.localToday) throw new Error(m.paidOnInvalid);
         next = {
           version: expectedVersion,
-          description: `确认已收到 ${editor.period!.startsOn} 至 ${editor.period!.endsOn} 的全部费用 ${formatMoney(editor.period!.amountCents)}，实际付费日期 ${paidOn}。服务起止日期保持原约定。`,
+          description: m.paymentConfirm(
+            editor.period!.startsOn,
+            editor.period!.endsOn,
+            money(editor.period!.amountCents),
+            paidOn,
+          ),
           send: (signal) =>
             confirmPayment(restaurantId, editor.period!.id, { expectedVersion, paidOn }, signal),
         };
@@ -134,7 +154,7 @@ export function PlatformSubscription({
       setValidation("");
       setConfirmation(next);
     } catch (error) {
-      setValidation(error instanceof Error ? error.message : "请核对输入。");
+      setValidation(error instanceof Error ? error.message : m.checkInput);
     }
   };
   const commit = async () => {
@@ -146,47 +166,49 @@ export function PlatformSubscription({
   return (
     <section
       className="my-6 space-y-5 rounded-2xl border bg-card p-4 shadow-xs sm:p-5"
-      aria-label="餐厅年费管理"
+      aria-label={m.region}
     >
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold">年费与收费周期</h2>
+        <h2 className="text-xl font-semibold">{m.title}</h2>
         <Button
           variant="outline"
           size="icon"
-          aria-label="刷新年费资料"
+          aria-label={m.refresh}
           onClick={() => void detail.refetch()}
         >
           <RefreshCw className={cn(detail.isFetching && "animate-spin")} />
         </Button>
       </div>
-      {detail.isPending && <LoadingState label="正在读取年费资料…" />}
-      {detail.error && <Notice tone="error">{errorMessage(detail.error)}</Notice>}
+      {detail.isPending && <LoadingState label={m.loading} />}
+      {detail.error && (
+        <Notice tone="error">{errorMessage(detail.error, undefined, language)}</Notice>
+      )}
       {summary && (
         <div className="space-y-4">
-          <SubscriptionStatus summary={summary} language="zh" />
+          <SubscriptionStatus summary={summary} />
           <dl className="grid gap-x-4 gap-y-2 border-t pt-4 text-sm sm:grid-cols-[10rem_1fr]">
-            <dt className="text-muted-foreground">老板联系方式</dt>
+            <dt className="text-muted-foreground">{m.ownerContact}</dt>
             <dd className="font-medium whitespace-pre-wrap wrap-break-word">
-              {summary.ownerContact || "尚未登记"}
+              {summary.ownerContact || m.notRegistered}
             </dd>
-            <dt className="text-muted-foreground">下次新建周期的默认年费</dt>
+            <dt className="text-muted-foreground">{m.defaultFee}</dt>
             <dd className="font-medium">
               {summary.defaultAnnualFeeCents === null
-                ? "尚未设置"
-                : formatMoney(summary.defaultAnnualFeeCents)}
+                ? m.feeNotSet
+                : money(summary.defaultAnnualFeeCents)}
             </dd>
           </dl>
           <div className="flex flex-wrap gap-2">
             <Button disabled={locked} onClick={() => open("create")}>
-              登记新收费周期
+              {m.newPeriod}
             </Button>
             <Button variant="outline" disabled={locked} onClick={() => open("metadata")}>
-              编辑联系方式与年费
+              {m.editMetadata}
             </Button>
           </div>
           {detail.stale && (
             <p role="status" className="text-sm">
-              当前资料待刷新；读取成功后可继续修改。
+              {m.stale}
             </p>
           )}
         </div>
@@ -198,22 +220,12 @@ export function PlatformSubscription({
           onSubmit={submitEditor}
           className="space-y-4 rounded-xl border bg-background p-4"
         >
-          <h3 className="font-semibold">
-            {
-              {
-                metadata: "联系方式与默认年费",
-                create: "登记新收费周期",
-                edit: "修改未付款周期",
-                expiry: "单独调整截止日期",
-                payment: "登记收到全款",
-              }[editor.kind]
-            }
-          </h3>
+          <h3 className="font-semibold">{m.editor[editor.kind]}</h3>
           <fieldset disabled={actions.busy || !!confirmation} className="grid gap-4 sm:grid-cols-2">
             {editor.kind === "metadata" ? (
               <>
                 <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="subscription-contact">老板联系方式</Label>
+                  <Label htmlFor="subscription-contact">{m.ownerContact}</Label>
                   <Textarea
                     id="subscription-contact"
                     name="ownerContact"
@@ -223,7 +235,7 @@ export function PlatformSubscription({
                   />
                 </div>
                 <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="subscription-annual">下次新建周期的默认年费（EUR，可留空）</Label>
+                  <Label htmlFor="subscription-annual">{m.annualField}</Label>
                   <Input
                     id="subscription-annual"
                     name="annualFee"
@@ -248,7 +260,7 @@ export function PlatformSubscription({
               />
             ) : editor.kind === "expiry" ? (
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="subscription-end">新的截止日期</Label>
+                <Label htmlFor="subscription-end">{m.newEnd}</Label>
                 <Input
                   id="subscription-end"
                   name="endsOn"
@@ -261,10 +273,10 @@ export function PlatformSubscription({
             ) : (
               <>
                 <div className="sm:col-span-2">
-                  <PeriodDetails period={editor.period!} language="zh" />
+                  <PeriodDetails period={editor.period!} />
                 </div>
                 <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="subscription-paid">实际付费日期</Label>
+                  <Label htmlFor="subscription-paid">{m.paidOn}</Label>
                   <Input
                     id="subscription-paid"
                     name="paidOn"
@@ -277,7 +289,7 @@ export function PlatformSubscription({
               </>
             )}
             <Button type="submit" disabled={locked}>
-              核对并继续
+              {m.checkContinue}
             </Button>
             <Button
               type="button"
@@ -287,11 +299,11 @@ export function PlatformSubscription({
                 setValidation("");
               }}
             >
-              取消编辑
+              {m.cancelEdit}
             </Button>
           </fieldset>
           {editor.summary.version !== summary?.version && (
-            <Notice tone="error">资料已被更新，请关闭编辑后重新核对最新资料。</Notice>
+            <Notice tone="error">{m.editorStale}</Notice>
           )}
           {validation && <Notice tone="error">{validation}</Notice>}
         </form>
@@ -299,44 +311,44 @@ export function PlatformSubscription({
       {confirmation && (
         <section
           className="space-y-4 rounded-xl border border-primary/30 bg-accent/40 p-4"
-          aria-label="收费操作确认"
+          aria-label={m.confirmRegion}
         >
-          <h3 className="font-semibold">确认本次操作</h3>
+          <h3 className="font-semibold">{m.confirmTitle}</h3>
           <p className="text-sm leading-6">{confirmation.description}</p>
           {confirmation.version !== summary?.version && (
-            <Notice tone="error">资料版本已变化，请取消后重新读取。</Notice>
+            <Notice tone="error">{m.versionChanged}</Notice>
           )}
           <div className="flex flex-wrap gap-2">
             <Button
               disabled={locked || confirmation.version !== summary?.version}
               onClick={() => void commit()}
             >
-              确认执行
+              {m.confirm}
             </Button>
             <Button variant="outline" onClick={() => setConfirmation(null)}>
-              返回修改
+              {m.backToEdit}
             </Button>
           </div>
         </section>
       )}
-      <h3 className="font-semibold">收费周期与付款历史</h3>
-      {periods?.length === 0 && <p className="text-sm text-muted-foreground">尚未登记收费周期。</p>}
+      <h3 className="font-semibold">{m.periodsTitle}</h3>
+      {periods?.length === 0 && <p className="text-sm text-muted-foreground">{m.noPeriods}</p>}
       {periods?.map((period) => (
         <article className="space-y-3 rounded-xl border p-4" key={period.id}>
-          <PeriodDetails period={period} language="zh" />
+          <PeriodDetails period={period} />
           <div className="flex flex-wrap gap-2">
             {!period.paidOn && (
               <>
                 <Button disabled={locked} onClick={() => open("payment", period)}>
-                  确认收到全款
+                  {m.confirmPaid}
                 </Button>
                 <Button variant="outline" disabled={locked} onClick={() => open("edit", period)}>
-                  修改约定
+                  {m.editAgreement}
                 </Button>
               </>
             )}
             <Button variant="outline" disabled={locked} onClick={() => open("expiry", period)}>
-              单独调整期限
+              {m.adjustExpiry}
             </Button>
           </div>
         </article>

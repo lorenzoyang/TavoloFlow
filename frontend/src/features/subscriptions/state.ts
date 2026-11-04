@@ -47,6 +47,7 @@ export function periodTotal(annualFee: number | null, years: number): number | n
   return total <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(total) : null;
 }
 
+// Throws on invalid input; callers show their own localized message.
 export function periodFromForm(data: FormData, prefix: string, id: string): PeriodInput {
   const startsOn = String(data.get(`${prefix}-startsOn`) ?? "");
   const endsOn = String(data.get(`${prefix}-endsOn`) ?? "");
@@ -61,7 +62,7 @@ export function periodFromForm(data: FormData, prefix: string, id: string): Peri
     amountCents === null ||
     (paid && !paidOn)
   )
-    throw new Error("请填写有效的开始日期、年数、截止日期和周期总金额；已付费时还须填写付费日期。");
+    throw new Error("Invalid period");
   return { id, startsOn, endsOn, years, amountCents, paidOn };
 }
 

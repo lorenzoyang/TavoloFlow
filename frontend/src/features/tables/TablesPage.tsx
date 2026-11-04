@@ -261,7 +261,7 @@ function TablesContent({ account }: { account: CurrentAccount }) {
           if (!next && !busy) cancel();
         }}
       >
-        <DialogContent initialFocus={labelInput} closeLabel={c.close}>
+        <DialogContent initialFocus={labelInput}>
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold">
               {editor?.kind === "create" ? m.add : m.renameTitle}
@@ -287,7 +287,6 @@ function TablesContent({ account }: { account: CurrentAccount }) {
         title={m.removeTitle(editor?.kind === "delete" ? editor.table.tableLabel : "")}
         description={m.removeHint}
         confirmLabel={busy ? m.saving : m.confirmRemove}
-        cancelLabel={c.cancel}
         busy={busy}
         onConfirm={() => {
           if (editor?.kind === "delete") {
@@ -308,7 +307,7 @@ function TablesContent({ account }: { account: CurrentAccount }) {
             if (!next) setQrId(null);
           }}
         >
-          <DialogContent closeLabel={c.close}>
+          <DialogContent>
             {qrTable && (
               <>
                 <DialogHeader>

@@ -4,9 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
-import type { StaffLanguage } from "@/lib/staff-language";
-import { THEMES, themeAttribute, themeLabels, type RestaurantTheme } from "@/lib/theme";
+import { THEMES, themeAttribute, type RestaurantTheme } from "@/lib/theme";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { managementMessages } from "./management-messages";
+import { platformMessages } from "./messages";
 import type { TemporaryCredential, ManagedAccount } from "./state";
 
 // Each choice renders in its own palette (data-theme), so the radio card is also the preview.
@@ -17,9 +18,10 @@ export function ThemeChoices({
   name: string;
   defaultValue: RestaurantTheme;
 }) {
+  const m = platformMessages[useStaffLanguage()];
   return (
     <fieldset className="space-y-2">
-      <legend className="mb-2 text-sm font-medium">餐厅主题（顾客菜单与店铺页面的配色）</legend>
+      <legend className="mb-2 text-sm font-medium">{m.themeLegend}</legend>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {THEMES.map((theme) => (
           <label
@@ -36,8 +38,8 @@ export function ThemeChoices({
             />
             <span aria-hidden="true" className="size-7 shrink-0 rounded-full bg-primary" />
             <span className="min-w-0">
-              <span className="block text-sm font-medium">{themeLabels[theme].name}</span>
-              <span className="block text-xs text-muted-foreground">{themeLabels[theme].hint}</span>
+              <span className="block text-sm font-medium">{m.themes[theme].name}</span>
+              <span className="block text-xs text-muted-foreground">{m.themes[theme].hint}</span>
             </span>
           </label>
         ))}
@@ -47,6 +49,7 @@ export function ThemeChoices({
 }
 
 export function ThemeBadge({ theme }: { theme: RestaurantTheme }) {
+  const m = platformMessages[useStaffLanguage()];
   return (
     <Badge variant="outline">
       <span
@@ -54,23 +57,24 @@ export function ThemeBadge({ theme }: { theme: RestaurantTheme }) {
         data-theme={themeAttribute(theme) ?? undefined}
         className="size-2.5 rounded-full bg-primary"
       />
-      主题 · {themeLabels[theme]?.name ?? theme}
+      {m.themeBadge(m.themes[theme]?.name ?? theme)}
     </Badge>
   );
 }
 
 // The restaurant name keeps every map link's accessible name unique in the restaurant list.
 export function MapLink({ url, name }: { url: string; name: string }) {
+  const m = platformMessages[useStaffLanguage()];
   return (
     <a
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label={`在 Google 地图中打开 ${name}`}
+      aria-label={m.openMap(name)}
       className={buttonVariants({ variant: "outline" })}
     >
       <MapPin />
-      Google 地图
+      {m.map}
     </a>
   );
 }
@@ -79,13 +83,11 @@ export function MapLink({ url, name }: { url: string; name: string }) {
 export function TemporaryPasswords({
   credentials,
   close,
-  language,
 }: {
   credentials: TemporaryCredential[];
   close: () => void;
-  language: StaffLanguage;
 }) {
-  const m = managementMessages[language];
+  const m = managementMessages[useStaffLanguage()];
   const [notice, setNotice] = useState("");
   if (!credentials.length) return null;
   return (
@@ -140,16 +142,14 @@ export function AccountActions({
   account,
   disabled,
   platform,
-  language,
   choose,
 }: {
   account: ManagedAccount;
   disabled: boolean;
   platform: boolean;
-  language: StaffLanguage;
   choose: (kind: "reset" | "active", account: ManagedAccount) => void;
 }) {
-  const m = managementMessages[language];
+  const m = managementMessages[useStaffLanguage()];
   return (
     <Card size="sm">
       <CardContent className="space-y-3">

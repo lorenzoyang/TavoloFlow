@@ -1,9 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formatCents, formatMoney, formatTime, parsePrice, shortId } from "../src/lib/format.ts";
+import {
+  formatCents,
+  formatDateTime,
+  formatMoney,
+  formatTime,
+  parsePrice,
+  shortId,
+} from "../src/lib/format.ts";
 import { isUuid, randomUuid } from "../src/lib/ids.ts";
 import { isLanguage } from "../src/lib/language.ts";
 import {
+  browserLanguage,
   readStaffLanguage,
   saveStaffLanguage,
   staffLanguageKey,
@@ -71,7 +79,15 @@ test("short references come from the random tail, so records created together st
   assert.equal(shortId(second), "4B3C2D");
 });
 
-test("the staff language is a device choice that falls back to Chinese", () => {
+test("without a stored choice, the interface follows the first supported browser language", () => {
+  assert.equal(browserLanguage(["zh-TW", "en-US"]), "zh");
+  assert.equal(browserLanguage(["de-DE", "IT-it", "en"]), "it");
+  assert.equal(browserLanguage(["en-GB"]), "en");
+  assert.equal(browserLanguage(["fr-FR", "de"]), "en");
+  assert.equal(browserLanguage([]), "en");
+});
+
+test("the interface language is a device choice that wins over the browser", () => {
   const values = new Map<string, string>();
   const storage = {
     getItem: (key: string) => values.get(key) ?? null,
@@ -79,14 +95,16 @@ test("the staff language is a device choice that falls back to Chinese", () => {
       values.set(key, value);
     },
   };
-  assert.equal(readStaffLanguage(storage), "zh");
-  saveStaffLanguage("it", storage);
-  assert.equal(values.get(staffLanguageKey), "it");
-  assert.equal(readStaffLanguage(storage), "it");
-  // Guests can choose English, staff pages cannot.
-  for (const value of ["en", "malformed", ""]) {
+  assert.equal(readStaffLanguage(storage, ["it-IT"]), "it");
+  assert.equal(readStaffLanguage(storage), "en");
+  for (const language of ["zh", "it", "en"] as const) {
+    saveStaffLanguage(language, storage);
+    assert.equal(values.get(staffLanguageKey), language);
+    assert.equal(readStaffLanguage(storage, ["it-IT"]), language);
+  }
+  for (const value of ["fr", "malformed", ""]) {
     values.set(staffLanguageKey, value);
-    assert.equal(readStaffLanguage(storage), "zh");
+    assert.equal(readStaffLanguage(storage, ["zh-CN"]), "zh");
   }
   const blocked = {
     getItem: () => {
@@ -96,6 +114,13 @@ test("the staff language is a device choice that falls back to Chinese", () => {
       throw new Error("blocked");
     },
   };
-  assert.equal(readStaffLanguage(blocked), "zh");
+  assert.equal(readStaffLanguage(blocked, ["zh-CN"]), "zh");
+  assert.equal(readStaffLanguage(null, ["it"]), "it");
   assert.doesNotThrow(() => saveStaffLanguage("it", blocked));
+});
+
+test("dates follow the interface language; English uses the European day/month order", () => {
+  const value = "2026-11-04T17:05:00Z";
+  assert.equal(formatDateTime(value, "en"), "04/11/2026, 18:05:00");
+  assert.equal(formatDateTime(value, "zh"), "2026/11/4 18:05:00");
 });

@@ -1,4 +1,4 @@
-import type { StaffLanguage } from "./staff-language";
+import type { Language } from "./language";
 
 // Copy shared by several store pages. Each feature keeps the rest in its own messages.ts.
 const zh = {
@@ -19,7 +19,7 @@ const zh = {
   remark: (text: string) => `备注：${text}`,
 };
 
-export const staffMessages: Record<StaffLanguage, typeof zh> = {
+export const staffMessages: Record<Language, typeof zh> = {
   zh,
   it: {
     table: (label) => `Tavolo ${label}`,
@@ -39,5 +39,23 @@ export const staffMessages: Record<StaffLanguage, typeof zh> = {
     notSynced: "Non ancora aggiornato",
     disconnected: "Connessione persa o pagina in pausa.",
     remark: (text) => `Nota: ${text}`,
+  },
+  en: {
+    table: (label) => `Table ${label}`,
+    home: "Home",
+    close: "Close",
+    cancel: "Cancel",
+    back: "Back",
+    sound: "Sounds",
+    soundOn: "Turn on sounds",
+    soundBlocked: "The browser needs one tap on the page before it plays sounds. Tap anywhere.",
+    soundUnsupported: "This browser can’t play sounds; the page still updates.",
+    wakeLock: "Screen on",
+    wakeLockFailed:
+      "Couldn’t keep the screen on (blocked by the browser or power saving). Tap «Screen on» to retry.",
+    lastSync: (time) => `Last update: ${time}`,
+    notSynced: "Not updated yet",
+    disconnected: "Connection lost or page paused.",
+    remark: (text) => `Note: ${text}`,
   },
 };

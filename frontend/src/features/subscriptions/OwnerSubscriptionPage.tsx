@@ -49,7 +49,7 @@ function OwnerSubscription({ account }: { account: CurrentAccount }) {
         {summary && (
           <Card>
             <CardContent className="space-y-4">
-              <SubscriptionStatus summary={summary} language={language} />
+              <SubscriptionStatus summary={summary} />
               <dl className="grid gap-x-4 gap-y-2 border-t pt-4 text-sm sm:grid-cols-[10rem_1fr]">
                 <dt className="text-muted-foreground">{m.defaultFee}</dt>
                 <dd className="font-medium">
@@ -75,7 +75,7 @@ function OwnerSubscription({ account }: { account: CurrentAccount }) {
         {periods?.length === 0 && <EmptyState icon={CalendarClock} title={m.noPeriods} />}
         {periods?.map((period) => (
           <article key={period.id} className="rounded-2xl border bg-card p-4 shadow-xs">
-            <PeriodDetails period={period} language={language} />
+            <PeriodDetails period={period} />
           </article>
         ))}
       </div>

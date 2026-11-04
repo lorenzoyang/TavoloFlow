@@ -28,8 +28,14 @@ import { useSubscriptionQuery } from "@/features/subscriptions/queries";
 import { formatMoney, parsePrice, RESTAURANT_TIME_ZONE } from "@/lib/format";
 import { useLiveView } from "@/lib/useLiveView";
 import { DEFAULT_THEME, isTheme } from "@/lib/theme";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
+import { platformSubscriptionMessages } from "@/features/subscriptions/messages";
+import { platformMessages } from "./messages";
 
 function Restaurants({ account }: { account: PlatformIdentity }) {
+  const language = useStaffLanguage();
+  const m = platformMessages[language];
+  const s = platformSubscriptionMessages[language];
   const [filter, setFilter] = useState({
     search: "",
     status: "",
@@ -57,20 +63,26 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
     const id = actions.pending?.kind === "create" ? actions.pending.restaurantId : randomUuid();
     const defaultAnnualFeeCents = annualInput.trim() ? parsePrice(annualInput, true) : null;
     if (annualInput.trim() && defaultAnnualFeeCents === null) {
-      setCreateError("请填写最多两位小数的有效年费。");
+      setCreateError(s.annualInvalid);
       return;
     }
     let initialPeriod = null;
     try {
       if (includePeriod) initialPeriod = periodFromForm(data, "create-period", randomUuid());
-    } catch (error) {
-      setCreateError(error instanceof Error ? error.message : "请核对收费周期。");
+    } catch {
+      setCreateError(s.periodInvalid);
       return;
     }
     if (
       initialPeriod &&
       !window.confirm(
-        `确认登记 ${initialPeriod.startsOn} 至 ${initialPeriod.endsOn}，${initialPeriod.years} 年，总金额 ${formatMoney(initialPeriod.amountCents)}；${initialPeriod.paidOn ? `已付费，付费日期 ${initialPeriod.paidOn}` : "未付费"}？`,
+        m.confirmInitialPeriod(
+          initialPeriod.startsOn,
+          initialPeriod.endsOn,
+          initialPeriod.years,
+          formatMoney(initialPeriod.amountCents, language),
+          initialPeriod.paidOn,
+        ),
       )
     )
       return;
@@ -102,15 +114,12 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
   return (
     <>
       <PlatformNavigation account={account} />
-      <PageHeader title="餐厅管理" />
+      <PageHeader title={m.restaurants} />
       <Card className="mb-6">
         <CardContent className="space-y-4">
           <div>
-            <h2 className="text-lg font-semibold">创建餐厅</h2>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              新餐厅暂停服务、关闭接单。OWNER / STAFF
-              用随机临时密码登录后先改密，再完成菜单和桌位配置。
-            </p>
+            <h2 className="text-lg font-semibold">{m.createTitle}</h2>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">{m.createHint}</p>
           </div>
           <form onSubmit={create}>
             <fieldset
@@ -120,9 +129,9 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
               }
             >
               {[
-                ["name", "餐厅名称", 150],
-                ["owner", "OWNER 登录名", 50],
-                ["staff", "STAFF 登录名", 50],
+                ["name", m.name, 150],
+                ["owner", m.ownerUsername, 50],
+                ["staff", m.staffUsername, 50],
               ].map(([name, label, max]) => (
                 <div key={name} className="space-y-2">
                   <Label htmlFor={`create-${name}`}>{label}</Label>
@@ -136,7 +145,7 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
                 </div>
               ))}
               <div className="space-y-2">
-                <Label htmlFor="create-language">默认菜单语言</Label>
+                <Label htmlFor="create-language">{m.menuLanguage}</Label>
                 <NativeSelect
                   id="create-language"
                   name="language"
@@ -157,18 +166,16 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
                   onCheckedChange={(checked) => setRequireCode(checked)}
                 />
                 <span>
-                  顾客须输入入桌码
-                  <span className="block text-sm text-muted-foreground">
-                    取消后，开桌期间顾客扫描本桌二维码即可直接加入点餐；之后可在餐厅详情中修改。
-                  </span>
+                  {m.requireCode}
+                  <span className="block text-sm text-muted-foreground">{m.requireCodeHint}</span>
                 </span>
               </label>
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="create-contact">老板联系方式（可选）</Label>
+                <Label htmlFor="create-contact">{m.ownerContact}</Label>
                 <Textarea id="create-contact" name="ownerContact" maxLength={500} rows={3} />
               </div>
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="create-maps">Google 地图链接（可选）</Label>
+                <Label htmlFor="create-maps">{m.mapsOptional}</Label>
                 <Input
                   id="create-maps"
                   name="googleMapsUrl"
@@ -180,7 +187,7 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
                 />
               </div>
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="create-annual">默认年费（EUR，可选）</Label>
+                <Label htmlFor="create-annual">{m.annualFee}</Label>
                 <Input
                   id="create-annual"
                   inputMode="decimal"
@@ -193,7 +200,7 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
                   checked={includePeriod}
                   onCheckedChange={(checked) => setIncludePeriod(checked)}
                 />
-                同时登记首个收费周期
+                {m.includePeriod}
               </label>
               {includePeriod && (
                 <PeriodFields
@@ -209,7 +216,7 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
                 </Notice>
               )}
               <Button size="lg" className="sm:col-span-2" type="submit">
-                {actions.missingCreate ? "确认按原编号再次创建" : "创建餐厅与两个账号"}
+                {actions.missingCreate ? m.createAgain : m.create}
               </Button>
             </fieldset>
           </form>
@@ -226,18 +233,14 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
               disabled={actions.busy}
               onClick={() => void actions.recover()}
             >
-              查询原操作结果
+              {m.verify}
             </Button>
           }
         >
-          <span className="break-all">结果待确认 · 餐厅编号 {actions.pending.restaurantId}</span>
+          <span className="break-all">{m.pendingRestaurant(actions.pending.restaurantId)}</span>
         </Notice>
       )}
-      <TemporaryPasswords
-        credentials={actions.secrets}
-        close={actions.clearSecrets}
-        language="zh"
-      />
+      <TemporaryPasswords credentials={actions.secrets} close={actions.clearSecrets} />
       <form
         className="mb-5 grid grid-cols-2 items-end gap-3 rounded-2xl border bg-card p-4 shadow-xs lg:grid-cols-[1.5fr_1fr_1fr_1fr_auto_auto]"
         onSubmit={(event) => {
@@ -253,41 +256,43 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
         }}
       >
         <div className="col-span-2 space-y-2 lg:col-span-1">
-          <Label htmlFor="restaurant-search">餐厅名称筛选</Label>
+          <Label htmlFor="restaurant-search">{m.search}</Label>
           <Input id="restaurant-search" name="search" maxLength={150} />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="restaurant-status">服务状态</Label>
+          <Label htmlFor="restaurant-status">{m.serviceStatus}</Label>
           <NativeSelect id="restaurant-status" name="status" className="w-full">
-            <NativeSelectOption value="">全部</NativeSelectOption>
-            <NativeSelectOption value="ACTIVE">已启用</NativeSelectOption>
-            <NativeSelectOption value="SUSPENDED">已停用</NativeSelectOption>
+            <NativeSelectOption value="">{m.all}</NativeSelectOption>
+            <NativeSelectOption value="ACTIVE">{m.statusActive}</NativeSelectOption>
+            <NativeSelectOption value="SUSPENDED">{m.statusSuspended}</NativeSelectOption>
           </NativeSelect>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="restaurant-subscription">年费状态</Label>
+          <Label htmlFor="restaurant-subscription">{m.subscriptionStatus}</Label>
           <NativeSelect id="restaurant-subscription" name="subscriptionStatus" className="w-full">
-            <NativeSelectOption value="">全部</NativeSelectOption>
-            <NativeSelectOption value="UNPAID">已开始待收款</NativeSelectOption>
-            <NativeSelectOption value="DUE_SOON">7 天内到期</NativeSelectOption>
-            <NativeSelectOption value="EXPIRED">已到期</NativeSelectOption>
-            <NativeSelectOption value="UNCONFIGURED">尚未登记</NativeSelectOption>
+            <NativeSelectOption value="">{m.all}</NativeSelectOption>
+            <NativeSelectOption value="UNPAID">{m.filterUnpaid}</NativeSelectOption>
+            <NativeSelectOption value="DUE_SOON">{m.filterDueSoon}</NativeSelectOption>
+            <NativeSelectOption value="EXPIRED">{m.filterExpired}</NativeSelectOption>
+            <NativeSelectOption value="UNCONFIGURED">{m.filterUnconfigured}</NativeSelectOption>
           </NativeSelect>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="restaurant-sort">排序</Label>
+          <Label htmlFor="restaurant-sort">{m.sort}</Label>
           <NativeSelect id="restaurant-sort" name="sort" className="w-full">
-            <NativeSelectOption value="">最新创建</NativeSelectOption>
-            <NativeSelectOption value="EXPIRY">截止日期从近到远</NativeSelectOption>
+            <NativeSelectOption value="">{m.sortNewest}</NativeSelectOption>
+            <NativeSelectOption value="EXPIRY">{m.sortExpiry}</NativeSelectOption>
           </NativeSelect>
         </div>
-        <Button type="submit">筛选</Button>
+        <Button type="submit">{m.filter}</Button>
         <Button type="button" variant="outline" onClick={() => void query.refetch()}>
-          刷新列表
+          {m.refreshList}
         </Button>
       </form>
-      {query.isPending && <LoadingState label="正在读取餐厅…" />}
-      {query.error && <Notice tone="error">{errorMessage(query.error)}</Notice>}
+      {query.isPending && <LoadingState label={m.loadingRestaurants} />}
+      {query.error && (
+        <Notice tone="error">{errorMessage(query.error, undefined, language)}</Notice>
+      )}
       <div className="grid gap-4 md:grid-cols-2">
         {query.data?.items.map((r) => (
           <article
@@ -297,39 +302,39 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
             <h2 className="text-lg font-semibold wrap-break-word">{r.name}</h2>
             <div className="flex flex-wrap gap-2">
               <Badge variant={r.serviceStatus === "ACTIVE" ? "success" : "outline"}>
-                {r.serviceStatus === "ACTIVE" ? "服务已启用" : "服务已停用"}
+                {r.serviceStatus === "ACTIVE" ? m.serviceOn : m.serviceOff}
               </Badge>
               <Badge variant={r.orderingEnabled ? "secondary" : "outline"}>
-                {r.orderingEnabled ? "接单中" : "接单关闭"}
+                {r.orderingEnabled ? m.orderingOn : m.orderingOff}
               </Badge>
-              {!r.joinCodeRequired && <Badge variant="outline">免入桌码</Badge>}
+              {!r.joinCodeRequired && <Badge variant="outline">{m.noCode}</Badge>}
               <ThemeBadge theme={r.theme} />
             </div>
-            {r.subscription && <SubscriptionStatus summary={r.subscription} language="zh" />}
+            {r.subscription && <SubscriptionStatus summary={r.subscription} />}
             <div className="mt-auto flex flex-wrap gap-2">
               <Link
                 to="/platform/restaurants/$restaurantId"
                 params={{ restaurantId: r.id }}
                 className={buttonVariants({ variant: "outline", className: "flex-1" })}
               >
-                管理 {r.name}
+                {m.manage(r.name)}
               </Link>
               {r.googleMapsUrl && <MapLink url={r.googleMapsUrl} name={r.name} />}
             </div>
           </article>
         ))}
       </div>
-      {query.data?.totalCount === 0 && <EmptyState icon={Store} title="暂无匹配的餐厅。" />}
+      {query.data?.totalCount === 0 && <EmptyState icon={Store} title={m.noRestaurants} />}
       <div className="mt-5 flex items-center justify-between gap-3">
         <Button
           variant="outline"
           disabled={filter.page <= 1 || query.isFetching}
           onClick={() => setFilter((f) => ({ ...f, page: f.page - 1 }))}
         >
-          上一页
+          {m.previous}
         </Button>
         <span className="text-sm text-muted-foreground">
-          第 {filter.page} 页 · 共 {query.data?.totalCount ?? 0} 家
+          {m.page(filter.page, query.data?.totalCount ?? 0)}
         </span>
         <Button
           variant="outline"
@@ -340,7 +345,7 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
           }
           onClick={() => setFilter((f) => ({ ...f, page: f.page + 1 }))}
         >
-          下一页
+          {m.next}
         </Button>
       </div>
     </>

@@ -1,6 +1,5 @@
 import { allergenNames } from "@/features/public-menu/messages";
 import type { Language } from "@/lib/language";
-import type { StaffLanguage } from "@/lib/staff-language";
 
 // Menu content is written in all three guest languages, whatever the staff page's own language.
 export const languages = [
@@ -79,7 +78,7 @@ const zh = {
   allergenHints: {} as Record<string, string>,
 };
 
-export const menuMessages: Record<StaffLanguage, typeof zh> = {
+export const menuMessages: Record<Language, typeof zh> = {
   zh,
   it: {
     languageNames: { zh: "Cinese", it: "Italiano", en: "Inglese" },
@@ -168,9 +167,96 @@ export const menuMessages: Record<StaffLanguage, typeof zh> = {
       MOLLUSCS: "Ad esempio cozze, ostriche, calamari, lumache e derivati",
     },
   },
+  en: {
+    languageNames: { zh: "Chinese", it: "Italian", en: "English" },
+    nameIn: (language) => `Name in ${language}`,
+    descriptionIn: (language) => `Description in ${language} (optional)`,
+    title: "Menu",
+    ownerHint: "Manage the menu’s categories, dishes, allergens and availability.",
+    staffHint: "Browse the menu and mark unavailable dishes as sold out.",
+    refresh: "Refresh menu",
+    loading: "Loading the menu…",
+    retry: "Reload the menu and check",
+    readError: "Can’t read the menu. Check the connection and try again.",
+    saved: "Saved.",
+    refreshFailed: "Done, but the menu didn’t refresh: reload it.",
+    unknown:
+      "Result not confirmed. When the connection is back, reload the menu, check, then decide whether to send again.",
+    categories: "Categories",
+    all: "All dishes",
+    addCategory: "New category",
+    editCategory: "Edit category",
+    addItem: "New dish",
+    editItem: "Edit dish",
+    edit: "Edit",
+    remove: "Delete",
+    editOf: (name) => `Edit: ${name}`,
+    removeOf: (name) => `Delete: ${name}`,
+    removeTitle: (name) => `Delete «${name}»`,
+    confirmDelete: "Delete",
+    deleteHint:
+      "Deleting is permanent. Past orders stay unchanged; empty a category before deleting it.",
+    cancel: "Cancel",
+    save: "Save",
+    saving: "Sending…",
+    nameHint: "Enter the name in at least one language; you can add the other translations later.",
+    noCategories: "No categories. Add one before entering dishes.",
+    noItems: "This category has no dishes yet.",
+    staffEmpty: "No dishes: ask the owner to complete the menu.",
+    category: "Category",
+    itemCode: "Code (optional)",
+    price: "Price (€)",
+    priceHint: "For example 12.50; at most two decimals, with a point or a comma.",
+    priceInvalid: "Enter a price above zero, with at most two decimals.",
+    namesInvalid: "Enter the name in at least one language.",
+    allergens: "Allergen review",
+    review: "I checked the ingredients and preparation and confirm the allergens listed.",
+    reviewHint:
+      "Confirm again after every allergen change. No selection doesn’t rule out cross-contamination.",
+    reviewRequired: "Confirm the allergen review first.",
+    reviewedEmpty: "Reviewed: no allergens to declare",
+    unreviewed:
+      "Allergens not reviewed: the owner must edit the dish and confirm them before making it available.",
+    available: "Available",
+    soldOut: "Sold out",
+    availability: (name) => `Availability: ${name}`,
+    settings: "Menu settings",
+    defaultLanguage: "Default menu language",
+    defaultHint:
+      "The menu’s preferred language; where a translation is missing, the next one is used, item by item. Adding or deleting dishes doesn’t change it; restaurant pages show the interface language first.",
+    setDefault: "Save language",
+    fieldError: "Check these fields",
+    photo: "Dish photo (optional)",
+    photoHint:
+      "JPG, PNG or WebP up to 15 MB. The photo is cropped to a centred square and saved at once, without pressing Save.",
+    photoAfterCreate: "After saving the dish, you can add a photo by editing it.",
+    choosePhoto: "Choose photo",
+    replacePhoto: "Change photo",
+    removePhoto: "Delete photo",
+    removePhotoTitle: "Delete the dish photo?",
+    removePhotoHint: "The guest menu won’t show it any more; you can upload it again.",
+    photoTooLarge: "The photo is over 15 MB: choose a smaller one.",
+    photoSaved: "Photo updated.",
+    allergenHints: {
+      GLUTEN: "For example wheat, rye, barley, oats and products thereof",
+      CRUSTACEANS: "For example prawns, crabs, lobsters and products thereof",
+      EGGS: "Eggs and products thereof",
+      FISH: "Fish and products thereof",
+      PEANUTS: "Peanuts and products thereof",
+      SOY: "Soybeans and products thereof",
+      MILK: "Milk and products thereof, including lactose",
+      NUTS: "For example almonds, hazelnuts, walnuts, cashews and products thereof",
+      CELERY: "Celery and products thereof",
+      MUSTARD: "Mustard and products thereof",
+      SESAME: "Sesame seeds and products thereof",
+      SULPHITES: "Above 10 mg/kg or 10 mg/L, expressed as total sulphur dioxide",
+      LUPIN: "Lupin and products thereof",
+      MOLLUSCS: "For example mussels, oysters, squid, snails and products thereof",
+    },
+  },
 };
 
-// The server names allergens in Chinese; Italian pages reuse the guest menu's names.
-export function allergenLabel(option: { code: string; label: string }, language: StaffLanguage) {
-  return language === "zh" ? option.label : (allergenNames.it[option.code] ?? option.label);
+// The server names allergens in Chinese; Italian and English pages reuse the guest menu's names.
+export function allergenLabel(option: { code: string; label: string }, language: Language) {
+  return language === "zh" ? option.label : (allergenNames[language][option.code] ?? option.label);
 }

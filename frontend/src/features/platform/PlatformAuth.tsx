@@ -13,13 +13,27 @@ import { ApiError, errorMessage } from "@/lib/api";
 import { changePlatformPassword, platformLogin, platformLogout } from "./api";
 import { platformQuery, replacePlatform, type PlatformIdentity } from "./identity";
 import { PlatformSubscriptionReminders } from "@/features/subscriptions/SubscriptionReminders";
+import { LanguageSwitch } from "@/features/accounts/LanguageSwitch";
+import { htmlLang } from "@/lib/staff-language";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
+import { platformMessages } from "./messages";
 
+// Platform pages share the store pages' device language; the switch stays in the header.
 export function PlatformLayout({ children }: { children: ReactNode }) {
+  const language = useStaffLanguage();
+  useEffect(() => {
+    const root = document.documentElement;
+    root.lang = htmlLang(language);
+    return () => {
+      root.lang = "zh-CN";
+    };
+  }, [language]);
   return (
     <div className="min-h-dvh">
       <header className="border-b bg-card pt-safe">
-        <div className="mx-auto max-w-5xl px-4 py-3">
-          <BrandMark caption="平台管理 · 餐厅开通与账号维护" />
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <BrandMark caption={platformMessages[language].brandCaption} />
+          <LanguageSwitch />
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 pt-6 pb-12">{children}</main>
@@ -34,15 +48,19 @@ export function PlatformBoundary({
   login?: boolean;
   children: (identity: PlatformIdentity | null) => ReactNode;
 }) {
+  const m = platformMessages[useStaffLanguage()];
   const query = useQuery(platformQuery);
   const failed = query.isError || query.fetchStatus === "paused";
   if (query.isPending || (query.isError && !query.data))
     return failed ? (
-      <Notice tone="error" action={<Button onClick={() => void query.refetch()}>重新读取</Button>}>
-        无法确认平台身份，请检查网络。
+      <Notice
+        tone="error"
+        action={<Button onClick={() => void query.refetch()}>{m.reload}</Button>}
+      >
+        {m.identityError}
       </Notice>
     ) : (
-      <LoadingState label="正在确认平台身份…" />
+      <LoadingState label={m.identityLoading} />
     );
   if (login && query.data) return <Navigate to="/platform/restaurants" replace />;
   if (!login && !query.data) return <Navigate to="/platform/login" replace />;
@@ -50,7 +68,7 @@ export function PlatformBoundary({
     <>
       {query.isError && (
         <Notice tone="error" className="mb-5">
-          平台身份更新失败，请刷新后再操作。
+          {m.identityStale}
         </Notice>
       )}
       {children(query.data ?? null)}
@@ -64,6 +82,8 @@ const navLink = buttonVariants({
 });
 
 export function PlatformNavigation({ account }: { account: PlatformIdentity }) {
+  const language = useStaffLanguage();
+  const m = platformMessages[language];
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const logout = async () => {
@@ -77,7 +97,7 @@ export function PlatformNavigation({ account }: { account: PlatformIdentity }) {
       }
       await replacePlatform(null);
     } catch (e) {
-      setError(errorMessage(e, "退出结果待确认，请重新读取平台身份。"));
+      setError(errorMessage(e, m.logoutUnknown, language));
     } finally {
       setBusy(false);
     }
@@ -85,18 +105,18 @@ export function PlatformNavigation({ account }: { account: PlatformIdentity }) {
   return (
     <div className="mb-6 space-y-3">
       <nav
-        aria-label="平台导航"
+        aria-label={m.nav}
         className="flex flex-wrap items-center gap-2 rounded-2xl border bg-card p-2 shadow-xs"
       >
         <Link to="/platform/restaurants" className={navLink}>
-          餐厅管理
+          {m.restaurants}
         </Link>
         <Link to="/platform/change-password" className={navLink}>
-          修改平台密码
+          {m.changePassword}
         </Link>
         <span className="ml-auto px-2 text-sm text-muted-foreground">{account.username}</span>
         <Button variant="outline" disabled={busy} onClick={() => void logout()}>
-          退出平台
+          {m.logout}
         </Button>
       </nav>
       {error && <Notice tone="error">{error}</Notice>}
@@ -106,6 +126,8 @@ export function PlatformNavigation({ account }: { account: PlatformIdentity }) {
 }
 
 function PlatformForm({ password = false }: { password?: boolean }) {
+  const language = useStaffLanguage();
+  const m = platformMessages[language];
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const controller = useRef<AbortController | null>(null);
@@ -116,7 +138,7 @@ function PlatformForm({ password = false }: { password?: boolean }) {
     const form = event.currentTarget;
     const data = new FormData(form);
     if (password && data.get("newPassword") !== data.get("confirmPassword")) {
-      setMessage("两次新密码不一致。");
+      setMessage(m.passwordMismatch);
       return;
     }
     setBusy(true);
@@ -137,11 +159,10 @@ function PlatformForm({ password = false }: { password?: boolean }) {
           );
       if (!work.signal.aborted) {
         await replacePlatform(account);
-        setMessage(password ? "平台密码已更新，其他旧登录已失效。" : "登录成功。");
+        setMessage(password ? m.passwordChanged : m.loggedIn);
       }
     } catch (e) {
-      if (!work.signal.aborted)
-        setMessage(errorMessage(e, "结果待确认，请重新读取平台身份；不会自动重发请求。"));
+      if (!work.signal.aborted) setMessage(errorMessage(e, m.formUnknown, language));
     } finally {
       form.reset();
       if (!work.signal.aborted) setBusy(false);
@@ -151,13 +172,13 @@ function PlatformForm({ password = false }: { password?: boolean }) {
     <Card className="mx-auto max-w-md [--card-spacing:--spacing(6)]">
       <CardContent className="space-y-5">
         <h1 className="text-2xl font-semibold tracking-tight">
-          {password ? "修改平台密码" : "平台管理员登录"}
+          {password ? m.changePassword : m.loginTitle}
         </h1>
         <form onSubmit={submit} className="space-y-4">
           <fieldset disabled={busy} className="space-y-4">
             {!password && (
               <div className="space-y-2">
-                <Label htmlFor="platform-username">用户名</Label>
+                <Label htmlFor="platform-username">{m.username}</Label>
                 <Input
                   id="platform-username"
                   name="username"
@@ -169,11 +190,11 @@ function PlatformForm({ password = false }: { password?: boolean }) {
             )}
             {(password
               ? [
-                  ["currentPassword", "当前密码", "current-password"],
-                  ["newPassword", "新密码", "new-password"],
-                  ["confirmPassword", "再次输入新密码", "new-password"],
+                  ["currentPassword", m.currentPassword, "current-password"],
+                  ["newPassword", m.newPassword, "new-password"],
+                  ["confirmPassword", m.confirmPassword, "new-password"],
                 ]
-              : [["password", "密码", "current-password"]]
+              : [["password", m.password, "current-password"]]
             ).map(([name, label, complete]) => (
               <div key={name} className="space-y-2">
                 <Label htmlFor={`platform-${name}`}>{label}</Label>
@@ -188,13 +209,9 @@ function PlatformForm({ password = false }: { password?: boolean }) {
                 />
               </div>
             ))}
-            {password && (
-              <p className="text-sm text-muted-foreground">
-                6–128 个字符，可使用纯数字，不能全部为空白。
-              </p>
-            )}
+            {password && <p className="text-sm text-muted-foreground">{m.passwordHint}</p>}
             <Button type="submit" size="lg" className="w-full">
-              {busy ? "正在提交…" : password ? "保存平台密码" : "登录平台"}
+              {busy ? m.submitting : password ? m.savePassword : m.login}
             </Button>
           </fieldset>
         </form>

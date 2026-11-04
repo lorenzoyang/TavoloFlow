@@ -1,10 +1,6 @@
 import { useSyncExternalStore } from "react";
-import {
-  readStaffLanguage,
-  saveStaffLanguage,
-  staffLanguageKey,
-  type StaffLanguage,
-} from "./staff-language";
+import type { Language } from "./language";
+import { readStaffLanguage, saveStaffLanguage, staffLanguageKey } from "./staff-language";
 
 // Merely touching localStorage throws when the browser blocks site data.
 function storage(): Storage | null {
@@ -16,8 +12,7 @@ function storage(): Storage | null {
 }
 
 function read() {
-  const local = storage();
-  return local ? readStaffLanguage(local) : "zh";
+  return readStaffLanguage(storage(), navigator.languages);
 }
 
 let current = read();
@@ -38,11 +33,12 @@ function subscribe(listener: () => void) {
   };
 }
 
-export function useStaffLanguage(): StaffLanguage {
+// The interface language of store and platform pages. Guest pages keep their own choice.
+export function useStaffLanguage(): Language {
   return useSyncExternalStore(subscribe, () => current);
 }
 
-export function setStaffLanguage(language: StaffLanguage) {
+export function setStaffLanguage(language: Language) {
   const local = storage();
   if (local) saveStaffLanguage(language, local);
   current = language;

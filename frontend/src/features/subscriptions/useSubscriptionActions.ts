@@ -4,14 +4,20 @@ import { errorMessage } from "@/lib/api";
 import { isPlatformQuery } from "@/lib/query-scope";
 import { isLive, onLifecycleChange } from "@/lib/useLiveView";
 import { platformKey } from "@/features/platform/identity";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
+import { platformSubscriptionMessages } from "./messages";
 
 // Every write carries the subscription version the administrator confirmed, so a lost, repeated or
 // late request applies at most once. An unknown result therefore needs no persisted marker: the view
 // refreshes and the administrator re-confirms against the version it now shows.
-const unknownResult =
-  "操作结果未知，请核对刷新后的资料。修改只按确认时的版本生效，重新确认不会重复登记。";
-
 export function useSubscriptionActions(userId: string) {
+  const language = useStaffLanguage();
+  const m = platformSubscriptionMessages[language];
+  // Read through a ref so the lifecycle effect, registered once, shows the current language.
+  const unknownResult = useRef(m.unknownResult);
+  useEffect(() => {
+    unknownResult.current = m.unknownResult;
+  }, [m.unknownResult]);
   const client = useQueryClient();
   const controller = useRef<AbortController | null>(null);
   const [busy, setBusy] = useState(false);
@@ -27,7 +33,7 @@ export function useSubscriptionActions(userId: string) {
       controller.current.abort();
       controller.current = null;
       setBusy(false);
-      setMessage(unknownResult);
+      setMessage(unknownResult.current);
     });
     return () => {
       stop();
@@ -45,11 +51,11 @@ export function useSubscriptionActions(userId: string) {
     try {
       await send(work.signal);
       if (!current()) return false;
-      setMessage("操作已完成。");
+      setMessage(m.done);
       return true;
     } catch (error) {
       if (!current()) return false;
-      setMessage(errorMessage(error, unknownResult));
+      setMessage(errorMessage(error, m.unknownResult, language));
       return false;
     } finally {
       if (controller.current === work) {

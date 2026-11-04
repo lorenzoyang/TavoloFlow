@@ -4,6 +4,7 @@ import { BrandMark } from "@/components/brand";
 import { Card, CardContent } from "@/components/ui/card";
 import { OwnerSubscriptionReminder } from "@/features/subscriptions/SubscriptionReminders";
 import { useDocumentTheme } from "@/lib/useDocumentTheme";
+import { htmlLang } from "@/lib/staff-language";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { accountQuery } from "./queries";
 import { accountMessages } from "./messages";
@@ -26,7 +27,7 @@ export function StaffLayout({ children }: { children: ReactNode }) {
   useDocumentTheme(signedIn ? account.restaurantTheme : null);
   useEffect(() => {
     const root = document.documentElement;
-    root.lang = language === "it" ? "it" : "zh-CN";
+    root.lang = htmlLang(language);
     return () => {
       root.lang = "zh-CN";
     };

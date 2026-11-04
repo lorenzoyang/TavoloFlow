@@ -319,7 +319,6 @@ function FloorContent({
       <MasterDetail
         open={!!selected}
         title={session.data ? c.table(session.data.tableLabel) : m.visit}
-        closeLabel={c.close}
         onClose={() => setSelected("")}
         detail={
           selected && (
@@ -399,7 +398,6 @@ function FloorContent({
         title={m.openTitle(confirmation?.table.tableLabel ?? "")}
         description={floor.data?.joinCodeRequired === false ? m.openHintNoCode : m.openHint}
         confirmLabel={m.confirmOpen}
-        cancelLabel={c.cancel}
         busy={busy}
         confirmDisabled={!!pending}
         onConfirm={() => void submit()}

@@ -9,16 +9,19 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { staffMessages } from "@/lib/staff-messages";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 
 // The human confirmation in front of an irreversible or money-related write. The dialog stays open
-// while the request runs; the caller closes it by clearing its own confirmation state.
+// while the request runs; the caller closes it by clearing its own confirmation state. Without a
+// cancelLabel the button speaks the store/platform interface language; guest pages pass their own.
 export function ConfirmDialog({
   open,
   title,
   description,
   children,
   confirmLabel,
-  cancelLabel = "取消",
+  cancelLabel,
   tone = "default",
   busy = false,
   confirmDisabled = false,
@@ -39,6 +42,7 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const fallbackCancel = staffMessages[useStaffLanguage()].cancel;
   return (
     <AlertDialog
       open={open}
@@ -58,7 +62,7 @@ export function ConfirmDialog({
         {children}
         <AlertDialogFooter>
           <Button variant="outline" disabled={busy} onClick={onCancel}>
-            {cancelLabel}
+            {cancelLabel ?? fallbackCancel}
           </Button>
           <Button
             variant={tone === "destructive" ? "destructive" : "default"}

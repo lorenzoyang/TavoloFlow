@@ -73,7 +73,6 @@ function BillingContent({ account, sessionId, select }: Props & { account: Curre
       <MasterDetail
         open={!!sessionId}
         title={selected ? c.table(selected.tableLabel) : m.bill}
-        closeLabel={c.close}
         onClose={() => select("")}
         detail={
           sessionId && (

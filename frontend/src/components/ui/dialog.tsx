@@ -3,6 +3,8 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { cn } from "cn";
 
 import { Button } from "@/components/ui/button";
+import { staffMessages } from "@/lib/staff-messages";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { XIcon } from "lucide-react";
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
@@ -38,12 +40,15 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
-  closeLabel = "关闭",
+  closeLabel,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean;
   closeLabel?: string;
 }) {
+  // Store and platform pages share one interface language; guest pages pass their own label.
+  const fallback = staffMessages[useStaffLanguage()].close;
+  const label = closeLabel ?? fallback;
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -61,7 +66,7 @@ function DialogContent({
             render={<Button variant="ghost" className="absolute top-2 right-2" size="icon" />}
           >
             <XIcon />
-            <span className="sr-only">{closeLabel}</span>
+            <span className="sr-only">{label}</span>
           </DialogPrimitive.Close>
         )}
         {children}

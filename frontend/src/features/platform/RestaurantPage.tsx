@@ -34,6 +34,8 @@ import { useManagement } from "./useManagement";
 import type { ManagedAccount } from "./state";
 import type { PlatformIdentity } from "./identity";
 import { PlatformSubscription } from "@/features/subscriptions/PlatformSubscription";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
+import { platformMessages } from "./messages";
 
 type Confirmation =
   | { kind: "reset" | "active"; account: ManagedAccount }
@@ -41,24 +43,21 @@ type Confirmation =
   | { kind: "joinCode"; required: boolean }
   | { kind: "delete" };
 // status and required are the values the administrator saw; confirming switches them.
-function describe(c: Exclude<Confirmation, { kind: "delete" }>) {
-  if (c.kind === "status")
-    return c.status === "ACTIVE"
-      ? "停用服务将同时关闭接单，既有订单和账单仍可处理。"
-      : "启用服务后，店铺仍须手动开启接单。";
-  if (c.kind === "joinCode")
-    return c.required
-      ? "关闭后，开桌期间任何扫描本桌二维码的人都可直接加入并下单，对正在用餐的桌位立即生效。"
-      : "开启后，新加入的顾客须输入入桌码；已加入的顾客授权保持有效，直到本轮结束或授权到期。";
-  return `${c.account.role} · ${c.account.username}：${
-    c.kind === "reset"
-      ? "重置后所有旧登录失效，须交付新临时密码并首次改密。账号启用状态不变。"
-      : c.account.isActive
-        ? "禁用后所有旧登录失效。"
-        : "重新启用账号，原有旧登录仍然失效。"
-  }`;
+function describe(
+  c: Exclude<Confirmation, { kind: "delete" }>,
+  m: (typeof platformMessages)["zh"],
+) {
+  if (c.kind === "status") return c.status === "ACTIVE" ? m.suspendHint : m.activateHint;
+  if (c.kind === "joinCode") return c.required ? m.codeOffHint : m.codeOnHint;
+  return m.accountHint(
+    c.account.role,
+    c.account.username,
+    c.kind === "reset" ? m.resetHint : c.account.isActive ? m.disableHint : m.enableHint,
+  );
 }
 function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: string }) {
+  const language = useStaffLanguage();
+  const m = platformMessages[language];
   // The name of the restaurant this page deleted; the page stops reading it from then on.
   const [deleted, setDeleted] = useState<string | null>(null);
   const query = useQuery({
@@ -164,8 +163,8 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
     return (
       <>
         <PlatformNavigation account={identity} />
-        <PageHeader title={deleted} back={{ to: "/platform/restaurants", label: "返回餐厅列表" }} />
-        <Notice tone="success">已永久删除「{deleted}」及其全部数据。</Notice>
+        <PageHeader title={deleted} back={{ to: "/platform/restaurants", label: m.backToList }} />
+        <Notice tone="success">{m.deleted(deleted)}</Notice>
       </>
     );
   const restaurant = query.data?.restaurant;
@@ -174,21 +173,23 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
     <>
       <PlatformNavigation account={identity} />
       <PageHeader
-        title={restaurant?.name ?? "餐厅详情"}
-        back={{ to: "/platform/restaurants", label: "返回餐厅列表" }}
+        title={restaurant?.name ?? m.detailTitle}
+        back={{ to: "/platform/restaurants", label: m.backToList }}
         actions={
           <Button
             variant="outline"
             size="icon"
-            aria-label="刷新餐厅状态"
+            aria-label={m.refreshRestaurant}
             onClick={() => void query.refetch()}
           >
             <RefreshCw className={cn(query.isFetching && "animate-spin")} />
           </Button>
         }
       />
-      {query.isPending && <LoadingState label="正在读取…" />}
-      {query.error && <Notice tone="error">{errorMessage(query.error)}</Notice>}
+      {query.isPending && <LoadingState label={m.loading} />}
+      {query.error && (
+        <Notice tone="error">{errorMessage(query.error, undefined, language)}</Notice>
+      )}
       {restaurant && (
         <div className="space-y-4">
           <Card>
@@ -196,28 +197,31 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
               <div className="space-y-2">
                 <div className="flex flex-wrap gap-2">
                   <Badge variant={restaurant.serviceStatus === "ACTIVE" ? "success" : "outline"}>
-                    {restaurant.serviceStatus === "ACTIVE" ? "服务已启用" : "服务已停用"}
+                    {restaurant.serviceStatus === "ACTIVE" ? m.serviceOn : m.serviceOff}
                   </Badge>
                   <Badge variant={restaurant.orderingEnabled ? "secondary" : "outline"}>
-                    {restaurant.orderingEnabled ? "接单中" : "接单关闭"}
+                    {restaurant.orderingEnabled ? m.orderingOn : m.orderingOff}
                   </Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  {restaurant.currencyCode} · {restaurant.timeZone} · 默认菜单语言{" "}
-                  {restaurant.defaultLanguage}
+                  {m.details(
+                    restaurant.currencyCode,
+                    restaurant.timeZone,
+                    restaurant.defaultLanguage,
+                  )}
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
                   {restaurant.googleMapsUrl ? (
                     <MapLink url={restaurant.googleMapsUrl} name={restaurant.name} />
                   ) : (
-                    <span className="text-sm text-muted-foreground">尚未登记 Google 地图链接</span>
+                    <span className="text-sm text-muted-foreground">{m.noMap}</span>
                   )}
                   <Button
                     variant="ghost"
                     disabled={locked || !!confirmation || editingMap}
                     onClick={() => setEditingMap(true)}
                   >
-                    编辑地图链接
+                    {m.editMap}
                   </Button>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -227,14 +231,12 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
                     disabled={locked || !!confirmation || editingTheme}
                     onClick={() => setEditingTheme(true)}
                   >
-                    更换主题
+                    {m.changeTheme}
                   </Button>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm text-muted-foreground">
-                    {restaurant.joinCodeRequired
-                      ? "顾客须输入入桌码加入用餐"
-                      : "免入桌码：顾客扫码即可直接加入用餐"}
+                    {restaurant.joinCodeRequired ? m.codeRequired : m.codeNotRequired}
                   </span>
                   <Button
                     variant="ghost"
@@ -243,7 +245,7 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
                       setConfirmation({ kind: "joinCode", required: restaurant.joinCodeRequired })
                     }
                   >
-                    {restaurant.joinCodeRequired ? "关闭入桌码" : "开启入桌码"}
+                    {restaurant.joinCodeRequired ? m.disableCode : m.enableCode}
                   </Button>
                 </div>
               </div>
@@ -254,7 +256,7 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
                   setConfirmation({ kind: "status", status: restaurant.serviceStatus })
                 }
               >
-                {restaurant.serviceStatus === "ACTIVE" ? "停用餐厅服务" : "启用餐厅服务"}
+                {restaurant.serviceStatus === "ACTIVE" ? m.suspendService : m.activateService}
               </Button>
             </CardContent>
           </Card>
@@ -262,10 +264,10 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
             <form
               onSubmit={saveMap}
               className="space-y-4 rounded-2xl border bg-card p-4 shadow-xs"
-              aria-label="编辑 Google 地图链接"
+              aria-label={m.editMapForm}
             >
               <div className="space-y-2">
-                <Label htmlFor="restaurant-maps">Google 地图链接（留空保存即清除）</Label>
+                <Label htmlFor="restaurant-maps">{m.mapField}</Label>
                 <Input
                   id="restaurant-maps"
                   name="googleMapsUrl"
@@ -279,10 +281,10 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button type="submit" disabled={locked}>
-                  保存地图链接
+                  {m.saveMap}
                 </Button>
                 <Button type="button" variant="outline" onClick={() => setEditingMap(false)}>
-                  取消
+                  {m.cancel}
                 </Button>
               </div>
             </form>
@@ -291,19 +293,16 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
             <form
               onSubmit={saveTheme}
               className="space-y-4 rounded-2xl border bg-card p-4 shadow-xs"
-              aria-label="更换餐厅主题"
+              aria-label={m.themeForm}
             >
               <ThemeChoices name="theme" defaultValue={restaurant.theme} />
-              <p className="text-sm text-muted-foreground">
-                只改变颜色，不影响布局和数据。顾客菜单约 30
-                秒内更新，店铺页面在重新打开或切回前台时更新。
-              </p>
+              <p className="text-sm text-muted-foreground">{m.themeHint}</p>
               <div className="flex flex-wrap gap-2">
                 <Button type="submit" disabled={locked}>
-                  保存主题
+                  {m.saveTheme}
                 </Button>
                 <Button type="button" variant="outline" onClick={() => setEditingTheme(false)}>
-                  取消
+                  {m.cancel}
                 </Button>
               </div>
             </form>
@@ -312,7 +311,7 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
             <section
               ref={panel}
               tabIndex={-1}
-              aria-label="管理操作确认"
+              aria-label={m.confirmRegion}
               className={cn(
                 "space-y-4 rounded-2xl border border-primary/30 bg-card p-4 shadow-xs outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                 confirmation.kind === "delete" && "border-destructive/50",
@@ -320,21 +319,14 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
             >
               {confirmation.kind === "delete" ? (
                 <>
-                  <h2 className="font-semibold">确认永久删除 · {restaurant.name}</h2>
+                  <h2 className="font-semibold">{m.deleteTitle(restaurant.name)}</h2>
                   <ul className="list-disc space-y-1 pl-5 text-sm leading-6">
-                    <li>
-                      将删除老板和员工账号、桌台与二维码（已打印的桌卡失效）、菜单与菜品照片、全部就餐记录、订单和账单历史（包括未结账单）、服务期与收费记录。
-                    </li>
-                    <li>店里已登录的设备会在下一次请求时退出，顾客扫码会看到二维码无效。</li>
-                    <li>
-                      删除不能撤销：数据只会在此后 7
-                      天内的每日备份里残留，而恢复备份会回滚整个系统，不能只恢复这一家餐厅。
-                    </li>
+                    {m.deleteConsequences.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
                   </ul>
                   <div className="space-y-2">
-                    <Label htmlFor="delete-restaurant-name">
-                      输入餐厅名称「{restaurant.name}」以确认
-                    </Label>
+                    <Label htmlFor="delete-restaurant-name">{m.typeName(restaurant.name)}</Label>
                     <Input
                       id="delete-restaurant-name"
                       value={typedName}
@@ -345,11 +337,11 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
                 </>
               ) : (
                 <>
-                  <h2 className="font-semibold">确认操作 · {restaurant.name}</h2>
-                  <p className="text-sm leading-6">{describe(confirmation)}</p>
+                  <h2 className="font-semibold">{m.confirmTitle(restaurant.name)}</h2>
+                  <p className="text-sm leading-6">{describe(confirmation, m)}</p>
                 </>
               )}
-              {changed && <Notice tone="error">状态已变化，请取消后重新核对。</Notice>}
+              {changed && <Notice tone="error">{m.stateChanged}</Notice>}
               <div className="flex flex-wrap gap-2">
                 {confirmation.kind === "delete" ? (
                   <Button
@@ -357,15 +349,15 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
                     disabled={locked || changed || !nameConfirmed}
                     onClick={() => void submit()}
                   >
-                    永久删除
+                    {m.deleteForever}
                   </Button>
                 ) : (
                   <Button disabled={locked || changed} onClick={() => void submit()}>
-                    确认执行
+                    {m.confirm}
                   </Button>
                 )}
                 <Button variant="outline" onClick={closeConfirmation}>
-                  取消
+                  {m.cancel}
                 </Button>
               </div>
             </section>
@@ -376,7 +368,6 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
                 key={a.id}
                 account={a}
                 platform
-                language="zh"
                 disabled={locked || !!confirmation}
                 choose={(kind, account) => setConfirmation({ kind, account })}
               />
@@ -385,11 +376,9 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
           <Card>
             <CardContent className="flex flex-wrap items-center justify-between gap-4">
               <div className="space-y-1">
-                <h2 className="font-semibold">永久删除餐厅</h2>
+                <h2 className="font-semibold">{m.deleteSection}</h2>
                 <p className="text-sm text-muted-foreground">
-                  {restaurant.serviceStatus === "SUSPENDED"
-                    ? "删除这家餐厅及其全部数据，无法撤销。"
-                    : "须先停用餐厅服务，才能永久删除。"}
+                  {restaurant.serviceStatus === "SUSPENDED" ? m.deleteReady : m.deleteBlocked}
                 </p>
               </div>
               <Button
@@ -398,7 +387,7 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
                 onClick={() => setConfirmation({ kind: "delete" })}
               >
                 <Trash2 />
-                永久删除餐厅
+                {m.deleteSection}
               </Button>
             </CardContent>
           </Card>
@@ -412,14 +401,10 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
           disabled={actions.busy}
           onClick={() => void actions.recover()}
         >
-          查询原操作结果
+          {m.verify}
         </Button>
       )}
-      <TemporaryPasswords
-        credentials={actions.secrets}
-        close={actions.clearSecrets}
-        language="zh"
-      />
+      <TemporaryPasswords credentials={actions.secrets} close={actions.clearSecrets} />
       <PlatformSubscription userId={identity.userId} restaurantId={id} />
     </>
   );

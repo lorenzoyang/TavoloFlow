@@ -2,6 +2,8 @@ import { useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { staffMessages } from "@/lib/staff-messages";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import { useMediaQuery, WIDE_SCREEN } from "@/lib/useMediaQuery";
 
@@ -13,7 +15,7 @@ export function MasterDetail({
   title,
   onClose,
   detail,
-  closeLabel = "关闭",
+  closeLabel,
   children,
 }: {
   open: boolean;
@@ -24,6 +26,8 @@ export function MasterDetail({
   children: ReactNode;
 }) {
   const wide = useMediaQuery(WIDE_SCREEN);
+  const fallbackClose = staffMessages[useStaffLanguage()].close;
+  const closeText = closeLabel ?? fallbackClose;
   // Opening the sheet focuses its close button rather than the first field inside the detail.
   const close = useRef<HTMLButtonElement>(null);
   if (wide)
@@ -45,7 +49,7 @@ export function MasterDetail({
               <Button
                 variant="ghost"
                 size="icon"
-                aria-label={closeLabel}
+                aria-label={closeText}
                 className="-mt-2 -mr-2"
                 onClick={onClose}
               >
@@ -80,7 +84,7 @@ export function MasterDetail({
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label={closeLabel}
+                  aria-label={closeText}
                   className="-mt-2 -mr-2"
                 />
               }

@@ -124,7 +124,6 @@ export function ItemImageSection({
         title={m.removePhotoTitle}
         description={m.removePhotoHint}
         confirmLabel={busy ? m.saving : m.confirmDelete}
-        cancelLabel={m.cancel}
         busy={busy}
         onConfirm={() => remove(() => setConfirming(false))}
         onCancel={() => setConfirming(false)}

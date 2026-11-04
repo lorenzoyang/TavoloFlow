@@ -1,5 +1,5 @@
-import { apiMessages, italianErrors } from "./api-messages";
-import type { StaffLanguage } from "./staff-language";
+import { apiMessages, errorTranslations } from "./api-messages";
+import type { Language } from "./language";
 
 // The backend's ApiError envelope. Some codes add top-level members, such as BILL_CHANGED "currentBill".
 type ErrorBody = {
@@ -149,25 +149,25 @@ export async function guestWrite<T>(path: string, body: unknown, signal: AbortSi
   });
 }
 
-// Chinese pages show the server's message; Italian store pages translate its code instead.
+// Chinese pages show the server's message; Italian and English pages translate its code instead.
 export function errorMessage(
   error: unknown,
   unknownResult?: string,
-  language: StaffLanguage = "zh",
+  language: Language = "zh",
 ): string {
   const messages = apiMessages[language];
   if (!(error instanceof ApiError) || error.status >= 500)
     return unknownResult ?? messages.connectionError;
   if (error.code === "CSRF_VALIDATION_FAILED") return messages.csrfExpired;
   if (language === "zh") return error.message;
-  return italianErrors[error.code] ?? messages.genericError;
+  return errorTranslations[language][error.code] ?? messages.genericError;
 }
 
-// Field errors also arrive in Chinese; Italian pages only mark the fields that need checking.
-export function fieldErrors(error: unknown, language: StaffLanguage): Record<string, string[]> {
+// Field errors also arrive in Chinese; Italian and English pages only mark the fields to check.
+export function fieldErrors(error: unknown, language: Language): Record<string, string[]> {
   if (!(error instanceof ApiError)) return {};
   if (language === "zh") return error.errors;
   return Object.fromEntries(
-    Object.keys(error.errors).map((field) => [field, [apiMessages.it.invalidField]]),
+    Object.keys(error.errors).map((field) => [field, [apiMessages[language].invalidField]]),
   );
 }

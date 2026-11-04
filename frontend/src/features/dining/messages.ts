@@ -1,4 +1,4 @@
-import type { StaffLanguage } from "@/lib/staff-language";
+import type { Language } from "@/lib/language";
 
 const zh = {
   title: "桌台",
@@ -61,7 +61,7 @@ const zh = {
   showCode: "查看入桌码",
 };
 
-export const diningMessages: Record<StaffLanguage, typeof zh> = {
+export const diningMessages: Record<Language, typeof zh> = {
   zh,
   it: {
     title: "Sala",
@@ -123,5 +123,64 @@ export const diningMessages: Record<StaffLanguage, typeof zh> = {
     orders: (count) => `Ordini inviati: ${count}`,
     codeLabel: "Codice del tavolo · solo per i clienti di questo tavolo",
     showCode: "Mostra codice",
+  },
+  en: {
+    title: "Floor",
+    refresh: "Reload status",
+    suspended:
+      "The restaurant’s service isn’t active yet or is suspended: tables can’t be opened, but open visits can still be viewed and closed. To activate it, contact the platform administrator.",
+    suspendedHome:
+      "The restaurant’s service isn’t active yet or is suspended: tables can’t be opened and guests can only browse the menu. To activate it, contact the platform administrator.",
+    readError: "Can’t update the status. Check the connection and reload.",
+    verify: "Check result",
+    pending: (kind) =>
+      `${kind === "accepting" ? "Ordering setting" : "Table opening"} to be checked: other actions are paused until then.`,
+    accepting: "QR ordering",
+    acceptingOn: "On: guests order by scanning the QR code.",
+    acceptingOff: "Paused: no new orders; orders already sent stay visible.",
+    visit: "Visit",
+    loading: "Loading tables…",
+    noTables: "No tables",
+    noTablesHint: "First add tables in «Tables & QR».",
+    tablesLink: "Tables & QR",
+    dining: (count) => `Occupied ${count}`,
+    free: (count) => `Free ${count}`,
+    waiting: (count) => `To do ${count}`,
+    openTitle: (table) => `Open table · ${table}`,
+    openHint: "Opening creates the table code: share it with the guests.",
+    openHintNoCode: "Once open, guests order by scanning the table’s QR code.",
+    confirmOpen: "Open table",
+    checkedAccepting: (enabled) =>
+      enabled ? "Checked: ordering is on." : "Checked: ordering is paused.",
+    foundVisit: (codeRequired) =>
+      codeRequired
+        ? "Open visit found: check the table; you can show the code."
+        : "Open visit found: check the table.",
+    checkedFree: "Checked: the table is free. To open it, confirm again.",
+    tableGone: "The table no longer exists: ask the owner to check.",
+    recoverUnknown: "Can’t check right now: reload when the connection is back.",
+    opened: (withCode) =>
+      withCode
+        ? "Table open: share the code with the guests."
+        : "Table open: guests order by scanning the table’s QR code.",
+    openUnknown: "Opening to be checked: reload the status. It won’t be repeated automatically.",
+    acceptingSaved: (enabled) =>
+      enabled
+        ? "Ordering on; guests still need an active service and an available table."
+        : "New orders paused; orders already sent stay visible.",
+    acceptingUnknown: "Ordering setting to be checked: reload the status.",
+    tileStatus: (newItems, amount) => `Occupied, ${newItems ? `to do ${newItems}, ` : ""}${amount}`,
+    tileFree: "Free, tap to open",
+    tile: (table, status) => `${table}: ${status}`,
+    freeShort: "Free",
+    disabled: "Inactive",
+    openedAt: (time) => `Opened ${time}`,
+    loadingVisit: "Loading the visit…",
+    active: "Open",
+    ended: "Closed",
+    openedOn: (time) => `Opened: ${time}`,
+    orders: (count) => `Orders sent: ${count}`,
+    codeLabel: "Table code · only for this table’s guests",
+    showCode: "Show code",
   },
 };

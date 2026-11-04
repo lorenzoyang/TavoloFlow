@@ -134,7 +134,6 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
       <MasterDetail
         open={!!search.sessionId}
         title={selected ? m.historyDetailOf(c.table(selected.tableLabel)) : m.historyDetail}
-        closeLabel={c.close}
         onClose={() => navigate(filters)}
         detail={
           search.sessionId && (

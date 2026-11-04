@@ -41,8 +41,9 @@ manifest 和 worker 中的路径仍使用相对业务 origin 的 `/staff`、`/sw
 - 新版本 worker 安装后立即接管（`skipWaiting` 加 `clients.claim`）。worker 不缓存内容，立即接管不会造成新旧版本混用。
 - 只在生产构建中、且在安全上下文（HTTPS 或 localhost）中注册。`npm run dev` 不注册，避免干扰热更新。
 
-从 Chromium 菜单安装其实不需要 service worker；但自动安装邀请（`beforeinstallprompt`，首页的一键「安装应用」
-按钮依赖它）要求 worker 带有真正起作用的 fetch 处理，空处理会被忽略。返回离线页正是这个处理的实际工作。
+安装本身不需要 service worker：除了可以从 Chromium 菜单手动安装，自动安装邀请（`beforeinstallprompt`，首页的一键
+「安装应用」按钮依赖它）按 Chrome 当前的[安装条件](https://web.dev/articles/install-criteria)也只要求 HTTPS、manifest
+和用户互动，不再要求 worker 或 fetch 处理。保留 worker 是为了离线页：没有它，断网打开应用只会看到浏览器的错误页。
 
 ## 4. 各平台的安装方式与差异
 

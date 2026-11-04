@@ -1,10 +1,10 @@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { isStaffLanguage, STAFF_LANGUAGES, type StaffLanguage } from "@/lib/staff-language";
+import { isLanguage, LANGUAGES, type Language } from "@/lib/language";
 import { setStaffLanguage, useStaffLanguage } from "@/lib/useStaffLanguage";
 import { accountMessages } from "./messages";
 
 // Each option names itself in its own language, so someone who cannot read the current one finds it.
-const names: Record<StaffLanguage, string> = { zh: "中文", it: "Italiano" };
+const names: Record<Language, string> = { zh: "中文", it: "Italiano", en: "English" };
 
 export function LanguageSwitch({ className }: { className?: string }) {
   const language = useStaffLanguage();
@@ -17,10 +17,10 @@ export function LanguageSwitch({ className }: { className?: string }) {
       className={className}
       // Pressing the current language again would empty the group; keep the selection instead.
       onValueChange={(values) => {
-        if (isStaffLanguage(values[0])) setStaffLanguage(values[0]);
+        if (isLanguage(values[0])) setStaffLanguage(values[0]);
       }}
     >
-      {STAFF_LANGUAGES.map((value) => (
+      {LANGUAGES.map((value) => (
         <ToggleGroupItem
           key={value}
           value={value}

@@ -1,3 +1,4 @@
+import type { Language } from "@/lib/language";
 import type { LucideIcon } from "lucide-react";
 import {
   BookOpen,
@@ -11,7 +12,6 @@ import {
   Receipt,
   UserCog,
 } from "lucide-react";
-import type { StaffLanguage } from "@/lib/staff-language";
 import type { CurrentAccount } from "./api";
 import { accountMessages } from "./messages";
 
@@ -35,7 +35,7 @@ export type StaffDestination = {
 
 // The daily workspaces: the phone tab bar and the tablet/desktop rail show exactly these, in this order.
 // Everything else is reached from the home page, so a device never needs more than five tabs.
-export function staffNavItems(role: Role, language: StaffLanguage): StaffDestination[] {
+export function staffNavItems(role: Role, language: Language): StaffDestination[] {
   const nav = accountMessages[language].nav;
   return [
     { to: "/staff", ...nav.home, icon: House },
@@ -52,7 +52,7 @@ export function staffNavItems(role: Role, language: StaffLanguage): StaffDestina
 }
 
 // Less frequent pages, listed on the home page only.
-export function staffManagementItems(role: Role, language: StaffLanguage): StaffDestination[] {
+export function staffManagementItems(role: Role, language: Language): StaffDestination[] {
   const nav = accountMessages[language].nav;
   const tables: StaffDestination = {
     to: "/staff/tables",

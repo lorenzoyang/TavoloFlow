@@ -5,6 +5,8 @@ import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
 import { cn } from "cn";
 
 import { Button } from "@/components/ui/button";
+import { staffMessages } from "@/lib/staff-messages";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { XIcon } from "lucide-react";
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
@@ -41,13 +43,16 @@ function SheetContent({
   children,
   side = "right",
   showCloseButton = true,
-  closeLabel = "关闭",
+  closeLabel,
   ...props
 }: SheetPrimitive.Popup.Props & {
   side?: "top" | "right" | "bottom" | "left";
   showCloseButton?: boolean;
   closeLabel?: string;
 }) {
+  // Store and platform pages share one interface language; guest pages pass their own label.
+  const fallback = staffMessages[useStaffLanguage()].close;
+  const label = closeLabel ?? fallback;
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -72,7 +77,7 @@ function SheetContent({
             }
           >
             <XIcon />
-            <span className="sr-only">{closeLabel}</span>
+            <span className="sr-only">{label}</span>
           </SheetPrimitive.Close>
         )}
         {children}

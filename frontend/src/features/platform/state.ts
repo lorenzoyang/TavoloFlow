@@ -65,6 +65,6 @@ export function recoveryUrl(scope: "platform" | "store", p: PendingManagement) {
 // administrator's, which a read cannot tell apart. Unchanged means the request may still arrive.
 export function credentialsChanged(p: PendingManagement, account: ManagedAccount | undefined) {
   if (!account || account.id !== p.userId || p.expectedVersion === undefined)
-    throw new Error("无法核对目标账号，请重新读取。");
+    throw new Error("The target account cannot be checked");
   return account.credentialVersion > p.expectedVersion;
 }

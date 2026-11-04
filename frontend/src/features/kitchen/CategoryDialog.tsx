@@ -11,7 +11,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { displayName } from "@/lib/language";
-import { staffMessages } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { kitchenMessages } from "./messages";
 import type { useKitchen } from "./useKitchen";
@@ -21,7 +20,6 @@ import type { useKitchen } from "./useKitchen";
 export function CategoryDialog({ model }: { model: ReturnType<typeof useKitchen> }) {
   const language = useStaffLanguage();
   const m = kitchenMessages[language];
-  const c = staffMessages[language];
   const menu = model.menu.data;
   const categories = menu?.categories ?? [];
   const hidden = categories.filter((category) => model.hidden.includes(category.id));
@@ -32,7 +30,7 @@ export function CategoryDialog({ model }: { model: ReturnType<typeof useKitchen>
   };
   return (
     <Dialog open={model.choosing} onOpenChange={(open) => model.setChoosing(open)}>
-      <DialogContent closeLabel={c.close}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">{m.categoriesTitle}</DialogTitle>
           <DialogDescription>{m.categoriesHint}</DialogDescription>

@@ -1,4 +1,4 @@
-import type { StaffLanguage } from "@/lib/staff-language";
+import type { Language } from "@/lib/language";
 
 const zh = {
   title: "传菜",
@@ -25,7 +25,7 @@ const zh = {
     `${label}：结果未能确认。列表刷新后，若菜品仍在，请再点一次「已送达」。`,
 };
 
-export const passMessages: Record<StaffLanguage, typeof zh> = {
+export const passMessages: Record<Language, typeof zh> = {
   zh,
   it: {
     title: "Pass",
@@ -51,5 +51,30 @@ export const passMessages: Record<StaffLanguage, typeof zh> = {
       `${label}: già gestito da un altro dispositivo o tavolo già chiuso; lista aggiornata.`,
     unknown: (label) =>
       `${label}: esito non confermato. Dopo l’aggiornamento, se il piatto è ancora in lista, tocca di nuovo «Servito».`,
+  },
+  en: {
+    title: "Pass",
+    description:
+      "Ready dishes show up here, oldest at the top. When you take a dish to the table, tap «Served».",
+    refresh: "Refresh dishes",
+    toServe: (count) => `To serve: ${count}`,
+    justReady: "Now",
+    waited: (minutes) => `${minutes} min`,
+    served: "Served",
+    servedLabel: (table, dish) => `${dish}, ${table}: served`,
+    totalToServe: (count) => `Dishes to serve: ${count}`,
+    syncing: "Updating dishes.",
+    maybeStale: "Dishes may be out of date.",
+    writesPaused: "«Served» is paused until the next successful update.",
+    readError: "Can’t update the dishes. Check the connection and refresh.",
+    loading: "Loading dishes to serve…",
+    empty: "No dishes to serve.",
+    loadMore: "Load more dishes",
+    arrived: (count) => `New dishes ready; to serve: ${count}.`,
+    done: (label) => `${label}: served.`,
+    settled: (label) =>
+      `${label}: already handled on another device or the table is closed; list updated.`,
+    unknown: (label) =>
+      `${label}: result not confirmed. After the update, if the dish is still listed, tap «Served» again.`,
   },
 };

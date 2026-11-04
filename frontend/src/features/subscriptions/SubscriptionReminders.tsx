@@ -11,7 +11,7 @@ import {
   ownerSubscriptionKey,
   subscriptionRemindersKey,
 } from "./api";
-import { subscriptionMessages } from "./messages";
+import { platformSubscriptionMessages, subscriptionMessages } from "./messages";
 import { useSubscriptionQuery } from "./queries";
 
 // One compact line above every owner page; the details live on /staff/subscription.
@@ -57,18 +57,19 @@ export function OwnerSubscriptionReminder() {
   ) : null;
 }
 export function PlatformSubscriptionReminders({ userId }: { userId: string }) {
+  const m = platformSubscriptionMessages[useStaffLanguage()];
   const reminders = useSubscriptionQuery(subscriptionRemindersKey(userId), getReminders);
   if (!reminders.data)
     return (
       <p role="status" className="text-sm text-muted-foreground">
-        {reminders.isError ? "年费提醒暂时无法更新。" : "正在读取年费提醒…"}
+        {reminders.isError ? m.reminderError : m.reminderLoading}
       </p>
     );
   const { unpaidCount, dueSoonCount, expiredCount } = reminders.data;
   return (
     <Notice tone={unpaidCount || dueSoonCount || expiredCount ? "warning" : "info"}>
-      年费提醒：已开始待收款 {unpaidCount} 家 · 7 天内到期 {dueSoonCount} 家 · 已到期 {expiredCount}{" "}
-      家{reminders.stale && <span className="block text-xs">提醒待刷新，以上为上次读取结果。</span>}
+      {m.reminders(unpaidCount, dueSoonCount, expiredCount)}
+      {reminders.stale && <span className="block text-xs">{m.remindersStale}</span>}
     </Notice>
   );
 }

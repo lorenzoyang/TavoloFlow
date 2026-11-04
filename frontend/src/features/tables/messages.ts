@@ -1,4 +1,4 @@
-import type { StaffLanguage } from "@/lib/staff-language";
+import type { Language } from "@/lib/language";
 
 const zh = {
   title: "桌位与二维码",
@@ -57,7 +57,7 @@ const zh = {
     "桌卡包含店名、桌号、二维码和中意英三语“扫码点餐”提示，按 A6（10.5 × 14.8 厘米）打印即可摆桌。",
 };
 
-export const tableMessages: Record<StaffLanguage, typeof zh> = {
+export const tableMessages: Record<Language, typeof zh> = {
   zh,
   it: {
     title: "Tavoli e QR",
@@ -115,5 +115,60 @@ export const tableMessages: Record<StaffLanguage, typeof zh> = {
     openMenu: "Apri menu",
     cardHint:
       "Il segnatavolo riporta nome del locale, tavolo, QR e l’invito a ordinare in cinese, italiano e inglese. Stampalo in formato A6 (10,5 × 14,8 cm).",
+  },
+  en: {
+    title: "Tables & QR",
+    ownerHint: "Manage tables and download QR codes and table cards for guest ordering.",
+    staffHint: "The restaurant’s tables and open visits; the owner manages them.",
+    refresh: "Reload tables",
+    unknownResult: "Result not confirmed: reload the table list and check before trying again.",
+    saved: "Table updated.",
+    refreshFailed: "Done, but the list didn’t refresh: reload it.",
+    readError: "Can’t update the tables. Check the connection and try again.",
+    add: "New table",
+    offline: "You’re offline: reload the tables when the connection is back.",
+    loading: "Loading tables…",
+    empty: "No tables",
+    ownerEmpty: "Add the first table to create the menu QR code.",
+    staffEmpty: "Ask the owner to add them.",
+    dining: "Occupied",
+    free: "Free",
+    enable: (table) => `Table enabled: ${table}`,
+    enabledHint: "Enabled: guests can order",
+    disabledHint: "Disabled: guests only see the menu",
+    enabled: "Enabled",
+    disabled: "Disabled",
+    qr: "QR",
+    rename: "Rename",
+    remove: "Delete",
+    activeHint: "A visit is open: it can’t be deleted for now.",
+    label: "Table name",
+    placeholder: "For example: 8, Terrace A1",
+    saving: "Working…",
+    save: "Save table",
+    renameTitle: "Rename table",
+    labelHint: "1–50 characters, unique in the restaurant; renaming doesn’t change the QR code.",
+    removeTitle: (table) => `Delete table «${table}»?`,
+    removeHint:
+      "The QR code stops working at once. Bill history stays; a new table with the same name needs a new QR code.",
+    confirmRemove: "Delete",
+    qrTitle: (table) => `${table} · table QR code`,
+    configError: "The QR address isn’t configured correctly.",
+    qrFailed: "Can’t create the QR code: close and try again.",
+    copied: "Link copied.",
+    copyFailed: "Automatic copy unavailable: select the link below and copy it.",
+    cardFailed: "Can’t create the table card: try again later or use the QR PNG.",
+    qrAlt: (table) => `Menu QR code, table ${table}`,
+    generating: "Creating the QR code…",
+    localOnly:
+      "This link uses a local address that phones can’t reach. Configure a reachable address before downloading the QR code (see the tables documentation).",
+    link: "Menu link",
+    rendering: "Creating…",
+    downloadCard: "Table card",
+    downloadQr: "Download QR",
+    copy: "Copy link",
+    openMenu: "Open menu",
+    cardHint:
+      "The table card shows the restaurant name, table, QR code and an invitation to order in Chinese, Italian and English. Print it in A6 (10.5 × 14.8 cm).",
   },
 };

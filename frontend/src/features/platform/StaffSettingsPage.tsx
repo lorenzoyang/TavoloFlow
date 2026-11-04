@@ -73,7 +73,6 @@ function StaffSettings({ owner }: { owner: CurrentAccount }) {
           <AccountActions
             account={query.data}
             platform={false}
-            language={language}
             disabled={locked || !!confirmation}
             choose={(_, a) => setConfirmation(a)}
           />
@@ -84,18 +83,13 @@ function StaffSettings({ owner }: { owner: CurrentAccount }) {
             {m.verify}
           </Button>
         )}
-        <TemporaryPasswords
-          credentials={actions.secrets}
-          close={actions.clearSecrets}
-          language={language}
-        />
+        <TemporaryPasswords credentials={actions.secrets} close={actions.clearSecrets} />
       </div>
       <ConfirmDialog
         open={!!confirmation}
         title={m.resetTitle}
         description={confirmation && m.resetHint(owner.restaurantName, confirmation.username)}
         confirmLabel={m.confirmReset}
-        cancelLabel={c.cancel}
         confirmDisabled={locked || changed}
         onConfirm={() => void submit()}
         onCancel={() => setConfirmation(null)}

@@ -4,6 +4,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCents } from "@/lib/format";
+import { useStaffLanguage } from "@/lib/useStaffLanguage";
+import { platformSubscriptionMessages } from "./messages";
 import { addCalendarYears, periodTotal, type PeriodInput } from "./state";
 
 export function PeriodFields({
@@ -21,6 +23,7 @@ export function PeriodFields({
   initial?: PeriodInput;
   allowPaid?: boolean;
 }) {
+  const m = platformSubscriptionMessages[useStaffLanguage()];
   const [start, setStart] = useState(initial?.startsOn ?? startsOn);
   const [years, setYears] = useState(String(initial?.years ?? 1));
   const [endOverride, setEndOverride] = useState<string | null>(initial?.endsOn ?? null);
@@ -33,7 +36,7 @@ export function PeriodFields({
   return (
     <>
       <div className="space-y-2">
-        <Label htmlFor={`${prefix}-startsOn`}>开始收费日期</Label>
+        <Label htmlFor={`${prefix}-startsOn`}>{m.startsOn}</Label>
         <Input
           id={`${prefix}-startsOn`}
           name={`${prefix}-startsOn`}
@@ -44,7 +47,7 @@ export function PeriodFields({
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor={`${prefix}-years`}>收费年数</Label>
+        <Label htmlFor={`${prefix}-years`}>{m.years}</Label>
         <Input
           id={`${prefix}-years`}
           name={`${prefix}-years`}
@@ -58,7 +61,7 @@ export function PeriodFields({
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor={`${prefix}-endsOn`}>截止日期（当天到期）</Label>
+        <Label htmlFor={`${prefix}-endsOn`}>{m.endsOn}</Label>
         <Input
           id={`${prefix}-endsOn`}
           name={`${prefix}-endsOn`}
@@ -75,12 +78,12 @@ export function PeriodFields({
             className="h-auto px-0"
             onClick={() => setEndOverride(null)}
           >
-            按开始日期和年数重新计算
+            {m.recomputeEnd}
           </Button>
         )}
       </div>
       <div className="space-y-2">
-        <Label htmlFor={`${prefix}-amount`}>整个周期总金额（EUR）</Label>
+        <Label htmlFor={`${prefix}-amount`}>{m.amount}</Label>
         <Input
           id={`${prefix}-amount`}
           name={`${prefix}-amount`}
@@ -96,7 +99,7 @@ export function PeriodFields({
             className="h-auto px-0"
             onClick={() => setAmountOverride(null)}
           >
-            按年费 × 年数重新计算
+            {m.recomputeAmount}
           </Button>
         )}
       </div>
@@ -110,11 +113,11 @@ export function PeriodFields({
               checked={paid}
               onCheckedChange={(checked) => setPaid(checked)}
             />
-            已收到整个周期的全款
+            {m.paidFull}
           </label>
           {paid && (
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor={`${prefix}-paidOn`}>实际付费日期</Label>
+              <Label htmlFor={`${prefix}-paidOn`}>{m.paidOn}</Label>
               <Input
                 id={`${prefix}-paidOn`}
                 name={`${prefix}-paidOn`}

@@ -97,8 +97,9 @@ generating SQL do not require a running database.
   times to order creation and closure to the latest item event.
 
 The DBML includes the current fields, relationships, and strengthened checks.
-`er-diagram.png` is an older export that still shows removed catalog/actor fields;
-use the DBML until the image is re-exported. EF migrations define the deployed schema.
+`er-diagram.png` visualizes the current eleven-table model, including dish photos,
+subscription periods, and item-level serving timestamps. EF migrations define the
+deployed schema.
 
 ## Application responsibilities
 

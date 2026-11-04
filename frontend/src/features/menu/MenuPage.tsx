@@ -456,7 +456,6 @@ function MenuContent({ account }: { account: CurrentAccount }) {
         title={editor?.kind === "delete" ? m.removeTitle(editor.name) : ""}
         description={m.deleteHint}
         confirmLabel={busy ? m.saving : m.confirmDelete}
-        cancelLabel={m.cancel}
         busy={busy}
         onConfirm={() => {
           if (editor?.kind === "delete")

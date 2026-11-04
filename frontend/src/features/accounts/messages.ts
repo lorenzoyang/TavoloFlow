@@ -1,4 +1,4 @@
-import type { StaffLanguage } from "@/lib/staff-language";
+import type { Language } from "@/lib/language";
 
 const zh = {
   brandCaption: "餐厅管理",
@@ -82,7 +82,7 @@ const zh = {
   },
 };
 
-export const accountMessages: Record<StaffLanguage, typeof zh> = {
+export const accountMessages: Record<Language, typeof zh> = {
   zh,
   it: {
     brandCaption: "Gestione ristorante",
@@ -168,6 +168,90 @@ export const accountMessages: Record<StaffLanguage, typeof zh> = {
       history: { label: "Storico conti", description: "Conti chiusi, per data" },
       settings: { label: "Account staff", description: "Reimposta la password dello staff" },
       subscription: { label: "Abbonamento", description: "Scadenze del servizio e pagamenti" },
+    },
+  },
+  en: {
+    brandCaption: "Restaurant workspace",
+    loginTitle: "Sign in to your restaurant",
+    loginDescription: "Use the restaurant’s account to start the day.",
+    username: "Username",
+    password: "Password",
+    login: "Sign in",
+    loggingIn: "Signing in…",
+    loginFootnote: "Use the owner or staff account provided by the administrator.",
+    sessionNote:
+      "Sign-in lasts 30 days, even after closing the browser. On shared devices, sign out when you’re done.",
+    greeting: "Hi, ",
+    workspaces: "Stations",
+    management: "Management",
+    accountSection: "Account",
+    restaurant: "Restaurant",
+    role: "Role",
+    owner: "Owner",
+    staff: "Staff",
+    language: "Language",
+    changeTitle: "Change password",
+    firstChangeTitle: "Set a new password",
+    firstChangeDescription:
+      "On first sign-in you must change the initial password before entering the restaurant.",
+    changeDescription: "This browser stays signed in; other devices will need to sign in again.",
+    currentPassword: "Current password",
+    newPassword: "New password",
+    confirmPassword: "Confirm new password",
+    passwordHint: "6–128 characters, digits only is fine, different from the current one.",
+    passwordMismatch: "The two new passwords don’t match.",
+    invalidPassword: "The new password needs 6–128 characters, not only spaces.",
+    savePassword: "Save password",
+    savingPassword: "Saving…",
+    changeSuccess: "Password updated. Sign-ins on other devices are no longer valid.",
+    logout: "Sign out",
+    loggingOut: "Signing out…",
+    back: "Back to home",
+    showPassword: "Show password",
+    hidePassword: "Hide password",
+    passwordToggle: (action, field) => `${action}: ${field}`,
+    loading: "Checking sign-in…",
+    retry: "Retry",
+    connectionError: "Can’t reach the server. Check the connection and try again.",
+    unknownPasswordResult:
+      "Password change not confirmed. Check your sign-in again, or sign out and sign in with the new password.",
+    verifyIdentity: "Check sign-in again",
+    unknownLogoutResult: "Sign-out not confirmed. Check again when the connection is back.",
+    loginUnknown: "Sign-in not confirmed. Check your sign-in again.",
+    notFound: "Page not found",
+    goToAccount: "Back to home",
+    mainNav: "Main navigation",
+    installSection: "Install on this device",
+    installDescription:
+      "Once installed, open the app from its icon on the home screen or desktop, without typing the address. Where it’s already installed, open it from the icon.",
+    install: "Install app",
+    installed: "Installed. From now on, open it from its icon on the home screen or desktop.",
+    installIos:
+      "iPhone / iPad: in Safari tap «Share» (in recent versions it’s in the «⋯» menu) and choose «Add to Home Screen». The first time you open it from the icon you’ll need to sign in again.",
+    installAndroid: "Android: in the Chrome menu choose «Add to Home screen» or «Install app».",
+    installDesktop:
+      "Computer: in Chrome or Edge tap the install icon in the address bar, or choose Install from the menu.",
+    installKitchenSound:
+      "Kitchen sounds: on Android and computers they play as soon as you open the app from its icon; on iPhone / iPad one tap on the page is still needed.",
+    nav: {
+      home: { label: "Home", description: "Shortcuts and account" },
+      floor: { label: "Floor", description: "Open tables, share the code, see the bill" },
+      kitchen: { label: "Kitchen", description: "Dishes in order of arrival, one at a time" },
+      orders: { label: "Bill", description: "Check the bill, take payment and free the table" },
+      menu: {
+        label: "Menu",
+        ownerDescription: "Categories, dishes and availability",
+        staffDescription: "Mark finished dishes as sold out",
+      },
+      tables: {
+        label: "Tables & QR",
+        ownerDescription: "Add tables, download QR codes and table cards",
+        staffDescription: "Tables and visit status",
+      },
+      pass: { label: "Pass", description: "Pass tablet: ready dishes to take to the tables" },
+      history: { label: "Bill history", description: "Closed bills, by date" },
+      settings: { label: "Staff account", description: "Reset the staff password" },
+      subscription: { label: "Subscription", description: "Service dates and payments" },
     },
   },
 };

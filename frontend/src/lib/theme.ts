@@ -1,16 +1,8 @@
-// Restaurant colour presets, chosen by the platform. Names describe the colour, not a cuisine: the hint
-// only suggests a fit. Each non-default theme is a [data-theme] block in index.css.
+// Restaurant colour presets, chosen by the platform. Each non-default theme is a [data-theme] block in
+// index.css. Their names (the colour, not a cuisine) and hints live in features/platform/messages.ts.
 export const THEMES = ["TERRACOTTA", "LACQUER", "INDIGO", "INK", "TARO"] as const;
 export type RestaurantTheme = (typeof THEMES)[number];
 export const DEFAULT_THEME: RestaurantTheme = "TERRACOTTA";
-
-export const themeLabels: Record<RestaurantTheme, { name: string; hint: string }> = {
-  TERRACOTTA: { name: "赤陶", hint: "默认 · 意式、综合" },
-  LACQUER: { name: "朱漆", hint: "中餐" },
-  INDIGO: { name: "靛蓝", hint: "日料、海鲜" },
-  INK: { name: "墨黑", hint: "拉面、居酒屋" },
-  TARO: { name: "芋泥紫", hint: "奶茶、甜品" },
-};
 
 export function isTheme(value: unknown): value is RestaurantTheme {
   return typeof value === "string" && (THEMES as readonly string[]).includes(value);

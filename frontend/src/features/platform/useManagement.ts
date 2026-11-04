@@ -27,11 +27,10 @@ function temporaryCredentials(result: unknown): TemporaryCredential[] {
     : [];
 }
 
-// Platform pages stay in Chinese; the OWNER's store page follows the staff language.
+// Platform pages and the OWNER's store page share the device's interface language.
 export function useManagement(scope: "platform" | "store", userId: string, restaurantId?: string) {
   const client = useQueryClient();
-  const storeLanguage = useStaffLanguage();
-  const language = scope === "platform" ? "zh" : storeLanguage;
+  const language = useStaffLanguage();
   const m = managementMessages[language];
   const key = managementKey(scope, `${restaurantId ?? "platform"}:${userId}`);
   const [initial] = useState(() => {
