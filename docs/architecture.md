@@ -210,6 +210,35 @@ flowchart TD
 - **厨房与桌卡**：厨房订单按等待时长变色（10 分钟、20 分钟两档），并提供屏幕常亮开关（Screen Wake Lock，偏好保存在本机）。二维码弹窗可以下载 A6 可打印桌卡，内容为店名、桌号、二维码和三语“扫码点餐”。
 - **PWA**：店铺端 `/staff` 可安装到主屏幕或桌面。manifest 只由店铺布局动态链接，顾客 `/q/*` 永远不会被提示安装；service worker 只在页面加载失败时提供离线页，不缓存任何内容。在已安装的 Chromium 应用中，厨房无需点按即可发声。详见 [PWA 说明](pwa.md)。
 
+### 7.5 界面语言与本机偏好
+
+截至 2026-11-04（`df20adb`），店铺 OWNER/STAFF 的全部页面和平台全部页面均支持中文、意大利语、英语，
+包括登录、改密、账号维护、收费周期、确认区域和提示。界面语言与餐厅默认菜单语言是独立设置，切换界面不改菜单内容或业务数据。
+
+| 使用者 | 偏好与初始化 | 切换入口 |
+|---|---|---|
+| 店铺与平台 | 共用本设备的 `localStorage` 键 `tavoloflow:staff-language`；有效保存值 → 浏览器首个受支持语言 → 英语 | 店铺登录及首次改密页的品牌下方、首页账号卡片、平台所有页面的页头 |
+| 顾客 | 按餐厅保存在 `tavoloflow:menu-language:{restaurantId}`；有效保存值 → 餐厅默认语言 | 顾客菜单始终提供中、意、英三个选项 |
+
+`lib/staff-language.ts` 的 `browserLanguage` 按 `navigator.languages` 的顺序匹配主标签，不区分大小写，
+例如 `zh-TW` 匹配 `zh`，`it-IT` 匹配 `it`。偏好缺失、非法或存储不可读时均走浏览器回退；
+写入存储受阻仍可切换当前页面。偏好不按账号或餐厅分组，退出登录后保留，同源其他标签页通过 `storage` 事件同步。
+`useStaffLanguage()` 读取这一选择，`StaffLayout` 和 `PlatformLayout` 通过 `htmlLang` 设置 `<html lang>`（`zh-CN`、`it`、`en`）。
+
+- **文案与类型**：各端共用 `lib/language.ts` 的 `Language`（`zh | it | en`）。功能文案保存在各自的 `messages.ts`，
+  账号管理共用文案在 `platform/management-messages.ts`，店铺通用标签在 `lib/staff-messages.ts`。
+  字典按 `Record<Language, typeof zh>` 约束，新字符串须补全三语，缺项由 TypeScript 检查。
+- **共享组件**：`ConfirmDialog`、`MasterDetail`、`DialogContent`、`SheetContent` 默认从当前界面语言取取消/关闭标签，
+  只有文案不同时才覆盖；顾客端须显式传入自己的标签。`SubscriptionStatus`、`PeriodDetails`、
+  `TemporaryPasswords`、`AccountActions` 自行调用 `useStaffLanguage()`，不再要求调用方传入 `language`。
+- **错误**：服务端错误消息仍为中文。后台调用 `errorMessage(error, unknownResult, language)`：中文展示服务端文本，
+  意大利语和英语按 `lib/api-messages.ts` 的 `errorTranslations` 翻译 `code`，未知代码使用通用提示。
+  `fieldErrors(error, language)` 在意大利语和英语中为对应字段提供本地化通用提示，不直接展示中文字段错误。
+- **内容与格式**：后台菜名按界面语言 → 餐厅默认语言 → 意大利语 → 中文 → 英语去重回退，描述跟随实际名称语言，
+  过敏原说明随界面语言。`lib/format.ts` 的金额格式在意大利语中使用小数逗号，中文和英语使用小数点；
+  日期时间分别使用 `zh-CN`、`it-IT`、`en-GB`，时区保持 `Europe/Rome`。
+- **窄屏文案**：导航、徽标、标签和开关保持简短，新增文案在三种语言下检查 360px 布局。规则详见 `AGENTS.md` 的 “UI Conventions”。
+
 ## 8. 设计取舍
 
 - **开桌不做幂等键**：结果未知时只 GET 核对，空桌必须由员工再次确认（PRD 明确接受极小概率的误开桌）。下单不能接受这种风险，所以保留 `client_request_id`；结账也不能，所以保留 `bill_version`。
@@ -281,6 +310,8 @@ throw DiningErrors.SessionClosed();   // 返回 ApiException
 ### 9.8 刻意保留的部分
 
 三套独立身份不做泛型合并；前端恢复状态机不改变语义；自定义限流器、自定义错误信封和原始 SQL 行锁维持现状（理由见第 8 节）；数据库结构和迁移不变；员工端单语言文案继续内联在组件中，顾客端三语文案留在 `messages.ts`。
+
+以上是 2026-10 重构时的记录。后续店铺端与平台端文案已移入三语字典，现行语言规则见第 7.5 节。
 
 ## 10. 推荐阅读顺序与练习
 

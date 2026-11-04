@@ -4,7 +4,7 @@ In queste note racconto come è nato TavoloFlow e com'è fatto: perché l'ho svi
 
 È il mio primo progetto web full stack. L'ho iniziato dopo anni di studio dell'informatica, quando mi sono reso conto di non aver mai realizzato una vera web app, e ho deciso di farne una. Questa decisione, però, è arrivata in piena era dell'AI: da una parte vedevo l'AI generare codice apparentemente perfetto con un semplice prompt, dall'altra avevo davanti lo studio di vari framework, con libri dedicati enormi o con la documentazione ufficiale. Il finale era prevedibile: ho deciso di usare l'AI per sviluppare questo progetto.
 
-A pensarci ora, non credo sia stato un problema. Il modo migliore per imparare a sviluppare un progetto e a usare i framework è proprio realizzare un progetto vero, e le basi teoriche le avevo già grazie agli studi. Se ci pensi, il modo migliore per capire tutti questi framework è fare pratica: scoprire da sé le difficoltà e chiedersi (o chiedere all'AI): "invece di fare questo a mano, perché non posso avere qualcosa che lo faccia al posto mio?". È così che nascono i framework: per soddisfare esigenze reali. Sono progettati e fatti in un certo modo perché risolvono un insieme di problemi che si incontravano spesso, e se capisci le esigenze e le difficoltà che eliminano, capisci molto più facilmente e velocemente il framework. Dopotutto sono anche loro prodotti fatti di codice: solo che, invece della business logic di un e-commerce o di un gestionale, la loro "business logic" risolve problemi che si incontrano spesso nello sviluppo di un certo tipo di software.
+A pensarci ora, non credo sia stato un problema. Le basi teoriche le avevo già grazie agli studi, e il modo migliore per imparare a sviluppare un progetto e a usare i framework è proprio realizzarne uno vero: scoprire da sé le difficoltà e chiedersi (o chiedere all'AI): "invece di fare questo a mano, perché non posso avere qualcosa che lo faccia al posto mio?". È così che nascono i framework: per soddisfare esigenze reali. Sono progettati e fatti in un certo modo perché risolvono un insieme di problemi che si incontravano spesso, e se capisci le esigenze e le difficoltà che eliminano, capisci molto più facilmente e velocemente il framework. Dopotutto sono anche loro prodotti fatti di codice: solo che, invece della business logic di un e-commerce o di un gestionale, la loro "business logic" risolve problemi che si incontrano spesso nello sviluppo di un certo tipo di software.
 
 Avevo quindi davanti tre strade. La prima era guardare un tutorial e, insieme a una chat LLM, farmi una panoramica completa di quello che stavo per fare, per poi recuperare i pezzi che mi servivano subito leggendo le parti pertinenti della documentazione o di un libro dedicato. La seconda era buttarmi in un progetto open source già esistente, simile a quello che volevo fare, leggerne il codice facendo domande all'AI e studiare le parti interessate sulla documentazione o sui libri, come nella prima strada. Ma allora mi sono chiesto: perché non faccio direttamente un progetto mio insieme all'AI e poi studio il mio progetto? Un progetto sviluppato con l'aiuto dell'AI non ha mica un codice di qualità peggiore dei progetti che trovi a caso su GitHub. Perché non farlo così? È nata così la terza strada, quella che ho scelto.
 
@@ -37,7 +37,7 @@ TavoloFlow è un sistema di ordinazione al tavolo tramite codice QR. Ogni tavolo
 - **Cucina**: riceve i nuovi ordini con un avviso sonoro, aggiornati ogni 10 secondi; li vede nelle viste Piatti (raggruppati per piatto), Ordini ed Evasi; nella vista Piatti ogni schermo può mostrare solo alcune categorie del menu (per esempio uno schermo solo per le bevande); segna ogni piatto come pronto o lo annulla;
 - **Pass**: su un tablet al bancone, mostra i piatti pronti da portare ai tavoli; quando un piatto arriva al tavolo si tocca «Servito»;
 - **Menu**: segna un piatto come esaurito o di nuovo disponibile;
-- l'interfaccia è in cinese o in italiano, scelta per ogni dispositivo.
+- l'interfaccia è in cinese, italiano o inglese, scelta per ogni dispositivo; finché nessuno la sceglie, segue la lingua del browser.
 
 **Titolare**: tutto quello che fa lo staff, e in più:
 
@@ -50,11 +50,12 @@ TavoloFlow è un sistema di ordinazione al tavolo tramite codice QR. Ogni tavolo
 
 - crea un ristorante insieme ai suoi due account (titolare e staff), con password temporanee; in seguito può disattivare questi account o reimpostarne la password;
 - sospende o riattiva un ristorante, ne sceglie il tema di colori, decide se serve il codice del tavolo, elimina definitivamente un ristorante sospeso;
-- gestisce il contatto del titolare, la tariffa annuale e i periodi di abbonamento, e registra il pagamento di ogni periodo, ricevuto fuori dall'app.
+- gestisce il contatto del titolare, la tariffa annuale e i periodi di abbonamento, e registra il pagamento di ogni periodo, ricevuto fuori dall'app;
+- anche la sua interfaccia è in cinese, italiano o inglese, con la stessa scelta per dispositivo dello staff.
 
 ## Cosa non fa (e perché)
 
-- **Pagamenti online.** Il cliente paga alla cassa come sempre; l'app registra solo la conferma dell'incasso. Gestire pagamenti vuol dire commissioni, sicurezza dei dati di pagamento e rimborsi: troppo per una prima versione.
+- **Pagamenti online.** Gestire pagamenti vuol dire commissioni, sicurezza dei dati di pagamento e rimborsi: troppo per una prima versione.
 - **Scontrino fiscale.** TavoloFlow non sostituisce la cassa né il registratore telematico: lo scontrino continua a emetterlo il sistema di cassa del ristorante.
 - **Stampa delle comande.** Per i motivi spiegati sopra: serve una stampante cloud compatibile, e non ne avevo una per provarla.
 - **Notifiche push.** Cucina, pass e conti si aggiornano interrogando il server a intervalli regolari (polling). Per un ristorante piccolo basta, ed è molto più semplice.
@@ -82,7 +83,7 @@ Per il frontend, avendo appena finito di studiare le basi di React, ho scelto Re
 - **qrcode**, per generare i QR dei tavoli direttamente nel browser;
 - **Oxlint** e **Prettier**, per il lint e la formattazione, e il test runner integrato di Node per testare la logica pura senza installare un framework di test.
 
-Per la distribuzione uso **Docker Compose** su una VPS, con tre container: PostgreSQL, l'API e **Caddy**. Caddy fa da reverse proxy, ottiene da solo il certificato HTTPS e serve sullo stesso dominio sia i file della SPA sia `/api`. Le migrazioni del database non partono all'avvio dell'API: a ogni rilascio le applico esplicitamente con un bundle di migrazioni di EF Core.
+Per la distribuzione uso **Docker Compose** su una VPS, con **Caddy** come reverse proxy, che ottiene da solo il certificato HTTPS. Le migrazioni del database non partono all'avvio dell'API: a ogni rilascio le applico esplicitamente con un bundle di migrazioni di EF Core. Tutti i passaggi sono nella guida al [self-hosting](self-hosting.md).
 
 ## Architettura
 
@@ -113,8 +114,7 @@ Alcuni punti da tenere a mente:
 
 - **Un solo processo API, tre tipi di utenti.** La stessa applicazione ASP.NET Core serve clienti, staff e amministratori. Ognuno ha il suo cookie, e il backend capisce quale usare guardando il path dell'URL della richiesta, cioè la parte dopo il dominio, per esempio `/api/public/orders` (vedi «Tre identità» più sotto).
 - **Tre container in produzione:** `db` (PostgreSQL), `api` e `caddy`. Solo Caddy espone porte verso l'esterno (80 e 443): il database e l'API sono raggiungibili solo dalla rete interna di Docker.
-- **Le chiavi di Data Protection** stanno in una cartella persistente. Data Protection è il sistema di ASP.NET Core per cifrare e firmare dati, e queste sono le sue chiavi segrete. Il cookie di login, infatti, non punta a una sessione salvata sul server: contiene direttamente il "biglietto" con l'ID dell'account, il ruolo e la versione delle credenziali, cifrato e firmato con queste chiavi, così il browser non può né leggerlo né falsificarlo. Con le stesse chiavi vengono protetti anche i token CSRF (spiegati in «Cookie, CSRF e same-origin») e i codici del tavolo salvati nel database. Se le chiavi stessero solo dentro il container, si perderebbero a ogni nuovo rilascio: tutti dovrebbero rifare il login e i codici delle visite aperte non si potrebbero più leggere. Per questo la cartella è indicata in `DataProtection:KeyRingPath` e sta su un volume persistente.
-- Il database è l'ultima linea di difesa. Il frontend rende l'uso più comodo, ma non garantisce niente: le regole che contano davvero (un tavolo ha una sola visita aperta; una stessa richiesta d'ordine, anche se inviata più volte, crea al massimo un ordine; un conto si chiude una volta sola) le fanno rispettare il backend e PostgreSQL.
+- **Le chiavi di Data Protection** stanno in una cartella persistente. Data Protection è il sistema di ASP.NET Core per cifrare e firmare dati, e queste sono le sue chiavi segrete. Il cookie di login, infatti, non punta a una sessione salvata sul server: contiene direttamente il "biglietto" dell'account (vedi «Tre identità»), cifrato e firmato con queste chiavi, così il browser non può né leggerlo né falsificarlo. Con le stesse chiavi vengono protetti anche i token CSRF (spiegati in «Cookie, CSRF e same-origin») e i codici del tavolo salvati nel database. Se le chiavi stessero solo dentro il container, si perderebbero a ogni nuovo rilascio: tutti dovrebbero rifare il login e i codici delle visite aperte non si potrebbero più leggere. Per questo la cartella è indicata in `DataProtection:KeyRingPath` e sta su un volume persistente.
 
 ### Modello dei dati
 
@@ -133,7 +133,7 @@ Ogni ordine appartiene a una visita e ha una o più righe (`order_items`), una p
 
 Quando la visita si chiude (dopo l'incasso, oppure senza incasso se non c'erano ordini o se erano tutti annullati), diventa `CLOSED` e salva il motivo (`PAID`, `EMPTY` o `VOIDED`), il totale e l'ora di chiusura. Una visita chiusa non si riapre mai: i clienti successivi avranno una visita nuova.
 
-Alcune regole non le controlla solo il codice C#: le garantisce direttamente il database, così restano vere anche se un giorno il codice avesse un bug.
+Il frontend rende l'uso più comodo, ma non garantisce niente. Alcune regole, poi, non le controlla solo il codice C#: le garantisce direttamente il database, così restano vere anche se un giorno il codice avesse un bug.
 
 | Regola                                              | Come la garantisce PostgreSQL                                                                                                                                                                                                                                                                           |
 | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -210,9 +210,9 @@ flowchart TD
   CT -->|"ApiException"| EF["ApiExceptionFilter<br>→ JSON ApiError"]
 ```
 
-- **Autenticazione.** Legge il cookie dell'identità a cui appartiene il percorso e costruisce `HttpContext.User`. Per staff e amministratori ogni richiesta ricontrolla il database (`ValidatePrincipal`): se l'account è stato disattivato o la password è cambiata, il cookie viene rifiutato subito.
+- **Autenticazione.** Legge il cookie dell'identità a cui appartiene il percorso e costruisce `HttpContext.User`. Per staff e amministratori ricontrolla anche l'account nel database (`ValidatePrincipal`, vedi «Tre identità»).
 - **Autorizzazione.** Ogni controller dichiara una policy: `StoreStaff`, `StoreOwner`, `StoreAccount` (valida anche prima del primo cambio password, solo per le operazioni sul proprio account), `GuestAccess` o `PlatformAdmin`. Un endpoint senza `[Authorize]` cade nella policy di fallback, che è Store Staff: un endpoint nuovo è protetto anche se ci si dimentica di dichiararla. Login, menu pubblico, ingresso nella visita e richiesta del token CSRF si aprono esplicitamente con `[AllowAnonymous]`. Le risposte 401 e 403 le scrivono gli eventi del cookie, prima dei filtri MVC, ma con lo stesso formato JSON.
-- **CSRF.** `CsrfValidationFilter` è registrato su tutti i controller: ogni POST, PUT, PATCH e DELETE deve avere l'header `X-CSRF-TOKEN` ottenuto dalla stessa identità, altrimenti la risposta è 400 `CSRF_VALIDATION_FAILED`.
+- **CSRF.** `CsrfValidationFilter` è registrato su tutti i controller: ogni POST, PUT, PATCH e DELETE deve avere l'header `X-CSRF-TOKEN` ottenuto dalla stessa identità, altrimenti la risposta è 400 `CSRF_VALIDATION_FAILED` (vedi «Cookie, CSRF e same-origin»).
 - **Errori.** Un service rifiuta una richiesta lanciando un'`ApiException` con stato HTTP, codice e messaggio. Il filtro globale `ApiExceptionFilter` la trasforma sempre nello stesso JSON:
 
   ```json
@@ -224,7 +224,7 @@ flowchart TD
   }
   ```
 
-  Alcuni codici aggiungono campi: per esempio `BILL_CHANGED` porta anche `currentBill`, il conto aggiornato. I messaggi del server sono in cinese; in italiano il frontend non li mostra, ma sceglie il testo in base a `code` (`lib/api-messages.ts`).
+  Alcuni codici aggiungono campi: per esempio `BILL_CHANGED` porta anche `currentBill`, il conto aggiornato. I messaggi del server sono in cinese; in italiano e in inglese il frontend non li mostra, ma sceglie il testo in base a `code` (`lib/api-messages.ts`).
 
 ### Frontend: organizzazione delle feature
 
@@ -233,7 +233,9 @@ Il frontend (`frontend/src/`) è una sola SPA con tre aree, una per tipo di uten
 **Route.** Con TanStack Router le route sono file in `routes/`, e il nome del file è l'URL: `staff.kitchen.tsx` diventa `/staff/kitchen`, `q.$token.tsx` diventa `/q/{token}` con il parametro `token`. Da questi file il plugin di Vite genera `routeTree.gen.ts`, che non si modifica a mano. `staff.tsx` e `platform.tsx` sono route di layout: avvolgono tutte le pagine della loro area (per lo staff, `StaffLayout` mostra la navigazione e rende l'area installabile come PWA). I file delle route restano sottilissimi e passano subito alla feature:
 
 ```tsx
-export const Route = createFileRoute("/staff/kitchen")({ component: KitchenPage });
+export const Route = createFileRoute("/staff/kitchen")({
+  component: KitchenPage,
+});
 ```
 
 **Feature.** Il codice vero sta in `features/`, una cartella per parte del prodotto:
@@ -259,17 +261,17 @@ Ogni feature ha più o meno la stessa forma:
 - `state.ts`: logica pura, senza React né API del browser (validazione, regole del carrello, recupero dopo un errore di rete), testata con `node --test`;
 - `use<Feature>.ts`: hook per il polling, per fermarsi quando la pagina è nascosta o offline e per scartare le risposte arrivate in ritardo;
 - `*Page.tsx` e `*Views.tsx`: il rendering;
-- `messages.ts`: i testi dell'interfaccia, un oggetto per lingua (cinese e italiano per lo staff, anche inglese per il cliente). Ogni lingua ha lo stesso tipo dell'oggetto cinese, quindi se manca una traduzione il progetto non compila.
+- `messages.ts`: i testi dell'interfaccia, un oggetto per lingua (cinese, italiano e inglese). Ogni lingua ha lo stesso tipo dell'oggetto cinese, quindi se manca una traduzione il progetto non compila.
 
 Il codice condiviso sta in `lib/` (`api.ts` con le funzioni di richiesta, formato di prezzi e orari, lingue, temi…), in `components/` (i pezzi comuni delle pagine: `PageHeader`, `Notice`, `ConfirmDialog`, `MasterDetail`…) e in `components/ui/`, dove stanno i componenti di shadcn/ui.
 
 **Dove stanno i dati.** Nel frontend ci sono tre tipi di stato, e ognuno ha il suo posto:
 
-| Tipo                           | Dove                    | Esempi                                                          |
-| ------------------------------ | ----------------------- | --------------------------------------------------------------- |
-| Dati del server                | cache di TanStack Query | menu, Sala, coda della Cucina, conti                            |
-| Intenzioni locali della scheda | `sessionStorage`        | carrello, identificativi delle operazioni in attesa di conferma |
-| Preferenze del dispositivo     | `localStorage`          | lingua dello staff, suono e categorie nascoste della Cucina     |
+| Tipo                           | Dove                    | Esempi                                                           |
+| ------------------------------ | ----------------------- | ---------------------------------------------------------------- |
+| Dati del server                | cache di TanStack Query | menu, Sala, coda della Cucina, conti                             |
+| Intenzioni locali della scheda | `sessionStorage`        | carrello, identificativi delle operazioni in attesa di conferma  |
+| Preferenze del dispositivo     | `localStorage`          | lingua dell'interfaccia, suono e categorie nascoste della Cucina |
 
 Il primo pezzo della chiave di ogni query dice a quale identità appartengono i dati: `public` (menu anonimo), `guest`, `platform`, `["auth", "me"]` (l'identità dello staff); tutto il resto conta come dato privato del ristorante. Quando lo staff fa login o logout, `lib/query-scope.ts` svuota solo la cache dello staff, e i dati del cliente o dell'amministratore aperti nella stessa scheda restano.
 
@@ -374,7 +376,7 @@ In questa sezione spiego il perché delle scelte tecniche più importanti. Quasi
 
 Le letture normali, senza lock, non vengono bloccate: grazie a MVCC, PostgreSQL mostra loro l'ultima versione già confermata della riga.
 
-EF Core non ha un'API LINQ per questi lock, quindi li scrivo in SQL con `FromSql`, che trasforma i valori interpolati in parametri e quindi è sicuro contro la SQL injection. Quelli su ristorante, tavolo, visita e piatto li ho raccolti in un solo file, `Data/RowLocks.cs` (i pochi lock sugli account stanno direttamente nei service della piattaforma):
+EF Core non ha un'API LINQ per questi lock, quindi li scrivo in SQL con `FromSql`, che trasforma i valori interpolati in parametri e quindi è sicuro contro la SQL injection. Quelli su ristorante, tavolo, visita e piatto li ho raccolti in un solo file, `Data/RowLocks.cs`, con l'ordine dei lock scritto in cima al file, così sono facili da controllare (i pochi lock sugli account stanno direttamente nei service della piattaforma):
 
 ```csharp
 db.DiningSessions.FromSql(
@@ -470,7 +472,7 @@ Il frontend non rimanda mai la POST da solo. Dopo un risultato sconosciuto cerca
 
 ### Scritture con risultato sconosciuto: recupero solo con GET
 
-Il problema degli ordini vale per ogni scrittura: aprire un tavolo, segnare un piatto pronto, chiudere un conto, creare un ristorante. Quando la rete cade, o quando scade il timeout, il risultato è sconosciuto: la scrittura può essere andata a buon fine oppure no. Il timeout non è automatico: solo le operazioni che usano `withTimeout` (`lib/api.ts`) interrompono l'attesa dopo 15 secondi (`REQUEST_TIMEOUT_MS`), per esempio quelle di Sala, Cucina, Pass, Conto e degli ordini del cliente. Le modifiche al menu e le operazioni dell'amministratore su ristoranti e account, invece, non lo usano (gli abbonamenti sì).
+Il problema degli ordini vale per ogni scrittura: aprire un tavolo, segnare un piatto pronto, chiudere un conto, creare un ristorante. Quando la rete cade, o quando scade il timeout, il risultato è sconosciuto: la scrittura può essere andata a buon fine oppure no. Il timeout non è automatico: solo le operazioni che usano `withTimeout` (`lib/api.ts`) interrompono l'attesa dopo 15 secondi (`REQUEST_TIMEOUT_MS`), cioè quelle di Sala, Cucina, Pass, Conto, abbonamenti e del cliente (ordini e ingresso nella visita); le modifiche al menu e le operazioni dell'amministratore su ristoranti e account non lo usano.
 
 Per le scritture più delicate uso lo stesso schema: apertura del tavolo e pausa dei nuovi ordini in Sala, piatto pronto o annullato in Cucina, chiusura del conto, ordini del cliente e operazioni dell'amministratore su ristoranti e account.
 
@@ -532,20 +534,20 @@ Il costo è un ritardo fino a 10 secondi, e il numero di richieste cresce con il
 
 - sono `HttpOnly`: JavaScript non li può leggere, quindi nemmeno uno script malevolo iniettato nella pagina (XSS) può rubarli e usarli altrove;
 - il browser li manda da solo, e con frontend e API sulla stessa origine non serve nessuna configurazione;
-- si possono revocare: a ogni richiesta `ValidatePrincipal` confronta la `credential_version` del cookie con quella nel database, quindi cambiare o reimpostare una password, o disattivare un account, invalida subito tutti i cookie vecchi. Un JWT di solito si verifica senza database, e per revocarlo prima della scadenza servirebbe comunque un controllo sul server: a quel punto il suo vantaggio principale sparisce.
+- si possono revocare: grazie al controllo di `credential_version` a ogni richiesta (vedi «Tre identità»), cambiare o reimpostare una password, o disattivare un account, invalida subito tutti i cookie vecchi. Un JWT di solito si verifica senza database, e per revocarlo prima della scadenza servirebbe comunque un controllo sul server: a quel punto il suo vantaggio principale sparisce.
 
-La durata è fissa, senza rinnovo automatico: 30 giorni per staff e amministratori, 12 ore per il cliente. È prevedibile: un tablet perso smette di funzionare al più tardi dopo 30 giorni, e subito se si cambia la password.
+La durata fissa, senza rinnovo automatico (vedi la tabella in «Tre identità»), è prevedibile: un tablet perso smette di funzionare al più tardi dopo 30 giorni, e subito se si cambia la password.
 
 **Il prezzo dei cookie: il CSRF.** Proprio perché il browser allega i cookie da solo, un altro sito potrebbe approfittarne: una pagina malevola aperta dal titolare potrebbe contenere un form nascosto che fa una POST verso `https://app.esempio.it/api/...`, e il browser allegherebbe il cookie di login del titolare. Si chiama Cross-Site Request Forgery (CSRF). Le difese sono due:
 
 1. `SameSite=Lax` sui cookie di login: il browser non li allega alle POST che partono da un altro sito.
-2. Il token antiforgery di ASP.NET Core. Prima di ogni scrittura il frontend chiede un token all'endpoint `csrf` della propria identità e lo rimanda nell'header `X-CSRF-TOKEN`. Il server lo confronta con il cookie antiforgery (`TavoloFlow.Csrf`, `HttpOnly` e `SameSite=Strict`) e con l'utente corrente. Un altro sito non può leggere la risposta che contiene il token, perché la same-origin policy del browser glielo impedisce, quindi non può costruire una richiesta valida. In più ogni token è legato all'identità del path (`BrowserCsrfScope`): un token chiesto come cliente non vale per una scrittura dello staff.
+2. Il token antiforgery di ASP.NET Core. Prima di ogni scrittura il frontend chiede un token nuovo all'endpoint `csrf` della propria identità e lo rimanda nell'header `X-CSRF-TOKEN`: costa una richiesta in più, ma evita di usare un token vecchio dopo un login, un logout o un cambio di identità. Il server lo confronta con il cookie antiforgery (`TavoloFlow.Csrf`, `HttpOnly` e `SameSite=Strict`) e con l'utente corrente. Un altro sito non può leggere la risposta che contiene il token, perché la same-origin policy del browser glielo impedisce, quindi non può costruire una richiesta valida. In più ogni token vale solo per l'identità per cui è stato chiesto (`BrowserCsrfScope`, vedi «Tre identità»).
 
-Il controllo lo fa `CsrfValidationFilter`, registrato in modo globale perché `AddControllers` da solo non valida il token per le richieste JSON: così anche un endpoint nuovo è protetto senza fare niente. Il frontend chiede un token nuovo prima di ogni scrittura: costa una richiesta in più, ma evita di usare un token vecchio dopo un login, un logout o un cambio di identità.
+Il controllo lo fa `CsrfValidationFilter`, registrato in modo globale perché `AddControllers` da solo non valida il token per le richieste JSON: così anche un endpoint nuovo è protetto senza fare niente.
 
 ### PWA per lo staff
 
-**Perché una PWA e non un'app nativa.** Lo staff usa telefoni e tablet, spesso già presenti nel ristorante. Un'app nativa vorrebbe dire altro codice (Android e iOS), la pubblicazione negli store e aggiornamenti da far installare a ogni dispositivo. Con una PWA lo stesso codice React diventa un'app installabile: icona nella schermata Home, finestra a schermo intero, e gli aggiornamenti arrivano a tutti senza passare dagli store, alla successiva apertura o ricarica dell'app. Una pagina già aperta continua invece a usare la versione precedente: per questo, a ogni rilascio, il server conserva per un po' i vecchi file JavaScript e CSS.
+**Perché una PWA e non un'app nativa.** Lo staff usa telefoni e tablet, spesso già presenti nel ristorante. Un'app nativa vorrebbe dire altro codice (Android e iOS), la pubblicazione negli store e aggiornamenti da far installare a ogni dispositivo. Con una PWA lo stesso codice React diventa un'app installabile: icona nella schermata Home, finestra a schermo intero, e gli aggiornamenti arrivano a tutti senza passare dagli store, alla successiva apertura o ricarica dell'app. Una pagina già aperta continua invece a usare la versione precedente: per questo il server conserva i file JavaScript e CSS di tutte le versioni (vedi [self-hosting](self-hosting.md#rilasciare-una-nuova-versione)).
 
 **Solo `/staff`.** Il manifest (`/staff.webmanifest`) non è collegato in `index.html`: lo collega solo `StaffLayout`, che registra anche il service worker `/sw.js` con scope `/staff`. Così ai clienti su `/q/*`, che scansionano il QR una volta sola, il browser non propone mai di installare l'app. `id`, `start_url` e `scope` del manifest sono `/staff` senza barra finale, perché il router toglie la barra finale dagli URL e la pagina deve restare dentro lo scope.
 
@@ -564,7 +566,6 @@ Le notifiche push (Web Push) le ho rimandate: richiederebbero chiavi VAPID e le 
 - **Aprire un tavolo non è idempotente.** A differenza dell'ordine, l'apertura non ha un ID di richiesta. Se la risposta si perde, il frontend rilegge la Sala e lo staff decide se riaprire; una seconda apertura sullo stesso tavolo riceve `SESSION_ALREADY_ACTIVE`, e l'indice unico garantisce comunque una sola visita aperta per tavolo. Resta un rischio, che ho accettato consapevolmente per la prima versione: una richiesta vecchia che arriva in grande ritardo, quando il tavolo è già stato chiuso, e apre una visita che nessuno voleva, da chiudere poi senza incasso. Se nell'uso reale succedesse spesso, aggiungerei un ID di richiesta anche all'apertura. Per un ordine o un conto un rischio del genere non sarebbe accettabile, ed è per questo che lì ci sono `clientRequestId` e `bill_version`.
 - **Menu: l'ultima modifica vince.** Se il titolare modifica lo stesso piatto da due dispositivi, vale l'ultimo salvataggio, senza avvisi di conflitto. Non è grave, perché quello che conta lo controlla l'ordine: il backend ricontrolla sempre prezzi e disponibilità e, se qualcosa è cambiato, risponde `MENU_CHANGED` con l'elenco delle modifiche.
 - **Un formato di errore mio invece di ProblemDetails.** ASP.NET Core supporta un formato standard per gli errori (ProblemDetails, RFC 9457), ma il frontend era già costruito attorno al campo `code`. Generare tutto da un solo filtro costava meno che passare al formato standard, che per un'API pubblica resterebbe comunque la scelta più corretta.
-- **Lock in SQL scritto a mano.** È meno elegante di LINQ, ma EF Core non offre alternative. Tenere i lock di ristorante, tavolo, visita e piatto in `RowLocks.cs`, con l'ordine scritto in cima al file, li rende facili da controllare; solo i pochi lock sugli account stanno nei service della piattaforma.
 - **Abbonamenti senza storico.** Nel progetto iniziale c'era una tabella di eventi degli abbonamenti, con lo storico delle modifiche, gli avvisi al titolare e un ID per ogni operazione contro i duplicati. L'ho eliminata quando è stato chiaro che la sola `subscription_version` bastava a garantire che ogni scrittura venga applicata al massimo una volta. Ho perso lo storico, ma per una prima versione non serviva.
 
 ## Limiti e cosa farei diversamente
@@ -573,10 +574,9 @@ Le notifiche push (Web Push) le ho rimandate: richiederebbero chiavi VAPID e le 
 
 - **Pensato per una sola istanza.** Il rate limiter (`FixedWindowLimiter`) tiene i contatori in memoria: si azzerano a ogni riavvio e, con più istanze dell'API, ognuna avrebbe i suoi. Per scalare servirebbe un archivio condiviso, per esempio Redis o lo stesso PostgreSQL.
 - **Il codice del tavolo è corto.** Quattro caratteri da un alfabeto di 32 fanno circa un milione di combinazioni (2²⁰). Contro chi prova a indovinarlo lo protegge solo il rate limit, per IP e per visita: prima di un uso pubblico vero andrebbe rivalutato, magari con un codice più lungo.
-- **Polling.** Fino a 10 secondi di ritardo in Cucina e al Pass, e un carico sul server che cresce con il numero di dispositivi accesi. Con molti ristoranti varrebbe la pena passare a WebSocket o a Server-Sent Events. Niente notifiche push.
-- **Funzioni mancanti:** stampa delle comande, account personali per ogni cameriere (con un solo account staff non si sa chi ha fatto cosa), funzionamento offline. I motivi sono in «Cosa non fa».
+- **Polling.** Il carico sul server cresce con il numero di dispositivi accesi: con molti ristoranti varrebbe la pena passare a WebSocket o a Server-Sent Events.
 - **Test.** Il backend ha oltre 150 test di integrazione, che girano su un PostgreSQL vero in Docker; il frontend ha solo test della logica pura con `node --test`. Nel repository mancano test dei componenti e test end-to-end, e non c'è una CI: i test si lanciano a mano prima di ogni rilascio.
-- **Messaggi di errore in cinese.** Il server scrive i messaggi solo in cinese; il frontend in italiano usa una tabella di traduzione basata su `code` (`lib/api-messages.ts`), che va tenuta allineata a mano con il backend.
+- **Messaggi di errore in cinese.** La tabella con cui il frontend traduce i codici di errore in italiano e in inglese (`lib/api-messages.ts`, vedi «Backend: moduli e percorso di una richiesta») va tenuta allineata a mano con il backend.
 - **Rilascio artigianale.** Una sola VPS, script di rilascio lanciati a mano, backup affidati a un timer di systemd, nessun sistema di monitoraggio o di allarme: se il server si ferma, me ne accorgo solo quando qualcuno se ne lamenta.
 - **Frontend complesso in alcuni punti.** La gestione dei risultati sconosciuti (per esempio in `useCart`) è molto robusta, ma anche pesante da leggere e da mantenere per una prima versione.
 

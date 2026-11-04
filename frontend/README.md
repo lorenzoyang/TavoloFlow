@@ -12,6 +12,17 @@ React 19 + TypeScript + Vite，路由与数据请求使用 TanStack Router / Que
 - `npm run lint`、`npm run format`：Oxlint 检查与 Prettier 格式化。
 - `node --test --test-isolation=none tests/*.test.ts`：运行纯逻辑单元测试（需 Node 24）。
 
+## 界面语言
+
+店铺 `/staff/*` 和平台 `/platform/*` 均支持中文、意大利语、英语，共用 `localStorage` 中的
+`tavoloflow:staff-language`。有效保存值优先；否则按 `navigator.languages` 顺序匹配语言主标签，
+无匹配时使用英语。切换入口位于店铺登录/首次改密页、首页账号卡片和平台页头，退出不清除选择。
+顾客 `/q/{token}` 按餐厅保存独立偏好，首次使用餐厅默认语言。
+
+统一类型为 `lib/language.ts` 的 `Language`，每个功能通过三语文案字典提供界面文字。
+共享组件默认读取店铺/平台语言，顾客调用时显式传入自己的标签。错误码翻译、格式化及完整开发约定见
+[架构说明第 7.5 节](../docs/architecture.md#75-界面语言与本机偏好)。
+
 ## 正式域名与二维码
 
 业务系统正式地址为 `https://app.qiaotavoloflow.it`。根域名留给独立仓库、独立部署的 Astro 官网。
@@ -31,7 +42,17 @@ npm run build
 设置局域网地址，见 [桌位与公开菜单说明](../docs/tables-public-menu.md)。
 Windows + WSL 的启动、转发、防火墙及手机扫码步骤见 [本地手机测试流程](../docs/zh-CN/local-wsl-testing.md)。
 已有纸质二维码仍指向旧地址，更换地址后需重新打印或维护旧地址跳转。
-生产发布使用根目录 `deploy/build-release.sh` 在 Docker 中构建，显式设置正式域名，不读取本机环境文件。
+生产发布使用根目录 `deploy/build-release.sh` 在 Docker 中构建，不读取本机环境文件。
+默认 `PUBLIC_ORIGIN=https://app.qiaotavoloflow.it`；其他业务域名需在仓库根目录显式传入：
+
+```bash
+PUBLIC_ORIGIN=https://app.example.com bash deploy/build-release.sh
+```
+
+`PUBLIC_ORIGIN` 必须为小写 HTTPS origin，不含端口、路径或末尾斜杠；它同时写入前端的
+`VITE_PUBLIC_BASE_URL` 和发布包的 `public-origin.txt`。服务器生产 `.env` 的 `DOMAIN` 须替换
+模板中的 `app.example.com`，并满足 `https://` 加 `DOMAIN` 与该文件一致，否则安装停止。
+后续每次发布到自定义域名都要传入同一个 `PUBLIC_ORIGIN`，改服务器配置不会重写已构建的二维码地址。
 完整流程见 [netcup 部署教程](../docs/zh-CN/deployment-guide.md)。
 
 ## 安装为应用（PWA）

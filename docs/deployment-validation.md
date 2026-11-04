@@ -138,10 +138,15 @@ cd ..
 for script in deploy/*.sh; do
   if [ -f "$script" ]; then bash -n "$script"; fi
 done
-bash deploy/build-release.sh
+# 当前冒烟脚本只支持默认域名；此处显式使用默认 PUBLIC_ORIGIN 构建测试包。
+PUBLIC_ORIGIN=https://app.qiaotavoloflow.it bash deploy/build-release.sh
 # 替换为刚生成的包；需要 Docker，使用临时测试容器和独立数据库卷。
 bash deploy/smoke-test.sh artifacts/tavoloflow-实际版本号.tar.gz
 ```
+
+`deploy/build-release.sh` 支持自定义 `PUBLIC_ORIGIN`，但当前 `smoke-test.sh` 的测试配置和主机名断言
+固定使用 `app.qiaotavoloflow.it`，不能用它验证自定义域名的发布包。测试包与实际自定义域名的部署包须分别构建，
+验证记录也应分别说明；正式安装仍要求生产 `.env` 的 `https://` 加 `DOMAIN` 与包内 `public-origin.txt` 一致。
 
 普通用户运行时，容器冒烟测试在临时测试容器内创建独立 `tavoloflow-smoke-*` Compose 项目，使用内部回环端口 18080/18443、独立网段 172.30.81.0/24。
 它不使用开发 Compose、开发数据库或真实域名 DNS。测试包仅将 Caddy 改为本地 CA，客户端仍校验这个 CA 和正式域名名称；

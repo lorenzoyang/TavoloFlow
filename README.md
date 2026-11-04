@@ -4,7 +4,9 @@
 `https://qiaotavoloflow.it` 预留给独立 GitHub 仓库中的 Astro 官网，由 Cloudflare 托管；本仓库只部署业务系统到 netcup VPS。
 技术项目名称仍为 **TavoloFlow**：仓库、目录、文件名、命名空间及内部标识沿用原名。
 
-面向餐厅的堂食二维码点单 MVP：菜单/桌位、开桌与顾客验证、点单、厨房处理、线下收款确认与历史账单，以及平台建店和账号维护。ASP.NET Core 10 + EF Core + PostgreSQL 18；React / TypeScript + TanStack Router / Query。共十张业务表，不处理在线支付。
+面向餐厅的堂食二维码点单 MVP：菜单/桌位、开桌与顾客验证、点单、厨房处理、线下收款确认与历史账单，以及平台建店和账号维护。ASP.NET Core 10 + EF Core + PostgreSQL 18；React / TypeScript + TanStack Router / Query。共十一张业务表，不处理在线支付。
+
+顾客、店铺和平台界面均支持中文、意大利语和英语。店铺与平台共用本设备的语言选择；没有有效保存值时跟随浏览器语言，无法匹配则使用英语。顾客菜单按餐厅保存独立选择，首次使用餐厅默认语言。详见[界面语言规则](docs/architecture.md#75-界面语言与本机偏好)。
 
 ## 本地开发
 
@@ -36,6 +38,11 @@ Windows + WSL 环境下用手机扫码测试，见 [本地手机测试流程](do
 使新生成的二维码指向 `https://app.qiaotavoloflow.it/q/{token}`。顾客、店铺、平台及 `/api` 都在业务子域名下使用同源路径。
 本地开发继续使用当前浏览器地址或局域网配置；配置步骤见 [前端说明](frontend/README.md)。
 
+生产发布使用 `bash deploy/build-release.sh`，默认构建地址为 `https://app.qiaotavoloflow.it`。
+自托管到其他业务域名时，在仓库根目录执行 `PUBLIC_ORIGIN=https://app.example.com bash deploy/build-release.sh`；
+地址须为小写 HTTPS origin，不含端口、路径或末尾斜杠。服务器 `.env` 的 `DOMAIN` 须替换模板中的
+`app.example.com`，与构建地址的主机名一致；安装器会核对发布包的 `public-origin.txt`。
+
 首次上线请从 [netcup 中文部署教程](docs/zh-CN/deployment-guide.md) 开始：在 WSL 构建发布包，
 部署到 VPS，由 Cloudflare 提供 DNS、Caddy 管理 HTTPS。生产模板和运维脚本位于 `deploy/`，与本地 Compose 分开。
 域名仍在 OVHcloud 续费；委派到 Cloudflare 后添加灰云 `A app` 记录指向 VPS 即可，无需购买第二个域名。官网未上线也可以先部署业务系统。
@@ -66,3 +73,4 @@ npm run format:check
 - [netcup 部署教程](docs/zh-CN/deployment-guide.md)：首次上线、更新、备份与恢复
 - [部署笔记](docs/zh-CN/deployment-notes.md)：做过什么、为什么这样做，以及日常维护备忘
 - [部署验证与清理记录](docs/deployment-validation.md)：清理范围、验证命令与人工验收边界
+- Documentazione in italiano: [note di sviluppo](docs/it/development-notes.md) · [guida al self-hosting](docs/it/self-hosting.md)

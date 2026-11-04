@@ -306,9 +306,19 @@ bash deploy/build-release.sh
 ```
 
 - 脚本在容器里用 Node 24 和 .NET 10 构建 Linux AMD64 镜像，结果不依赖本机安装的版本。首次需要下载基础镜像，可能要几分钟。
-- 前端固定使用 `https://app.qiaotavoloflow.it` 构建，不读取本地 `.env.local`，二维码不会指向局域网地址。
+- 前端默认使用 `https://app.qiaotavoloflow.it` 构建，可用 `PUBLIC_ORIGIN` 指定其他业务域名；不读取本地 `.env.local`，二维码不会混入局域网地址。
 - 发布包只包含白名单内的文件，不会带入真实 `.env`、密钥、开发数据或 `node_modules`。
 - 版本号由 UTC 构建时间和当前提交编号组成，所以构建前先提交代码。
+
+本教程部署到默认业务域名。自托管到其他域名时，把构建命令替换为：
+
+```bash
+PUBLIC_ORIGIN=https://app.example.com bash deploy/build-release.sh
+```
+
+将 `app.example.com` 换成实际业务主机名。`PUBLIC_ORIGIN` 必须为小写 HTTPS origin，不含端口、路径或末尾斜杠。
+它在构建时写入前端的 `VITE_PUBLIC_BASE_URL` 和发布包的 `public-origin.txt`；服务器 `.env` 的 `DOMAIN`
+必须等于这个地址的主机名。首次部署和后续更新都要传入同一个值，只改服务器 `.env` 不会改动前端二维码地址。
 
 成功后终端会输出两个文件的路径，例如：
 
@@ -369,10 +379,10 @@ sudo nano /opt/tavoloflow/.env
 |---|---|
 | `POSTGRES_PASSWORD` | `openssl rand -hex 32` 生成的 64 个十六进制字符 |
 | `ACME_EMAIL` | 自己的真实邮箱，用于证书通知 |
-| `DOMAIN` | 确认是 `app.qiaotavoloflow.it`，不含 `https://` 或路径，不能填官网根域名 |
+| `DOMAIN` | 将模板的 `app.example.com` 替换为 `app.qiaotavoloflow.it`；自托管时填 `PUBLIC_ORIGIN` 的实际主机名，不含 `https://`、端口或路径，不能填本项目官网根域名 |
 
 - 其余值保留默认。值不加引号，`=` 两边不加空格。nano 保存是 `Ctrl+O`、回车，退出是 `Ctrl+X`。
-- 安装脚本会检查：密码是 64 位十六进制、邮箱不是占位值、`DOMAIN` 与发布包里构建时写死的前端地址一致。
+- 安装脚本会检查：密码是 64 位十六进制、邮箱不是占位值、`https://` 加 `DOMAIN` 与发布包 `public-origin.txt` 中的构建地址完全一致；不一致即停止。
 - `POSTGRES_PASSWORD` 是数据库密码，不是网站登录密码。它**只在数据库首次初始化时生效**，上线后只改 `.env` 不会改数据库里的密码。
 - 不要运行会打印完整配置（含密码）的 `docker compose config`，校验用 `config --quiet`。
 - `PROXY_SUBNET`、`PROXY_DYNAMIC_RANGE`、`CADDY_IP` 定义 Caddy 与 API 之间的固定网段，API 只信任来自 `CADDY_IP` 的代理头。只有 VPS 上已有其他 Docker 网络占用了 `172.30.80.0/24` 时，才需要在首次部署前把三个值一起修改。
@@ -530,6 +540,7 @@ sudo journalctl -u tavoloflow-backup.service --since yesterday --no-pager
 
 ```bash
 cd /home/yangr/personal-projects/TavoloFlow
+# 自定义域名部署须和首次构建一样，在命令前设置 PUBLIC_ORIGIN。
 bash deploy/build-release.sh
 RELEASE=新版本号
 scp -i ~/.ssh/tavoloflow \

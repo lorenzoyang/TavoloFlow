@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 @AGENTS.md
 
-AGENTS.md (imported above) is the authoritative source for layout, style and the per-area domain rules (lock order, state gates, recovery, limits). Put new domain rules there, not here. This file adds commands and the cross-cutting architecture that AGENTS.md assumes. The README and `docs/` are written in Chinese. Backend error messages are also Chinese. Store pages (OWNER and STAFF, `/staff`) and platform pages (`/platform`) have zh/it/en copy chosen per device (AGENTS.md “Interface language”). Guest-facing copy (`public-menu`, `guests`, `orders`) also has zh/it/en variants, chosen per guest.
+AGENTS.md (imported above) is the authoritative source for layout, style and the per-area domain rules (lock order, state gates, recovery, limits). Put new domain rules there, not here. This file adds commands and the cross-cutting architecture that AGENTS.md assumes. The README and most feature docs are written in Chinese; `docs/` also contains English technical notes and Italian development and self-hosting guides under `docs/it/`. Backend error messages are Chinese. Store pages (OWNER and STAFF, `/staff`) and platform pages (`/platform`) have zh/it/en copy chosen per device (AGENTS.md “Interface language”). Guest-facing copy (`public-menu`, `guests`, `orders`) also has zh/it/en variants, chosen per guest.
 
 ## Commands not covered in AGENTS.md
 

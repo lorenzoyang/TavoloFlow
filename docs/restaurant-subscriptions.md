@@ -4,6 +4,11 @@
 这些资料由 Platform 管理；本店 OWNER 只读，STAFF 与 Guest 无权读取。
 收费资料不会进入 `/api/auth/me` 或公开菜单。第一版不保留变更历史，也不提供站内通知。
 
+平台收费管理、提醒汇总与 OWNER 的订阅页面均支持中文、意大利语、英语，使用店铺与平台共用的本机语言偏好。
+表单、状态、确认区域和结果未知提示均从 `features/subscriptions/messages.ts` 的三语字典读取；
+共享的 `SubscriptionStatus`、`PeriodDetails` 自行调用 `useStaffLanguage()`，调用方不再传入 `language`。
+金额展示随界面语言切换，收费日期仍是餐厅当地日期。语言选择与错误翻译规则见[架构说明第 7.5 节](architecture.md#75-界面语言与本机偏好)。
+
 ## 日期、金额和付款
 
 每个周期保存开始日期、截止日期、约定年数、整个周期总金额及可空付费日期。
@@ -60,7 +65,7 @@ OWNER 只读 `GET /api/owner/subscription`，由 `CurrentAccount` 决定餐厅�
 
 ## 迁移和验收
 
-新增 `restaurant_subscription_periods` 一张表，连同原表共十张。
+收费周期初版新增 `restaurant_subscription_periods` 一张表，当时连同原表共十张；后续加入菜品图片后，当前完整模型共十一张。
 迁移需显式执行，见 [数据层](data-layer.md)。
 
 后端 `SubscriptionTests` 使用 disposable PostgreSQL 验证周期、按版本防重复、并发、日期和

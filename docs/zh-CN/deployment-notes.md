@@ -391,9 +391,18 @@ bash deploy/build-release.sh
 
 - **固定平台**：构建 Linux AMD64 镜像，与 VPS 的 CPU 架构一致。
 - **在容器里构建**：前端用 Node 24，后端用 .NET 10。结果不依赖本机装了什么版本。首次要下载基础镜像和依赖，可能要几分钟，之后有缓存会快很多。
-- **写死生产地址**：前端的 `VITE_PUBLIC_BASE_URL` 在构建时写进 JS，用于生成桌位二维码的网址。脚本固定传入 `https://app.qiaotavoloflow.it`，不读取本地 `.env.local` 里的局域网地址，否则打印的二维码顾客扫了打不开。
+- **构建时写入公开地址**：前端的 `VITE_PUBLIC_BASE_URL` 在构建时写进 JS，用于生成桌位二维码的网址。脚本从 `PUBLIC_ORIGIN` 读取，未设置时默认 `https://app.qiaotavoloflow.it`；不读取本地 `.env.local` 里的局域网地址，否则打印的二维码顾客扫了打不开。该地址同时保存在发布包的 `public-origin.txt`，供安装器核对。
 - **只打包需要的文件**：`.dockerignore` 和打包清单都是白名单，真实 `.env`、密钥、开发数据和 `node_modules` 不会进入镜像或发布包。
 - **生成迁移程序**：后端构建时把所有数据库迁移打包成独立程序 `efbundle`，放进 API 镜像（见 6.3）。
+
+2026-11-04 起，发布脚本支持其他自托管业务域名：
+
+```bash
+PUBLIC_ORIGIN=https://app.example.com bash deploy/build-release.sh
+```
+
+将示例主机名换成实际值，只接受小写 HTTPS origin，不含端口、路径或末尾斜杠。自定义部署的后续每次更新
+都要传入同一个 `PUBLIC_ORIGIN`，并与服务器 `.env` 的 `DOMAIN` 保持一致。它是构建配置，改服务器配置不会重写前端地址。
 
 成功后输出两个文件，版本号由"UTC 构建时间 + 当前提交编号"组成，例如：
 
@@ -481,7 +490,7 @@ sudo nano /opt/tavoloflow/.env
     ├── ops/                  运维文件（已复制到 /opt/tavoloflow）
     ├── docs/                 部署文档
     ├── release.txt           版本号
-    ├── public-origin.txt     前端构建时写死的网址
+    ├── public-origin.txt     前端构建时写入的 PUBLIC_ORIGIN
     ├── image.id              镜像 ID，安装时核对
     └── SHA256SUMS            包内每个文件的校验值
 
@@ -533,7 +542,7 @@ sudo nano /opt/tavoloflow/.env
 |---|---|---|
 | `POSTGRES_PASSWORD` | 粘贴 `openssl rand -hex 32` 生成的 64 个字符 | API 连接数据库用的密码，不是网站登录密码。十六进制只有 0–9 和 a–f，不会遇到特殊字符的转义问题 |
 | `ACME_EMAIL` | 自己的真实邮箱 | Caddy 申请 HTTPS 证书时登记的邮箱，用于接收证书通知 |
-| `DOMAIN` | 确认是 `app.qiaotavoloflow.it` | 不带 `https://` 和路径，也不能填官网的根域名 |
+| `DOMAIN` | 将模板的 `app.example.com` 替换为 `app.qiaotavoloflow.it`；自托管时填 `PUBLIC_ORIGIN` 的实际主机名 | 不带 `https://`、端口和路径，也不能填本项目官网的根域名 |
 
 其余的 `POSTGRES_DB`、`POSTGRES_USER` 和网段设置保留默认。
 
@@ -737,6 +746,7 @@ curl -i https://app.qiaotavoloflow.it/api/auth/csrf        # JSON，no-store
 
 ```bash
 cd /home/yangr/personal-projects/TavoloFlow
+# 自定义域名部署须和首次构建一样，在命令前设置 PUBLIC_ORIGIN。
 bash deploy/build-release.sh
 # 改成脚本最后输出的新版本号
 RELEASE=新版本号
