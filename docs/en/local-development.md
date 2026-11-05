@@ -1,7 +1,5 @@
 **English** · [Italiano](../it/local-development.md) · [中文](../zh-CN/local-development.md)
 
-_Translated from the Italian original, which is the reference version._
-
 # Running TavoloFlow locally
 
 This guide is for anyone who wants to run TavoloFlow on their own computer: to see it in action in a few minutes, to change its code, or to try it from a real phone. How to put it online on a server is in the [self-hosting](self-hosting.md) guide; how it works inside is in the [development notes](development-notes.md).

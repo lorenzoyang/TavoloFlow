@@ -1,7 +1,5 @@
 [English](../en/self-hosting.md) · [Italiano](../it/self-hosting.md) · **中文**
 
-_译自意大利语原文，以意大利语版本为准。_
-
 # 自托管 TavoloFlow
 
 这份指南写给想把 TavoloFlow 安装到自己服务器上的人：一台 Linux VPS、一个域名和 Docker。完成之后，你的应用可以通过 HTTPS 在你自己的子域名上访问，比如 `https://app.example.com`，有管理员后台、可以作为 PWA 安装的员工端、指向你域名的桌位二维码，以及每晚自动备份。

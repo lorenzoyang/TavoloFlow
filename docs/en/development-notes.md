@@ -1,7 +1,5 @@
 **English** · [Italiano](../it/development-notes.md) · [中文](../zh-CN/development-notes.md)
 
-_Translated from the Italian original, which is the reference version._
-
 # Development notes
 
 In these notes I tell how TavoloFlow was born and how it is built: why I developed it, what it does and doesn't do, which technologies I chose, how the architecture is organized, which design decisions I made and which limits I see today. I developed it mainly with AI agents such as Claude Code and Codex: I took part more in the design and in the decisions about the project's direction than in writing the code and in the implementation details.

@@ -1,7 +1,5 @@
 [English](../en/local-development.md) · [Italiano](../it/local-development.md) · **中文**
 
-_译自意大利语原文，以意大利语版本为准。_
-
 # 在本地运行 TavoloFlow
 
 这份指南写给想在自己电脑上运行 TavoloFlow 的人：几分钟内看到它跑起来，修改它的代码，或者用一部真实的手机试用。怎么部署到服务器上，见[自托管](self-hosting.md)指南；它内部是怎么做的，见[开发笔记](development-notes.md)。
