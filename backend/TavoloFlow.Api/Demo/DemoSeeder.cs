@@ -39,10 +39,16 @@ public sealed class DemoSeeder(ApplicationDbContext db, IHostEnvironment environ
             ServiceStatus = RestaurantServiceStatus.Active, OrderingEnabled = true,
             JoinCodeRequired = restaurantData.JoinCodeRequired, DefaultAnnualFeeCents = restaurantData.AnnualFeeCents
         };
+        
+        // Menus and table lists sort rows by ID, so IDs that grow in file order keep the fixtures' order on
+        // screen (random IDs would shuffle categories, dishes and tables). Photo IDs stay random on purpose.
+        var idTime = clock.GetUtcNow();
+        Guid NextId() => Guid.CreateVersion7(idTime = idTime.AddMilliseconds(1));
+
         var categories = menu.Categories.ToDictionary(x => x.Key, x =>
         {
             var names = MenuValidation.Normalize(new CategoryInput(x.Names.Zh, x.Names.It, x.Names.En));
-            return new MenuCategory { Id = Guid.NewGuid(), RestaurantId = restaurant.Id,
+            return new MenuCategory { Id = NextId(), RestaurantId = restaurant.Id,
                 NameZh = names.NameZh, NameIt = names.NameIt, NameEn = names.NameEn };
         });
         var images = new List<MenuItemImage>();
@@ -61,7 +67,7 @@ public sealed class DemoSeeder(ApplicationDbContext db, IHostEnvironment environ
             var imageId = Guid.NewGuid();
             var entity = new MenuItem
             {
-                Id = Guid.NewGuid(), RestaurantId = restaurant.Id, CategoryId = category.Id, ItemCode = content.ItemCode,
+                Id = NextId(), RestaurantId = restaurant.Id, CategoryId = category.Id, ItemCode = content.ItemCode,
                 NameZh = content.NameZh, NameIt = content.NameIt, NameEn = content.NameEn,
                 DescriptionZh = content.DescriptionZh, DescriptionIt = content.DescriptionIt, DescriptionEn = content.DescriptionEn,
                 PriceCents = content.PriceCents, AllergenCodes = content.AllergenCodes!, AllergenReviewed = true,
@@ -74,7 +80,7 @@ public sealed class DemoSeeder(ApplicationDbContext db, IHostEnvironment environ
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         foreach (var category in categories.Values) restaurant.MenuCategories.Add(category);
         foreach (var table in tables)
-            restaurant.Tables.Add(new RestaurantTable { Id = Guid.NewGuid(), TableLabel = table.TableLabel.Trim(),
+            restaurant.Tables.Add(new RestaurantTable { Id = NextId(), TableLabel = table.TableLabel.Trim(),
                 IsEnabled = table.IsEnabled, QrToken = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32)) });
         restaurant.Users.Add(CreateUser(accounts.Owner, RestaurantUserRole.Owner));
         restaurant.Users.Add(CreateUser(accounts.Staff, RestaurantUserRole.Staff));

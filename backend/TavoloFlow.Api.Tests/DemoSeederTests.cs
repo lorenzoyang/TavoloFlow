@@ -59,6 +59,13 @@ public sealed class DemoSeederTests(PostgreSqlFixture database) : IClassFixture<
             Assert.All(new[] { item.NameZh, item.NameIt, item.NameEn, item.DescriptionZh, item.DescriptionIt, item.DescriptionEn },
                 value => Assert.False(string.IsNullOrWhiteSpace(value)));
         });
+        // Screens list rows by ID: categories, dishes and tables must keep the fixtures' order.
+        Assert.Equal(new[] { "Ramen", "Sides", "Drinks", "Desserts" },
+            (await db.MenuCategories.OrderBy(x => x.Id).ToArrayAsync()).Select(x => x.NameEn));
+        Assert.Equal(new[] { "tonkotsu-ramen", "shoyu-ramen", "miso-ramen", "vegan-ramen" },
+            (await db.MenuItems.OrderBy(x => x.CategoryId).ThenBy(x => x.Id).Take(4).ToArrayAsync()).Select(x => x.ItemCode));
+        Assert.Equal(Enumerable.Range(1, 8).Select(x => $"T{x:00}"),
+            (await db.RestaurantTables.OrderBy(x => x.Id).ToArrayAsync()).Select(x => x.TableLabel));
         var images = await db.MenuItemImages.ToArrayAsync();
         Assert.Equal(12, images.Length);
         Assert.All(images, image =>
