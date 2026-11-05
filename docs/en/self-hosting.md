@@ -633,7 +633,13 @@ scp -i ~/.ssh/tavoloflow \
   deploy@VPS_IP:~/tavoloflow-upload/
 ```
 
-**On the VPS:**
+`scp` copies the files but does not open a shell on the VPS. **From your computer**, log in as `deploy` (or return to an SSH session already open):
+
+```bash
+ssh -o IdentitiesOnly=yes -i ~/.ssh/tavoloflow deploy@VPS_IP
+```
+
+**On the VPS** (set `RELEASE` again: your computer's variables are not transferred):
 
 ```bash
 RELEASE=NEW_VERSION

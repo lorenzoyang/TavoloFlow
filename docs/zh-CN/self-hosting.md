@@ -633,7 +633,13 @@ scp -i ~/.ssh/tavoloflow \
   deploy@VPS_IP:~/tavoloflow-upload/
 ```
 
-**在 VPS 上：**
+`scp` 只复制文件，不会在 VPS 上打开 shell。**在你的电脑上**，以 `deploy` 身份登录（或者回到已经打开的 SSH 会话）：
+
+```bash
+ssh -o IdentitiesOnly=yes -i ~/.ssh/tavoloflow deploy@VPS_IP
+```
+
+**在 VPS 上**（重新设置 `RELEASE`：你电脑上的变量不会传到这里）：
 
 ```bash
 RELEASE=新版本
