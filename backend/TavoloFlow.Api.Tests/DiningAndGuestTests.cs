@@ -217,6 +217,54 @@ public sealed class DiningAndGuestTests(PostgreSqlFixture database) : IClassFixt
         await AssertErrorAsync(await JoinAsync(stranger, table, opened), HttpStatusCode.Conflict, "TABLE_DISABLED");
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Join_CodeRequirement_ValidatesCodeOnlyWhenRequired(bool required)
+    {
+        using var host = new AccountTestHost(database);
+        var (user, table) = await SeedAsync(joinCodeRequired: required);
+        using var staff = await LoginAsync(host, user);
+        var opened = await OpenAsync(staff, table);
+        var sessionId = opened.Session.SessionId;
+        var path = $"/api/public/qr/{table.QrToken}/join";
+        object[] inputs = [new { sessionId }, new JoinInput(sessionId), new JoinInput(sessionId, ""),
+            new JoinInput(sessionId, " "), new JoinInput(sessionId, "!"), new JoinInput(sessionId, "ABC"),
+            new JoinInput(sessionId, new string('!', 32))];
+        foreach (var input in inputs)
+        {
+            using var guest = host.Browser();
+            var csrf = (await guest.GetFromJsonAsync<CsrfToken>("/api/public/csrf"))!.Token;
+            var response = await PostAsync(guest, path, input, csrf);
+            if (required)
+                await AssertErrorAsync(response, HttpStatusCode.BadRequest, "VALIDATION_FAILED");
+            else
+            {
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                Assert.Equal(new JoinResponse(user.RestaurantId, table.Id, sessionId),
+                    await response.Content.ReadFromJsonAsync<JoinResponse>());
+                Assert.Equal(HttpStatusCode.OK, (await guest.GetAsync(AccessPath(sessionId))).StatusCode);
+            }
+        }
+
+        using var wrong = host.Browser();
+        var wrongCode = opened.JoinCode == "2222" ? "3333" : "2222";
+        var incorrect = await JoinAsync(wrong, table, opened with { JoinCode = wrongCode });
+        if (required)
+            await AssertErrorAsync(incorrect, HttpStatusCode.Unauthorized, "JOIN_CODE_INCORRECT");
+        else
+            Assert.Equal(HttpStatusCode.OK, incorrect.StatusCode);
+
+        using var oversized = host.Browser();
+        await AssertErrorAsync(await JoinAsync(oversized, table, opened with { JoinCode = new string('2', 33) }),
+            HttpStatusCode.BadRequest, "VALIDATION_FAILED");
+        if (required)
+        {
+            using var correct = host.Browser();
+            Assert.Equal(HttpStatusCode.OK, (await JoinAsync(correct, table, opened)).StatusCode);
+        }
+    }
+
     [Fact]
     public async Task Join_JoinCodeReenabled_KeepsExistingGrantAndRequiresCodeForNewGuests()
     {

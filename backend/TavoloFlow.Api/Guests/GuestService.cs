@@ -12,7 +12,7 @@ public sealed class GuestService(ApplicationDbContext db, JoinCodes codes)
     {
         var code = input.JoinCode?.Trim().ToUpperInvariant() ?? "";
 
-        if (input.SessionId is null || input.SessionId == Guid.Empty || (code.Length > 0 && !IsCode(code)))
+        if (input.SessionId is null || input.SessionId == Guid.Empty)
             throw ApiException.Validation("请输入四位入桌码并确认当前用餐。");
 
         if (token.Length > 128) throw GuestErrors.QrNotFound();

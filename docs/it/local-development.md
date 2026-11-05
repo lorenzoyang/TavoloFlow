@@ -218,7 +218,7 @@ Poi, con l'app avviata (passo 5):
 3. il titolare entra in `/staff/login`, cambia la password e prepara menu e tavoli;
 4. in **Sala** accende **«Ordini dal QR»**: riattivare il servizio non riaccende gli ordini.
 
-Esiste anche `--seed-dev-accounts`, che crea un ristorante con titolare e staff a partire dalle impostazioni `DevelopmentSeed:*`. Il ristorante però nasce sospeso, e senza un amministratore va attivato a mano nel database ([`store-accounts.md`](../store-accounts.md), in cinese): i due modi sopra sono più comodi.
+Esiste anche `--seed-dev-accounts`, che crea un ristorante con titolare e staff a partire dalle impostazioni `DevelopmentSeed:*`. Il ristorante però nasce sospeso, e senza un amministratore va attivato a mano nel database ([`accounts-platform.md`](../accounts-platform.md), in inglese): i due modi sopra sono più comodi.
 
 ### 5. Avviare API e frontend
 

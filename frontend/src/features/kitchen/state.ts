@@ -60,7 +60,8 @@ export function readPending(raw: string | null): PendingKitchenAction[] {
 
 // A screen that shows only some categories chimes for its own new dishes. added is null without a
 // continuous baseline (first poll, a gap, or other hidden categories, whose revealed dishes are not new);
-// the caller then falls back to the restaurant-wide order watermark, so no arrival goes unannounced.
+// the caller then falls back to the restaurant-wide order watermark, which can over-announce for a
+// filtered screen and shares the timestamp watermark's limits.
 export function screenArrivals(previous: LineBaseline, ids: string[], hidden: string, at: number) {
   const continuous =
     previous && previous.hidden === hidden && at > previous.at && at - previous.at < 30_000;

@@ -1,51 +1,110 @@
 # Qiao TavoloFlow
 
-对外产品名称为 **Qiao TavoloFlow**，业务系统正式地址为 `https://app.qiaotavoloflow.it`。
-`https://qiaotavoloflow.it` 预留给独立 GitHub 仓库中的 Astro 官网，由 Cloudflare 托管；本仓库只部署业务系统到 netcup VPS。
-技术项目名称仍为 **TavoloFlow**：仓库、目录、文件名、命名空间及内部标识沿用原名。
+A self-hostable dine-in QR ordering app for small restaurants. Guests order from their phones; staff
+manage the floor, kitchen and pass; owners confirm offline payment and review closed bills.
+Platform administrators manage restaurants, accounts and service periods.
 
-面向餐厅的堂食二维码点单 MVP：菜单/桌位、开桌与顾客验证、点单、厨房处理、线下收款确认与历史账单，以及平台建店和账号维护。ASP.NET Core 10 + EF Core + PostgreSQL 18；React / TypeScript + TanStack Router / Query。共十一张业务表，不处理在线支付。
+The guest, store and platform interfaces support **English, Italian and Chinese**. Staff can install
+the store area as a PWA for phones and kitchen/counter tablets. The app does not process online
+payments or replace a fiscal cash register.
 
-顾客、店铺和平台界面均支持中文、意大利语和英语。店铺与平台共用本设备的语言选择；没有有效保存值时跟随浏览器语言，无法匹配则使用英语。顾客菜单按餐厅保存独立选择，首次使用餐厅默认语言。详见[界面语言规则](AGENTS.md#ui-conventions)。
+## What it does
 
-## 快速体验 / Quick demo
+- Menu management with translated names, photos, prices, allergen review and sold-out state.
+- Fixed table QR codes, printable table cards, explicit opening and optional guest join codes.
+- Tab-local carts, shared table orders, immutable snapshots and idempotent submission recovery.
+- Kitchen dish/order views, per-device category filtering, item preparation/cancellation and a pass
+  screen for dishes waiting to reach the table.
+- Version-checked bills, distinct paid/empty/all-cancelled closures and owner-only closed history.
+- Separate platform administration, temporary account recovery passwords and offline annual-fee records.
 
-安装 Docker（Windows 使用 Docker Desktop 的 Linux 容器模式），克隆仓库后在根目录运行：
-With Docker installed, clone this repository and run from its root in PowerShell, macOS or Linux:
+There are no order printers, online payments, split bills, stock management, push notifications or
+offline order queues. See [product requirements](docs/product-requirements.md) for the complete boundary.
+
+## Quick demo
+
+With Docker and Compose v2 installed, clone the repository and run from its root in PowerShell,
+macOS or Linux. Windows uses Docker Desktop with Linux containers.
 
 ```console
 docker compose -f demo/compose.yaml up -d --build
 ```
 
-打开 / Open <http://127.0.0.1:8080>。无需配置 `.env`、安装 Node/.NET 或运行 Bash 脚本。
-No `.env`, Node/.NET SDK or Bash script is needed. The first build downloads dependencies.
+Open <http://127.0.0.1:8080>. No `.env`, host Node/.NET SDK or Bash script is needed. The first build
+downloads dependencies.
 
-| 角色 / Role                 | 账号 / Username    | 密码 / Password | 入口 / Entry                                            |
-| --------------------------- | ------------------ | --------------- | ------------------------------------------------------- |
-| 店主 / Owner                | `demo.ramen.owner` | `123456`        | [/staff/login](http://127.0.0.1:8080/staff/login)       |
-| 员工 / Staff                | `demo.ramen.staff` | `123456`        | [/staff/login](http://127.0.0.1:8080/staff/login)       |
-| 平台管理员 / Platform admin | `demo.admin`       | `123456`        | [/platform/login](http://127.0.0.1:8080/platform/login) |
+| Role                   | Username           | Password | Entry                                                   |
+| ---------------------- | ------------------ | -------- | ------------------------------------------------------- |
+| Owner                  | `demo.ramen.owner` | `123456` | [/staff/login](http://127.0.0.1:8080/staff/login)       |
+| Staff                  | `demo.ramen.staff` | `123456` | [/staff/login](http://127.0.0.1:8080/staff/login)       |
+| Platform administrator | `demo.admin`       | `123456` | [/platform/login](http://127.0.0.1:8080/platform/login) |
 
-内置 Demo Ramen：8 张空桌、4 个分类、12 道三语菜品和图片、已收款的示例服务周期；不预置订单。
-Includes eight empty tables, four categories, twelve trilingual dishes with photos, and a paid sample service period. No orders are preloaded.
-正常重启保留修改；停止、重置、端口设置和五分钟体验流程见 [本地运行指南（意大利语）](docs/it/local-development.md)。
-Demo 仅绑定本机地址，使用独立数据库和密钥卷；正式自托管继续使用生产部署流程。
-同时运行开发环境时，demo 请使用 `127.0.0.1`，开发使用 `localhost`，或使用独立浏览器配置，避免同名 Cookie 互相覆盖。
-When running development alongside the demo, use `127.0.0.1` for the demo and `localhost` for development, or separate browser profiles.
+Demo Ramen includes eight empty tables, four categories, twelve trilingual dishes with photos and a
+paid sample service period. No visits, orders or bills are preloaded. Store accounts require the first
+password change. Menu ingredients/allergens and AI-generated photos are fictional demo material.
 
-## 本地开发
+Try the flow in separate browser profiles: owner prepares a table → staff opens it → guest scans/opens
+its menu and joins → guest orders → kitchen marks dishes ready → Pass marks delivery → owner confirms
+offline collection → history shows the bill. A profile holds one guest visit identity at a time.
+
+Normal restarts retain changes. To stop the demo without deleting data:
+
+```console
+docker compose -f demo/compose.yaml down
+```
+
+An explicit `down -v` resets only this demo project's volumes. The demo binds to loopback and has
+separate database/key volumes; it is not the production deployment. When running native development
+alongside it, use `127.0.0.1` for the demo and `localhost` for development, or separate browser profiles,
+to avoid cookie collisions. Port settings, fixtures and the full walkthrough are in the
+[local guide (Italian)](docs/it/local-development.md).
+
+## Stack and layout
+
+ASP.NET Core 10 controller API, EF Core/Npgsql and PostgreSQL 18; React 19, TypeScript, Vite,
+TanStack Router/Query and shadcn/ui on Base UI. Production uses Docker Compose and Caddy on one origin.
+There are eleven persistence tables; explicit row locks and conditional writes coordinate ordering,
+kitchen work and closure.
+
+| Directory   | Contents                                                           |
+| ----------- | ------------------------------------------------------------------ |
+| `backend/`  | API, entities, migrations and PostgreSQL integration tests         |
+| `frontend/` | Guest/store/platform SPA, pure logic tests and staff PWA assets    |
+| `demo/`     | Isolated local Docker experience and editable fictional fixtures   |
+| `deploy/`   | Production release, migration, backup and recovery tooling         |
+| `docs/`     | English requirements/contracts and the maintainer's Italian guides |
+
+## Native development
+
+Use the .NET SDK specified in `global.json`, Node 24 and Docker. From the repository root:
 
 ```bash
 cp .env.example .env
-# 编辑数据库密码后启动；Compose 不会自动设置 API 连接串。
+# Edit POSTGRES_PASSWORD before starting the database.
 docker compose up -d db
 dotnet tool restore
-dotnet user-secrets set 'ConnectionStrings:Default' '<本地连接串>' --project backend/TavoloFlow.Api
+dotnet user-secrets set 'ConnectionStrings:Default' \
+  'Host=localhost;Port=5432;Database=tavoloflow_dev;Username=tavoloflow;Password=YOUR_LOCAL_PASSWORD' \
+  --project backend/TavoloFlow.Api
 dotnet ef database update --project backend/TavoloFlow.Api
+```
+
+Match the connection string to your `.env`. Compose configures the database container only; the API
+does not load that file or migrate on startup. A newly migrated database has no accounts or sample data.
+Use [platform bootstrap](docs/accounts-platform.md#platform-bootstrap) to start from an empty restaurant
+setup, or import the fictional demo into an empty Development database:
+
+```bash
+Demo__DataPath="$PWD/demo" dotnet run --project backend/TavoloFlow.Api --launch-profile http -- --seed-demo
+```
+
+The import skips a database already containing a restaurant or platform account. Start the API:
+
+```bash
 dotnet run --project backend/TavoloFlow.Api --launch-profile http
 ```
 
-另一个终端：
+In another terminal:
 
 ```bash
 cd frontend
@@ -53,28 +112,34 @@ npm ci
 npm run dev
 ```
 
-账号初始化见 [店铺账号](docs/store-accounts.md) 和 [平台初始化](docs/platform-pilot.md)。入口：`/platform/login`、`/staff/login`、`/q/{token}`。Vite 代理 `/api` 到 5093。
+Open <http://localhost:5173/staff/login> or `/platform/login`. Guest entrances are `/q/{token}`.
+Vite proxies `/api` to `http://localhost:5093`. See the [frontend README](frontend/README.md) for frontend
+configuration, and the [Italian local guide](docs/it/local-development.md) for full setup, tests and
+phone access, including Windows/WSL forwarding.
 
-用手机扫码测试（包括 Windows + WSL 的端口转发），见 [本地运行指南第 4 部分（意大利语）](docs/it/local-development.md#parte-4-provare-dal-telefono)。
+## Deployment
 
-## 正式域名配置
+The maintained business origin is `https://app.qiaotavoloflow.it`. The apex and `www` are reserved for
+an independent Astro marketing repository on Cloudflare. This repository serves the business app/API
+on the netcup VPS; it does not share parent-domain cookies or configure cross-origin access to marketing.
 
-在 `frontend/` 中复制 `.env.production.example` 为 `.env.production`，然后运行 `npm run build`，
-使新生成的二维码指向 `https://app.qiaotavoloflow.it/q/{token}`。顾客、店铺、平台及 `/api` 都在业务子域名下使用同源路径。
-本地开发继续使用当前浏览器地址或局域网配置；配置步骤见 [前端说明](frontend/README.md)。
+Build a release with `bash deploy/build-release.sh`. For another business hostname:
 
-生产发布使用 `bash deploy/build-release.sh`，默认构建地址为 `https://app.qiaotavoloflow.it`。
-自托管到其他业务域名时，在仓库根目录执行 `PUBLIC_ORIGIN=https://app.example.com bash deploy/build-release.sh`；
-地址须为小写 HTTPS origin，不含端口、路径或末尾斜杠。服务器 `.env` 的 `DOMAIN` 须替换模板中的
-`app.example.com`，与构建地址的主机名一致；安装器会核对发布包的 `public-origin.txt`。
+```bash
+PUBLIC_ORIGIN=https://app.example.com bash deploy/build-release.sh
+```
 
-首次上线请参阅 [自托管指南（意大利语）](docs/it/self-hosting.md)：在 WSL 构建发布包，
-部署到 VPS，由 Cloudflare 提供 DNS、Caddy 管理 HTTPS。生产模板和运维脚本位于 `deploy/`，与本地 Compose 分开。
-域名仍在 OVHcloud 续费；委派到 Cloudflare 后添加灰云 `A app` 记录指向 VPS 即可，无需购买第二个域名。官网未上线也可以先部署业务系统。
-店铺端可安装为应用（PWA），手机安装同样需要 HTTPS 正式地址，部署要求见 [PWA 说明](docs/pwa.md)。
-已有纸质二维码保留旧地址，更换地址后需重新打印或为旧地址维护跳转。
+Use a lowercase HTTPS origin without port, path or trailing slash. The server's `DOMAIN` must match;
+the installer checks the release's `public-origin.txt`. Printed QR codes keep the old URL after an
+origin change and need reprinting or a redirect.
 
-## 验证
+Follow the [self-hosting guide (Italian)](docs/it/self-hosting.md) for first installation, explicit
+migration bundles, persistent Data Protection keys, releases, backups and restore drills. Production
+never exposes API/database container ports or migrates on normal API startup. Internal readiness is
+`/health/ready`, blocked by public Caddy routing. The staff [PWA guide](docs/pwa.md) covers installation
+and long-open application assets.
+
+## Validation
 
 ```bash
 dotnet test TavoloFlow.slnx
@@ -85,15 +150,21 @@ npm run lint
 npm run format:check
 ```
 
-集成测试使用 Docker 临时 PostgreSQL，不访问开发库。
+Integration test classes use disposable PostgreSQL containers with real migrations, separate from
+development/demo data. Frontend tests use Node's built-in runner. Production release packaging has a
+separate disposable-container smoke test described in the self-hosting guide.
 
-## 学习文档
+## Documentation
 
-- [开发笔记（意大利语）](docs/it/development-notes.md)：架构、身份、锁顺序、数据流与设计取舍的总览，建议先读
-- [精简版 PRD](docs/tavoloflow_mvp_prd_11_simplified.md) · [数据模型](docs/er-diagram.dbml)
-- [账号](docs/store-accounts.md) → [菜单](docs/menu-management.md) → [桌位和公开菜单](docs/tables-public-menu.md)
-- [开桌与顾客授权](docs/dining-guest-access.md) → [购物车和下单](docs/cart-ordering.md) → [厨房](docs/kitchen-cancellation.md) → [结账与历史](docs/billing-history.md)
-- [平台管理](docs/platform-pilot.md) → [收费周期](docs/restaurant-subscriptions.md)
-- [店铺端 PWA](docs/pwa.md)：安装到主屏幕、离线页、各平台差异与部署要求
-- [自托管指南（意大利语）](docs/it/self-hosting.md)：首次上线、更新、备份与恢复
-- Documentazione in italiano: [note di sviluppo](docs/it/development-notes.md) · [guida al self-hosting](docs/it/self-hosting.md)
+- [Documentation index](docs/README.md): choose product, implementation or operational reading.
+- [Product requirements](docs/product-requirements.md): roles, workflow, scope and acceptance baseline.
+- [Schema](docs/er-diagram.dbml) and [ER diagram](docs/er-diagram.png).
+- Implementation: [accounts/platform](docs/accounts-platform.md), [menu/tables](docs/menu-tables.md),
+  [dining/ordering](docs/dining-ordering.md), [kitchen/pass](docs/kitchen-pass.md),
+  [billing/history](docs/billing-history.md), [subscriptions](docs/restaurant-subscriptions.md),
+  [staff PWA](docs/pwa.md).
+- Personal guides in Italian: [architecture and decisions](docs/it/development-notes.md),
+  [local development](docs/it/local-development.md), [self-hosting](docs/it/self-hosting.md) and
+  [learning notes](docs/it/learning-notes.md).
+
+Contribution and implementation conventions are in [AGENTS.md](AGENTS.md).

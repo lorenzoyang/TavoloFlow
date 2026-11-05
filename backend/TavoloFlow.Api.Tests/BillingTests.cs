@@ -293,6 +293,49 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
         Assert.Equal(ready.ProcessedAt, closed.ClosedAt);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Checkout_ClockMovesBackwards_PreservesServedTimesAndCompletesDelivery(bool partiallyServed)
+    {
+        using var host = new AccountTestHost(database);
+        var s = await Seed(host); var a = await Create(host, s); var b = await Create(host, s);
+        var other = await Seed(host); var foreignOrder = await Create(host, other);
+        await using var db = database.CreateContext();
+        var kitchen = new KitchenService(db, host.Clock);
+        host.Clock.Advance(TimeSpan.FromMinutes(5));
+        var ready = await kitchen.ReadyAsync(s.RestaurantId, a.Id, a.Items.Single().Id, default);
+        await kitchen.ReadyAsync(s.RestaurantId, b.Id, b.Items.Single().Id, default);
+        await kitchen.ReadyAsync(other.RestaurantId, foreignOrder.Id, foreignOrder.Items.Single().Id, default);
+        DateTime? originalServedAt = null;
+        if (partiallyServed)
+        {
+            host.Clock.Advance(TimeSpan.FromMinutes(5));
+            originalServedAt = (await kitchen.ServedAsync(s.RestaurantId, a.Id, a.Items.Single().Id, default)).ServedAt;
+        }
+        // A later delivery in another visit must not advance this bill's closing time.
+        host.Clock.Advance(TimeSpan.FromMinutes(5));
+        await kitchen.ServedAsync(other.RestaurantId, foreignOrder.Id, foreignOrder.Items.Single().Id, default);
+        host.Clock.Advance(TimeSpan.FromMinutes(-20));
+
+        var billing = new BillingService(db, host.Clock);
+        var closed = await billing.CheckoutAsync(s.RestaurantId, s.Id, new(3, 1400), default);
+        Assert.Equal(originalServedAt ?? ready.ProcessedAt, closed.ClosedAt);
+        Assert.Equal("PAID", closed.CloseReason); Assert.Equal(3, closed.BillVersion); Assert.Equal(1400, closed.TotalAmountCents);
+        var items = await db.OrderItems.AsNoTracking().Where(i => i.RestaurantId == s.RestaurantId && i.Order.DiningSessionId == s.Id)
+            .OrderBy(i => i.Id).ToArrayAsync();
+        Assert.Equal(originalServedAt ?? closed.ClosedAt, items.Single(i => i.OrderId == a.Id).ServedAt);
+        Assert.Equal(closed.ClosedAt, items.Single(i => i.OrderId == b.Id).ServedAt);
+        Assert.All(items, item => { Assert.Equal(OrderItemStatus.Ready, item.Status); Assert.Equal(700, item.UnitPriceCents); Assert.Equal(1, item.Quantity); });
+        var pass = await kitchen.PassAsync(s.RestaurantId, null, 50, default);
+        Assert.Empty(pass.Items); Assert.Equal(0, pass.TotalCount); Assert.Null(pass.LatestReadyAt);
+
+        host.Clock.Advance(TimeSpan.FromHours(1));
+        Assert.Equal(closed, await billing.CheckoutAsync(s.RestaurantId, s.Id, new(3, 1400), default));
+        Assert.Equal(items.Select(i => i.ServedAt), await db.OrderItems.Where(i => i.RestaurantId == s.RestaurantId && i.Order.DiningSessionId == s.Id)
+            .OrderBy(i => i.Id).Select(i => i.ServedAt).ToArrayAsync());
+    }
+
     private async Task<Setup> Seed(AccountTestHost host)
     {
         await using var db = database.CreateContext();

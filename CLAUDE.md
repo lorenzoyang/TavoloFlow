@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 @AGENTS.md
 
-AGENTS.md (imported above) is the authoritative source for layout, style and the per-area domain rules (lock order, state gates, recovery, limits). Put new domain rules there, not here. This file adds commands and the cross-cutting architecture that AGENTS.md assumes. The README and most feature docs are written in Chinese; `docs/` also contains English technical notes and Italian development, self-hosting and local-development guides under `docs/it/`. Backend error messages are Chinese. Store pages (OWNER and STAFF, `/staff`) and platform pages (`/platform`) have zh/it/en copy chosen per device (AGENTS.md “Interface language”). Guest-facing copy (`public-menu`, `guests`, `orders`) also has zh/it/en variants, chosen per guest.
+AGENTS.md (imported above) is the authoritative source for layout, style and the per-area domain rules (lock order, state gates, recovery, limits). Put new domain rules there, not here. This file adds commands and the cross-cutting architecture that AGENTS.md assumes. The root/frontend READMEs and consolidated product/feature docs are written in English; `docs/README.md` indexes them alongside the Italian personal development, self-hosting and local-development guides under `docs/it/`. Temporary maintainer notes are not additional specifications. Backend error messages are Chinese. Store pages (OWNER and STAFF, `/staff`) and platform pages (`/platform`) have zh/it/en copy chosen per device (AGENTS.md “Interface language”). Guest-facing copy (`public-menu`, `guests`, `orders`) also has zh/it/en variants, chosen per guest.
 
 ## Commands not covered in AGENTS.md
 
@@ -12,8 +12,8 @@ Backend (repository root):
 
 - One-time setup: `dotnet tool restore` (pins `dotnet-ef`). Then `dotnet user-secrets set 'ConnectionStrings:Default' '<conn>' --project backend/TavoloFlow.Api` and `dotnet ef database update --project backend/TavoloFlow.Api`. Compose does not configure the API connection string.
 - Single test class or method: `dotnet test TavoloFlow.slnx --filter "FullyQualifiedName~KitchenTests"` (append `.MethodName` for one test). Each test class takes its own `IClassFixture<PostgreSqlFixture>` and starts its own `postgres:18-alpine` container, so Docker must be running.
-- Schema change: `dotnet ef migrations add <Name> --project backend/TavoloFlow.Api --output-dir Data/Migrations`, then check with `dotnet ef migrations has-pending-model-changes --project backend/TavoloFlow.Api`. Migrations are forward-only and never run at startup. Deployment applies them explicitly with the EF migrations bundle (`efbundle`) that `deploy/Dockerfile.api` builds into the API image and `deploy/install-release.sh` runs after its backup and before starting the new API. See `docs/data-layer.md`.
-- `Program.cs` also acts as a one-shot CLI (`Operations/MaintenanceCommands.cs`). Pass exactly one of `--seed-dev-accounts`, `--seed-platform-admin` or `--reset-platform-password`; it runs the command and exits without serving.
+- Schema change: `dotnet ef migrations add <Name> --project backend/TavoloFlow.Api --output-dir Data/Migrations`, then check with `dotnet ef migrations has-pending-model-changes --project backend/TavoloFlow.Api`. Migrations are forward-only and never run at startup. Deployment applies them explicitly with the EF migrations bundle (`efbundle`) that `deploy/Dockerfile.api` builds into the API image and `deploy/install-release.sh` runs after its backup and before starting the new API. See `docs/it/local-development.md` for schema tooling and `docs/it/self-hosting.md` for deployment migrations.
+- `Program.cs` also acts as a one-shot CLI (`Operations/MaintenanceCommands.cs`). Pass exactly one of `--seed-dev-accounts`, `--seed-platform-admin`, `--reset-platform-password` or the Development-only `--seed-demo`; it runs the command and exits without serving.
 
 Frontend (`frontend/`):
 

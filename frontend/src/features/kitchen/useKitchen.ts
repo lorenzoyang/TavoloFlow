@@ -299,8 +299,8 @@ export function useKitchen(account: CurrentAccount) {
     const result = watermarkAdvanced(baseline.current, head.latestCreatedAt, head.receivedAt);
     baseline.current = result.baseline;
     // A screen hiding categories announces only its own new dishes, judged while every NEW order is
-    // loaded. On another tab, with further pages or without the menu it announces any new order, so a
-    // dish may chime on a screen that does not make it but never goes unannounced.
+    // loaded. On another tab, with further pages or without the menu it falls back to the global
+    // timestamp watermark. That may chime for other stations and is not durable event delivery.
     const own =
       filter && status === "NEW" && !hasNextPage
         ? screenArrivals(

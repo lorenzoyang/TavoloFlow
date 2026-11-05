@@ -1,72 +1,98 @@
-# Qiao TavoloFlow 前端
+# Qiao TavoloFlow frontend
 
-产品名称为 **Qiao TavoloFlow**，技术项目名称仍为 **TavoloFlow**，现有文件名与内部标识保持不变。
+React 19 and TypeScript SPA with Vite, TanStack Router/Query and shadcn/ui on Base UI (`base-nova`).
+The product name is Qiao TavoloFlow; repository paths and internal identifiers retain TavoloFlow.
+For the ready-to-run Docker demo, start with the [root README](../README.md#quick-demo).
 
-React 19 + TypeScript + Vite，路由与数据请求使用 TanStack Router / Query，界面组件基于 shadcn（Base UI，base-nova）。
+## Commands
 
-## 常用命令
+Run from this directory with Node 24:
 
-- `npm install`：安装依赖。
-- `npm run dev`：启动开发服务器（http://localhost:5173），`/api` 代理到 http://localhost:5093。
-- `npm run build`：生成路由树、构建，并做 TypeScript 检查。
-- `npm run lint`、`npm run format`：Oxlint 检查与 Prettier 格式化。
-- `node --test --test-isolation=none tests/*.test.ts`：运行纯逻辑单元测试（需 Node 24）。
+| Command                                             | Purpose                                                                   |
+| --------------------------------------------------- | ------------------------------------------------------------------------- |
+| `npm ci`                                            | Install the locked dependency set                                         |
+| `npm run dev`                                       | Serve `http://localhost:5173`, proxying `/api` to `http://localhost:5093` |
+| `npm run build`                                     | Run Vite, generate route tree and production output, then `tsc -b`        |
+| `npm run lint`                                      | Oxlint checks                                                             |
+| `npm run format` / `npm run format:check`           | Write/check Prettier formatting                                           |
+| `node --test --test-isolation=none tests/*.test.ts` | Run pure TypeScript logic tests with Node's runner                        |
+| `npm run preview`                                   | Preview production output at `http://localhost:4173`                      |
 
-## 界面语言
+The API must run separately for native development. Vite uses strict port 5173 rather than silently
+switching ports. `vite build` generates `src/routeTree.gen.ts` before TypeScript checks route types;
+commit generated route changes and never edit that file manually. Router plugin precedes React and
+uses automatic route code splitting.
 
-店铺 `/staff/*` 和平台 `/platform/*` 均支持中文、意大利语、英语，共用 `localStorage` 中的
-`tavoloflow:staff-language`。有效保存值优先；否则按 `navigator.languages` 顺序匹配语言主标签，
-无匹配时使用英语。切换入口位于店铺登录/首次改密页、首页账号卡片和平台页头，退出不清除选择。
-顾客 `/q/{token}` 按餐厅保存独立偏好，首次使用餐厅默认语言。
+## Structure and state
 
-统一类型为 `lib/language.ts` 的 `Language`，每个功能通过三语文案字典提供界面文字。
-共享组件默认读取店铺/平台语言，顾客调用时显式传入自己的标签。错误码翻译、格式化及完整开发约定见
-仓库根目录 [`AGENTS.md`](../AGENTS.md#ui-conventions) 的 “UI Conventions”。
+- `src/routes/`: URL/search configuration; route files stay thin.
+- `src/features/`: feature APIs/query keys/types, pure `state.ts`, lifecycle hooks and page/view components.
+- `src/components/`: shared page composites; `ui/` holds generated/adapted shadcn controls.
+- `src/lib/`: scoped HTTP/CSRF, formatting, languages, query lifecycle and device preferences.
+- `public/`: favicon, app icons, staff manifest and navigation-only service worker.
 
-## 正式域名与二维码
+Store, Guest, Platform and anonymous requests use separate helpers in `lib/api.ts`. Anonymous menu
+reads omit credentials. Protected query keys isolate identities and restaurant/account/visit data;
+writes have no automatic retry or offline queue. The domain documents describe their recovery rules.
 
-业务系统正式地址为 `https://app.qiaotavoloflow.it`。根域名留给独立仓库、独立部署的 Astro 官网。
-在本目录准备生产构建：
+Node-tested pure modules use relative `.ts` imports rather than browser/React runtime dependencies or
+`@/` aliases. Other source imports use `@/`. Shared UI, touch controls, state colors, responsive detail
+views and confirmation conventions are in [AGENTS.md](../AGENTS.md#ui-conventions).
+
+## Interface languages and themes
+
+Regular store and platform pages support zh/it/en, sharing `tavoloflow:staff-language` in localStorage.
+A valid saved value wins; otherwise select the first supported primary language from
+`navigator.languages`, then English. Logout preserves the device choice. Guest menu language is saved
+separately per restaurant and initially uses the owner's menu preference.
+
+`lib/language.ts` defines the common Language type. Feature dictionaries contain all three translations;
+shared staff components read the device preference, while guest callers pass guest labels explicitly.
+Server error codes map to localized client text. Dish names follow the selected interface language
+before the shared name-fallback chain; descriptions follow the resolved language.
+
+Restaurant themes apply through `<html data-theme>` to signed-in staff and loaded guest menus,
+including portals. Sign-in, first password change and platform pages use the default theme. Brand
+palettes never redefine state colors. The PWA's standalone offline HTML follows the same saved-choice,
+browser-language and English fallback rule without loading app assets; see
+[PWA behavior](../docs/pwa.md#service-worker-behavior).
+
+## Deployment and QR origin
+
+The business origin is `https://app.qiaotavoloflow.it`. Guest `/q/*`, store `/staff/*`, platform
+`/platform/*` and `/api` use that same origin. `/` redirects to `/staff`. Apex/www belong to another
+repository's marketing site; no shared parent-domain cookies or CORS bridge is needed.
+
+For a standalone frontend production build:
 
 ```bash
 cp .env.production.example .env.production
 npm run build
 ```
 
-示例包含 `VITE_PUBLIC_BASE_URL=https://app.qiaotavoloflow.it`，只控制生成的公开菜单链接和二维码。
-该值在构建时写入前端产物，修改后需要重新构建；`.env.production` 不提交到 Git。
-顾客 `/q/{token}`、店铺 `/staff/*`、平台 `/platform/*` 和 `/api` 都位于业务子域名，继续使用同源路径。
-业务根路径 `/` 仍跳转到 `/staff`；Cookie 限定于业务主机，无需与官网共享 Cookie 或配置跨域 API。
+`VITE_PUBLIC_BASE_URL` controls public links and QR codes only. It must be an HTTP(S) origin without
+credentials, path, query or fragment. Unset uses the browser origin. It is embedded at build time;
+changing the server environment does not rewrite built QR URLs. Local `.env.production` is ignored by
+Git; Vite development does not read it. For phone access, use `.env.local` with the reachable LAN origin
+and `npm run dev -- --host 0.0.0.0`. See [QR behavior](../docs/menu-tables.md#qr-images-and-printable-cards)
+and the [Italian phone guide](../docs/it/local-development.md#parte-4-provare-dal-telefono).
 
-开发模式不读取 `.env.production`；未配置时使用当前浏览器 origin，手机访问可在 `.env.local`
-设置局域网地址，见 [桌位与公开菜单说明](../docs/tables-public-menu.md)。
-手机扫码测试及 Windows + WSL 的转发、防火墙步骤见 [本地运行指南第 4 部分（意大利语）](../docs/it/local-development.md#parte-4-provare-dal-telefono)。
-已有纸质二维码仍指向旧地址，更换地址后需重新打印或维护旧地址跳转。
-生产发布使用根目录 `deploy/build-release.sh` 在 Docker 中构建，不读取本机环境文件。
-默认 `PUBLIC_ORIGIN=https://app.qiaotavoloflow.it`；其他业务域名需在仓库根目录显式传入：
+Production releases build inside Docker from the repository root, without host environment files:
 
 ```bash
 PUBLIC_ORIGIN=https://app.example.com bash deploy/build-release.sh
 ```
 
-`PUBLIC_ORIGIN` 必须为小写 HTTPS origin，不含端口、路径或末尾斜杠；它同时写入前端的
-`VITE_PUBLIC_BASE_URL` 和发布包的 `public-origin.txt`。服务器生产 `.env` 的 `DOMAIN` 须替换
-模板中的 `app.example.com`，并满足 `https://` 加 `DOMAIN` 与该文件一致，否则安装停止。
-后续每次发布到自定义域名都要传入同一个 `PUBLIC_ORIGIN`，改服务器配置不会重写已构建的二维码地址。
-完整流程见 [自托管指南（意大利语）](../docs/it/self-hosting.md)。
+The default is `https://app.qiaotavoloflow.it`. A custom PUBLIC_ORIGIN must be lowercase HTTPS without
+port/path/trailing slash; it is embedded as VITE_PUBLIC_BASE_URL and recorded in `public-origin.txt`.
+Server DOMAIN must match or installation stops. Pass the same custom origin on subsequent builds.
+Existing paper QR codes retain their old URLs and need reprinting or redirection after a host change.
+The [Italian self-hosting guide](../docs/it/self-hosting.md) owns the complete release procedure.
 
-## 安装为应用（PWA）
+## Staff PWA
 
-正式安装入口为 `https://app.qiaotavoloflow.it/staff`，可安装到主屏幕或桌面，安装需要 HTTPS 或 localhost。开发模式不注册 service worker，
-请用 `npm run build && npm run preview`（http://localhost:4173）测试安装和离线页。见 [PWA 说明](../docs/pwa.md)。
-
-## 目录
-
-- `src/routes/`：文件路由，只负责 URL 和搜索参数。
-- `src/features/<模块>/`：`api.ts` 放请求、查询 key 和类型；`state.ts` 放纯逻辑，有单元测试；`use*.ts` 负责轮询与恢复；`*Page.tsx` / `*Views.tsx` 负责界面。
-- `src/components/ui/`：shadcn 生成的基础组件。
-- `src/components/`：全站共用的页面组件，包括页头、提示、确认对话框、主从视图、筛选标签、加载状态、空状态和品牌标识。
-- `src/lib/`：HTTP 请求、格式化、语言和共享 hook。
-- `public/`：favicon、店铺端 manifest、service worker 和应用图标。
-
-界面约定（配色语义、控件尺寸、导航、主从视图、确认方式、PWA）见仓库根目录 `AGENTS.md` 的 “UI Conventions”，以及 [开发笔记（意大利语）](../docs/it/development-notes.md#frontend-organizzazione-delle-feature)。
+Install from the `/staff` business entry. Only StaffLayout links the manifest, including at login;
+guest and platform routes do not. Registration runs only in production builds in a secure context.
+Use `npm run build` followed by `npm run preview` to test installation and offline navigation locally.
+The worker caches no API, page or assets and provides no offline write queue. See the
+[PWA contract](../docs/pwa.md) and [documentation index](../docs/README.md).

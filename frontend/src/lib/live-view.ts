@@ -29,9 +29,9 @@ export function syncIsStalled(
 export type WatermarkBaseline = { latest: number; at: number } | null;
 
 // Arrival chimes compare a restaurant-wide watermark (the newest order, or the newest dish waiting at the
-// pass) with the previous poll. Anything new is newer than everything before it, so it raises the
-// watermark; serving and closing can only lower it, silently. Only polls under 30 seconds apart may
-// announce: first load, resume and reconnect establish a silent baseline.
+// pass) with the previous poll. A strict timestamp increase chimes; this is not an event log, so late
+// commits or clock rollback can add work without advancing it. Serving and closing cannot raise it.
+// Only polls under 30 seconds apart may announce: first load, resume and reconnect stay silent.
 export function watermarkAdvanced(
   previous: WatermarkBaseline,
   watermark: string | null,

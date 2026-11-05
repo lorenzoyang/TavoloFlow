@@ -86,9 +86,12 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
 
         var latest = await db.Orders.Where(o => o.RestaurantId == restaurantId && o.DiningSessionId == id)
             .Select(o => (DateTime?)(o.ProcessedAt ?? o.CreatedAt)).MaxAsync(ct);
+        var latestServedAt = await db.OrderItems.Where(i => i.RestaurantId == restaurantId && i.Order.DiningSessionId == id)
+            .MaxAsync(i => i.ServedAt, ct);
         var now = clock.GetUtcNow().UtcDateTime;
         if (now < session.OpenedAt) now = session.OpenedAt;
         if (latest is not null && now < latest) now = latest.Value;
+        if (latestServedAt is not null && now < latestServedAt) now = latestServedAt.Value;
         var changed = await db.DiningSessions.Where(s => s.RestaurantId == restaurantId && s.Id == id && s.Status == DiningSessionStatus.Active)
             .ExecuteUpdateAsync(u => u.SetProperty(s => s.Status, DiningSessionStatus.Closed)
                 .SetProperty(s => s.CloseReason, reason).SetProperty(s => s.ClosedAt, now)
@@ -96,7 +99,7 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
                 .SetProperty(s => s.JoinCodeCiphertext, (string?)null), ct);
         if (changed != 1) throw DiningErrors.SessionClosed();
         // A settled bill means every ready dish reached the table, whether or not someone tapped it at the pass.
-        // The clamp only guards ck_order_item_served: closing time is already at least every order's ProcessedAt.
+        // Closing time includes processed and existing served times; the clamp also guards ck_order_item_served.
         await db.OrderItems.Where(i => i.RestaurantId == restaurantId && i.Order.DiningSessionId == id &&
                 i.Status == OrderItemStatus.Ready && i.ServedAt == null)
             .ExecuteUpdateAsync(u => u.SetProperty(i => i.ServedAt, i => i.ReadyAt > now ? i.ReadyAt : now), ct);

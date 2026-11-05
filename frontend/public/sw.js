@@ -1,12 +1,12 @@
 // Service worker of the installed staff app. StaffLayout registers it with scope /staff only, so
 // it never controls the guest pages on /q/*. It caches nothing: every page load goes to the
 // network, and only a load that fails gets the offline page below instead of the browser's error
-// page. All other requests, /api included, are left to the browser. Chromium also needs this
-// fetch handler before it offers its install prompt.
+// page. All other requests, /api included, are left to the browser. The fetch handler provides
+// the offline screen; it is not an install-promotion prerequisite.
 
 // Colours mirror the tokens in src/index.css; the app's own styles are not available offline.
 const offlinePage = `<!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -79,21 +79,44 @@ const offlinePage = `<!doctype html>
           <path d="m19 5-7 7" />
         </g>
       </svg>
-      <h1>无法连接网络</h1>
-      <p>请检查网络。连接恢复后，页面会自动重新加载。</p>
-      <button type="button" onclick="location.reload()">重新加载</button>
+      <h1>No connection</h1>
+      <p>Check your connection. The page will reload when it is restored.</p>
+      <button type="button" onclick="location.reload()">Reload</button>
     </main>
     <script>
-      // The page follows the device's staff language (src/lib/staff-language.ts); Chinese otherwise.
+      // Standalone HTML cannot import the app: keep selection aligned with src/lib/staff-language.ts.
+      const messages = {
+        zh: {
+          heading: "无法连接网络",
+          description: "请检查网络。连接恢复后，页面会自动重新加载。",
+          reload: "重新加载",
+        },
+        it: {
+          heading: "Nessuna connessione",
+          description: "Controlla la rete. Quando torna la connessione, la pagina si ricarica da sola.",
+          reload: "Ricarica",
+        },
+        en: {
+          heading: "No connection",
+          description: "Check your connection. The page will reload when it is restored.",
+          reload: "Reload",
+        },
+      };
+      const supported = (value) => value === "zh" || value === "it" || value === "en";
+      let language;
       try {
-        if (localStorage.getItem("tavoloflow:staff-language") === "it") {
-          document.documentElement.lang = "it";
-          document.querySelector("h1").textContent = "Nessuna connessione";
-          document.querySelector("p").textContent =
-            "Controlla la rete. Quando torna la connessione, la pagina si ricarica da sola.";
-          document.querySelector("button").textContent = "Ricarica";
-        }
+        language = localStorage.getItem("tavoloflow:staff-language");
       } catch {}
+      if (!supported(language)) {
+        language = (navigator.languages ?? [])
+          .map((tag) => tag.split("-")[0].toLowerCase())
+          .find(supported) ?? "en";
+      }
+      const copy = messages[language];
+      document.documentElement.lang = language === "zh" ? "zh-CN" : language;
+      document.querySelector("h1").textContent = copy.heading;
+      document.querySelector("p").textContent = copy.description;
+      document.querySelector("button").textContent = copy.reload;
       // Reconnecting reloads at once. While the device reports a connection but the server still
       // cannot be reached (Wi-Fi still joining, a restart), it retries every 10 seconds.
       addEventListener("online", () => location.reload());
