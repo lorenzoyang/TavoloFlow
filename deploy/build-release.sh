@@ -33,10 +33,6 @@ for file in compose.yaml Caddyfile .env.example lib.sh tf.sh install-release.sh 
   backup.sh rollback.sh tavoloflow-backup.service tavoloflow-backup.timer; do
   cp "deploy/$file" "$stage/ops/$file"
 done
-mkdir -p "$stage/docs/zh-CN"
-cp docs/deployment-validation.md docs/pwa.md "$stage/docs/"
-# Keep the guide under zh-CN/ so its ../pwa.md and ../deployment-validation.md links still resolve.
-cp docs/zh-CN/deployment-guide.md "$stage/docs/zh-CN/"
 
 # The checksum manifest is explicitly excluded from the input list.
 # shellcheck disable=SC2094

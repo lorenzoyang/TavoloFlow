@@ -177,7 +177,7 @@ npm run build
 示例设置 `VITE_PUBLIC_BASE_URL=https://app.qiaotavoloflow.it`，生成的公开链接为
 `https://app.qiaotavoloflow.it/q/{token}`。该配置只改变二维码公开地址，不会建立 DNS 记录或部署服务器。
 顾客、店铺、平台与 `/api` 继续同源；域名在 OVHcloud 注册、DNS 委派到 Cloudflare，灰云 `A app` 指向 netcup VPS，
-Caddy 提供 HTTPS。步骤见 [netcup 部署教程](deployment-guide.md)。
+Caddy 提供 HTTPS。步骤见 [自托管指南（意大利语）](it/self-hosting.md)。
 `.env.production` 只在生产构建中读取，本地开发仍可使用上面的 `.env.local` 局域网配置。
 
 ### 局域网与上线注意事项
@@ -187,7 +187,7 @@ WSL 场景先在 Windows 浏览器确认 Vite 可访问，再在同一局域网�
 具体取决于本机配置。只通过 Vite 暴露前端和 `/api` 代理即可，后端仍可绑定 localhost。
 工具不会自动改防火墙或端口转发。正式部署使用 HTTPS，并让服务器为 `/q/{token}` 等前端深链接返回 SPA 入口。
 
-Windows + WSL 的手机扫码操作步骤，见 [本地手机测试流程](zh-CN/local-wsl-testing.md)。
+手机扫码操作步骤（包括 Windows + WSL），见 [本地运行指南第 4 部分（意大利语）](it/local-development.md#parte-4-provare-dal-telefono)。
 
 ## 5. 验证记录（2026-10-22）
 

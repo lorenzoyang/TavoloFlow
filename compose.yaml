@@ -1,3 +1,4 @@
+# 仅用于本地开发数据库；完整 demo 配置见 demo/compose.yaml。
 name: tavoloflow
 
 services:
@@ -7,8 +8,8 @@ services:
     restart: unless-stopped
 
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB:?Database name is required}
+      POSTGRES_USER: ${POSTGRES_USER:?Database user is required}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Database password is required}
 
     ports:

@@ -177,7 +177,7 @@ Session 摘要字段：`id`、可空 `tableId`、历史 `tableLabel`、`status`�
 ## 6. 本地运行和学习实验
 
 按 [店铺账号模块](store-accounts.md) 启动数据库、应用迁移、初始化账号并启动 API/Vite。
-Windows + WSL 的手机扫码操作步骤见 [本地手机测试流程](zh-CN/local-wsl-testing.md)。
+手机扫码操作步骤（包括 Windows + WSL）见 [本地运行指南第 4 部分（意大利语）](it/local-development.md#parte-4-provare-dal-telefono)。
 开发账号初始化仍默认创建 SUSPENDED 餐厅。本阶段没有平台管理入口，不会自动改变服务状态。
 
 如需在**自己的开发数据库**启用测试餐厅，先在账号页确认餐厅 ID，再连接 Compose 数据库：

@@ -21,7 +21,7 @@ React 19 + TypeScript + Vite，路由与数据请求使用 TanStack Router / Que
 
 统一类型为 `lib/language.ts` 的 `Language`，每个功能通过三语文案字典提供界面文字。
 共享组件默认读取店铺/平台语言，顾客调用时显式传入自己的标签。错误码翻译、格式化及完整开发约定见
-[架构说明第 7.5 节](../docs/architecture.md#75-界面语言与本机偏好)。
+仓库根目录 [`AGENTS.md`](../AGENTS.md#ui-conventions) 的 “UI Conventions”。
 
 ## 正式域名与二维码
 
@@ -40,7 +40,7 @@ npm run build
 
 开发模式不读取 `.env.production`；未配置时使用当前浏览器 origin，手机访问可在 `.env.local`
 设置局域网地址，见 [桌位与公开菜单说明](../docs/tables-public-menu.md)。
-Windows + WSL 的启动、转发、防火墙及手机扫码步骤见 [本地手机测试流程](../docs/zh-CN/local-wsl-testing.md)。
+手机扫码测试及 Windows + WSL 的转发、防火墙步骤见 [本地运行指南第 4 部分（意大利语）](../docs/it/local-development.md#parte-4-provare-dal-telefono)。
 已有纸质二维码仍指向旧地址，更换地址后需重新打印或维护旧地址跳转。
 生产发布使用根目录 `deploy/build-release.sh` 在 Docker 中构建，不读取本机环境文件。
 默认 `PUBLIC_ORIGIN=https://app.qiaotavoloflow.it`；其他业务域名需在仓库根目录显式传入：
@@ -53,7 +53,7 @@ PUBLIC_ORIGIN=https://app.example.com bash deploy/build-release.sh
 `VITE_PUBLIC_BASE_URL` 和发布包的 `public-origin.txt`。服务器生产 `.env` 的 `DOMAIN` 须替换
 模板中的 `app.example.com`，并满足 `https://` 加 `DOMAIN` 与该文件一致，否则安装停止。
 后续每次发布到自定义域名都要传入同一个 `PUBLIC_ORIGIN`，改服务器配置不会重写已构建的二维码地址。
-完整流程见 [netcup 部署教程](../docs/deployment-guide.md)。
+完整流程见 [自托管指南（意大利语）](../docs/it/self-hosting.md)。
 
 ## 安装为应用（PWA）
 
@@ -69,4 +69,4 @@ PUBLIC_ORIGIN=https://app.example.com bash deploy/build-release.sh
 - `src/lib/`：HTTP 请求、格式化、语言和共享 hook。
 - `public/`：favicon、店铺端 manifest、service worker 和应用图标。
 
-界面约定（配色语义、控件尺寸、导航、主从视图、确认方式、PWA）见仓库根目录 `AGENTS.md` 的 “UI Conventions”，以及 `docs/architecture.md` 第 7 节。
+界面约定（配色语义、控件尺寸、导航、主从视图、确认方式、PWA）见仓库根目录 `AGENTS.md` 的 “UI Conventions”，以及 [开发笔记（意大利语）](../docs/it/development-notes.md#frontend-organizzazione-delle-feature)。

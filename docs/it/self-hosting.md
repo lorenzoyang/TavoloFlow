@@ -12,7 +12,7 @@ Come leggerla:
 - la **Parte 3** è per le emergenze: verificare un backup e ripartire su un server nuovo;
 - alla fine ci sono i problemi che ho incontrato e un riferimento rapido con la checklist.
 
-Tutti gli script e le configurazioni stanno nella cartella [`deploy/`](../../deploy/). Com'è fatta l'app all'interno (moduli, identità, lock…) lo spiego nelle [note di sviluppo](development-notes.md#architettura); qui parlo solo di come la si mette e la si tiene online. La guida originale passo passo, in cinese, è [`deployment-guide.md`](../deployment-guide.md).
+Tutti gli script e le configurazioni stanno nella cartella [`deploy/`](../../deploy/). Com'è fatta l'app all'interno (moduli, identità, lock…) lo spiego nelle [note di sviluppo](development-notes.md#architettura); qui parlo solo di come la si mette e la si tiene online.
 
 ## Panoramica
 
@@ -355,7 +355,6 @@ api-image.tar.gz     l'immagine Docker dell'API, con efbundle
 image.id             l'ID dell'immagine, controllato durante l'installazione
 frontend/            i file statici della SPA
 ops/                 script e configurazioni che finiranno in /opt/tavoloflow
-docs/                la guida cinese e i documenti a cui rimanda
 release.txt          l'ID della versione
 public-origin.txt    l'indirizzo pubblico scritto nel frontend
 SHA256SUMS           il checksum di ogni file

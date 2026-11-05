@@ -6,7 +6,7 @@
 平台与店铺共用本设备的语言偏好；有效保存值优先，否则跟随浏览器语言，无匹配时使用英语，退出后保留。
 餐厅管理、主题名称及说明、账号操作、临时密码提示和确认区域均随语言切换；建店仍用浏览器原生确认框，其他管理确认保留页内区域。
 业务文案在 `features/platform/messages.ts`，共用账号操作文案在 `management-messages.ts`，
-`TemporaryPasswords`、`AccountActions` 自行读取当前界面语言。错误按 `code` 翻译，完整约定见[架构说明第 7.5 节](architecture.md#75-界面语言与本机偏好)。
+`TemporaryPasswords`、`AccountActions` 自行读取当前界面语言。错误按 `code` 翻译，完整约定见仓库根目录 [`AGENTS.md`](../AGENTS.md#ui-conventions) 的 “UI Conventions”。
 
 ## 第一步：平台初始化与身份
 

@@ -7,7 +7,7 @@
 平台收费管理、提醒汇总与 OWNER 的订阅页面均支持中文、意大利语、英语，使用店铺与平台共用的本机语言偏好。
 表单、状态、确认区域和结果未知提示均从 `features/subscriptions/messages.ts` 的三语字典读取；
 共享的 `SubscriptionStatus`、`PeriodDetails` 自行调用 `useStaffLanguage()`，调用方不再传入 `language`。
-金额展示随界面语言切换，收费日期仍是餐厅当地日期。语言选择与错误翻译规则见[架构说明第 7.5 节](architecture.md#75-界面语言与本机偏好)。
+金额展示随界面语言切换，收费日期仍是餐厅当地日期。语言选择与错误翻译规则见仓库根目录 [`AGENTS.md`](../AGENTS.md#ui-conventions) 的 “UI Conventions”。
 
 ## 日期、金额和付款
 
