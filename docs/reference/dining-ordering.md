@@ -170,11 +170,14 @@ There is no discard-and-use-a-new-ID button for an unknown order. A delayed orig
 Foreground checks run about every 30 seconds, with revalidation on reload/reconnect/resume. Guest query
 keys include `guest`, restaurant, table and session, and survive unrelated store identity changes.
 
-Floor writes have a 15-second timeout and persist only scoped operation/table/original-session IDs,
-not codes. After an unknown open, GET current Floor state: show an existing visit for staff review or
-require fresh confirmation if empty. A delayed old open remains possible because opening has no
-request-level idempotency key. Accepting-orders recovery also uses GET and a new explicit action.
-Closure recovery always queries the original session, as described in [billing](billing-history.md).
+Floor writes have a 15-second timeout. Their markers contain `{ kind: "open", tableId }` for opening
+or `{ kind: "accepting", enabled }` for the accepting-orders switch, under a storage key scoped to
+restaurant and account. They contain no codes. After an unknown open, GET current Floor state: show an
+existing visit for staff review or require fresh confirmation if empty. A delayed old open remains
+possible because opening has no request-level idempotency key. Accepting-orders recovery also uses GET
+and a new explicit action.
+Closure markers store the original session ID separately; closure recovery always queries that visit,
+as described in [billing](billing-history.md).
 
 Guest join with an unknown result recovers through access GET; a received cookie can restore access.
 The client does not automatically resubmit an unknown join. Bootstrap/access polling detects closure;

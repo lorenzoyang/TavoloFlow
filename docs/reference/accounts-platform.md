@@ -130,7 +130,7 @@ fields. Temporary passwords appear only in successful create/reset responses, ne
 | `GET /api/platform/restaurants`                                     | `search`, `status`, `subscriptionStatus`, `sort`, `page`, `pageSize` → `{ items, totalCount, page, pageSize }`              |
 | `POST /api/platform/restaurants`                                    | Client-chosen `id`, name/language, distinct OWNER/STAFF usernames and optional settings → 201 `{ restaurant, credentials }` |
 | `GET /api/platform/restaurants/{id}`                                | `{ restaurant, accounts }`, including account credential versions                                                           |
-| `PATCH /api/platform/restaurants/{id}/service-status`               | `{ status: ACTIVE                                                                                                           | SUSPENDED }` → restaurant summary |
+| `PATCH /api/platform/restaurants/{id}/service-status`               | `{ status }`, `ACTIVE` or `SUSPENDED` → restaurant summary                                                                  |
 | `PATCH /api/platform/restaurants/{id}/google-maps-url`              | `{ googleMapsUrl }`, blank clears → restaurant summary                                                                      |
 | `PATCH /api/platform/restaurants/{id}/join-code-required`           | `{ joinCodeRequired }` → restaurant summary                                                                                 |
 | `PATCH /api/platform/restaurants/{id}/theme`                        | `{ theme }` → restaurant summary                                                                                            |

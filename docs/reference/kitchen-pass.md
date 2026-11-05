@@ -47,12 +47,12 @@ remain unfiltered.
 
 ## Kitchen APIs and transactions
 
-| Method and path                                     | Input              | Success                                            |
-| --------------------------------------------------- | ------------------ | -------------------------------------------------- |
-| `GET /api/staff/orders`                             | `status=NEW        | PROCESSED` (default NEW), cursor, limit 50/max 100 | `{ items, nextCursor, totalCount, pendingCount, latestCreatedAt }` |
-| `GET /api/staff/orders/{id}`                        | Original order ID  | Complete current kitchen order                     |
-| `POST /api/staff/orders/{id}/items/{itemId}/ready`  | No business fields | Complete order after NEW → READY                   |
-| `POST /api/staff/orders/{id}/items/{itemId}/cancel` | No business fields | Complete order after NEW → CANCELLED               |
+| Method and path                                     | Input                                                                      | Success                                                            |
+| --------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `GET /api/staff/orders`                             | `status=NEW` or `status=PROCESSED` (default NEW), cursor, limit 50/max 100 | `{ items, nextCursor, totalCount, pendingCount, latestCreatedAt }` |
+| `GET /api/staff/orders/{id}`                        | Original order ID                                                          | Complete current kitchen order                                     |
+| `POST /api/staff/orders/{id}/items/{itemId}/ready`  | No business fields                                                         | Complete order after NEW → READY                                   |
+| `POST /api/staff/orders/{id}/items/{itemId}/cancel` | No business fields                                                         | Complete order after NEW → CANCELLED                               |
 
 Kitchen order fields: `id`, `sessionId`, `tableLabel`, `status`, `createdAt`, `processedAt`,
 `defaultLanguage`, `totalAmountCents`, `payableAmountCents` and the shared

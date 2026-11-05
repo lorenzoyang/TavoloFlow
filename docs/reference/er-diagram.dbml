@@ -1,7 +1,7 @@
 Project TavoloFlow_MVP_V1 {
   database_type: 'PostgreSQL'
   Note: '''
-    TavoloFlow: 10 tables, one menu per restaurant, offline service subscriptions.
+    TavoloFlow: 11 tables, one menu per restaurant, offline service subscriptions.
     Credential versions revoke account tickets; subscription_version guards
     service administration and bill_version guards session bill confirmation.
     No join-code/QR reset in V1; closing a session invalidates guest cookies.
@@ -9,8 +9,8 @@ Project TavoloFlow_MVP_V1 {
     Cross-table rules, filtered unique indexes, and transaction locks
     are configured in EF Core and application services.
     Permanent restaurant deletion cascades to all restaurant-owned data,
-    including historical records. Session-to-order and order-to-line
-    references cascade; other internal references use NO ACTION.
+    including historical records. Session-to-order, order-to-line and
+    item-to-photo references cascade; other internal references use NO ACTION.
     Catalog deletion operations detach nullable historical links first.
     Platform users are independent.
   '''
@@ -186,7 +186,8 @@ Table menu_items {
     allergen_reviewed=false means no completed restaurant review.
     allergen_reviewed=true + empty allergen_codes means reviewed and
     no identified declarable allergens; do not promise zero cross-contact.
-    Reconfirm review when allergen_codes are edited.
+    Reconfirm allergen review on every item content save, even if sold out.
+    Photo and availability writes do not require another content review.
   '''
 }
 
@@ -239,8 +240,8 @@ Table dining_sessions {
     After network failure, open-table UI must query current table state
     and require fresh staff confirmation, not auto-retry the old POST.
     bill_version begins at 1 for each new session and increments only
-    when a new order is persisted or an order is actually cancelled.
-    Order creation/cancellation and checkout must lock this session row
+    when a new order is persisted or an individual order line is cancelled.
+    Order creation, line cancellation and checkout must lock this session row
     inside their transactions. Checkout compares expected bill_version
     and confirmed amount before closing.
   '''

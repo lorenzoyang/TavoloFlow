@@ -419,7 +419,7 @@ Qui `install` non installa pacchetti: copia un file e ne imposta insieme proprie
 
 | Variabile           | Cosa scrivere                                                                             |
 | ------------------- | ----------------------------------------------------------------------------------------- |
-| `DOMAIN`            | il sottodominio, per esempio `app.esempio.it`: senza `https://`, uguale a `PUBLIC_ORIGIN` |
+| `DOMAIN`            | il sottodominio, per esempio `app.esempio.it`, senza `https://`: `https://` + `DOMAIN` deve essere uguale a `PUBLIC_ORIGIN` |
 | `ACME_EMAIL`        | la tua email vera, per gli avvisi sul certificato                                         |
 | `POSTGRES_PASSWORD` | i 64 caratteri esadecimali generati da `openssl rand -hex 32`                             |
 
@@ -716,7 +716,7 @@ tavoloflow-20261027T023000Z-12345.tar.gz    ora UTC e numero del processo
 
 - **`pg_dump` legge tutto da un'unica istantanea:** anche se mentre lavora arriva un ordine, il file è coerente, come fotografato in un solo istante.
 - **Le chiavi vanno sempre con il database.** Cookie di login e codici dei tavoli sono cifrati con quelle chiavi: con il database ma senza le chiavi, tutti i dispositivi devono rifare il login e i codici dei tavoli aperti diventano illeggibili.
-- **Non ci sono** le immagini né il frontend (sono nei pacchetti sul tuo computer), né il certificato (su un server nuovo Caddy ne chiede un altro).
+- **Non ci sono** le immagini Docker né il frontend (sono nei pacchetti sul tuo computer), né il certificato (su un server nuovo Caddy ne chiede un altro). Le foto dei piatti sono invece incluse in `database.dump`, perché sono salvate nel database.
 - **Contiene password e chiavi:** mai in una cartella pubblica, mai in Git.
 - Il backup si scrive prima in un file `.part` e viene rinominato solo alla fine: non resta mai un backup scritto a metà. Usa lo stesso lucchetto di rilascio e rollback: se trova un rilascio in corso, esce con un errore.
 

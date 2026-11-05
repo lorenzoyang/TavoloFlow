@@ -272,7 +272,7 @@ dotnet test TavoloFlow.slnx
 dotnet test TavoloFlow.slnx --filter "FullyQualifiedName~KitchenTests"
 ```
 
-这些是集成测试：每个测试类用 Testcontainers 启动一个自己的一次性 PostgreSQL（`postgres:18-alpine`），在上面执行真实的迁移，再用 `WebApplicationFactory` 向 API 发送 HTTP 请求。它们不会碰开发数据库，也不会碰演示数据库。第一次运行会下载 PostgreSQL 镜像。
+测试集包括不使用数据库的纯逻辑测试，比如 `PasswordPolicyTests` 和 `SubscriptionSummaryTests`，以及集成测试。每个使用 `PostgreSqlFixture` 的类都会通过 Testcontainers 启动一个自己的一次性 PostgreSQL（`postgres:18-alpine`），并执行真实的迁移。HTTP 测试用 `WebApplicationFactory` 调用 API，数据层测试直接使用 `DbContext`。测试不会碰开发数据库，也不会碰演示数据库。运行完整命令需要 Docker；第一次运行集成测试会下载 PostgreSQL 镜像。
 
 ### 前端
 

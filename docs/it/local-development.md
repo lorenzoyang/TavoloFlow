@@ -272,7 +272,7 @@ dotnet test TavoloFlow.slnx
 dotnet test TavoloFlow.slnx --filter "FullyQualifiedName~KitchenTests"
 ```
 
-Sono test di integrazione: ogni classe di test avvia con Testcontainers un suo PostgreSQL usa e getta (`postgres:18-alpine`), ci applica le migrazioni vere e manda richieste HTTP all'API con `WebApplicationFactory`. Non toccano né il database di sviluppo né quello della demo. La prima esecuzione scarica l'immagine di PostgreSQL.
+La suite comprende test puri senza database, come `PasswordPolicyTests` e `SubscriptionSummaryTests`, e test di integrazione. Ogni classe con `PostgreSqlFixture` avvia con Testcontainers un suo PostgreSQL usa e getta (`postgres:18-alpine`) e ci applica le migrazioni vere. I test HTTP usano `WebApplicationFactory` per chiamare l’API; quelli del livello dati usano direttamente il `DbContext`. I test non toccano né il database di sviluppo né quello della demo. Il comando completo richiede Docker; alla prima esecuzione dei test di integrazione viene scaricata l’immagine di PostgreSQL.
 
 ### Frontend
 

@@ -272,7 +272,7 @@ dotnet test TavoloFlow.slnx
 dotnet test TavoloFlow.slnx --filter "FullyQualifiedName~KitchenTests"
 ```
 
-These are integration tests: each test class starts its own throwaway PostgreSQL with Testcontainers (`postgres:18-alpine`), applies the real migrations to it and sends HTTP requests to the API with `WebApplicationFactory`. They touch neither the development database nor the demo one. The first run downloads the PostgreSQL image.
+The suite includes pure tests without a database, such as `PasswordPolicyTests` and `SubscriptionSummaryTests`, and integration tests. Each class with `PostgreSqlFixture` starts its own throwaway PostgreSQL with Testcontainers (`postgres:18-alpine`) and applies the real migrations to it. HTTP tests use `WebApplicationFactory` to call the API; data-layer tests use the `DbContext` directly. Tests touch neither the development database nor the demo one. The full command requires Docker; the first integration test run downloads the PostgreSQL image.
 
 ### Frontend
 
