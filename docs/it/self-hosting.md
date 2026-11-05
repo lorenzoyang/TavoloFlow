@@ -2,7 +2,7 @@
 
 Questa guida è per chi vuole installare TavoloFlow su un proprio server: una VPS Linux, un dominio e Docker. Alla fine avrai l'app raggiungibile in HTTPS su un tuo sottodominio, per esempio `https://app.esempio.it`, con l'area amministratore, l'area staff installabile come PWA, i QR dei tavoli che puntano al tuo dominio e un backup automatico ogni notte.
 
-È anche il racconto di come l'ho messa online io. Per costruire usavo un PC Windows con WSL2 (Ubuntu) e Docker Desktop; il server era una VPS di netcup; il dominio l'avevo registrato su OVHcloud e il DNS lo gestiva Cloudflare. Dove una scelta dipende dal mio caso lo scrivo, così puoi adattarla al tuo.
+È anche il racconto di come l'ho messa online io. Per costruire i pacchetti usavo un PC Windows con WSL2 (Ubuntu) e Docker Desktop; il server era una VPS di netcup; il dominio l'avevo registrato su OVHcloud e il DNS lo gestiva Cloudflare. Dove una scelta dipende dal mio caso lo scrivo, così puoi adattarla al tuo.
 
 Come leggerla:
 
@@ -32,7 +32,7 @@ flowchart LR
   end
 ```
 
-Così il server resta piccolo e pulito, e ogni versione installata corrisponde esattamente a un archivio che hai ancora sul tuo computer: lo puoi reinstallare, usarlo per tornare indietro o per ricostruire un server da zero.
+Così il server resta piccolo e pulito, e ogni versione installata corrisponde esattamente a un archivio che hai ancora sul tuo computer: puoi reinstallarlo, oppure usarlo per tornare indietro o per ricostruire un server da zero.
 
 ### Architettura di produzione
 
@@ -67,7 +67,7 @@ E quattro volumi, che sopravvivono a ogni aggiornamento o ricreazione dei contai
 
 Alcune scelte che contano:
 
-- **Solo Caddy è esposto**, sulle porte 80 e 443. L'API e il database non pubblicano nessuna porta sull'host. Non è solo ordine: le porte pubblicate da Docker possono scavalcare le regole del firewall UFW, quindi l'unico modo sicuro per non esporre il database è non pubblicarne la porta.
+- **Solo Caddy è esposto**, sulle porte 80 e 443. L'API e il database non pubblicano nessuna porta sull'host. Non è solo una questione di ordine: le porte pubblicate da Docker possono scavalcare le regole del firewall UFW, quindi l'unico modo sicuro per non esporre il database è non pubblicarne la porta.
 - **Due reti separate.** `proxy` collega Caddy e l'API; `database` collega l'API e PostgreSQL ed è `internal`, cioè senza accesso a internet. Caddy non vede il database.
 - **Caddy ha un IP fisso** (`172.30.80.2`). Dietro un proxy, l'API vede ogni richiesta arrivare da Caddy, quindi Caddy aggiunge gli header `X-Forwarded-For` (IP reale del visitatore) e `X-Forwarded-Proto` (se la richiesta era HTTPS). L'API si fida di questi header **solo** se arrivano da quell'indirizzo (`ReverseProxy__KnownProxies__0` in `compose.yaml`, letto in `Operations/DeploymentHosting.cs`): altrimenti chiunque potrebbe scriverli a mano e falsificare il proprio IP, aggirando il rate limit del login e del codice del tavolo.
 - **Si riavvia da solo.** Ogni servizio ha `restart: unless-stopped` e Docker parte all'avvio del sistema: puoi chiudere la sessione SSH, e dopo un riavvio della VPS l'app torna su da sola.
@@ -233,7 +233,7 @@ Devono restare aperte solo tre porte: SSH, 80 e 443. Anche la 80 serve: Caddy la
 
 #### 1.6 Chiudere l'accesso con password e quello di root
 
-Ora che `deploy` entra con la chiave, togli le altre porte d'ingresso: niente login con password (chi non ha la chiave non può entrare, nemmeno indovinando) e niente login diretto come root.
+Ora che `deploy` entra con la chiave, chiudi gli altri modi di entrare: niente login con password (chi non ha la chiave non può entrare, nemmeno indovinando) e niente login diretto come root.
 
 **Sulla VPS** (tieni aperta una sessione con `sudo` funzionante finché non hai verificato):
 
@@ -324,7 +324,7 @@ Non andare avanti finché il DNS non è giusto: Caddy ne ha bisogno per ottenere
 
 ### 3. Costruire il pacchetto di release
 
-Prima fai il commit delle tue modifiche: l'ID della versione contiene l'hash del commit, ma la build usa i file della cartella di lavoro, e con modifiche non salvate le due cose non corrisponderebbero più.
+Prima fai il commit delle tue modifiche: l'ID della versione contiene l'hash del commit, ma la build usa i file della cartella di lavoro, e con modifiche rimaste fuori dal commit le due cose non corrisponderebbero più.
 
 **Sul tuo computer, nella cartella del repository, con Docker in esecuzione:**
 
@@ -362,10 +362,10 @@ SHA256SUMS           il checksum di ogni file
 
 Tieni sul tuo computer almeno il pacchetto della versione in produzione e quello precedente: servono per tornare indietro e per ricostruire il server.
 
-**Facoltativo: provare tutto in locale.** [`deploy/smoke-test.sh`](../../deploy/smoke-test.sh) installa il pacchetto dentro un Docker temporaneo e isolato (Docker-in-Docker, con un certificato di prova locale) e controlla installazione, migrazioni, HTTPS, cookie e CSRF delle tre identità, due rilasci di fila, backup, ripristino e rollback, poi cancella tutto. Usa internamente il dominio predefinito del progetto, quindi funziona solo su un pacchetto costruito **senza** `PUBLIC_ORIGIN`:
+**Facoltativo: provare tutto in locale.** [`deploy/smoke-test.sh`](../../deploy/smoke-test.sh) installa il pacchetto dentro un Docker temporaneo e isolato (Docker-in-Docker, con un certificato di prova locale) e controlla installazione, migrazioni, HTTPS, cookie e CSRF delle tre identità, due rilasci di fila, backup, ripristino e rollback, poi cancella tutto. Usa l'indirizzo scritto nel pacchetto, quindi funziona con qualsiasi `PUBLIC_ORIGIN`:
 
 ```bash
-bash deploy/build-release.sh
+PUBLIC_ORIGIN=https://app.esempio.it bash deploy/build-release.sh
 bash deploy/smoke-test.sh artifacts/tavoloflow-VERSIONE.tar.gz
 ```
 
@@ -426,7 +426,7 @@ Il resto lascialo com'è. Niente virgolette e niente spazi attorno a `=`.
 - **La password del database vale solo la prima volta.** PostgreSQL crea l'utente con `POSTGRES_PASSWORD` solo quando il volume dei dati è vuoto. Se poi la cambi in `.env`, il database non lo sa, e l'API non riesce più a collegarsi. È in esadecimale perché contiene solo `0-9` e `a-f`: nessun carattere da proteggere né in Compose né nella stringa di connessione.
 - **L'installer controlla tre cose** prima di fare qualsiasi cosa: che la password sia di 64 caratteri esadecimali, che l'email non sia quella del modello, e che `https://` + `DOMAIN` sia uguale a `public-origin.txt` del pacchetto. Così non puoi installare un frontend i cui QR puntano a un altro dominio.
 - `PROXY_SUBNET`, `PROXY_DYNAMIC_RANGE` e `CADDY_IP` definiscono la rete tra Caddy e API e l'IP fisso di Caddy. Cambiali, tutti e tre insieme e prima del primo avvio, solo se sulla VPS c'è già un'altra rete Docker che usa `172.30.80.0/24`.
-- Per controllare la configurazione usa `docker compose config --quiet`: senza `--quiet` stampa tutto, password comprese.
+- L'installer controlla già la configurazione con `docker compose config --quiet`; dopo l'installazione puoi farlo tu con `sudo bash /opt/tavoloflow/tf.sh config --quiet`. Senza `--quiet` stampa tutto, password comprese.
 
 #### Perché questi permessi
 
@@ -561,7 +561,7 @@ Su ogni dispositivo del ristorante apri `https://app.esempio.it/staff` e install
 - **Android, computer (Chrome, Edge):** dalla Home dell'app, sezione «Installa su questo dispositivo», pulsante «Installa app», oppure dal menu del browser;
 - **iPhone e iPad (Safari):** «Condividi» → «Aggiungi alla schermata Home»; alla prima apertura dall'icona bisogna accedere di nuovo.
 
-Aperta dall'icona, controlla Home, Cucina e Conto; in Cucina attiva il suono e lo schermo sempre acceso. Senza rete deve comparire una pagina che lo segnala. I clienti su `/q/...` e l'area amministratore non devono mai proporre l'installazione. I dettagli sono in [`pwa.md`](../pwa.md).
+Aperta dall'icona, controlla Home, Cucina e Conto; in Cucina attiva il suono e lo schermo sempre acceso. Senza rete deve comparire una pagina che lo segnala. I clienti su `/q/...` e l'area amministratore non devono mai proporre l'installazione. I dettagli sono in [`pwa.md`](../reference/pwa.md).
 
 ### 7. Attivare i backup, prima dei dati veri
 
@@ -835,8 +835,8 @@ sudo bash -c 'cd /root/tavoloflow-restore-check && sha256sum --check --quiet SHA
 sudo docker run -d --name tavoloflow-restore-check --network none \
   -e POSTGRES_PASSWORD=temporary-restore-check-only \
   -v /var/lib/postgresql postgres:18-alpine
-# Aspetta "accepting connections"
-sudo docker exec tavoloflow-restore-check pg_isready -U postgres
+# Aspetta "accepting connections"; con -h 127.0.0.1 non ti inganna il server temporaneo (vedi «Problemi incontrati»)
+sudo docker exec tavoloflow-restore-check pg_isready -h 127.0.0.1 -U postgres
 ```
 
 Poi ripristina e controlla:

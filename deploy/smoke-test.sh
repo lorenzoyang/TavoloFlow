@@ -50,6 +50,11 @@ cleanup() {
 trap cleanup EXIT
 tar -xzf "$archive" -C "$work/first"
 (cd "$work/first" && sha256sum --check --quiet SHA256SUMS)
+# Test the origin baked into this package, so any PUBLIC_ORIGIN works. build-release.sh validated it.
+domain=$(sed 's#^https://##' "$work/first/public-origin.txt")
+parent=${domain#*.}
+other_hosts=("www.$domain")
+if [[ "$parent" == *.* ]]; then other_hosts+=("$parent" "www.$parent"); fi
 # Local CA is the only Caddy fixture change; no public ACME requests or live DNS changes.
 # shellcheck disable=SC2016
 sed -i '/email {\$ACME_EMAIL}/a\	local_certs' "$work/first/ops/Caddyfile"
@@ -65,7 +70,7 @@ install -d -o root -g root -m 755 "$TAVOLOFLOW_ROOT"
 install -o root -g root -m 644 "$work"/first/ops/* "$work/first/ops/.env.example" "$TAVOLOFLOW_ROOT/"
 umask 077
 cat > "$TAVOLOFLOW_ROOT/.env" <<EOF
-DOMAIN=app.qiaotavoloflow.it
+DOMAIN=$domain
 ACME_EMAIL=smoke@example.net
 POSTGRES_DB=tavoloflow
 POSTGRES_USER=tavoloflow
@@ -109,8 +114,8 @@ assert_permissions
 tf exec -T caddy caddy validate --config /etc/caddy/Caddyfile
 tf exec -T caddy cat /data/caddy/pki/authorities/local/root.crt > "$work/root.crt"
 for _attempt in {1..30}; do
-  if curl --silent --fail --cacert "$work/root.crt" --resolve app.qiaotavoloflow.it:18443:127.0.0.1 \
-      https://app.qiaotavoloflow.it:18443/staff/login >/dev/null; then break; fi
+  if curl --silent --fail --cacert "$work/root.crt" --resolve "$domain:18443:127.0.0.1" \
+      "https://$domain:18443/staff/login" >/dev/null; then break; fi
   sleep 1
 done
 printf 'smokeadmin\nDeployment-smoke-123\nDeployment-smoke-123\n' | bash "$TAVOLOFLOW_ROOT/bootstrap-admin.sh"
@@ -119,16 +124,16 @@ printf 'smokeadmin\nDeployment-smoke-123\nDeployment-smoke-123\n' | bash "$TAVOL
 tf run --rm -T --no-deps --entrypoint /app/efbundle api
 [[ "$(tf exec -T api id -u)" != 0 ]]
 curl --silent --show-error --fail -D "$work/redirect.headers" -o /dev/null \
-  -H 'Host: app.qiaotavoloflow.it' http://127.0.0.1:18080/staff
-python3 - "$work/redirect.headers" <<'PY'
+  -H "Host: $domain" http://127.0.0.1:18080/staff
+python3 - "$work/redirect.headers" "https://$domain/staff" <<'PY'
 import pathlib,sys
 lines=pathlib.Path(sys.argv[1]).read_text().splitlines()
 assert lines[0].split()[1] == '308', lines[0]
 headers=dict(line.split(': ',1) for line in lines[1:] if ': ' in line)
-assert {key.lower(): value for key,value in headers.items()}['location'] == 'https://app.qiaotavoloflow.it/staff'
+assert {key.lower(): value for key,value in headers.items()}['location'] == sys.argv[2]
 PY
-# No redirects or business pages for the separate marketing host or an invented www.app alias.
-for host in qiaotavoloflow.it www.qiaotavoloflow.it www.app.qiaotavoloflow.it; do
+# No redirects or business pages for the parent domain (often another site) or an invented www alias.
+for host in "${other_hosts[@]}"; do
   status=$(curl --silent --show-error -o /dev/null -w '%{http_code}' -H "Host: $host" http://127.0.0.1:18080/staff)
   [[ "$status" == 404 ]] || { printf 'Unexpected HTTP response for %s: %s (expected 404)\n' "$host" "$status" >&2; exit 1; }
 done

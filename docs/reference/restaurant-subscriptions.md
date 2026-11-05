@@ -88,16 +88,16 @@ components read the preference themselves. See [account presentation conventions
 
 ## Verification entry points
 
-Sources: [SubscriptionService](../backend/TavoloFlow.Api/Platform/SubscriptionService.cs),
-[contracts](../backend/TavoloFlow.Api/Platform/SubscriptionContracts.cs),
-[platform controller](../backend/TavoloFlow.Api/Controllers/PlatformSubscriptionsController.cs),
-[owner controller](../backend/TavoloFlow.Api/Controllers/OwnerSubscriptionController.cs),
-[frontend actions](../frontend/src/features/subscriptions/useSubscriptionActions.ts).
+Sources: [SubscriptionService](../../backend/TavoloFlow.Api/Platform/SubscriptionService.cs),
+[contracts](../../backend/TavoloFlow.Api/Platform/SubscriptionContracts.cs),
+[platform controller](../../backend/TavoloFlow.Api/Controllers/PlatformSubscriptionsController.cs),
+[owner controller](../../backend/TavoloFlow.Api/Controllers/OwnerSubscriptionController.cs),
+[frontend actions](../../frontend/src/features/subscriptions/useSubscriptionActions.ts).
 
-Tests: [subscription integration](../backend/TavoloFlow.Api.Tests/SubscriptionTests.cs),
-[summary calculations](../backend/TavoloFlow.Api.Tests/SubscriptionSummaryTests.cs) and
-[frontend date/money logic](../frontend/tests/subscription.test.ts).
+Tests: [subscription integration](../../backend/TavoloFlow.Api.Tests/SubscriptionTests.cs),
+[summary calculations](../../backend/TavoloFlow.Api.Tests/SubscriptionSummaryTests.cs) and
+[frontend date/money logic](../../frontend/tests/subscription.test.ts).
 Manual scenarios: unpaid onboarding, negotiated two-year total, early/late collection, touching renewal,
 gaps, changed defaults, paid-period expiry adjustment, concurrent version conflicts, unchanged saves
 and lost responses followed by reread/reconfirmation. Use explicit migrations as documented in the
-[Italian self-hosting guide](it/self-hosting.md#le-migrazioni).
+[Italian self-hosting guide](../it/self-hosting.md#le-migrazioni).

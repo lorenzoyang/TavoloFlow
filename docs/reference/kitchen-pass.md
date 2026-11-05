@@ -149,15 +149,15 @@ no screen lock. Relaunch starts at Home (`/staff`), then staff choose Pass again
 - Deploy schema/API/frontend together using explicit migration bundles and refresh old pages after
   incompatible changes. Use a pre-upgrade backup for an incompatible rollback.
 
-Sources: [KitchenService](../backend/TavoloFlow.Api/Kitchen/KitchenService.cs),
-[response contracts](../backend/TavoloFlow.Api/Kitchen/KitchenContracts.cs),
-[kitchen hook](../frontend/src/features/kitchen/useKitchen.ts),
-[pass hook](../frontend/src/features/pass/usePass.ts),
-[live-view rules](../frontend/src/lib/live-view.ts).
+Sources: [KitchenService](../../backend/TavoloFlow.Api/Kitchen/KitchenService.cs),
+[response contracts](../../backend/TavoloFlow.Api/Kitchen/KitchenContracts.cs),
+[kitchen hook](../../frontend/src/features/kitchen/useKitchen.ts),
+[pass hook](../../frontend/src/features/pass/usePass.ts),
+[live-view rules](../../frontend/src/lib/live-view.ts).
 
-Tests: [kitchen/pass integration](../backend/TavoloFlow.Api.Tests/KitchenTests.cs),
-[upgrade tests](../backend/TavoloFlow.Api.Tests/ItemProcessingMigrationTests.cs),
-[kitchen logic](../frontend/tests/kitchen.test.ts), [pass logic](../frontend/tests/pass.test.ts).
+Tests: [kitchen/pass integration](../../backend/TavoloFlow.Api.Tests/KitchenTests.cs),
+[upgrade tests](../../backend/TavoloFlow.Api.Tests/ItemProcessingMigrationTests.cs),
+[kitchen logic](../../frontend/tests/kitchen.test.ts), [pass logic](../../frontend/tests/pass.test.ts).
 Manual scenarios: two devices race on one line, cancellation versus closure, lost responses with
 GET-only recovery, category selection, multiple pages, first-load/resume sound baselines, offline write
 gating and delivery/closure removing the correct waiting lines. Check phones and tablets in all languages.

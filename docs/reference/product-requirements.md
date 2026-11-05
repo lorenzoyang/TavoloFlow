@@ -9,8 +9,8 @@ Qiao TavoloFlow is a dine-in QR ordering system for small restaurants.
 Guests order from their phones, staff operate the floor and kitchen, and owners confirm offline payment.
 The system supports multiple restaurants within one deployment.
 
-The business application and API share `https://app.qiaotavoloflow.it`.
-The apex domain and `www` belong to an independent Astro marketing site in another repository.
+The business application and API share one public HTTPS origin, for example `https://app.example.com`.
+Other hosts, such as a marketing site on the parent domain, are not part of this application.
 The technical project name, namespaces and internal identifiers remain TavoloFlow.
 
 ## Roles and permissions
@@ -173,4 +173,4 @@ The staff area is installable; guest and platform pages remain websites.
 | Subscription edits and lost responses        | Version-protected changes, read-only recovery, reminders without automatic suspension |
 
 Use real PostgreSQL integration tests for constraints and locking, pure frontend tests for recovery
-logic, and manual browser checks for the complete guest/staff flow. See the [documentation index](README.md).
+logic, and manual browser checks for the complete guest/staff flow. See the [documentation index](../README.md).

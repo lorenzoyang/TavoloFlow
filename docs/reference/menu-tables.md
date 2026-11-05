@@ -137,10 +137,10 @@ Blank uses the current browser origin; invalid configuration blocks URL generati
 build-time setting, not an API host configuration. Existing printed codes keep their original URL
 after a host/port change and need reprinting or an old-address redirect.
 
-The business origin is `https://app.qiaotavoloflow.it`; the separate marketing hosts are not QR origins.
-For release builds, use the [frontend configuration notes](../frontend/README.md#deployment-and-qr-origin).
+Release builds use the deployment's public origin; other hosts on the same domain are not QR origins.
+For release builds, use the [frontend configuration notes](../../frontend/README.md#deployment-and-qr-origin).
 Phone/LAN setup, including Windows/WSL forwarding, is in the
-[Italian local guide](it/local-development.md#parte-4-provare-dal-telefono).
+[Italian local guide](../it/local-development.md#parte-4-provare-dal-telefono).
 
 ## Anonymous bootstrap and guest browsing
 
@@ -179,15 +179,15 @@ Common errors include `VALIDATION_FAILED` (400), `MENU_RESOURCE_NOT_FOUND`, `TAB
 Photo errors are `IMAGE_INVALID` (400), `IMAGE_TOO_LARGE` (413) and `MENU_IMAGE_NOT_FOUND` (404).
 Account/CSRF errors follow [accounts](accounts-platform.md).
 
-Sources: [menu DTOs](../backend/TavoloFlow.Api/Menus/MenuContracts.cs),
-[menu service](../backend/TavoloFlow.Api/Menus/MenuService.cs),
-[image pipeline](../backend/TavoloFlow.Api/Menus/MenuImages.cs),
-[table service](../backend/TavoloFlow.Api/Tables/TableService.cs) and
-[public reader](../backend/TavoloFlow.Api/Menus/PublicMenuService.cs).
+Sources: [menu DTOs](../../backend/TavoloFlow.Api/Menus/MenuContracts.cs),
+[menu service](../../backend/TavoloFlow.Api/Menus/MenuService.cs),
+[image pipeline](../../backend/TavoloFlow.Api/Menus/MenuImages.cs),
+[table service](../../backend/TavoloFlow.Api/Tables/TableService.cs) and
+[public reader](../../backend/TavoloFlow.Api/Menus/PublicMenuService.cs).
 
-Tests: [menu integration](../backend/TavoloFlow.Api.Tests/MenuTests.cs),
-[tables/bootstrap integration](../backend/TavoloFlow.Api.Tests/TableAndPublicMenuTests.cs),
-[language](../frontend/tests/menu-language.test.ts) and
-[public menu/QR](../frontend/tests/public-menu.test.ts).
+Tests: [menu integration](../../backend/TavoloFlow.Api.Tests/MenuTests.cs),
+[tables/bootstrap integration](../../backend/TavoloFlow.Api.Tests/TableAndPublicMenuTests.cs),
+[language](../../frontend/tests/menu-language.test.ts) and
+[public menu/QR](../../frontend/tests/public-menu.test.ts).
 Manually check simultaneous price/availability edits, unknown create results, photo replacement,
 plain/card PNG downloads, invalid versus offline QR behavior, and 360px forms in every language.

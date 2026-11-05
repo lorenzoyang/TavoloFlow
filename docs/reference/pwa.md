@@ -1,19 +1,19 @@
 # Staff PWA
 
 The store area `/staff` can be installed on a phone, tablet or desktop. The business entry is
-`https://app.qiaotavoloflow.it/staff`; the marketing site is maintained independently. Guest `/q/*`
+`/staff` on the deployment's public origin, for example `https://app.example.com/staff`. Guest `/q/*`
 and Platform `/platform` do not link the staff manifest. This implementation has no push notifications
 or offline business operations.
 
 ## Files and installation scope
 
-| File                                                               | Responsibility                                                        |
-| ------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| [Manifest](../frontend/public/staff.webmanifest)                   | App identity, launch URL, scope and icons                             |
-| [Service worker](../frontend/public/sw.js)                         | Navigation network fallback and built-in offline page                 |
-| [Install hook](../frontend/src/features/accounts/useInstallApp.ts) | Manifest link, worker registration and Chromium install offer         |
-| [Home page](../frontend/src/features/accounts/AccountPage.tsx)     | Install action or device-specific instructions                        |
-| [PWA tests](../frontend/tests/pwa.test.ts)                         | Manifest scope, icon dimensions and absence of a global manifest link |
+| File                                                                  | Responsibility                                                        |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| [Manifest](../../frontend/public/staff.webmanifest)                   | App identity, launch URL, scope and icons                             |
+| [Service worker](../../frontend/public/sw.js)                         | Navigation network fallback and built-in offline page                 |
+| [Install hook](../../frontend/src/features/accounts/useInstallApp.ts) | Manifest link, worker registration and Chromium install offer         |
+| [Home page](../../frontend/src/features/accounts/AccountPage.tsx)     | Install action or device-specific instructions                        |
+| [PWA tests](../../frontend/tests/pwa.test.ts)                         | Manifest scope, icon dimensions and absence of a global manifest link |
 
 StaffLayout inserts the manifest link when mounted and removes it on unmount. The shared `index.html`
 must not link a manifest: that would also advertise the staff app from a guest page. Staff sign-in is
@@ -24,7 +24,7 @@ slashes; `/staff/` would exclude the actual Home URL `/staff` from prefix scope.
 also uses `/staff`. An installed app relaunches at Home, not automatically at Kitchen or Pass.
 
 Origin and manifest ID identify the installed app. A localhost installation is separate from a
-production one. Manifest/worker URLs use business-origin paths; no marketing-host scope or parent-domain
+production one. Manifest/worker URLs use business-origin paths; no other host's scope or parent-domain
 cookie is needed.
 
 ## Service worker behavior
@@ -77,13 +77,13 @@ Android screen pinning if staff want to restrict navigation. See [Kitchen and Pa
 
 ## Deployment and icons
 
-Production [Caddy configuration](../deploy/Caddyfile) and release scripts provide:
+Production [Caddy configuration](../../deploy/Caddyfile) and release scripts provide:
 
 - HTTPS on the business origin; ordinary LAN HTTP is not suitable for testing full PWA capabilities.
 - `Cache-Control: no-cache` on `/sw.js` and `/staff.webmanifest`, with JavaScript/manifest MIME types.
 - SPA fallback for business routes, including direct `/staff/*`, `/platform/*` and `/q/*` navigation.
-- Immutable caching for hashed assets. The shared asset pool retains historical files for at least a
-  week and keeps the previous release, allowing long-open tabs to load their original lazy chunks.
+- Immutable caching for hashed assets. The shared asset pool keeps the hashed files of every release
+  (nothing prunes it), allowing long-open tabs to load their original lazy chunks.
   New frontend code takes effect after reload/reopen; a service worker does not update a running React
   page's code in place.
 
@@ -95,7 +95,7 @@ Production [Caddy configuration](../deploy/Caddyfile) and release scripts provid
 
 Icon paths are relative to `frontend/public/`. Update both SVG sources and their corresponding PNGs
 when replacing artwork; keep manifest sizes synchronized. No runtime image-rendering dependency is
-needed for the exported icons. Use the [Italian self-hosting guide](it/self-hosting.md) for deployment.
+needed for the exported icons. Use the [Italian self-hosting guide](../it/self-hosting.md) for deployment.
 
 ## Verification entry points
 
@@ -116,6 +116,6 @@ recovery, standalone Home without the install section, and each install invitati
 Android USB port forwarding can expose computer port 4173 as phone localhost for secure-context tests.
 Use HTTPS for iPhone/iPad device checks. Verify actual sound, safe areas, navigation, sheets and external
 menu links on real installed apps; desktop mobile emulation cannot establish those results.
-Run the [PWA tests](../frontend/tests/pwa.test.ts) for static invariants and actual offline-script
+Run the [PWA tests](../../frontend/tests/pwa.test.ts) for static invariants and actual offline-script
 execution with saved/browser languages, blocked storage and reconnect behavior. These Node tests do
 not verify operating-system installation or audio permissions.

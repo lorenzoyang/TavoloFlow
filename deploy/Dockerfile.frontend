@@ -3,7 +3,8 @@ WORKDIR /src
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
-ARG PUBLIC_ORIGIN=https://app.qiaotavoloflow.it
+# deploy/build-release.sh always passes the release origin; empty would mean the browser origin.
+ARG PUBLIC_ORIGIN
 ENV VITE_PUBLIC_BASE_URL=$PUBLIC_ORIGIN
 RUN npm run build
 

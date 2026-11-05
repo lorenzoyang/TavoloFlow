@@ -8,7 +8,7 @@ Ci sono tre modi, dal più semplice al più completo:
 - l'**ambiente di sviluppo** (Parte 2): il database in Docker, l'API e il frontend avviati a mano, con il frontend che si aggiorna mentre lo modifichi; la Parte 3 spiega come lanciare i test;
 - il **telefono** (Parte 4): l'ambiente di sviluppo raggiungibile da un telefono nella stessa rete Wi-Fi, per scansionare un QR vero.
 
-Io ho sviluppato tutto su Windows 11 con WSL2 (Ubuntu) e Docker Desktop. I comandi della Parte 2 sono per Bash, quindi per Linux, macOS o WSL; la demo si avvia anche dal PowerShell di Windows.
+Io ho sviluppato tutto su Windows 11 con WSL2 (Ubuntu) e Docker Desktop. I comandi della Parte 2 sono per Bash, quindi per Linux, macOS o WSL; la demo si avvia anche da PowerShell su Windows.
 
 ## Panoramica
 
@@ -42,7 +42,7 @@ In tutti e due i casi il browser vede un solo indirizzo, come in produzione: nel
 
 ### Avviarla
 
-Serve solo Git e Docker con Compose v2. Su Windows basta Docker Desktop con i container Linux, e i comandi si lanciano direttamente da PowerShell: non servono .NET, Node, Bash né un file `.env`.
+Servono solo Git e Docker con Compose v2. Su Windows basta Docker Desktop con i container Linux, e i comandi si lanciano direttamente da PowerShell: non servono .NET, Node, Bash né un file `.env`.
 
 ```bash
 git clone https://github.com/lorenzoyang/TavoloFlow.git
@@ -171,7 +171,7 @@ Il file `.env` lo legge solo Docker Compose, per creare il database: l'API non l
 ```bash
 # Installa gli strumenti .NET del repository: dotnet-ef, alla versione fissata
 dotnet tool restore
-# La stringa di connessione: stessi nome del database, utente e password del .env
+# La stringa di connessione: nome del database, utente e password uguali a quelli del .env
 dotnet user-secrets set 'ConnectionStrings:Default' \
   'Host=localhost;Port=5432;Database=tavoloflow_dev;Username=tavoloflow;Password=LA_TUA_PASSWORD' \
   --project backend/TavoloFlow.Api
@@ -187,11 +187,11 @@ Nel repository non c'è nessuna stringa di connessione: se manca, l'API si ferma
 dotnet ef database update --project backend/TavoloFlow.Api
 ```
 
-Crea le tabelle applicando le migrazioni di `backend/TavoloFlow.Api/Data/Migrations`. L'API non le applica mai da sola all'avvio, nemmeno in sviluppo: è la stessa regola della produzione (vedi [«Le migrazioni»](self-hosting.md#le-migrazioni) nella guida al self-hosting). Quando un `git pull` porta nuove migrazioni, va rieseguito.
+Crea le tabelle applicando le migrazioni di `backend/TavoloFlow.Api/Data/Migrations`. L'API non le applica mai da sola all'avvio, nemmeno in sviluppo: è la stessa regola della produzione (vedi [«Le migrazioni»](self-hosting.md#le-migrazioni) nella guida al self-hosting). Quando un `git pull` porta nuove migrazioni, il comando va rieseguito.
 
 ### 4. I dati iniziali
 
-Un database appena migrato è vuoto: nessun ristorante, nessun account. Per riempirlo si usa il programma dell'API stesso, che funziona anche da comando a riga di comando ([`Operations/MaintenanceCommands.cs`](../../backend/TavoloFlow.Api/Operations/MaintenanceCommands.cs)): con un'opzione come `--seed-demo` esegue quel comando e si chiude, senza avviare il server.
+Un database appena migrato è vuoto: nessun ristorante, nessun account. Per riempirlo si usa il programma dell'API stesso, che funziona anche come strumento a riga di comando ([`Operations/MaintenanceCommands.cs`](../../backend/TavoloFlow.Api/Operations/MaintenanceCommands.cs)): con un'opzione come `--seed-demo` esegue quel comando e si chiude, senza avviare il server.
 
 **Il modo più veloce: i dati della demo.** Lo stesso comando che usa il container `init` funziona anche sul database di sviluppo:
 
@@ -218,7 +218,7 @@ Poi, con l'app avviata (passo 5):
 3. il titolare entra in `/staff/login`, cambia la password e prepara menu e tavoli;
 4. in **Sala** accende **«Ordini dal QR»**: riattivare il servizio non riaccende gli ordini.
 
-Esiste anche `--seed-dev-accounts`, che crea un ristorante con titolare e staff a partire dalle impostazioni `DevelopmentSeed:*`. Il ristorante però nasce sospeso, e senza un amministratore va attivato a mano nel database ([`accounts-platform.md`](../accounts-platform.md), in inglese): i due modi sopra sono più comodi.
+Esiste anche `--seed-dev-accounts`, che crea un ristorante con titolare e staff a partire dalle impostazioni `DevelopmentSeed:*`. Il ristorante però nasce sospeso, e va attivato da un amministratore della piattaforma, da creare comunque con `--seed-platform-admin` ([`accounts-platform.md`](../reference/accounts-platform.md), in inglese): i due modi sopra sono più comodi.
 
 ### 5. Avviare API e frontend
 
@@ -257,7 +257,7 @@ Poi apri <http://localhost:5173/staff/login>, oppure `/platform/login`.
   ```
 
 - **Ripartire da zero.** `docker compose down -v` cancella il volume del database di sviluppo, e solo quello: la demo ha un progetto Compose suo. Poi si ricomincia da `docker compose up -d db` e dal passo 3.
-- **La PWA.** Con `npm run dev` il service worker non viene registrato, per non disturbare l'aggiornamento automatico. Per provare l'installazione e la pagina offline serve una build: `npm run build && npm run preview`, su <http://localhost:4173>, con l'API avviata (i dettagli sono in [`pwa.md`](../pwa.md), in cinese).
+- **La PWA.** Con `npm run dev` il service worker non viene registrato, per non disturbare l'aggiornamento automatico. Per provare l'installazione e la pagina offline serve una build: `npm run build && npm run preview`, su <http://localhost:4173>, con l'API avviata (i dettagli sono in [`pwa.md`](../reference/pwa.md), in inglese).
 
 ## Parte 3: test e controlli
 
@@ -285,7 +285,7 @@ npm run lint
 npm run format:check
 ```
 
-Per il frontend non c'è un framework di test per i componenti React. La logica che vale la pena testare (regole del carrello, recupero degli ordini, lingue, temi…) sta in moduli puri, come i `state.ts` di ogni feature e alcuni file di `lib/`, e il test runner integrato di Node 24 la esegue direttamente, togliendo al volo i tipi di TypeScript. Per questo quei moduli importano gli altri con percorsi relativi e l'estensione `.ts`, invece dell'alias `@/`.
+Per il frontend non c'è un framework di test per i componenti React. La logica che vale la pena testare (regole del carrello, recupero degli ordini, lingue, temi…) sta in moduli puri, come i `state.ts` delle feature e alcuni file di `lib/`, e il test runner integrato di Node 24 la esegue direttamente, togliendo al volo i tipi di TypeScript. Per questo quei moduli importano gli altri con percorsi relativi e l'estensione `.ts`, invece dell'alias `@/`.
 
 `npm run build` esegue `vite build && tsc -b`: prima Vite rigenera `src/routeTree.gen.ts`, l'albero delle route di TanStack Router, e compila; poi TypeScript controlla i tipi, route comprese. Se aggiungi una route, anche `routeTree.gen.ts` va nel commit. `npm run format` corregge la formattazione con Prettier.
 
@@ -339,7 +339,7 @@ cd frontend
 npm run dev -- --host 0.0.0.0
 ```
 
-Senza `VITE_PUBLIC_BASE_URL`, i QR usano l'indirizzo della pagina in cui li generi, cioè `localhost`, e il telefono non saprebbe dove andare: l'interfaccia lo segnala con «Questo link usa un indirizzo locale che i telefoni non raggiungono». Vite legge la variabile all'avvio e la scrive nel codice del frontend, quindi dopo ogni modifica va riavviato.
+Senza `VITE_PUBLIC_BASE_URL`, i QR usano l'indirizzo della pagina in cui li generi, cioè `localhost`, e il telefono non saprebbe dove andare: l'interfaccia lo segnala con «Questo link usa un indirizzo locale che i telefoni non raggiungono». Vite legge la variabile all'avvio e la scrive nel codice del frontend. Quando salvi `.env.local` si riavvia da solo, ma la pagina aperta va ricaricata.
 
 ### 3. Solo su WSL: port forwarding e firewall
 
@@ -388,7 +388,7 @@ Un indirizzo come `http://192.168.1.36:5173` non è HTTPS, quindi per il browser
 
 Tutto il resto funziona. Per esempio, gli ID degli ordini sono generati con `crypto.getRandomValues` proprio perché, a differenza di `crypto.randomUUID`, funziona anche senza HTTPS ([`lib/ids.ts`](../../frontend/src/lib/ids.ts)).
 
-Per provare la PWA su un telefono Android c'è un trucco: con il debug USB e il port forwarding di `chrome://inspect`, il telefono apre `localhost:4173` della build di preview, e `localhost` conta come contesto sicuro (vedi [`pwa.md`](../pwa.md)). Per l'iPhone, e per la prova finale, serve l'HTTPS vero del [self-hosting](self-hosting.md).
+Per provare la PWA su un telefono Android c'è un trucco: con il debug USB e il port forwarding di `chrome://inspect`, il telefono apre `localhost:4173` della build di preview, e `localhost` conta come contesto sicuro (vedi [`pwa.md`](../reference/pwa.md)). Per l'iPhone, e per la prova finale, serve l'HTTPS vero del [self-hosting](self-hosting.md).
 
 ### Pulizia
 
@@ -397,6 +397,8 @@ Quando non ti serve più, togli `VITE_PUBLIC_BASE_URL` da `frontend/.env.local`,
 Su WSL, rimuovi anche l'inoltro e la regola del firewall, da PowerShell da amministratore:
 
 ```powershell
+# In una nuova sessione la variabile non esiste più: reimpostala
+$tavoloWindowsIp = "192.168.1.36"
 netsh interface portproxy delete v4tov4 listenaddress=$tavoloWindowsIp listenport=5173
 Remove-NetFirewallRule -DisplayName "TavoloFlow Dev 5173"
 ```
@@ -416,5 +418,5 @@ Remove-NetFirewallRule -DisplayName "TavoloFlow Dev 5173"
 | Logout continui, errori CSRF                                                 | demo e sviluppo aperti tutti e due da `localhost`: apri la demo da `127.0.0.1`                                                                                                                                                                        |
 | In Sala compare «Il servizio del ristorante non è ancora attivo o è sospeso» | il ristorante è sospeso: l'amministratore lo attiva con «Attiva servizio»                                                                                                                                                                             |
 | Il cliente vede il menu ma non può ordinare                                  | gli ordini sono in pausa: in Sala, «Ordini dal QR»                                                                                                                                                                                                    |
-| I QR contengono `localhost`                                                  | `VITE_PUBLIC_BASE_URL` in `frontend/.env.local`, poi riavvia Vite                                                                                                                                                                                     |
+| I QR contengono `localhost`                                                  | `VITE_PUBLIC_BASE_URL` in `frontend/.env.local`, poi ricarica la pagina (Vite si riavvia da solo)                                                                                                                                                     |
 | Il telefono non apre la pagina                                               | stessa rete Wi-Fi e Vite avviato con `--host 0.0.0.0`; su Linux e macOS il firewall del sistema; su WSL profilo di rete privato, regola del firewall e IP di WSL ancora uguale a quello del port forwarding (`netsh interface portproxy show v4tov4`) |

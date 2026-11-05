@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Real HTTPS/CSRF/cookie checks against the disposable stack, never the live domain.
 
-Connects to loopback while verifying Caddy's local CA and the production hostname.
+Connects to loopback while verifying Caddy's local CA and the hostname baked into the release.
 Only smoke-test credentials and state are written to the private temporary directory.
 """
 import base64
@@ -17,6 +17,12 @@ import uuid
 phase, directory, port = sys.argv[1:]
 root = pathlib.Path(directory)
 context = ssl.create_default_context(cafile=str(root / "root.crt"))
+# The release's public origin, validated by build-release.sh; other hostnames must get nothing.
+ORIGIN = (root / "first" / "public-origin.txt").read_text().strip()
+assert ORIGIN.startswith("https://"), ORIGIN
+HOST = ORIGIN[len("https://"):]
+PARENT = HOST.split(".", 1)[1]
+OTHER_HOSTS = [f"www.{HOST}"] + ([PARENT, f"www.{PARENT}"] if "." in PARENT else [])
 # A 16x16 JPEG dish photo; the API re-encodes every upload to a 640x640 WebP.
 PHOTO = base64.b64decode(
     "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0o"
@@ -48,7 +54,7 @@ class Browser:
             headers["Content-Type"] = "image/jpeg" if raw else "application/json"
         if token:
             headers["X-CSRF-TOKEN"] = token
-        connection = LocalConnection("app.qiaotavoloflow.it", context=context)
+        connection = LocalConnection(HOST, context=context)
         payload = body if raw or body is None else json.dumps(body)
         connection.request(method, path, body=payload, headers=headers)
         response = connection.getresponse()
@@ -99,7 +105,7 @@ headers, _ = browser.request("GET", "/assets/retained-smoke.js")
 assert "immutable" in headers["cache-control"]
 # A valid business connection above rules out a generic TLS outage. Other hostnames
 # must not acquire certificates or serve the business site from this Caddy instance.
-for host in ["qiaotavoloflow.it", "www.qiaotavoloflow.it", "www.app.qiaotavoloflow.it"]:
+for host in OTHER_HOSTS:
     connection = LocalConnection(host, context=context)
     try:
         connection.connect()

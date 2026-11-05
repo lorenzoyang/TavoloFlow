@@ -75,8 +75,8 @@ distributed limiter.
 
 ## Initialization and account recovery
 
-Apply migrations explicitly before maintenance commands. The [root README](../README.md) has the
-English quick start; the full [local guide](it/local-development.md) is in Italian. Normal API startup
+Apply migrations explicitly before maintenance commands. The [root README](../../README.md) has the
+English quick start; the full [local guide](../it/local-development.md) is in Italian. Normal API startup
 does not seed accounts or apply migrations.
 
 ### Platform bootstrap
@@ -92,7 +92,7 @@ The command creates the first platform administrator and exits. Repeating it pre
 credentials and active state. Password recovery uses `--reset-platform-password` with the existing
 username; it invalidates old credentials without enabling an inactive account. These two commands
 also support Production, using the configured production environment; follow the
-[self-hosting guide](it/self-hosting.md) there. There is no anonymous HTTP bootstrap endpoint.
+[self-hosting guide](../it/self-hosting.md) there. There is no anonymous HTTP bootstrap endpoint.
 Do not put actual passwords in application arguments, Git or shared terminal output.
 
 ### Development store accounts
@@ -198,18 +198,18 @@ Pages discard late results after lifecycle/identity changes. Subscription writes
 
 ## Verification entry points
 
-- Backend: [account tests](../backend/TavoloFlow.Api.Tests/AccountTests.cs),
-  [development seeder tests](../backend/TavoloFlow.Api.Tests/DevelopmentAccountSeederTests.cs),
-  [platform identity tests](../backend/TavoloFlow.Api.Tests/PlatformAccountTests.cs) and
-  [management tests](../backend/TavoloFlow.Api.Tests/PlatformManagementTests.cs).
-- Frontend: [platform recovery tests](../frontend/tests/platform.test.ts),
-  [language/query-scope tests](../frontend/tests/lib.test.ts) and
-  [theme tests](../frontend/tests/theme.test.ts).
+- Backend: [account tests](../../backend/TavoloFlow.Api.Tests/AccountTests.cs),
+  [development seeder tests](../../backend/TavoloFlow.Api.Tests/DevelopmentAccountSeederTests.cs),
+  [platform identity tests](../../backend/TavoloFlow.Api.Tests/PlatformAccountTests.cs) and
+  [management tests](../../backend/TavoloFlow.Api.Tests/PlatformManagementTests.cs).
+- Frontend: [platform recovery tests](../../frontend/tests/platform.test.ts),
+  [language/query-scope tests](../../frontend/tests/lib.test.ts) and
+  [theme tests](../../frontend/tests/theme.test.ts).
 - Manual: log into Store and Platform in one browser; change/reset credentials from another device;
   drop create/reset responses and verify GET-only recovery; check deletion confirmation, two-tenant
   isolation and 360px forms in all languages.
 
-Source entry points: [BrowserSecurity](../backend/TavoloFlow.Api/Common/BrowserSecurity.cs),
-[account contracts](../backend/TavoloFlow.Api/Accounts/AccountContracts.cs),
-[administration contracts](../backend/TavoloFlow.Api/Platform/AdministrationContracts.cs) and
-[RestaurantAdministration](../backend/TavoloFlow.Api/Platform/RestaurantAdministration.cs).
+Source entry points: [BrowserSecurity](../../backend/TavoloFlow.Api/Common/BrowserSecurity.cs),
+[account contracts](../../backend/TavoloFlow.Api/Accounts/AccountContracts.cs),
+[administration contracts](../../backend/TavoloFlow.Api/Platform/AdministrationContracts.cs) and
+[RestaurantAdministration](../../backend/TavoloFlow.Api/Platform/RestaurantAdministration.cs).

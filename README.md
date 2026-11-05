@@ -19,7 +19,7 @@ payments or replace a fiscal cash register.
 - Separate platform administration, temporary account recovery passwords and offline annual-fee records.
 
 There are no order printers, online payments, split bills, stock management, push notifications or
-offline order queues. See [product requirements](docs/product-requirements.md) for the complete boundary.
+offline order queues. See [product requirements](docs/reference/product-requirements.md) for the complete boundary.
 
 ## Quick demo
 
@@ -40,8 +40,9 @@ downloads dependencies.
 | Platform administrator | `demo.admin`       | `123456` | [/platform/login](http://127.0.0.1:8080/platform/login) |
 
 Demo Ramen includes eight empty tables, four categories, twelve trilingual dishes with photos and a
-paid sample service period. No visits, orders or bills are preloaded. Store accounts require the first
-password change. Menu ingredients/allergens and AI-generated photos are fictional demo material.
+paid sample service period. No visits, orders or bills are preloaded. Unlike real restaurants, the
+demo accounts skip the first password change. Menu ingredients/allergens and AI-generated photos are
+fictional demo material.
 
 Try the flow in separate browser profiles: owner prepares a table → staff opens it → guest scans/opens
 its menu and joins → guest orders → kitchen marks dishes ready → Pass marks delivery → owner confirms
@@ -91,7 +92,7 @@ dotnet ef database update --project backend/TavoloFlow.Api
 
 Match the connection string to your `.env`. Compose configures the database container only; the API
 does not load that file or migrate on startup. A newly migrated database has no accounts or sample data.
-Use [platform bootstrap](docs/accounts-platform.md#platform-bootstrap) to start from an empty restaurant
+Use [platform bootstrap](docs/reference/accounts-platform.md#platform-bootstrap) to start from an empty restaurant
 setup, or import the fictional demo into an empty Development database:
 
 ```bash
@@ -119,11 +120,9 @@ phone access, including Windows/WSL forwarding.
 
 ## Deployment
 
-The maintained business origin is `https://app.qiaotavoloflow.it`. The apex and `www` are reserved for
-an independent Astro marketing repository on Cloudflare. This repository serves the business app/API
-on the netcup VPS; it does not share parent-domain cookies or configure cross-origin access to marketing.
-
-Build a release with `bash deploy/build-release.sh`. For another business hostname:
+A deployment serves the guest, store and platform pages and `/api` from one HTTPS origin behind Caddy,
+on a single VPS. It shares no parent-domain cookies and needs no cross-origin access. Build a release
+package for your public origin; `PUBLIC_ORIGIN` is required:
 
 ```bash
 PUBLIC_ORIGIN=https://app.example.com bash deploy/build-release.sh
@@ -136,7 +135,7 @@ origin change and need reprinting or a redirect.
 Follow the [self-hosting guide (Italian)](docs/it/self-hosting.md) for first installation, explicit
 migration bundles, persistent Data Protection keys, releases, backups and restore drills. Production
 never exposes API/database container ports or migrates on normal API startup. Internal readiness is
-`/health/ready`, blocked by public Caddy routing. The staff [PWA guide](docs/pwa.md) covers installation
+`/health/ready`, blocked by public Caddy routing. The staff [PWA guide](docs/reference/pwa.md) covers installation
 and long-open application assets.
 
 ## Validation
@@ -157,14 +156,18 @@ separate disposable-container smoke test described in the self-hosting guide.
 ## Documentation
 
 - [Documentation index](docs/README.md): choose product, implementation or operational reading.
-- [Product requirements](docs/product-requirements.md): roles, workflow, scope and acceptance baseline.
-- [Schema](docs/er-diagram.dbml) and [ER diagram](docs/er-diagram.png).
-- Implementation: [accounts/platform](docs/accounts-platform.md), [menu/tables](docs/menu-tables.md),
-  [dining/ordering](docs/dining-ordering.md), [kitchen/pass](docs/kitchen-pass.md),
-  [billing/history](docs/billing-history.md), [subscriptions](docs/restaurant-subscriptions.md),
-  [staff PWA](docs/pwa.md).
+- [Product requirements](docs/reference/product-requirements.md): roles, workflow, scope and acceptance baseline.
+- [Schema](docs/reference/er-diagram.dbml) and [ER diagram](docs/reference/er-diagram.png).
+- Implementation: [accounts/platform](docs/reference/accounts-platform.md), [menu/tables](docs/reference/menu-tables.md),
+  [dining/ordering](docs/reference/dining-ordering.md), [kitchen/pass](docs/reference/kitchen-pass.md),
+  [billing/history](docs/reference/billing-history.md), [subscriptions](docs/reference/restaurant-subscriptions.md),
+  [staff PWA](docs/reference/pwa.md).
 - Personal guides in Italian: [architecture and decisions](docs/it/development-notes.md),
   [local development](docs/it/local-development.md), [self-hosting](docs/it/self-hosting.md) and
   [learning notes](docs/it/learning-notes.md).
 
 Contribution and implementation conventions are in [AGENTS.md](AGENTS.md).
+
+## License
+
+[MIT](LICENSE). The demo restaurant, its dishes and its AI-generated photos are fictional sample data.

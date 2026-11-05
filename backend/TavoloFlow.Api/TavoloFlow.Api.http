@@ -11,5 +11,5 @@ Accept: application/json
 
 ###
 
-# See docs/accounts-platform.md for cookie and X-CSRF-TOKEN handling.
+# See docs/reference/accounts-platform.md for cookie and X-CSRF-TOKEN handling.
 # Keep actual login credentials out of this file.

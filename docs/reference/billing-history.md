@@ -132,14 +132,14 @@ suspended restaurant is a separate explicitly destructive operation.
 
 ## Verification entry points
 
-Sources: [BillingController](../backend/TavoloFlow.Api/Controllers/BillingController.cs),
-[BillingService](../backend/TavoloFlow.Api/Billing/BillingService.cs),
-[summary projection](../backend/TavoloFlow.Api/Dining/SessionSummaries.cs),
-[bill hook](../frontend/src/features/billing/useBill.ts),
-[closure hook](../frontend/src/features/billing/useClosure.ts).
+Sources: [BillingController](../../backend/TavoloFlow.Api/Controllers/BillingController.cs),
+[BillingService](../../backend/TavoloFlow.Api/Billing/BillingService.cs),
+[summary projection](../../backend/TavoloFlow.Api/Dining/SessionSummaries.cs),
+[bill hook](../../frontend/src/features/billing/useBill.ts),
+[closure hook](../../frontend/src/features/billing/useClosure.ts).
 
-Tests: [billing integration](../backend/TavoloFlow.Api.Tests/BillingTests.cs) and
-[frontend confirmation/recovery](../frontend/tests/billing.test.ts).
+Tests: [billing integration](../../backend/TavoloFlow.Api.Tests/BillingTests.cs) and
+[frontend confirmation/recovery](../../frontend/tests/billing.test.ts).
 Manual checks: NEW blocks checkout; a concurrent addition invalidates a frozen amount; distinct zero
 closures; lost checkout response followed by GET-only recovery; guest invalidation; multi-page bills;
 DST/history filters; catalog deletion preserving snapshots; two owners confirming the same closure.

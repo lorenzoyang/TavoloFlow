@@ -55,13 +55,13 @@ Restaurant themes apply through `<html data-theme>` to signed-in staff and loade
 including portals. Sign-in, first password change and platform pages use the default theme. Brand
 palettes never redefine state colors. The PWA's standalone offline HTML follows the same saved-choice,
 browser-language and English fallback rule without loading app assets; see
-[PWA behavior](../docs/pwa.md#service-worker-behavior).
+[PWA behavior](../docs/reference/pwa.md#service-worker-behavior).
 
 ## Deployment and QR origin
 
-The business origin is `https://app.qiaotavoloflow.it`. Guest `/q/*`, store `/staff/*`, platform
-`/platform/*` and `/api` use that same origin. `/` redirects to `/staff`. Apex/www belong to another
-repository's marketing site; no shared parent-domain cookies or CORS bridge is needed.
+A deployment uses one public origin, for example `https://app.example.com`. Guest `/q/*`, store
+`/staff/*`, platform `/platform/*` and `/api` all use it, and `/` redirects to `/staff`. Other sites on
+the parent domain stay separate: no shared parent-domain cookies or CORS bridge is needed.
 
 For a standalone frontend production build:
 
@@ -74,7 +74,7 @@ npm run build
 credentials, path, query or fragment. Unset uses the browser origin. It is embedded at build time;
 changing the server environment does not rewrite built QR URLs. Local `.env.production` is ignored by
 Git; Vite development does not read it. For phone access, use `.env.local` with the reachable LAN origin
-and `npm run dev -- --host 0.0.0.0`. See [QR behavior](../docs/menu-tables.md#qr-images-and-printable-cards)
+and `npm run dev -- --host 0.0.0.0`. See [QR behavior](../docs/reference/menu-tables.md#qr-images-and-printable-cards)
 and the [Italian phone guide](../docs/it/local-development.md#parte-4-provare-dal-telefono).
 
 Production releases build inside Docker from the repository root, without host environment files:
@@ -83,9 +83,9 @@ Production releases build inside Docker from the repository root, without host e
 PUBLIC_ORIGIN=https://app.example.com bash deploy/build-release.sh
 ```
 
-The default is `https://app.qiaotavoloflow.it`. A custom PUBLIC_ORIGIN must be lowercase HTTPS without
-port/path/trailing slash; it is embedded as VITE_PUBLIC_BASE_URL and recorded in `public-origin.txt`.
-Server DOMAIN must match or installation stops. Pass the same custom origin on subsequent builds.
+PUBLIC_ORIGIN is required and has no default. It must be lowercase HTTPS without port/path/trailing
+slash; it is embedded as VITE_PUBLIC_BASE_URL and recorded in `public-origin.txt`. Server DOMAIN must
+match or installation stops. Pass the same origin on subsequent builds.
 Existing paper QR codes retain their old URLs and need reprinting or redirection after a host change.
 The [Italian self-hosting guide](../docs/it/self-hosting.md) owns the complete release procedure.
 
@@ -95,4 +95,4 @@ Install from the `/staff` business entry. Only StaffLayout links the manifest, i
 guest and platform routes do not. Registration runs only in production builds in a secure context.
 Use `npm run build` followed by `npm run preview` to test installation and offline navigation locally.
 The worker caches no API, page or assets and provides no offline write queue. See the
-[PWA contract](../docs/pwa.md) and [documentation index](../docs/README.md).
+[PWA contract](../docs/reference/pwa.md) and [documentation index](../docs/README.md).

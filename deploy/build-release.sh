@@ -6,7 +6,7 @@ cd "$repo"
 release=${1:-$(date -u +%Y%m%dT%H%M%SZ)-$(git rev-parse --short HEAD)}
 [[ "$release" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$ ]] || { echo 'Invalid release ID' >&2; exit 1; }
 # The public origin is baked into the frontend (QR code links). The server's .env DOMAIN must match it.
-public_origin=${PUBLIC_ORIGIN:-https://app.qiaotavoloflow.it}
+public_origin=${PUBLIC_ORIGIN:?Set PUBLIC_ORIGIN to your public HTTPS origin, for example PUBLIC_ORIGIN=https://app.example.com}
 [[ "$public_origin" =~ ^https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || {
   echo 'PUBLIC_ORIGIN must look like https://app.example.com (lowercase, no port, path or trailing slash).' >&2; exit 1;
 }

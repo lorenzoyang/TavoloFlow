@@ -8,7 +8,7 @@
 	respond 404
 }
 
-# Serve only the business hostname. Apex/www belong to the separate marketing site.
+# Serve only the business hostname. Other hosts on the domain (apex, www) may be another site.
 {$DOMAIN} {
 	encode zstd gzip
 

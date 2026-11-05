@@ -190,16 +190,16 @@ Important errors: `GUEST_AUTH_REQUIRED` and `JOIN_CODE_INCORRECT` (401), `GUEST_
 `MENU_CHANGED`, `BILL_LIMIT_REACHED` (409). `RATE_LIMITED` includes Retry-After. A mismatch never changes
 the intended target or deletes another tab's valid guest cookie.
 
-Sources: [DiningService](../backend/TavoloFlow.Api/Dining/DiningService.cs),
-[GuestService](../backend/TavoloFlow.Api/Guests/GuestService.cs),
-[OrderService](../backend/TavoloFlow.Api/Ordering/OrderService.cs),
-[order contracts](../backend/TavoloFlow.Api/Ordering/OrderContracts.cs),
-[cart hook](../frontend/src/features/orders/useCart.ts).
+Sources: [DiningService](../../backend/TavoloFlow.Api/Dining/DiningService.cs),
+[GuestService](../../backend/TavoloFlow.Api/Guests/GuestService.cs),
+[OrderService](../../backend/TavoloFlow.Api/Ordering/OrderService.cs),
+[order contracts](../../backend/TavoloFlow.Api/Ordering/OrderContracts.cs),
+[cart hook](../../frontend/src/features/orders/useCart.ts).
 
-Tests: [dining/guest integration](../backend/TavoloFlow.Api.Tests/DiningAndGuestTests.cs),
-[order integration](../backend/TavoloFlow.Api.Tests/OrderTests.cs),
-[guest state](../frontend/tests/dining-guest.test.ts),
-[cart/order recovery](../frontend/tests/orders.test.ts).
+Tests: [dining/guest integration](../../backend/TavoloFlow.Api.Tests/DiningAndGuestTests.cs),
+[order integration](../../backend/TavoloFlow.Api.Tests/OrderTests.cs),
+[guest state](../../frontend/tests/dining-guest.test.ts),
+[cart/order recovery](../../frontend/tests/orders.test.ts).
 Manually exercise concurrent duplicate intents, a price change after confirmation, lost successful
 responses, blocked storage, cross-tab grant replacement, closure during recovery and all languages at
 360px. Use an isolated test environment; do not replay sample orders against a live restaurant.
