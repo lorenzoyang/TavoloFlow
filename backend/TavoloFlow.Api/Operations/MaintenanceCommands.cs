@@ -1,4 +1,5 @@
 using TavoloFlow.Api.Accounts;
+using TavoloFlow.Api.Demo;
 using TavoloFlow.Api.Platform;
 
 namespace TavoloFlow.Api.Operations;
@@ -9,7 +10,8 @@ public static class MaintenanceCommands
     private const string SeedDevelopmentAccounts = "--seed-dev-accounts";
     private const string SeedPlatformAdmin = "--seed-platform-admin";
     private const string ResetPlatformPassword = "--reset-platform-password";
-    private static readonly string[] Flags = [SeedDevelopmentAccounts, SeedPlatformAdmin, ResetPlatformPassword];
+    private const string SeedDemo = "--seed-demo";
+    private static readonly string[] Flags = [SeedDevelopmentAccounts, SeedPlatformAdmin, ResetPlatformPassword, SeedDemo];
 
     // Returns the requested command, if any, and the remaining arguments for the web host.
     public static string? Parse(string[] args, out string[] hostArgs)
@@ -25,6 +27,13 @@ public static class MaintenanceCommands
         // No HTTP request means no per-request scope. The seeder and bootstrap services are scoped
         // (they depend on DbContext), so create a scope by hand; disposing it also releases the DbContext.
         await using var scope = app.Services.CreateAsyncScope();
+        if (command == SeedDemo)
+        {
+            var root = app.Configuration["Demo:DataPath"] ?? Path.Combine(app.Environment.ContentRootPath, "demo");
+            var created = await scope.ServiceProvider.GetRequiredService<DemoSeeder>().SeedAsync(root);
+            app.Logger.LogInformation(created ? "Demo data initialized." : "Demo database already contains business data; initialization skipped.");
+            return;
+        }
         if (command == SeedDevelopmentAccounts)
         {
             var seed = app.Configuration.GetSection("DevelopmentSeed").Get<DevelopmentSeedOptions>() ?? new();

@@ -53,7 +53,7 @@ PUBLIC_ORIGIN=https://app.example.com bash deploy/build-release.sh
 `VITE_PUBLIC_BASE_URL` 和发布包的 `public-origin.txt`。服务器生产 `.env` 的 `DOMAIN` 须替换
 模板中的 `app.example.com`，并满足 `https://` 加 `DOMAIN` 与该文件一致，否则安装停止。
 后续每次发布到自定义域名都要传入同一个 `PUBLIC_ORIGIN`，改服务器配置不会重写已构建的二维码地址。
-完整流程见 [netcup 部署教程](../docs/zh-CN/deployment-guide.md)。
+完整流程见 [netcup 部署教程](../docs/deployment-guide.md)。
 
 ## 安装为应用（PWA）
 

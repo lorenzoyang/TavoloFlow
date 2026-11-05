@@ -1,0 +1,31 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+ARG TARGETARCH
+WORKDIR /src
+COPY global.json ./
+COPY .config/dotnet-tools.json .config/
+COPY backend/TavoloFlow.Api/TavoloFlow.Api.csproj backend/TavoloFlow.Api/
+# Each native build publishes only its matching SkiaSharp library and migration executable.
+RUN case "$TARGETARCH" in amd64) echo linux-x64 ;; arm64) echo linux-arm64 ;; *) exit 1 ;; esac > /runtime-id \
+    && dotnet restore backend/TavoloFlow.Api -r "$(cat /runtime-id)" && dotnet tool restore
+COPY backend/TavoloFlow.Api/ backend/TavoloFlow.Api/
+RUN dotnet publish backend/TavoloFlow.Api -c Release -r "$(cat /runtime-id)" --self-contained false \
+    --no-restore -o /publish /p:UseAppHost=false
+RUN ConnectionStrings__Default='Host=localhost;Database=build;Username=build;Password=build' \
+    dotnet ef migrations bundle --project backend/TavoloFlow.Api --configuration Release --no-build \
+    --runtime "$(cat /runtime-id)" --target-runtime "$(cat /runtime-id)" --output /publish/efbundle
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /var/tavoloflow/keys && chown "$APP_UID:$APP_UID" /var/tavoloflow/keys
+WORKDIR /app
+COPY --from=build /publish/ ./
+ENV ASPNETCORE_HTTP_PORTS=8080
+USER $APP_UID
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "TavoloFlow.Api.dll"]
+
+FROM runtime AS init
+COPY demo/data/ /app/demo/data/
+COPY demo/images/ /app/demo/images/

@@ -8,6 +8,31 @@
 
 顾客、店铺和平台界面均支持中文、意大利语和英语。店铺与平台共用本设备的语言选择；没有有效保存值时跟随浏览器语言，无法匹配则使用英语。顾客菜单按餐厅保存独立选择，首次使用餐厅默认语言。详见[界面语言规则](docs/architecture.md#75-界面语言与本机偏好)。
 
+## 快速体验 / Quick demo
+
+安装 Docker（Windows 使用 Docker Desktop 的 Linux 容器模式），克隆仓库后在根目录运行：
+With Docker installed, clone this repository and run from its root in PowerShell, macOS or Linux:
+
+```console
+docker compose -f demo/compose.yaml up -d --build
+```
+
+打开 / Open <http://127.0.0.1:8080>。无需配置 `.env`、安装 Node/.NET 或运行 Bash 脚本。
+No `.env`, Node/.NET SDK or Bash script is needed. The first build downloads dependencies.
+
+| 角色 / Role                 | 账号 / Username    | 密码 / Password | 入口 / Entry                                            |
+| --------------------------- | ------------------ | --------------- | ------------------------------------------------------- |
+| 店主 / Owner                | `demo.ramen.owner` | `123456`        | [/staff/login](http://127.0.0.1:8080/staff/login)       |
+| 员工 / Staff                | `demo.ramen.staff` | `123456`        | [/staff/login](http://127.0.0.1:8080/staff/login)       |
+| 平台管理员 / Platform admin | `demo.admin`       | `123456`        | [/platform/login](http://127.0.0.1:8080/platform/login) |
+
+内置 Demo Ramen：8 张空桌、4 个分类、12 道三语菜品和图片、已收款的示例服务周期；不预置订单。
+Includes eight empty tables, four categories, twelve trilingual dishes with photos, and a paid sample service period. No orders are preloaded.
+正常重启保留修改；停止、重置、端口设置和五分钟体验流程见 [本地体验 / Demo guide](docs/demo.md)。
+Demo 仅绑定本机地址，使用独立数据库和密钥卷；正式自托管继续使用生产部署流程。
+同时运行开发环境时，demo 请使用 `127.0.0.1`，开发使用 `localhost`，或使用独立浏览器配置，避免同名 Cookie 互相覆盖。
+When running development alongside the demo, use `127.0.0.1` for the demo and `localhost` for development, or separate browser profiles.
+
 ## 本地开发
 
 ```bash
@@ -43,7 +68,7 @@ Windows + WSL 环境下用手机扫码测试，见 [本地手机测试流程](do
 地址须为小写 HTTPS origin，不含端口、路径或末尾斜杠。服务器 `.env` 的 `DOMAIN` 须替换模板中的
 `app.example.com`，与构建地址的主机名一致；安装器会核对发布包的 `public-origin.txt`。
 
-首次上线请从 [netcup 中文部署教程](docs/zh-CN/deployment-guide.md) 开始：在 WSL 构建发布包，
+首次上线请从 [netcup 中文部署教程](docs/deployment-guide.md) 开始：在 WSL 构建发布包，
 部署到 VPS，由 Cloudflare 提供 DNS、Caddy 管理 HTTPS。生产模板和运维脚本位于 `deploy/`，与本地 Compose 分开。
 域名仍在 OVHcloud 续费；委派到 Cloudflare 后添加灰云 `A app` 记录指向 VPS 即可，无需购买第二个域名。官网未上线也可以先部署业务系统。
 店铺端可安装为应用（PWA），手机安装同样需要 HTTPS 正式地址，部署要求见 [PWA 说明](docs/pwa.md)。
@@ -70,7 +95,7 @@ npm run format:check
 - [开桌与顾客授权](docs/dining-guest-access.md) → [购物车和下单](docs/cart-ordering.md) → [厨房](docs/kitchen-cancellation.md) → [结账与历史](docs/billing-history.md)
 - [平台管理](docs/platform-pilot.md) → [收费周期](docs/restaurant-subscriptions.md)
 - [店铺端 PWA](docs/pwa.md)：安装到主屏幕、离线页、各平台差异与部署要求
-- [netcup 部署教程](docs/zh-CN/deployment-guide.md)：首次上线、更新、备份与恢复
-- [部署笔记](docs/zh-CN/deployment-notes.md)：做过什么、为什么这样做，以及日常维护备忘
+- [netcup 部署教程](docs/deployment-guide.md)：首次上线、更新、备份与恢复
+- [部署笔记](docs/deployment-notes.md)：做过什么、为什么这样做，以及日常维护备忘
 - [部署验证与清理记录](docs/deployment-validation.md)：清理范围、验证命令与人工验收边界
 - Documentazione in italiano: [note di sviluppo](docs/it/development-notes.md) · [guida al self-hosting](docs/it/self-hosting.md)

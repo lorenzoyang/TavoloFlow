@@ -158,4 +158,4 @@ bash deploy/smoke-test.sh artifacts/tavoloflow-实际版本号.tar.gz
 创建餐厅/桌位/开桌/顾客加入、连续发布两版后旧资源可读、容器重建后登录与加入码保留、备份恢复和应用回退。
 
 正式 ACME 证书签发、netcup 网络、OVHcloud 域名委派和 Cloudflare DNS、生效后的域名访问、Android/iOS 安装和完整营业操作，需要按
-[部署教程](zh-CN/deployment-guide.md)在购买并配置 VPS 后人工验收。本地测试不等于已经部署到公网，也不是容量压测。
+[部署教程](deployment-guide.md)在购买并配置 VPS 后人工验收。本地测试不等于已经部署到公网，也不是容量压测。

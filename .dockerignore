@@ -10,6 +10,13 @@
 !frontend/**
 !deploy/
 !deploy/Dockerfile.*
+!demo/
+!demo/Dockerfile.*
+!demo/Caddyfile
+!demo/data/
+!demo/data/**
+!demo/images/
+!demo/images/*.webp
 **/bin
 **/obj
 **/node_modules

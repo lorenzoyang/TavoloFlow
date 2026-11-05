@@ -3,6 +3,7 @@ using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Billing;
 using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
+using TavoloFlow.Api.Demo;
 using TavoloFlow.Api.Dining;
 using TavoloFlow.Api.Guests;
 using TavoloFlow.Api.Kitchen;
@@ -43,6 +44,7 @@ builder.Services.AddScoped<KitchenService>();
 builder.Services.AddScoped<BillingService>();
 builder.Services.AddScoped<RestaurantAdministration>();
 builder.Services.AddScoped<SubscriptionService>();
+builder.Services.AddScoped<DemoSeeder>();
 
 var app = builder.Build();
 

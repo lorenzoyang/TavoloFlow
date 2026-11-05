@@ -1,0 +1,90 @@
+name: tavoloflow-demo
+
+x-api-environment: &api-environment
+  ASPNETCORE_ENVIRONMENT: Development
+  ConnectionStrings__Default: Host=db;Database=tavoloflow_demo;Username=demo_user;Password=demo-local-database
+  DataProtection__KeyRingPath: /var/tavoloflow/keys
+  Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Warning
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tavoloflow_demo
+      POSTGRES_USER: demo_user
+      POSTGRES_PASSWORD: demo-local-database
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    networks: [database]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -h 127.0.0.1 -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  init:
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile.api
+      target: init
+    environment:
+      <<: *api-environment
+      Demo__DataPath: /app/demo
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["./efbundle && dotnet TavoloFlow.Api.dll --seed-demo"]
+    networks: [database]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile.api
+      target: runtime
+    restart: unless-stopped
+    environment: *api-environment
+    volumes:
+      - protection_keys:/var/tavoloflow/keys
+    networks: [web, database]
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --max-time, "4", http://localhost:8080/health/ready]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  web:
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile.web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${DEMO_PORT:-8080}:80"
+    networks: [web]
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, --quiet, --spider, http://127.0.0.1/staff/login]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+networks:
+  web:
+  database:
+    internal: true
+
+volumes:
+  postgres_data:
+  protection_keys:

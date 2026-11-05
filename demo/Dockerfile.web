@@ -1,0 +1,12 @@
+FROM node:24-bookworm-slim AS build
+WORKDIR /src
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+# Empty means the browser's current origin, including a user-selected local port.
+ENV VITE_PUBLIC_BASE_URL=""
+RUN npm run build
+
+FROM caddy:2-alpine
+COPY demo/Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /src/dist/ /srv/

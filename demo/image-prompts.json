@@ -1,0 +1,55 @@
+{
+  "tool": "Built-in image_gen",
+  "transparent_background": false,
+  "first": {
+    "file": "tonkotsu-ramen.webp",
+    "prompt": "Create one square photorealistic menu photograph for a fictional Japanese ramen restaurant, Demo Ramen. Dish: tonkotsu ramen, creamy ivory pork broth, thin noodles, two slices of chashu pork, half a soft-boiled egg, sliced scallions, nori. A single matte dark charcoal ceramic bowl on a warm medium brown wooden table. Soft natural light from upper left, calm warm restaurant mood, realistic appetizing food, camera at a slightly elevated three-quarter angle. Center the full bowl with enough breathing room for a square menu crop. No chopsticks covering the food, no people, no text, no logos, no watermark. Opaque background. This is the first of a coherent restaurant menu series; use simple composition and natural colors."
+  },
+  "template": "Use case: photorealistic-natural. Asset type: square food menu photograph for fictional Japanese restaurant Demo Ramen. Subject: {subject} Scene: warm medium brown wooden tabletop, soft natural light from upper left, warm calm restaurant mood. Camera: slightly elevated three-quarter angle, centered full serving with breathing room for square crop. Consistent simple Japanese restaurant ceramics, realistic appetizing food, natural colors. One dish only. No people, hands, logos, text, brand labels, or watermark. Opaque background.",
+  "subjects": [
+    {
+      "file": "shoyu-ramen.webp",
+      "subject": "Shoyu ramen: clear amber soy-seasoned chicken broth, thin noodles, two slices of chashu pork, half a soft-boiled egg, scallions, nori."
+    },
+    {
+      "file": "miso-ramen.webp",
+      "subject": "Miso ramen: rich tan miso broth, wavy noodles, chashu pork, sweetcorn, half a soft-boiled egg, scallions."
+    },
+    {
+      "file": "vegan-ramen.webp",
+      "subject": "Vegan ramen: light vegetable miso broth, noodles, shiitake mushrooms, bok choy, tofu and scallions. Entirely plant-based, no egg or meat."
+    },
+    {
+      "file": "gyoza.webp",
+      "subject": "Six Japanese pan-fried pork gyoza dumplings with golden crisp bases on a matte charcoal ceramic plate, a small matching saucer of soy dipping sauce beside it."
+    },
+    {
+      "file": "karaage.webp",
+      "subject": "Japanese karaage: bite-size golden crispy fried chicken on a matte charcoal ceramic plate, one lemon wedge, a little shredded cabbage. No sauce."
+    },
+    {
+      "file": "edamame.webp",
+      "subject": "A small matte charcoal ceramic bowl filled with bright green steamed edamame pods and a light sprinkling of sea salt."
+    },
+    {
+      "file": "takoyaki.webp",
+      "subject": "Six Japanese takoyaki octopus balls on a matte charcoal ceramic plate with brown takoyaki sauce, fine mayonnaise stripes, bonito flakes and seaweed."
+    },
+    {
+      "file": "iced-matcha.webp",
+      "subject": "Iced matcha latte in one plain clear unbranded glass, vivid green matcha and cold white milk, a few ice cubes, no straw. A small matte charcoal ceramic coaster."
+    },
+    {
+      "file": "yuzu-soda.webp",
+      "subject": "Yuzu soda: one plain clear unbranded glass of pale golden citrus sparkling water with ice and a thin yellow citrus slice. A small matte charcoal ceramic coaster."
+    },
+    {
+      "file": "matcha-cheesecake.webp",
+      "subject": "One neat slice of pale green matcha cheesecake with biscuit base on a matte charcoal ceramic dessert plate, a light dusting of matcha. No berries or text."
+    },
+    {
+      "file": "daifuku.webp",
+      "subject": "Three Japanese daifuku mochi with a light white rice-flour coating on a matte charcoal ceramic dessert plate, one cut in half showing dark red bean filling."
+    }
+  ]
+}

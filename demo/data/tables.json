@@ -1,0 +1,10 @@
+[
+  { "tableLabel": "T01", "isEnabled": true },
+  { "tableLabel": "T02", "isEnabled": true },
+  { "tableLabel": "T03", "isEnabled": true },
+  { "tableLabel": "T04", "isEnabled": true },
+  { "tableLabel": "T05", "isEnabled": true },
+  { "tableLabel": "T06", "isEnabled": true },
+  { "tableLabel": "T07", "isEnabled": true },
+  { "tableLabel": "T08", "isEnabled": true }
+]

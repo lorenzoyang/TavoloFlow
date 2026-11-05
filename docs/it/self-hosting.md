@@ -12,7 +12,7 @@ Come leggerla:
 - la **Parte 3** è per le emergenze: verificare un backup e ripartire su un server nuovo;
 - alla fine ci sono i problemi che ho incontrato e un riferimento rapido con la checklist.
 
-Tutti gli script e le configurazioni stanno nella cartella [`deploy/`](../../deploy/). Com'è fatta l'app all'interno (moduli, identità, lock…) lo spiego nelle [note di sviluppo](development-notes.md#architettura); qui parlo solo di come la si mette e la si tiene online. La guida originale passo passo, in cinese, è [`deployment-guide.md`](../zh-CN/deployment-guide.md).
+Tutti gli script e le configurazioni stanno nella cartella [`deploy/`](../../deploy/). Com'è fatta l'app all'interno (moduli, identità, lock…) lo spiego nelle [note di sviluppo](development-notes.md#architettura); qui parlo solo di come la si mette e la si tiene online. La guida originale passo passo, in cinese, è [`deployment-guide.md`](../deployment-guide.md).
 
 ## Panoramica
 

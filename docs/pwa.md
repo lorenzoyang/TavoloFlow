@@ -68,7 +68,7 @@ manifest 和 worker 中的路径仍使用相对业务 origin 的 `/staff`、`/sw
 
 ## 5. 部署要求
 
-`deploy/Caddyfile` 和发布脚本已实现以下生产要求；首次上线按 [netcup 部署教程](zh-CN/deployment-guide.md) 操作：
+`deploy/Caddyfile` 和发布脚本已实现以下生产要求；首次上线按 [netcup 部署教程](deployment-guide.md) 操作：
 
 1. **HTTPS**。安装、service worker 和屏幕常亮都要求安全上下文。在局域网用 `http://` 测试时，浏览器不提供安装，
    首页只显示手动步骤，添加到主屏幕的只是普通书签。

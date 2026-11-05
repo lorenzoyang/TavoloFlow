@@ -1,0 +1,5 @@
+{
+  "owner": { "username": "demo.ramen.owner", "password": "123456" },
+  "staff": { "username": "demo.ramen.staff", "password": "123456" },
+  "admin": { "username": "demo.admin", "password": "123456" }
+}

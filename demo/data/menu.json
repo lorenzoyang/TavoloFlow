@@ -1,0 +1,190 @@
+{
+  "categories": [
+    { "key": "ramen", "names": { "zh": "拉面", "it": "Ramen", "en": "Ramen" } },
+    { "key": "sides", "names": { "zh": "小食", "it": "Antipasti", "en": "Sides" } },
+    { "key": "drinks", "names": { "zh": "饮品", "it": "Bevande", "en": "Drinks" } },
+    { "key": "desserts", "names": { "zh": "甜点", "it": "Dolci", "en": "Desserts" } }
+  ],
+  "items": [
+    {
+      "key": "tonkotsu-ramen",
+      "category": "ramen",
+      "names": { "zh": "豚骨拉面", "it": "Ramen tonkotsu", "en": "Tonkotsu ramen" },
+      "descriptions": {
+        "zh": "浓郁猪骨汤，配叉烧、溏心蛋、葱花和海苔。",
+        "it": "Brodo cremoso di maiale con chashu, uovo marinato, cipollotto e alga nori.",
+        "en": "Rich pork broth with chashu, a soft-boiled egg, spring onion and nori."
+      },
+      "priceCents": 1350,
+      "allergenCodes": ["GLUTEN", "EGGS", "SOY"],
+      "allergenReviewed": true,
+      "isAvailable": true,
+      "image": "tonkotsu-ramen.webp"
+    },
+    {
+      "key": "shoyu-ramen",
+      "category": "ramen",
+      "names": { "zh": "酱油拉面", "it": "Ramen shoyu", "en": "Shoyu ramen" },
+      "descriptions": {
+        "zh": "清爽鸡汤与酱油汤底，配叉烧、溏心蛋、葱花和海苔。",
+        "it": "Brodo di pollo alla salsa di soia con chashu, uovo marinato, cipollotto e nori.",
+        "en": "Clear chicken and soy broth with chashu, a soft-boiled egg, spring onion and nori."
+      },
+      "priceCents": 1200,
+      "allergenCodes": ["GLUTEN", "EGGS", "SOY"],
+      "allergenReviewed": true,
+      "isAvailable": true,
+      "image": "shoyu-ramen.webp"
+    },
+    {
+      "key": "miso-ramen",
+      "category": "ramen",
+      "names": { "zh": "味噌拉面", "it": "Ramen al miso", "en": "Miso ramen" },
+      "descriptions": {
+        "zh": "醇厚味噌汤底，配叉烧、玉米、溏心蛋和葱花。",
+        "it": "Brodo saporito al miso con chashu, mais, uovo marinato e cipollotto.",
+        "en": "Hearty miso broth with chashu, sweetcorn, a soft-boiled egg and spring onion."
+      },
+      "priceCents": 1300,
+      "allergenCodes": ["GLUTEN", "EGGS", "SOY"],
+      "allergenReviewed": true,
+      "isAvailable": true,
+      "image": "miso-ramen.webp"
+    },
+    {
+      "key": "vegan-ramen",
+      "category": "ramen",
+      "names": { "zh": "素食拉面", "it": "Ramen vegano", "en": "Vegan ramen" },
+      "descriptions": {
+        "zh": "蔬菜味噌汤底，配无蛋面、香菇、豆腐、小白菜和葱花。",
+        "it": "Brodo vegetale al miso, noodles senza uova, shiitake, tofu, pak choi e cipollotto.",
+        "en": "Vegetable miso broth, egg-free noodles, shiitake, tofu, bok choy and spring onion."
+      },
+      "priceCents": 1250,
+      "allergenCodes": ["GLUTEN", "SOY"],
+      "allergenReviewed": true,
+      "isAvailable": true,
+      "image": "vegan-ramen.webp"
+    },
+    {
+      "key": "gyoza",
+      "category": "sides",
+      "names": { "zh": "日式煎饺", "it": "Gyoza alla piastra", "en": "Pan-fried gyoza" },
+      "descriptions": {
+        "zh": "六只猪肉蔬菜煎饺，配酱油蘸汁。",
+        "it": "Sei ravioli di maiale e verdure alla piastra, con salsa di soia.",
+        "en": "Six crisp-bottomed pork and vegetable dumplings with soy dipping sauce."
+      },
+      "priceCents": 600,
+      "allergenCodes": ["GLUTEN", "SOY"],
+      "allergenReviewed": true,
+      "isAvailable": true,
+      "image": "gyoza.webp"
+    },
+    {
+      "key": "karaage",
+      "category": "sides",
+      "names": { "zh": "唐扬鸡", "it": "Pollo karaage", "en": "Chicken karaage" },
+      "descriptions": {
+        "zh": "姜味酱油腌制的日式炸鸡，配柠檬和卷心菜。",
+        "it": "Pollo fritto marinato con zenzero e salsa di soia, servito con limone e cavolo.",
+        "en": "Japanese fried chicken marinated in ginger and soy, with lemon and cabbage."
+      },
+      "priceCents": 700,
+      "allergenCodes": ["GLUTEN", "SOY"],
+      "allergenReviewed": true,
+      "isAvailable": true,
+      "image": "karaage.webp"
+    },
+    {
+      "key": "edamame",
+      "category": "sides",
+      "names": { "zh": "盐味毛豆", "it": "Edamame al sale", "en": "Salted edamame" },
+      "descriptions": {
+        "zh": "清蒸毛豆荚，撒少许海盐。",
+        "it": "Baccelli di soia al vapore con un pizzico di sale marino.",
+        "en": "Steamed young soybean pods with a light sprinkle of sea salt."
+      },
+      "priceCents": 400,
+      "allergenCodes": ["SOY"],
+      "allergenReviewed": true,
+      "isAvailable": true,
+      "image": "edamame.webp"
+    },
+    {
+      "key": "takoyaki",
+      "category": "sides",
+      "names": { "zh": "章鱼烧", "it": "Takoyaki", "en": "Takoyaki" },
+      "descriptions": {
+        "zh": "六只章鱼小丸子，配章鱼烧酱、蛋黄酱、木鱼花和海苔碎。",
+        "it": "Sei polpette di polpo con salsa takoyaki, maionese, fiocchi di bonito e nori.",
+        "en": "Six octopus balls with takoyaki sauce, mayonnaise, bonito flakes and nori."
+      },
+      "priceCents": 650,
+      "allergenCodes": ["GLUTEN", "EGGS", "FISH", "SOY", "MOLLUSCS"],
+      "allergenReviewed": true,
+      "isAvailable": true,
+      "image": "takoyaki.webp"
+    },
+    {
+      "key": "iced-matcha",
+      "category": "drinks",
+      "names": { "zh": "冰抹茶拿铁", "it": "Matcha latte freddo", "en": "Iced matcha latte" },
+      "descriptions": {
+        "zh": "抹茶与鲜奶调制，加入冰块。",
+        "it": "Tè matcha e latte fresco, serviti con ghiaccio.",
+        "en": "Matcha green tea with fresh milk, served over ice."
+      },
+      "priceCents": 400,
+      "allergenCodes": ["MILK"],
+      "allergenReviewed": true,
+      "isAvailable": true,
+      "image": "iced-matcha.webp"
+    },
+    {
+      "key": "yuzu-soda",
+      "category": "drinks",
+      "names": { "zh": "柚子汽水", "it": "Soda allo yuzu", "en": "Yuzu soda" },
+      "descriptions": {
+        "zh": "清爽柚子气泡饮，配冰块和柑橘片。",
+        "it": "Bevanda frizzante allo yuzu con ghiaccio e una fettina di agrume.",
+        "en": "Refreshing sparkling yuzu with ice and a slice of citrus."
+      },
+      "priceCents": 450,
+      "allergenCodes": [],
+      "allergenReviewed": true,
+      "isAvailable": true,
+      "image": "yuzu-soda.webp"
+    },
+    {
+      "key": "matcha-cheesecake",
+      "category": "desserts",
+      "names": { "zh": "抹茶芝士蛋糕", "it": "Cheesecake al matcha", "en": "Matcha cheesecake" },
+      "descriptions": {
+        "zh": "抹茶芝士蛋糕，配酥脆饼干底。",
+        "it": "Cheesecake al tè matcha con una base croccante di biscotto.",
+        "en": "Creamy matcha cheesecake on a crisp biscuit base."
+      },
+      "priceCents": 550,
+      "allergenCodes": ["GLUTEN", "EGGS", "MILK"],
+      "allergenReviewed": true,
+      "isAvailable": true,
+      "image": "matcha-cheesecake.webp"
+    },
+    {
+      "key": "daifuku",
+      "category": "desserts",
+      "names": { "zh": "红豆大福", "it": "Daifuku ai fagioli rossi", "en": "Red bean daifuku" },
+      "descriptions": {
+        "zh": "三只软糯米团，包裹香甜红豆馅。",
+        "it": "Tre morbidi mochi di riso con ripieno dolce di fagioli rossi.",
+        "en": "Three soft rice mochi filled with sweet red bean paste."
+      },
+      "priceCents": 500,
+      "allergenCodes": [],
+      "allergenReviewed": true,
+      "isAvailable": true,
+      "image": "daifuku.webp"
+    }
+  ]
+}
