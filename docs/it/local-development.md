@@ -1,3 +1,5 @@
+[English](../en/local-development.md) · **Italiano** · [中文](../zh-CN/local-development.md)
+
 # Eseguire TavoloFlow in locale
 
 Questa guida è per chi vuole far girare TavoloFlow sul proprio computer: per vederlo all'opera in pochi minuti, per modificarne il codice o per provarlo da un telefono vero. Come metterlo online su un server lo spiego nella guida al [self-hosting](self-hosting.md); com'è fatto all'interno, nelle [note di sviluppo](development-notes.md).

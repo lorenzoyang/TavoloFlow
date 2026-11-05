@@ -1,3 +1,5 @@
+[English](../en/development-notes.md) · **Italiano** · [中文](../zh-CN/development-notes.md)
+
 # Note di sviluppo
 
 In queste note racconto come è nato TavoloFlow e com'è fatto: perché l'ho sviluppato, cosa fa e cosa non fa, quali tecnologie ho scelto, com'è organizzata l'architettura, quali decisioni di progettazione ho preso e quali limiti vedo oggi. L'ho sviluppato principalmente con agenti AI come Claude Code e Codex: ho partecipato più alla progettazione e alle decisioni sulla direzione del progetto che alla scrittura del codice e ai dettagli di implementazione.

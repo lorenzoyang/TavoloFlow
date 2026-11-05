@@ -3,21 +3,19 @@
 Start with the [project README](../README.md) to run the local demo. The documentation has two layers:
 
 - **Guides** tell the story of the project: why it exists, how it is built, how to run and deploy it.
-  The maintainer writes them in Italian first; Chinese and English translations will follow, with the
-  same file names under `zh-CN/` and `en/`.
+  The maintainer writes them in Italian first; the English and Chinese versions are translations with
+  the same file names under `en/` and `zh-CN/`. When they differ, the Italian version is the reference.
 - **Reference** documents describe the product's intended behavior and the implementation contracts.
   They stay in English only, so that there is a single version to keep in sync with the code.
 
 ## Guides
 
-For now the guides are in Italian only.
-
-| Guide                                        | Covers                                                                |
-| -------------------------------------------- | --------------------------------------------------------------------- |
-| [Development notes](it/development-notes.md) | Why the project exists, architecture, request flow and design choices |
-| [Local development](it/local-development.md) | Docker demo, native development, tests and testing from a phone       |
-| [Self-hosting](it/self-hosting.md)           | First deployment, releases, explicit migrations, backups and recovery |
-| [Learning notes](it/learning-notes.md)       | The maintainer's own notes on the technologies, tied to this code     |
+| Guide             | Covers                                                                | Languages                                                                                                     |
+| ----------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Development notes | Why the project exists, architecture, request flow and design choices | [English](en/development-notes.md) · [Italiano](it/development-notes.md) · [中文](zh-CN/development-notes.md) |
+| Local development | Docker demo, native development, tests and testing from a phone       | [English](en/local-development.md) · [Italiano](it/local-development.md) · [中文](zh-CN/local-development.md) |
+| Self-hosting      | First deployment, releases, explicit migrations, backups and recovery | [English](en/self-hosting.md) · [Italiano](it/self-hosting.md) · [中文](zh-CN/self-hosting.md)                |
+| Learning notes    | The maintainer's own notes on the technologies, tied to this code     | [Italiano](it/learning-notes.md) (in progress)                                                                |
 
 The [frontend README](../frontend/README.md) gives English frontend commands and configuration notes.
 Use the self-hosting guide for production operations; the demo and development Compose projects are

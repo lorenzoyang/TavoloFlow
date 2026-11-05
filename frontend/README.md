@@ -75,7 +75,7 @@ credentials, path, query or fragment. Unset uses the browser origin. It is embed
 changing the server environment does not rewrite built QR URLs. Local `.env.production` is ignored by
 Git; Vite development does not read it. For phone access, use `.env.local` with the reachable LAN origin
 and `npm run dev -- --host 0.0.0.0`. See [QR behavior](../docs/reference/menu-tables.md#qr-images-and-printable-cards)
-and the [Italian phone guide](../docs/it/local-development.md#parte-4-provare-dal-telefono).
+and the [phone testing guide](../docs/en/local-development.md#part-4-testing-from-a-phone).
 
 Production releases build inside Docker from the repository root, without host environment files:
 
@@ -87,7 +87,7 @@ PUBLIC_ORIGIN is required and has no default. It must be lowercase HTTPS without
 slash; it is embedded as VITE_PUBLIC_BASE_URL and recorded in `public-origin.txt`. Server DOMAIN must
 match or installation stops. Pass the same origin on subsequent builds.
 Existing paper QR codes retain their old URLs and need reprinting or redirection after a host change.
-The [Italian self-hosting guide](../docs/it/self-hosting.md) owns the complete release procedure.
+The [self-hosting guide](../docs/en/self-hosting.md) owns the complete release procedure.
 
 ## Staff PWA
 

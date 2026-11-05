@@ -95,7 +95,7 @@ Production [Caddy configuration](../../deploy/Caddyfile) and release scripts pro
 
 Icon paths are relative to `frontend/public/`. Update both SVG sources and their corresponding PNGs
 when replacing artwork; keep manifest sizes synchronized. No runtime image-rendering dependency is
-needed for the exported icons. Use the [Italian self-hosting guide](../it/self-hosting.md) for deployment.
+needed for the exported icons. Use the [self-hosting guide](../en/self-hosting.md) for deployment.
 
 ## Verification entry points
 

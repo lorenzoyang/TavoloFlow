@@ -1,111 +1,142 @@
+**English** · [Italiano](README.it.md) · [中文](README.zh-CN.md)
+
 # Qiao TavoloFlow
 
-A self-hostable dine-in QR ordering app for small restaurants. Guests order from their phones; staff
-manage the floor, kitchen and pass; owners confirm offline payment and review closed bills.
-Platform administrators manage restaurants, accounts and service periods.
+A self-hostable QR table-ordering app for small restaurants. Guests scan the table's QR code and order
+from their phones; the kitchen and the pass see the dishes as they arrive; the owner closes the bill
+after taking payment at the till.
 
-The guest, store and platform interfaces support **English, Italian and Chinese**. Staff can install
-the store area as a PWA for phones and kitchen/counter tablets. The app does not process online
-payments or replace a fiscal cash register.
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![.NET 10](https://img.shields.io/badge/.NET-10-512BD4)
+![React 19](https://img.shields.io/badge/React-19-61DAFB)
+![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-4169E1)
+
+Every interface (guest, staff, administrator) is available in English, Italian and Chinese. The staff
+area installs as a PWA on phones and kitchen tablets. The app does not process online payments and
+does not replace a fiscal cash register.
 
 ## What it does
 
-- Menu management with translated names, photos, prices, allergen review and sold-out state.
-- Fixed table QR codes, printable table cards, explicit opening and optional guest join codes.
-- Tab-local carts, shared table orders, immutable snapshots and idempotent submission recovery.
-- Kitchen dish/order views, per-device category filtering, item preparation/cancellation and a pass
-  screen for dishes waiting to reach the table.
-- Version-checked bills, distinct paid/empty/all-cancelled closures and owner-only closed history.
-- Separate platform administration, temporary account recovery passwords and offline annual-fee records.
+- **Guests** scan the table's fixed QR code, browse the menu with photos and allergens, join the
+  table's visit with a four-character code, and order as many times as they like during the meal.
+- **Staff** open tables on the Floor, follow orders in the Kitchen (grouped by dish or by order, with
+  an alert sound and per-screen category filters), and mark dishes served on the Pass screen.
+- **Owners** manage the menu and the tables, download QR codes and printable table cards, close the
+  bill after payment and browse the bill history.
+- **Platform administrators** create restaurants and their accounts, choose each restaurant's color
+  theme and record service periods and annual fees paid offline.
 
-There are no order printers, online payments, split bills, stock management, push notifications or
-offline order queues. See [product requirements](docs/reference/product-requirements.md) for the complete boundary.
+There are no order printers, online payments, split bills, stock management, takeaway or push
+notifications. The [product requirements](docs/reference/product-requirements.md) describe the full
+scope.
 
 ## Quick demo
 
-With Docker and Compose v2 installed, clone the repository and run from its root in PowerShell,
-macOS or Linux. Windows uses Docker Desktop with Linux containers.
+You need Git and Docker with Compose v2 (on Windows, Docker Desktop with Linux containers). No .NET,
+Node or `.env` file is required.
 
-```console
+```bash
+git clone https://github.com/lorenzoyang/TavoloFlow.git
+cd TavoloFlow
 docker compose -f demo/compose.yaml up -d --build
 ```
 
-Open <http://127.0.0.1:8080>. No `.env`, host Node/.NET SDK or Bash script is needed. The first build
-downloads dependencies.
+The first build takes a few minutes. Then open <http://127.0.0.1:8080>.
 
-| Role                   | Username           | Password | Entry                                                   |
+| Role                   | Username           | Password | Sign in at                                              |
 | ---------------------- | ------------------ | -------- | ------------------------------------------------------- |
 | Owner                  | `demo.ramen.owner` | `123456` | [/staff/login](http://127.0.0.1:8080/staff/login)       |
 | Staff                  | `demo.ramen.staff` | `123456` | [/staff/login](http://127.0.0.1:8080/staff/login)       |
 | Platform administrator | `demo.admin`       | `123456` | [/platform/login](http://127.0.0.1:8080/platform/login) |
 
-Demo Ramen includes eight empty tables, four categories, twelve trilingual dishes with photos and a
-paid sample service period. No visits, orders or bills are preloaded. Unlike real restaurants, the
-demo accounts skip the first password change. Menu ingredients/allergens and AI-generated photos are
-fictional demo material.
+The fictional **Demo Ramen** restaurant has eight free tables and twelve dishes with AI-generated
+photos. A five-minute tour: as the owner, copy table T01's link from **Tables & QR**; open T01 on the
+**Floor**; paste the link in another tab, enter the table code and order; mark the dishes **Ready** in
+the **Kitchen** and **Served** on the **Pass**; close the bill from **Bill**. The
+[local development guide](docs/en/local-development.md) explains the demo in detail, including how to
+reset it and change its data.
 
-Try the flow in separate browser profiles: owner prepares a table → staff opens it → guest scans/opens
-its menu and joins → guest orders → kitchen marks dishes ready → Pass marks delivery → owner confirms
-offline collection → history shows the bill. A profile holds one guest visit identity at a time.
+## Architecture
 
-Normal restarts retain changes. To stop the demo without deleting data:
-
-```console
-docker compose -f demo/compose.yaml down
+```mermaid
+flowchart LR
+  G["Guest<br>/q/{token}"] --> C
+  S["Staff and owner<br>/staff/*"] --> C
+  P["Administrator<br>/platform/*"] --> C
+  C["Caddy<br>HTTPS and SPA files"] -->|"/api/*"| A["ASP.NET Core API"]
+  A --> D[("PostgreSQL")]
+  A --> K["Data Protection keys"]
 ```
 
-An explicit `down -v` resets only this demo project's volumes. The demo binds to loopback and has
-separate database/key volumes; it is not the production deployment. When running native development
-alongside it, use `127.0.0.1` for the demo and `localhost` for development, or separate browser profiles,
-to avoid cookie collisions. Port settings, fixtures and the full walkthrough are in the
-[local guide (Italian)](docs/it/local-development.md).
+A React single-page app and an ASP.NET Core API share one HTTPS origin behind Caddy, so there is no
+CORS and cookies never cross domains. One API process serves three kinds of users, and the request
+path decides which cookie identity applies: `/api/public` for guests, `/api/platform` for
+administrators, everything else for restaurant staff.
 
-## Stack and layout
+Most design choices answer two questions: what happens when two people act at the same moment, and
+what happens when the network drops halfway through a write? The
+[development notes](docs/en/development-notes.md) explain each one; in short:
 
-ASP.NET Core 10 controller API, EF Core/Npgsql and PostgreSQL 18; React 19, TypeScript, Vite,
-TanStack Router/Query and shadcn/ui on Base UI. Production uses Docker Compose and Caddy on one origin.
-There are eleven persistence tables; explicit row locks and conditional writes coordinate ordering,
-kitchen work and closure.
+- **Row locks in a fixed order.** Services lock the rows a decision depends on with
+  `SELECT ... FOR SHARE/FOR UPDATE`, always restaurant → table → visit, so concurrent writes queue up
+  instead of deadlocking. Conditional updates are a second line of defense.
+- **Invariants in the database.** A partial unique index allows one open visit per table, composite
+  foreign keys keep each restaurant's data apart, and check constraints keep status fields
+  consistent.
+- **An optimistic bill version.** The owner confirms the version and total they saw; if an order
+  arrived in the meantime, the server answers `BILL_CHANGED` instead of closing the wrong bill.
+- **Idempotent orders.** Each order carries a client-generated request ID backed by a unique index, so
+  a retry after a lost response never creates a duplicate order.
+- **Recovery by GET only.** After a write with an unknown result, the browser only reads the original
+  resource and asks a person to confirm again; it never resends a POST on its own.
+- **Polling instead of WebSocket.** Screens refresh every 10–30 seconds and detect new work from an
+  index watermark, which is enough for a small restaurant and much simpler to run.
+- **Cookies and scoped CSRF tokens** rather than JWTs in `localStorage`: HttpOnly, revocable through a
+  credential version, and each CSRF token is bound to its own identity.
+- **Explicit migrations.** The API never migrates at startup; each release applies an EF Core
+  migrations bundle after taking a backup.
 
-| Directory   | Contents                                                           |
-| ----------- | ------------------------------------------------------------------ |
-| `backend/`  | API, entities, migrations and PostgreSQL integration tests         |
-| `frontend/` | Guest/store/platform SPA, pure logic tests and staff PWA assets    |
-| `demo/`     | Isolated local Docker experience and editable fictional fixtures   |
-| `deploy/`   | Production release, migration, backup and recovery tooling         |
-| `docs/`     | English requirements/contracts and the maintainer's Italian guides |
+## Tech stack
 
-## Native development
+| Area       | Technologies                                                                                   |
+| ---------- | ---------------------------------------------------------------------------------------------- |
+| Backend    | C#, ASP.NET Core 10 (controllers), EF Core with Npgsql, SkiaSharp for dish photos              |
+| Database   | PostgreSQL 18                                                                                  |
+| Frontend   | React 19, TypeScript, Vite, TanStack Router and Query, Tailwind CSS, shadcn/ui on Base UI      |
+| Tests      | xUnit integration tests on real PostgreSQL (Testcontainers), Node's test runner for pure logic |
+| Deployment | Docker Compose and Caddy on a single VPS, release packages built locally                       |
 
-Use the .NET SDK specified in `global.json`, Node 24 and Docker. From the repository root:
+## Repository layout
+
+| Directory   | Contents                                                                   |
+| ----------- | -------------------------------------------------------------------------- |
+| `backend/`  | the API, its entities and migrations, and the PostgreSQL integration tests |
+| `frontend/` | the guest, staff and administrator SPA, logic tests and the PWA assets     |
+| `demo/`     | the self-contained Docker demo and its fictional data                      |
+| `deploy/`   | production Compose, release, migration, backup and rollback scripts        |
+| `docs/`     | the guides (English, Italian, Chinese) and the English reference           |
+
+## Running locally
+
+For development you need the .NET SDK from `global.json`, Node 24 and Docker. From the repository
+root:
 
 ```bash
 cp .env.example .env
-# Edit POSTGRES_PASSWORD before starting the database.
+# Set POSTGRES_PASSWORD in .env, then start the database
 docker compose up -d db
 dotnet tool restore
 dotnet user-secrets set 'ConnectionStrings:Default' \
-  'Host=localhost;Port=5432;Database=tavoloflow_dev;Username=tavoloflow;Password=YOUR_LOCAL_PASSWORD' \
+  'Host=localhost;Port=5432;Database=tavoloflow_dev;Username=tavoloflow;Password=YOUR_PASSWORD' \
   --project backend/TavoloFlow.Api
 dotnet ef database update --project backend/TavoloFlow.Api
-```
-
-Match the connection string to your `.env`. Compose configures the database container only; the API
-does not load that file or migrate on startup. A newly migrated database has no accounts or sample data.
-Use [platform bootstrap](docs/reference/accounts-platform.md#platform-bootstrap) to start from an empty restaurant
-setup, or import the fictional demo into an empty Development database:
-
-```bash
+# Optional: import the demo data into the empty database
 Demo__DataPath="$PWD/demo" dotnet run --project backend/TavoloFlow.Api --launch-profile http -- --seed-demo
-```
-
-The import skips a database already containing a restaurant or platform account. Start the API:
-
-```bash
+# Start the API on http://localhost:5093
 dotnet run --project backend/TavoloFlow.Api --launch-profile http
 ```
 
-In another terminal:
+In a second terminal:
 
 ```bash
 cd frontend
@@ -113,60 +144,52 @@ npm ci
 npm run dev
 ```
 
-Open <http://localhost:5173/staff/login> or `/platform/login`. Guest entrances are `/q/{token}`.
-Vite proxies `/api` to `http://localhost:5093`. See the [frontend README](frontend/README.md) for frontend
-configuration, and the [Italian local guide](docs/it/local-development.md) for full setup, tests and
-phone access, including Windows/WSL forwarding.
+Open <http://localhost:5173/staff/login>; Vite proxies `/api` to the API. The
+[local development guide](docs/en/local-development.md) covers each step, the tests and how to try
+the app from a phone on your Wi-Fi.
 
 ## Deployment
 
-A deployment serves the guest, store and platform pages and `/api` from one HTTPS origin behind Caddy,
-on a single VPS. It shares no parent-domain cookies and needs no cross-origin access. Build a release
-package for your public origin; `PUBLIC_ORIGIN` is required:
+A release package is built locally for one public origin and installed on the server with a script:
 
 ```bash
 PUBLIC_ORIGIN=https://app.example.com bash deploy/build-release.sh
 ```
 
-Use a lowercase HTTPS origin without port, path or trailing slash. The server's `DOMAIN` must match;
-the installer checks the release's `public-origin.txt`. Printed QR codes keep the old URL after an
-origin change and need reprinting or a redirect.
+The [self-hosting guide](docs/en/self-hosting.md) walks through a first installation on an Ubuntu
+VPS, DNS and HTTPS, explicit migrations, nightly backups, restores and rollbacks.
 
-Follow the [self-hosting guide (Italian)](docs/it/self-hosting.md) for first installation, explicit
-migration bundles, persistent Data Protection keys, releases, backups and restore drills. Production
-never exposes API/database container ports or migrates on normal API startup. Internal readiness is
-`/health/ready`, blocked by public Caddy routing. The staff [PWA guide](docs/reference/pwa.md) covers installation
-and long-open application assets.
-
-## Validation
+## Tests
 
 ```bash
+# Backend integration tests (Docker must be running)
 dotnet test TavoloFlow.slnx
+# Frontend
 cd frontend
 node --test --test-isolation=none tests/*.test.ts
 npm run build
 npm run lint
-npm run format:check
 ```
 
-Integration test classes use disposable PostgreSQL containers with real migrations, separate from
-development/demo data. Frontend tests use Node's built-in runner. Production release packaging has a
-separate disposable-container smoke test described in the self-hosting guide.
+Each backend test class starts its own throwaway PostgreSQL with the real migrations.
 
 ## Documentation
 
-- [Documentation index](docs/README.md): choose product, implementation or operational reading.
-- [Product requirements](docs/reference/product-requirements.md): roles, workflow, scope and acceptance baseline.
-- [Schema](docs/reference/er-diagram.dbml) and [ER diagram](docs/reference/er-diagram.png).
-- Implementation: [accounts/platform](docs/reference/accounts-platform.md), [menu/tables](docs/reference/menu-tables.md),
-  [dining/ordering](docs/reference/dining-ordering.md), [kitchen/pass](docs/reference/kitchen-pass.md),
-  [billing/history](docs/reference/billing-history.md), [subscriptions](docs/reference/restaurant-subscriptions.md),
-  [staff PWA](docs/reference/pwa.md).
-- Personal guides in Italian: [architecture and decisions](docs/it/development-notes.md),
-  [local development](docs/it/local-development.md), [self-hosting](docs/it/self-hosting.md) and
-  [learning notes](docs/it/learning-notes.md).
+- **Guides**, written in Italian and translated: development notes, local development and
+  self-hosting, in [English](docs/en/), [Italian](docs/it/) and [Chinese](docs/zh-CN/).
+- **Reference**, in English: [product requirements](docs/reference/product-requirements.md), the
+  [database schema](docs/reference/er-diagram.png) and the feature contracts listed in the
+  [documentation index](docs/README.md).
+- Coding and UI conventions are in [AGENTS.md](AGENTS.md).
 
-Contribution and implementation conventions are in [AGENTS.md](AGENTS.md).
+## How it was built
+
+This is my first full-stack project. I designed the product and made the architectural decisions;
+most of the code was written together with AI coding agents (Claude Code and Codex). I built it for
+Chinese restaurants in Italy, deployed it, and learned that what they needed most was ticket printing.
+So I opened the source, and I am now studying the codebase in depth: the
+[development notes](docs/en/development-notes.md) tell the whole story and explain the reasoning
+behind each choice.
 
 ## License
 

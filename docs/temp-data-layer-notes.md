@@ -116,8 +116,8 @@ Its Down also throws because removed metadata cannot be recovered. An incompatib
 a pre-upgrade database backup, not an invented inverse migration.
 
 Code: [migration sources](../backend/TavoloFlow.Api/Data/Migrations/).
-Operational commands belong in [local development](it/local-development.md) and
-[self-hosting](it/self-hosting.md), both in Italian.
+Operational commands belong in [local development](en/local-development.md) and
+[self-hosting](en/self-hosting.md).
 
 ## Validation and schema ownership
 

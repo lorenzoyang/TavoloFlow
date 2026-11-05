@@ -100,4 +100,4 @@ Tests: [subscription integration](../../backend/TavoloFlow.Api.Tests/Subscriptio
 Manual scenarios: unpaid onboarding, negotiated two-year total, early/late collection, touching renewal,
 gaps, changed defaults, paid-period expiry adjustment, concurrent version conflicts, unchanged saves
 and lost responses followed by reread/reconfirmation. Use explicit migrations as documented in the
-[Italian self-hosting guide](../it/self-hosting.md#le-migrazioni).
+[self-hosting guide](../en/self-hosting.md#migrations).

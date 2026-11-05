@@ -76,7 +76,7 @@ distributed limiter.
 ## Initialization and account recovery
 
 Apply migrations explicitly before maintenance commands. The [root README](../../README.md) has the
-English quick start; the full [local guide](../it/local-development.md) is in Italian. Normal API startup
+quick start; the full [local development guide](../en/local-development.md) has the details. Normal API startup
 does not seed accounts or apply migrations.
 
 ### Platform bootstrap
@@ -92,7 +92,7 @@ The command creates the first platform administrator and exits. Repeating it pre
 credentials and active state. Password recovery uses `--reset-platform-password` with the existing
 username; it invalidates old credentials without enabling an inactive account. These two commands
 also support Production, using the configured production environment; follow the
-[self-hosting guide](../it/self-hosting.md) there. There is no anonymous HTTP bootstrap endpoint.
+[self-hosting guide](../en/self-hosting.md) there. There is no anonymous HTTP bootstrap endpoint.
 Do not put actual passwords in application arguments, Git or shared terminal output.
 
 ### Development store accounts

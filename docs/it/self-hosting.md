@@ -1,3 +1,5 @@
+[English](../en/self-hosting.md) · **Italiano** · [中文](../zh-CN/self-hosting.md)
+
 # Self-hosting di TavoloFlow
 
 Questa guida è per chi vuole installare TavoloFlow su un proprio server: una VPS Linux, un dominio e Docker. Alla fine avrai l'app raggiungibile in HTTPS su un tuo sottodominio, per esempio `https://app.esempio.it`, con l'area amministratore, l'area staff installabile come PWA, i QR dei tavoli che puntano al tuo dominio e un backup automatico ogni notte.

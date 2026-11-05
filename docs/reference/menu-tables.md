@@ -140,7 +140,7 @@ after a host/port change and need reprinting or an old-address redirect.
 Release builds use the deployment's public origin; other hosts on the same domain are not QR origins.
 For release builds, use the [frontend configuration notes](../../frontend/README.md#deployment-and-qr-origin).
 Phone/LAN setup, including Windows/WSL forwarding, is in the
-[Italian local guide](../it/local-development.md#parte-4-provare-dal-telefono).
+[local development guide](../en/local-development.md#part-4-testing-from-a-phone).
 
 ## Anonymous bootstrap and guest browsing
 
