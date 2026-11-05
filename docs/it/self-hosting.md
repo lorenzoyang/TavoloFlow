@@ -364,7 +364,7 @@ SHA256SUMS           il checksum di ogni file
 
 Tieni sul tuo computer almeno il pacchetto della versione in produzione e quello precedente: servono per tornare indietro e per ricostruire il server.
 
-**Facoltativo: provare tutto in locale.** [`deploy/smoke-test.sh`](../../deploy/smoke-test.sh) installa il pacchetto dentro un Docker temporaneo e isolato (Docker-in-Docker, con un certificato di prova locale) e controlla installazione, migrazioni, HTTPS, cookie e CSRF delle tre identità, due rilasci di fila, backup, ripristino e rollback, poi cancella tutto. Usa l'indirizzo scritto nel pacchetto, quindi funziona con qualsiasi `PUBLIC_ORIGIN`:
+**Facoltativo: provare tutto in locale.** [`deploy/smoke-test.sh`](../../deploy/smoke-test.sh) installa il pacchetto dentro un Docker temporaneo e isolato (Docker-in-Docker, con un certificato di prova locale) e controlla installazione, migrazioni, HTTPS, cookie e CSRF delle tre identità, due rilasci di fila, backup, ripristino e rollback, poi cancella tutto quello che ha creato. Usa l'indirizzo scritto nel pacchetto, quindi funziona con qualsiasi `PUBLIC_ORIGIN`:
 
 ```bash
 PUBLIC_ORIGIN=https://app.esempio.it bash deploy/build-release.sh
@@ -417,11 +417,11 @@ Qui `install` non installa pacchetti: copia un file e ne imposta insieme proprie
 
 #### Il file `.env`
 
-| Variabile           | Cosa scrivere                                                                             |
-| ------------------- | ----------------------------------------------------------------------------------------- |
+| Variabile           | Cosa scrivere                                                                                                               |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `DOMAIN`            | il sottodominio, per esempio `app.esempio.it`, senza `https://`: `https://` + `DOMAIN` deve essere uguale a `PUBLIC_ORIGIN` |
-| `ACME_EMAIL`        | la tua email vera, per gli avvisi sul certificato                                         |
-| `POSTGRES_PASSWORD` | i 64 caratteri esadecimali generati da `openssl rand -hex 32`                             |
+| `ACME_EMAIL`        | la tua email vera, per gli avvisi sul certificato                                                                           |
+| `POSTGRES_PASSWORD` | i 64 caratteri esadecimali generati da `openssl rand -hex 32`                                                               |
 
 Il resto lascialo com'è. Niente virgolette e niente spazi attorno a `=`.
 

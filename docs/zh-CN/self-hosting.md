@@ -231,7 +231,7 @@ sudo ufw enable
 sudo ufw status
 ```
 
-只能开放三个端口：SSH、80 和 443。80 端口也是必需的：Caddy 用它申请证书，并把 HTTP 跳转到 HTTPS。如果服务商还有自己的防火墙（netcup 的面板里就有），保持默认设置，或者开放同样的入站端口，并且不要阻止出站流量。如果系统要求重启，执行 `sudo reboot`，然后重新以 `deploy` 登录。
+只应开放三个端口：SSH、80 和 443。80 端口也是必需的：Caddy 用它申请证书，并把 HTTP 跳转到 HTTPS。如果服务商还有自己的防火墙（netcup 的面板里就有），保持默认设置，或者开放同样的入站端口，并且不要阻止出站流量。如果系统要求重启，执行 `sudo reboot`，然后重新以 `deploy` 登录。
 
 #### 1.6 关闭密码登录和 root 登录
 
@@ -417,11 +417,11 @@ sudo nano /opt/tavoloflow/.env
 
 #### `.env` 文件
 
-| 变量                | 填什么                                                                   |
-| ------------------- | ------------------------------------------------------------------------ |
+| 变量                | 填什么                                                                                          |
+| ------------------- | ----------------------------------------------------------------------------------------------- |
 | `DOMAIN`            | 子域名，比如 `app.example.com`，不带 `https://`：`https://` + `DOMAIN` 必须等于 `PUBLIC_ORIGIN` |
-| `ACME_EMAIL`        | 你真实的邮箱，用于接收证书通知                                           |
-| `POSTGRES_PASSWORD` | `openssl rand -hex 32` 生成的 64 个十六进制字符                          |
+| `ACME_EMAIL`        | 你真实的邮箱，用于接收证书通知                                                                  |
+| `POSTGRES_PASSWORD` | `openssl rand -hex 32` 生成的 64 个十六进制字符                                                 |
 
 其他保持不变。不要加引号，`=` 两边不要有空格。
 
@@ -678,7 +678,7 @@ sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api db caddy
 ```
 
 - **不要删除卷，也不要马上恢复数据库。** 脚本出错不会删除数据。
-- 如果 API 处于停止状态，在查明原因之前，不要恢复餐厅的系统服务。
+- 如果 API 处于停止状态，在查明原因之前，先别让餐厅恢复使用系统。
 - 修复之后，用一个**新的 ID** 发布：同一个 ID 会被构建（压缩包已存在）和安装程序（`web/releases/版本` 目录已存在）拒绝。重新执行迁移没有害处。
 
 如果失败的正是首次安装，`state/current` 还不存在，`tf.sh` 不知道该用哪个版本。你需要自己传给它，在 `sudo` 后面用 `env`，因为 `sudo` 会清除写在它前面的环境变量：
@@ -859,7 +859,7 @@ sudo docker exec tavoloflow-restore-check psql -U postgres -d postgres \
 sudo tar -tzf /root/tavoloflow-restore-check/keys.tar.gz
 ```
 
-恢复过程应无报错，查询应返回数字，密钥压缩包必须可以读取。最后只删除为这次演练创建的东西：
+恢复过程应该没有报错，查询应该返回数字，密钥压缩包应该能正常读取。最后只删除为这次演练创建的东西：
 
 ```bash
 # -f 停止并删除容器，-v 同时删除它的匿名卷
@@ -901,14 +901,14 @@ sudo bash /opt/tavoloflow/tf.sh exec -T db sh -c \
   'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT count(*) FROM orders;"'
 ```
 
-7. **直到现在**，才把 `A` 记录改到新的 IP，用 `dig @1.1.1.1 +short A app.example.com` 确认，然后启动 Caddy，它需要 DNS 已经更新才能申请证书：
+7. **到了这一步**，才把 `A` 记录改到新的 IP，用 `dig @1.1.1.1 +short A app.example.com` 确认，然后启动 Caddy，它需要 DNS 已经更新才能申请证书：
 
 ```bash
 sudo bash /opt/tavoloflow/tf.sh up -d caddy
 sudo bash /opt/tavoloflow/tf.sh logs --tail 80 caddy
 ```
 
-8. 检查 HTTPS、登录、历史账单，以及仍在进行的用餐的入桌码，然后恢复系统服务，并重新启用自动备份（第 1 部分第 7 步）。
+8. 检查 HTTPS、登录、历史账单，以及仍在进行的用餐的入桌码，然后让餐厅恢复使用系统，并重新启用自动备份（第 1 部分第 7 步）。
 
 数据库会回到备份时的状态：之后发生的事情，需要和餐厅一起手动核对。
 
