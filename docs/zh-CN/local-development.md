@@ -208,8 +208,8 @@ Demo__DataPath="$PWD/demo" dotnet run --project backend/TavoloFlow.Api --launch-
 
 ```bash
 dotnet user-secrets set 'PlatformBootstrap:Username' 'admin' --project backend/TavoloFlow.Api
-# 6 到 128 个字符
-dotnet user-secrets set 'PlatformBootstrap:Password' '一个密码' --project backend/TavoloFlow.Api
+# 请把示例值替换为自己的密码，长度为 6–128 个字符
+dotnet user-secrets set 'PlatformBootstrap:Password' '替换为你的管理员密码' --project backend/TavoloFlow.Api
 dotnet run --project backend/TavoloFlow.Api --launch-profile http -- --seed-platform-admin
 ```
 
@@ -272,7 +272,7 @@ dotnet test TavoloFlow.slnx
 dotnet test TavoloFlow.slnx --filter "FullyQualifiedName~KitchenTests"
 ```
 
-测试集包括不使用数据库的纯逻辑测试，比如 `PasswordPolicyTests` 和 `SubscriptionSummaryTests`，以及集成测试。每个使用 `PostgreSqlFixture` 的类都会通过 Testcontainers 启动一个自己的一次性 PostgreSQL（`postgres:18-alpine`），并执行真实的迁移。HTTP 测试用 `WebApplicationFactory` 调用 API，数据层测试直接使用 `DbContext`。测试不会碰开发数据库，也不会碰演示数据库。运行完整命令需要 Docker；第一次运行集成测试会下载 PostgreSQL 镜像。
+测试集包括不使用数据库的纯逻辑测试，比如 `PasswordPolicyTests` 和 `SubscriptionSummaryTests`，以及集成测试。每个使用 `PostgreSqlFixture` 的类都会通过 Testcontainers 启动一个专供该测试类使用的临时 PostgreSQL 实例（`postgres:18-alpine`），并执行真实的迁移。HTTP 测试用 `WebApplicationFactory` 调用 API，数据层测试直接使用 `DbContext`。测试不会碰开发数据库，也不会碰演示数据库。运行完整命令需要 Docker；第一次运行集成测试会下载 PostgreSQL 镜像。
 
 ### 前端
 

@@ -364,7 +364,7 @@ SHA256SUMS           每个文件的校验和
 
 在你的电脑上至少保留生产环境当前版本和上一个版本的发布包：回滚和重建服务器都要用到它们。
 
-**可选：在本地完整测试。** [`deploy/smoke-test.sh`](../../deploy/smoke-test.sh) 会把发布包安装到一个临时的、隔离的 Docker 里（Docker-in-Docker，使用本地测试证书），检查安装、迁移、HTTPS、三种身份的 cookie 和 CSRF、连续两次发布、备份、恢复和回滚，然后删除一切。它使用发布包里写的地址，所以任何 `PUBLIC_ORIGIN` 都可以：
+**可选：在本地完整测试。** [`deploy/smoke-test.sh`](../../deploy/smoke-test.sh) 会把发布包安装到一个临时的、隔离的 Docker 里（Docker-in-Docker，使用本地测试证书），检查安装、迁移、HTTPS、三种身份的 cookie 和 CSRF、连续两次发布、备份、恢复和回滚，然后清理本次测试创建的资源。它使用发布包里写的地址，所以任何 `PUBLIC_ORIGIN` 都可以：
 
 ```bash
 PUBLIC_ORIGIN=https://app.example.com bash deploy/build-release.sh
@@ -411,7 +411,7 @@ openssl rand -hex 32
 sudo nano /opt/tavoloflow/.env
 ```
 
-这里的 `install` 不是安装软件包：它复制文件，同时设置所有者和权限。`ops/*` 不包含隐藏文件，所以 `.env.example` 要单独写出来。如果某个校验和失败，重新上传发布包：不要跳过检查。
+这里的 `install` 不是安装软件包：它复制文件，同时设置所有者和权限。`ops/*` 不包含隐藏文件，所以 `.env.example` 要单独写出来。如果校验和检查不通过，重新上传发布包：不要跳过检查。
 
 **之后的发布中，永远不要再执行创建 `.env` 的那一行**：那样会用空模板覆盖你的配置。
 
@@ -477,7 +477,7 @@ sudo bash ops/install-release.sh "$PWD" /opt/tavoloflow
 11. 把**前端复制**到 `web/releases/版本/`，并把它的 JS 和 CSS 文件复制到 `web/assets/`；
 12. **启动新的 API**，等待它在 `/health/ready` 上返回健康状态（检查数据库是否可以访问）；
 13. 把 **`web/current` 链接**指向新版本；
-14. **重建 Caddy**，第一次时它会申请证书；
+14. **重新创建 Caddy 容器**，第一次时它会申请证书；
 15. 把版本**写入** `state/current`（上一个版本写入 `state/previous`）。
 
 PostgreSQL 和 Caddy 的镜像不在发布包里：第一次启动时由 Docker 下载，看到它们在下载是正常的。
@@ -548,7 +548,7 @@ sudo bash /opt/tavoloflow/bootstrap-admin.sh
 
 1. 进入 `/platform/login`（语言可以在顶部切换），创建餐厅：名称、菜单默认语言、店主和员工的用户名、第一个服务期。
 2. 立即保存两个**临时密码**：它们只显示一次。
-3. 店主进入 `/staff/login`，首次登录时必须设置新密码（「设置你的新密码」）。然后在「桌位与二维码」里准备菜单（分类、菜品、价格、过敏原）和桌位。
+3. 店主进入 `/staff/login`，首次登录时必须设置新密码（「设置你的新密码」）。然后准备菜单（分类、菜品、价格、过敏原），并在「桌位与二维码」里配置桌位。
 4. 员工也用自己的临时密码完成同样的首次登录。
 5. 新餐厅默认处于**暂停**状态，接单也是关闭的：在管理员后台启用服务，然后由店主或员工在桌台页面打开「扫码接单」。重新启用服务不会自动重新开启接单。
 6. 下载并打印一张桌的二维码，检查扫码后打开的是 `https://app.example.com/q/...`，而不是 `localhost` 或家庭网络地址。
@@ -649,7 +649,7 @@ sudo bash /opt/tavoloflow/tf.sh ps
 安装程序一开始会重新检查每个文件（`SHA256SUMS`）。发现已经装有某个版本时，安装程序会这样做：
 
 ```text
-停止 API → 备份 → 迁移 → 新 API → 切换 web/current → 重建 Caddy → 保存版本
+停止 API → 备份 → 迁移 → 新 API → 切换 web/current → 重新创建 Caddy 容器 → 保存版本
 └─────────────────────── API 无响应 ───────────────────────┘
 ```
 
@@ -672,7 +672,7 @@ sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api db caddy
 ```
 
 - **不要删除卷，也不要马上恢复数据库。** 脚本出错不会删除数据。
-- 如果 API 处于停止状态，在搞清楚原因之前，让餐厅暂停营业。
+- 如果 API 处于停止状态，在查明原因之前，不要恢复餐厅的系统服务。
 - 修复之后，用一个**新的 ID** 发布：同一个 ID 会被构建（压缩包已存在）和安装程序（`web/releases/版本` 目录已存在）拒绝。重新执行迁移没有害处。
 
 如果失败的正是首次安装，`state/current` 还不存在，`tf.sh` 不知道该用哪个版本。你需要自己传给它，在 `sudo` 后面用 `env`，因为 `sudo` 会清除写在它前面的环境变量：
@@ -690,7 +690,7 @@ sudo cat /opt/tavoloflow/state/previous
 sudo bash /opt/tavoloflow/rollback.sh --schema-compatible 上一个版本
 ```
 
-[`rollback.sh`](../../deploy/rollback.sh) 会检查旧版本的前端和镜像还在，停止 API，做一次备份，启动旧的 API，把 `web/current` 指回旧的前端，重建 Caddy，并更新 `state/`。**它只改变代码，不改变数据库**：迁移保持已执行的状态，这段时间里的订单也保留。所以旧代码必须能在新的数据库结构上运行：
+[`rollback.sh`](../../deploy/rollback.sh) 会检查旧版本的前端和镜像还在，停止 API，做一次备份，启动旧的 API，把 `web/current` 指回旧的前端，重新创建 Caddy 容器，并更新 `state/`。**它只改变代码，不改变数据库**：迁移保持已执行的状态，这段时间里的订单也保留。所以旧代码必须能在新的数据库结构上运行：
 
 | 新迁移做了什么               | 旧代码能运行吗？                 |
 | ---------------------------- | -------------------------------- |
@@ -853,7 +853,7 @@ sudo docker exec tavoloflow-restore-check psql -U postgres -d postgres \
 sudo tar -tzf /root/tavoloflow-restore-check/keys.tar.gz
 ```
 
-恢复必须没有错误地完成，查询必须返回数字，密钥压缩包必须可以读取。最后只删除为这次演练创建的东西：
+恢复过程应无报错，查询应返回数字，密钥压缩包必须可以读取。最后只删除为这次演练创建的东西：
 
 ```bash
 # -f 停止并删除容器，-v 同时删除它的匿名卷
@@ -902,7 +902,7 @@ sudo bash /opt/tavoloflow/tf.sh up -d caddy
 sudo bash /opt/tavoloflow/tf.sh logs --tail 80 caddy
 ```
 
-8. 检查 HTTPS、登录、历史账单，以及仍在进行的用餐的入桌码，然后恢复营业，并重新启用自动备份（第 1 部分第 7 步）。
+8. 检查 HTTPS、登录、历史账单，以及仍在进行的用餐的入桌码，然后恢复系统服务，并重新启用自动备份（第 1 部分第 7 步）。
 
 数据库会回到备份时的状态：之后发生的事情，需要和餐厅一起手动核对。
 
