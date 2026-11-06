@@ -154,7 +154,8 @@ Sources: [KitchenService](../../backend/TavoloFlow.Api/Kitchen/KitchenService.cs
 [response contracts](../../backend/TavoloFlow.Api/Kitchen/KitchenContracts.cs),
 [kitchen hook](../../frontend/src/features/kitchen/useKitchen.ts),
 [pass hook](../../frontend/src/features/pass/usePass.ts),
-[live-view rules](../../frontend/src/lib/live-view.ts).
+[live-view rules](../../frontend/src/lib/live-view.ts),
+[operation tracker](../../frontend/src/lib/operations.ts).
 
 Tests: [kitchen/pass integration](../../backend/TavoloFlow.Api.Tests/KitchenTests.cs),
 [upgrade tests](../../backend/TavoloFlow.Api.Tests/ItemProcessingMigrationTests.cs),
