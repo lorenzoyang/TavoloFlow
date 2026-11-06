@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TavoloFlow.Api.Entities;
+using TavoloFlow.Api.Menus;
 
 namespace TavoloFlow.Api.Data.Configurations;
 
@@ -27,9 +28,18 @@ internal sealed class MenuCategoryConfiguration : IEntityTypeConfiguration<MenuC
 
         builder.Property(category => category.RestaurantId).HasColumnName("restaurant_id");
 
-        builder.Property(category => category.NameZh).HasColumnName("name_zh").HasMaxLength(100);
-        builder.Property(category => category.NameIt).HasColumnName("name_it").HasMaxLength(100);
-        builder.Property(category => category.NameEn).HasColumnName("name_en").HasMaxLength(100);
+        builder
+            .Property(category => category.NameZh)
+            .HasColumnName("name_zh")
+            .HasMaxLength(MenuValidation.MaxCategoryNameLength);
+        builder
+            .Property(category => category.NameIt)
+            .HasColumnName("name_it")
+            .HasMaxLength(MenuValidation.MaxCategoryNameLength);
+        builder
+            .Property(category => category.NameEn)
+            .HasColumnName("name_en")
+            .HasMaxLength(MenuValidation.MaxCategoryNameLength);
 
         builder
             .HasOne(category => category.Restaurant)

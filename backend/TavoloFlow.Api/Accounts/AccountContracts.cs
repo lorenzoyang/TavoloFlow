@@ -61,7 +61,7 @@ public static class AccountInput
         if (!IsValidPassword(password))
         {
             throw ApiException.Validation(
-                "新密码须为 6–128 个字符。",
+                $"新密码须为 {MinPasswordLength}–{MaxPasswordLength} 个字符。",
                 "newPassword",
                 "密码不能全部为空白。"
             );

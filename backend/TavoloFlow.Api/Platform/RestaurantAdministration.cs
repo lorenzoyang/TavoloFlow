@@ -34,7 +34,8 @@ public sealed class RestaurantAdministration(
             page < 1
             || page > 100000
             || pageSize is < 1 or > 100
-            || search?.Length > 150
+            // A search longer than any restaurant name cannot match anything.
+            || search?.Length > InputRules.MaxRestaurantNameLength
             || (status is not null && state is null)
             || (
                 subscriptionStatus is not null

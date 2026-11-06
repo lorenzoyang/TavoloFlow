@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using TavoloFlow.Api.Accounts;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Entities;
 using TavoloFlow.Api.Menus;
@@ -43,6 +44,12 @@ public sealed class DemoSeeder(
         var tables = await ReadAsync<DemoTable[]>(root, "tables.json", ct);
         var menu = await ReadAsync<DemoMenu>(root, "menu.json", ct);
         ValidateAccounts(accounts);
+        if (!InputRules.IsRestaurantName(restaurantData.Name))
+        {
+            throw new InvalidOperationException(
+                $"Demo restaurant name must be 1–{InputRules.MaxRestaurantNameLength} characters."
+            );
+        }
 
         var restaurant = new Restaurant
         {

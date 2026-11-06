@@ -51,8 +51,11 @@ public sealed class DevelopmentAccountSeeder(
         )
         {
             throw new InvalidOperationException(
-                "Provide DevelopmentSeed restaurant ID/name, distinct usernames (1–50 characters), "
-                    + "and passwords (6–128 characters) through local configuration."
+                "Provide DevelopmentSeed restaurant ID, restaurant name "
+                    + $"(1–{InputRules.MaxRestaurantNameLength} characters), "
+                    + $"distinct usernames (1–{AccountInput.MaxUsernameLength} characters) and passwords "
+                    + $"({AccountInput.MinPasswordLength}–{AccountInput.MaxPasswordLength} characters) "
+                    + "through local configuration."
             );
         }
 

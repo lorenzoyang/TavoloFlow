@@ -82,7 +82,7 @@ public static class MaintenanceCommands
                 .SeedAsync(seed);
 
             app.Logger.LogInformation("Development accounts seeded (created: {Created}).", created);
-            
+
             return;
         }
 

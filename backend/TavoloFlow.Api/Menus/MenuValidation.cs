@@ -5,6 +5,12 @@ namespace TavoloFlow.Api.Menus;
 
 public static class MenuValidation
 {
+    public const int MaxCategoryNameLength = 100;
+
+    // Order items copy the dish name and code, so their snapshot columns share these limits.
+    public const int MaxItemNameLength = 150;
+    public const int MaxItemCodeLength = 40;
+
     public static CategoryInput Normalize(CategoryInput input)
     {
         var value = input with
@@ -14,7 +20,7 @@ public static class MenuValidation
             NameEn = TrimToNull(input.NameEn),
         };
         var errors = new Dictionary<string, string[]>();
-        Names(value.NameZh, value.NameIt, value.NameEn, 100, errors);
+        Names(value.NameZh, value.NameIt, value.NameEn, MaxCategoryNameLength, errors);
         Reject(errors);
         return value;
     }
@@ -32,9 +38,9 @@ public static class MenuValidation
             DescriptionEn = TrimToNull(input.DescriptionEn),
         };
         var errors = new Dictionary<string, string[]>();
-        Names(value.NameZh, value.NameIt, value.NameEn, 150, errors);
-        if (value.ItemCode?.Length > 40)
-            errors["itemCode"] = ["编号最多 40 个字符。"];
+        Names(value.NameZh, value.NameIt, value.NameEn, MaxItemNameLength, errors);
+        if (value.ItemCode?.Length > MaxItemCodeLength)
+            errors["itemCode"] = [$"编号最多 {MaxItemCodeLength} 个字符。"];
         if (value.PriceCents < 1 || value.PriceCents > MaxSafeCents)
             errors["priceCents"] = ["价格必须为正整数欧分，且不能超过安全整数范围。"];
         foreach (

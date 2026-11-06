@@ -33,6 +33,7 @@ public static class DeploymentHosting
     }
 }
 
+
 // Only connectivity is reported. Migration remains a separate, explicit deployment operation.
 public sealed class DatabaseReadiness(ApplicationDbContext db) : IHealthCheck
 {

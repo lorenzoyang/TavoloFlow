@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TavoloFlow.Api.Entities;
+using TavoloFlow.Api.Menus;
 
 namespace TavoloFlow.Api.Data.Configurations;
 
@@ -32,11 +33,23 @@ internal sealed class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
 
         builder.Property(item => item.CategoryId).HasColumnName("category_id");
 
-        builder.Property(item => item.ItemCode).HasColumnName("item_code").HasMaxLength(40);
+        builder
+            .Property(item => item.ItemCode)
+            .HasColumnName("item_code")
+            .HasMaxLength(MenuValidation.MaxItemCodeLength);
 
-        builder.Property(item => item.NameZh).HasColumnName("name_zh").HasMaxLength(150);
-        builder.Property(item => item.NameIt).HasColumnName("name_it").HasMaxLength(150);
-        builder.Property(item => item.NameEn).HasColumnName("name_en").HasMaxLength(150);
+        builder
+            .Property(item => item.NameZh)
+            .HasColumnName("name_zh")
+            .HasMaxLength(MenuValidation.MaxItemNameLength);
+        builder
+            .Property(item => item.NameIt)
+            .HasColumnName("name_it")
+            .HasMaxLength(MenuValidation.MaxItemNameLength);
+        builder
+            .Property(item => item.NameEn)
+            .HasColumnName("name_en")
+            .HasMaxLength(MenuValidation.MaxItemNameLength);
 
         builder
             .Property(item => item.DescriptionZh)

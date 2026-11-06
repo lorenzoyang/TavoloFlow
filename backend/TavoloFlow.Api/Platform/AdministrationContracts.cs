@@ -10,7 +10,8 @@ namespace TavoloFlow.Api.Platform;
 public sealed record CreateRestaurantInput(
     Guid Id,
     [Required, StringLength(InputRules.MaxRestaurantNameLength)] string Name,
-    [Required, RegularExpression("^(zh|it|en)$")] string DefaultLanguage,
+    // Checked against InputRules.Languages by RestaurantAdministration.CreateAsync.
+    [Required] string DefaultLanguage,
     [Required, StringLength(AccountInput.MaxUsernameLength)] string OwnerUsername,
     [Required, StringLength(AccountInput.MaxUsernameLength)] string StaffUsername,
     [StringLength(500)] string? OwnerContact = null,

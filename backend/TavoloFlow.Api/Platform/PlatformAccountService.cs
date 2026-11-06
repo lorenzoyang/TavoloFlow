@@ -99,7 +99,8 @@ public sealed class PlatformBootstrap(
             || !AccountInput.IsValidPassword(options.Password)
         )
             throw new InvalidOperationException(
-                "Configure PlatformBootstrap username (1–50) and password (6–128 nonblank characters)."
+                $"Configure PlatformBootstrap username (1–{AccountInput.MaxUsernameLength}) and password "
+                    + $"({AccountInput.MinPasswordLength}–{AccountInput.MaxPasswordLength} nonblank characters)."
             );
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(726186210008)", ct);

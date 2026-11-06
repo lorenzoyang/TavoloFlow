@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TavoloFlow.Api.Entities;
+using TavoloFlow.Api.Menus;
 
 namespace TavoloFlow.Api.Data.Configurations;
 
@@ -49,20 +50,20 @@ internal sealed class OrderItemConfiguration : IEntityTypeConfiguration<OrderIte
         builder
             .Property(item => item.ItemCodeSnapshot)
             .HasColumnName("item_code_snapshot")
-            .HasMaxLength(40);
+            .HasMaxLength(MenuValidation.MaxItemCodeLength);
 
         builder
             .Property(item => item.NameZhSnapshot)
             .HasColumnName("name_zh_snapshot")
-            .HasMaxLength(150);
+            .HasMaxLength(MenuValidation.MaxItemNameLength);
         builder
             .Property(item => item.NameItSnapshot)
             .HasColumnName("name_it_snapshot")
-            .HasMaxLength(150);
+            .HasMaxLength(MenuValidation.MaxItemNameLength);
         builder
             .Property(item => item.NameEnSnapshot)
             .HasColumnName("name_en_snapshot")
-            .HasMaxLength(150);
+            .HasMaxLength(MenuValidation.MaxItemNameLength);
 
         builder
             .Property(item => item.AllergenCodesSnapshot)
