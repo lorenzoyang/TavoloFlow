@@ -43,10 +43,10 @@ public sealed class AccountAuthorizationResultHandler : IAuthorizationMiddleware
                 context,
                 StatusCodes.Status403Forbidden,
                 "PASSWORD_CHANGE_REQUIRED",
-                "请先修改初始密码。"
+                "Change the initial password first."
             );
         }
-        
+
         return defaultHandler.HandleAsync(next, context, policy, result);
     }
 }

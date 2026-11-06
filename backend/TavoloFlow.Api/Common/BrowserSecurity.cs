@@ -5,8 +5,8 @@ using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace TavoloFlow.Api.Common;
 
-// One browser can hold three independent identities at once. 
-// The request path alone decides which one a request uses: 
+// One browser can hold three independent identities at once.
+// The request path alone decides which one a request uses:
 // /api/platform -> Platform, /api/public -> Guest, everything else -> Store.
 public static class BrowserSecurity
 {
@@ -31,8 +31,8 @@ public static class BrowserSecurity
         IHostEnvironment environment
     )
     {
-        // Protects cookies, antiforgery tokens and join codes. 
-        // Without DataProtection:KeyRingPath the keys live in the framework's per-user directory; 
+        // Protects cookies, antiforgery tokens and join codes.
+        // Without DataProtection:KeyRingPath the keys live in the framework's per-user directory;
         // losing them invalidates logins and active join codes.
         var protection = services.AddDataProtection().SetApplicationName("TavoloFlow");
         var keyRingPath = configuration["DataProtection:KeyRingPath"];
@@ -99,7 +99,7 @@ public sealed class CsrfValidationFilter(IAntiforgery antiforgery) : IAsyncAutho
                 ApiError.Create(
                     context.HttpContext,
                     "CSRF_VALIDATION_FAILED",
-                    "页面验证已失效，请刷新后重试。"
+                    "The page check expired. Refresh and try again."
                 )
             );
         }

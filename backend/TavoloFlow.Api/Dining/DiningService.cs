@@ -20,7 +20,11 @@ public sealed class DiningService(ApplicationDbContext db, JoinCodes codes, Time
             await RowLocks.RestaurantAsync(db, restaurantId, RowLock.Update, ct)
             ?? throw DiningErrors.RestaurantNotFound();
         if (enabled && restaurant.ServiceStatus != RestaurantServiceStatus.Active)
-            throw new ApiException(409, "SERVICE_SUSPENDED", "餐厅服务已暂停，无法开启接单。");
+            throw new ApiException(
+                409,
+                "SERVICE_SUSPENDED",
+                "The restaurant's service is suspended, so ordering can't be turned on."
+            );
         await db
             .Restaurants.Where(r => r.Id == restaurantId)
             .ExecuteUpdateAsync(update => update.SetProperty(r => r.OrderingEnabled, enabled), ct);
@@ -102,7 +106,7 @@ public sealed class DiningService(ApplicationDbContext db, JoinCodes codes, Time
             throw new ApiException(
                 409,
                 "SESSION_ALREADY_ACTIVE",
-                "此桌已开桌，请重新读取当前用餐状态。"
+                "The table is already open. Reload the current state."
             );
 
         var session = new DiningSession

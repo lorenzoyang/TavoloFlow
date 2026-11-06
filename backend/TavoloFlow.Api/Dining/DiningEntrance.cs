@@ -30,8 +30,12 @@ public static class DiningEntrance
     public static void Require(Restaurant restaurant, RestaurantTable table)
     {
         if (restaurant.ServiceStatus != RestaurantServiceStatus.Active)
-            throw new ApiException(409, "SERVICE_SUSPENDED", "餐厅服务已暂停。");
+            throw new ApiException(
+                409,
+                "SERVICE_SUSPENDED",
+                "The restaurant's service is suspended."
+            );
         if (!table.IsEnabled)
-            throw new ApiException(409, "TABLE_DISABLED", "此桌已停用，请联系工作人员。");
+            throw new ApiException(409, "TABLE_DISABLED", "This table is disabled. Ask the staff.");
     }
 }

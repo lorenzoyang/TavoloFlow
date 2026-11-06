@@ -61,9 +61,9 @@ public static class AccountInput
         if (!IsValidPassword(password))
         {
             throw ApiException.Validation(
-                $"新密码须为 {MinPasswordLength}–{MaxPasswordLength} 个字符。",
+                $"The new password must be {MinPasswordLength}–{MaxPasswordLength} characters.",
                 "newPassword",
-                "密码不能全部为空白。"
+                "The password can't be only whitespace."
             );
         }
     }
@@ -88,9 +88,17 @@ public static class PasswordChangeResults
         switch (result)
         {
             case PasswordChangeResult.IncorrectPassword:
-                throw new ApiException(400, "CURRENT_PASSWORD_INCORRECT", "当前密码不正确。");
+                throw new ApiException(
+                    400,
+                    "CURRENT_PASSWORD_INCORRECT",
+                    "The current password is wrong."
+                );
             case PasswordChangeResult.SamePassword:
-                throw new ApiException(400, "PASSWORD_UNCHANGED", "新密码须与当前密码不同。");
+                throw new ApiException(
+                    400,
+                    "PASSWORD_UNCHANGED",
+                    "The new password must differ from the current one."
+                );
             case PasswordChangeResult.CredentialsChanged:
                 throw new ApiException(409, "CREDENTIALS_CHANGED", credentialsChangedMessage);
         }

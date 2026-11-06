@@ -112,7 +112,7 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
     )
     {
         if (input.GuestsLeftConfirmed != true || input.ConfirmedTotalCents != 0)
-            throw ApiException.Validation("请核对零账单并确认顾客已离桌。");
+            throw ApiException.Validation("Check the zero bill and confirm the guests have left.");
         return CloseAsync(
             restaurantId,
             id,
@@ -135,7 +135,9 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
     )
     {
         if (version is null or <= 0 || amount is null or < 0 or > InputRules.MaxSafeCents)
-            throw ApiException.Validation("请提供有效的账单版本和整数欧分金额。");
+            throw ApiException.Validation(
+                "Provide a valid bill version and an amount in whole euro cents."
+            );
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         // Never lock an entrance (restaurant or table) row after this one.
         var session =
@@ -160,7 +162,7 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         if (reason == SessionCloseReason.Empty && bill.OrderCount > 0)
             throw BillingErrors.Conflict(
                 "SESSION_HAS_ORDERS",
-                "本轮曾产生订单，不能按空桌关闭。",
+                "This visit has orders: it can't be closed as an empty table.",
                 bill
             );
         if (bill.TotalAmountCents != amount)
@@ -168,13 +170,13 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         if (bill.NewItemCount > 0)
             throw BillingErrors.Conflict(
                 "ORDERS_PENDING",
-                "仍有待出餐菜品，请先到厨房完成或按实际情况取消。",
+                "Some dishes are still waiting: finish them in the kitchen or cancel them.",
                 bill
             );
         if (reason == SessionCloseReason.Paid && bill.TotalAmountCents <= 0)
             throw BillingErrors.Conflict(
                 "SESSION_NOT_PAYABLE",
-                "零账单应按空桌或全部取消关闭，不记录为收款。",
+                "A zero bill closes as an empty or voided table, not as paid.",
                 bill
             );
         if (
@@ -187,7 +189,7 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         )
             throw BillingErrors.Conflict(
                 "SESSION_NOT_VOIDABLE",
-                "只有本轮已有订单且所有菜品均已取消时，才能按零账单关闭。",
+                "A bill closes at zero only if it has orders and every dish is cancelled.",
                 bill
             );
 
@@ -254,12 +256,12 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         Paging.EnsureLimit(limit);
         tableLabel = InputRules.TrimToNull(tableLabel);
         if (tableLabel?.Length > 50)
-            throw ApiException.Validation("桌号最多 50 个字符。");
+            throw ApiException.Validation("The table label can be at most 50 characters.");
         SessionCloseReason? reason = null;
         if (closeReason is not null)
         {
             if (!ApiEnum.TryParse(closeReason, out SessionCloseReason parsed))
-                throw ApiException.Validation("关闭原因须为 PAID、EMPTY 或 VOIDED。");
+                throw ApiException.Validation("The closure reason must be PAID, EMPTY or VOIDED.");
             reason = parsed;
         }
         var after = Paging.Decode<HistoryCursor>(cursor);
@@ -368,9 +370,11 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
                 out to
             )
         )
-            throw ApiException.Validation("请同时提供 YYYY-MM-DD 格式的起止日期。");
+            throw ApiException.Validation(
+                "Provide both the start and end dates in YYYY-MM-DD format."
+            );
         if (from > to || from == DateOnly.MinValue || to == DateOnly.MaxValue)
-            throw ApiException.Validation("日期范围无效。");
+            throw ApiException.Validation("Invalid date range.");
         return (from, to);
     }
 

@@ -76,7 +76,7 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
                     throw new ApiException(
                         409,
                         "CATEGORY_NOT_EMPTY",
-                        "请先移走或删除分类中的菜品。"
+                        "Move or delete the dishes in this category first."
                     );
                 await context
                     .MenuCategories.Where(x => x.RestaurantId == restaurantId && x.Id == id)
@@ -159,7 +159,7 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
                     throw new ApiException(
                         409,
                         "ALLERGEN_REVIEW_REQUIRED",
-                        "请先由老板编辑菜品并完成过敏原审核。"
+                        "The owner must first edit the dish and review its allergens."
                     );
                 await context
                     .MenuItems.Where(x => x.RestaurantId == restaurantId && x.Id == id)
@@ -239,9 +239,9 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
     {
         if (!InputRules.IsLanguage(language))
             throw ApiException.Validation(
-                "请选择中文、意大利语或英语。",
+                "Choose Chinese, Italian or English.",
                 "defaultLanguage",
-                "语言代码必须为 zh、it 或 en。"
+                "The language code must be zh, it or en."
             );
         var updated = await context
             .Restaurants.Where(x => x.Id == restaurantId)
@@ -291,8 +291,11 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
             throw new ApiException(
                 409,
                 "ITEM_CODE_CONFLICT",
-                "该菜品编号已被本店其他菜品使用。",
-                new Dictionary<string, string[]> { ["itemCode"] = ["请使用不同编号，或留空。"] }
+                "Another dish already uses this code.",
+                new Dictionary<string, string[]>
+                {
+                    ["itemCode"] = ["Use a different code or leave it empty."],
+                }
             );
         }
     }

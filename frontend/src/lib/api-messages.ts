@@ -24,9 +24,58 @@ export const apiMessages: Record<
   },
 };
 
-// The server writes its messages in Chinese, so Italian and English pages translate the error codes
-// that store and platform pages can receive. Codes missing here fall back to the generic message.
-export const errorTranslations: Record<Exclude<Language, "zh">, Record<string, string>> = {
+// The server writes its messages in English for developers, so every page language translates the
+// error codes that store and platform pages can receive. Codes missing here fall back to the generic
+// message. The other languages are typed by the Chinese table, so a missing translation fails tsc.
+const zhErrors = {
+  ACCOUNT_CHANGED: "目标账号已变化，请重新读取并确认。",
+  ACCOUNT_NOT_FOUND: "账号不存在或不属于此餐厅。",
+  ALLERGEN_REVIEW_REQUIRED: "请先由老板编辑菜品并完成过敏原审核。",
+  BILL_CHANGED: "账单已变化，请重新核对桌号、金额和订单。",
+  BILL_LIMIT_REACHED: "本轮账单版本已达到支持的上限，请联系管理员。",
+  CATEGORY_NOT_EMPTY: "请先移走或删除分类中的菜品。",
+  CREATE_CONFLICT: "餐厅标识或登录名已被使用，请核对原结果或修改登录名。",
+  CREDENTIALS_CHANGED: "账号凭据已变化，请重新登录。",
+  CURRENT_PASSWORD_INCORRECT: "当前密码不正确。",
+  FORBIDDEN: "没有执行此操作的权限。",
+  IMAGE_INVALID: "无法读取该图片，请上传 JPG、PNG 或 WebP 格式的照片。",
+  IMAGE_TOO_LARGE: "图片太大，请上传不超过 15 MB、约 5000 万像素以内的照片。",
+  INVALID_CREDENTIALS: "用户名或密码不正确。",
+  ITEM_CODE_CONFLICT: "该菜品编号已被本店其他菜品使用。",
+  MENU_IMAGE_NOT_FOUND: "图片不存在。",
+  MENU_RESOURCE_NOT_FOUND: "分类或菜品不存在，请刷新菜单。",
+  ORDERS_PENDING: "仍有待出餐菜品，请先到厨房完成或按实际情况取消。",
+  ORDER_ITEM_CHANGED: "菜品状态已变化，请重新读取并确认。",
+  ORDER_ITEM_NOT_FOUND: "订单菜品不存在。",
+  ORDER_NOT_FOUND: "订单不存在。",
+  PASSWORD_CHANGE_REQUIRED: "请先修改初始密码。",
+  PASSWORD_UNCHANGED: "新密码须与当前密码不同。",
+  RATE_LIMITED: "操作过于频繁，请稍后重试。",
+  RESTAURANT_EXISTS: "此创建标识已存在，请核对原餐厅。",
+  RESTAURANT_NOT_FOUND: "餐厅不存在。",
+  RESTAURANT_NOT_SUSPENDED: "请先停用餐厅服务，再永久删除。",
+  SERVICE_SUSPENDED: "餐厅服务已暂停。",
+  SESSION_ALREADY_ACTIVE: "此桌已开桌，请重新读取当前用餐状态。",
+  SESSION_CLOSED: "本次用餐已结束。",
+  SESSION_HAS_ORDERS: "本轮曾产生订单，不能按空桌关闭。",
+  SESSION_NOT_FOUND: "用餐记录不存在。",
+  SESSION_NOT_PAYABLE: "零账单应按空桌或全部取消关闭，不记录为收款。",
+  SESSION_NOT_VOIDABLE: "只有本轮已有订单且所有菜品均已取消时，才能按零账单关闭。",
+  SUBSCRIPTION_CHANGED: "年费资料已变化（可能是本次或其他操作已生效），请核对最新资料后再确认。",
+  SUBSCRIPTION_PERIOD_EXISTS: "此收费周期编号已使用，请核对原记录。",
+  SUBSCRIPTION_PERIOD_NOT_FOUND: "收费周期不存在或不属于此餐厅。",
+  SUBSCRIPTION_PERIOD_OVERLAP: "收费周期不能重叠，请核对开始和截止日期。",
+  SUBSCRIPTION_PERIOD_PAID: "此周期已登记收款：约定金额和收款信息已冻结，只能调整截止日期。",
+  TABLE_DISABLED: "此桌已停用。",
+  TABLE_HAS_ACTIVE_SESSION: "此桌仍有进行中的用餐，结束用餐后才能删除。",
+  TABLE_LABEL_CONFLICT: "本店已有相同桌号。",
+  TABLE_NOT_FOUND: "桌位不存在，请刷新列表。",
+  UNAUTHENTICATED: "请先登录。",
+  VALIDATION_FAILED: "请检查输入内容。",
+};
+
+export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, string>> = {
+  zh: zhErrors,
   it: {
     ACCOUNT_CHANGED: "L’account è cambiato. Ricarica e verifica di nuovo.",
     ACCOUNT_NOT_FOUND: "L’account non esiste o non appartiene a questo ristorante.",

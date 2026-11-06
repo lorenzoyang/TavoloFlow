@@ -40,10 +40,10 @@ public sealed class AuthController(
             ?? throw new ApiException(
                 StatusCodes.Status401Unauthorized,
                 "INVALID_CREDENTIALS",
-                "用户名或密码不正确。"
+                "Wrong username or password."
             );
         await StoreAuthentication.SignInAsync(HttpContext, user, timeProvider);
-        
+
         return Ok(CurrentAccountResponse.From(user));
     }
 
@@ -66,7 +66,7 @@ public sealed class AuthController(
             request.NewPassword,
             cancellationToken
         );
-        result.EnsureChanged("账号凭据已变化，请重新登录。");
+        result.EnsureChanged("Your credentials have changed. Sign in again.");
         await StoreAuthentication.SignInAsync(HttpContext, user, timeProvider);
 
         return Ok(CurrentAccountResponse.From(user));
@@ -76,7 +76,7 @@ public sealed class AuthController(
     public async Task<IActionResult> Logout()
     {
         await HttpContext.SignOutAsync(StoreAuthentication.Scheme);
-        
+
         return NoContent();
     }
 }

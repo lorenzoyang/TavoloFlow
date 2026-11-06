@@ -41,7 +41,7 @@ public sealed class JoinCodes(IDataProtectionProvider protection)
             throw new ApiException(
                 503,
                 "JOIN_CODE_UNAVAILABLE",
-                "暂时无法读取入桌码，请联系工作人员。"
+                "The join code can't be read right now. Ask the staff."
             );
         }
     }

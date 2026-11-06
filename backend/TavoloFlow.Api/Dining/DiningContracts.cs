@@ -39,12 +39,13 @@ public sealed record AcceptingOrdersResponse(bool OrderingEnabled);
 public static class DiningErrors
 {
     public static ApiException RestaurantNotFound() =>
-        new(404, "RESTAURANT_NOT_FOUND", "餐厅不存在。");
+        new(404, "RESTAURANT_NOT_FOUND", "The restaurant doesn't exist.");
 
-    public static ApiException TableNotFound() => new(404, "TABLE_NOT_FOUND", "桌位不存在。");
+    public static ApiException TableNotFound() => new(404, "TABLE_NOT_FOUND", "Table not found.");
 
     public static ApiException SessionNotFound() =>
-        new(404, "SESSION_NOT_FOUND", "用餐记录不存在。");
+        new(404, "SESSION_NOT_FOUND", "Visit not found.");
 
-    public static ApiException SessionClosed() => new(409, "SESSION_CLOSED", "本次用餐已结束。");
+    public static ApiException SessionClosed() =>
+        new(409, "SESSION_CLOSED", "This visit is already closed.");
 }

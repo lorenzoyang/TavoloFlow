@@ -43,7 +43,7 @@ public sealed class RestaurantAdministration(
             )
             || (sort is not null && sort != "EXPIRY")
         )
-            throw ApiException.Validation("请检查分页、名称和状态筛选。");
+            throw ApiException.Validation("Check the paging, name and status filters.");
         await using var transaction = await db.Database.BeginTransactionAsync(
             IsolationLevel.RepeatableRead,
             ct
@@ -117,12 +117,18 @@ public sealed class RestaurantAdministration(
             || owner == staff
             || !InputRules.IsLanguage(input.DefaultLanguage)
         )
-            throw ApiException.Validation("请填写餐厅名称、语言和两个不同的登录名。");
+            throw ApiException.Validation(
+                "Enter the restaurant name, language and two different usernames."
+            );
         var mapsUrl = MapsUrl(input.GoogleMapsUrl);
         var theme = Theme(input.Theme);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         if (await db.Restaurants.AnyAsync(r => r.Id == input.Id, ct))
-            throw new ApiException(409, "RESTAURANT_EXISTS", "此创建标识已存在，请核对原餐厅。");
+            throw new ApiException(
+                409,
+                "RESTAURANT_EXISTS",
+                "This creation ID already exists. Check the original restaurant."
+            );
         var restaurant = new Restaurant
         {
             Id = input.Id,
@@ -173,7 +179,7 @@ public sealed class RestaurantAdministration(
             throw new ApiException(
                 409,
                 "CREATE_CONFLICT",
-                "餐厅标识或登录名已被使用，请核对原结果或修改登录名。"
+                "Restaurant ID or username already in use. Check the original result or change the username."
             );
         }
         await transaction.CommitAsync(ct);
@@ -193,7 +199,7 @@ public sealed class RestaurantAdministration(
     )
     {
         if (!ApiEnum.TryParse(status, out RestaurantServiceStatus target))
-            throw ApiException.Validation("无效服务状态。");
+            throw ApiException.Validation("Invalid service status.");
         var suspending = target == RestaurantServiceStatus.Suspended;
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         // UPDATE waits for the restaurant SHARE locks taken by opening, joining and ordering.
@@ -429,7 +435,7 @@ public sealed class RestaurantAdministration(
     {
         var value = InputRules.TrimToNull(input);
         if (value is not null && !InputRules.IsGoogleMapsUrl(value))
-            throw ApiException.Validation("请填写以 https:// 开头的 Google 地图链接。");
+            throw ApiException.Validation("Enter a Google Maps link starting with https://.");
         return value;
     }
 

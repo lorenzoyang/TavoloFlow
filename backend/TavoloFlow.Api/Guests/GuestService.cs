@@ -13,7 +13,9 @@ public sealed class GuestService(ApplicationDbContext db, JoinCodes codes)
         var code = input.JoinCode?.Trim().ToUpperInvariant() ?? "";
 
         if (input.SessionId is null || input.SessionId == Guid.Empty)
-            throw ApiException.Validation("请输入四位入桌码并确认当前用餐。");
+            throw ApiException.Validation(
+                "Enter the four-digit join code and confirm the current visit."
+            );
 
         if (token.Length > 128)
             throw GuestErrors.QrNotFound();
@@ -58,14 +60,16 @@ public sealed class GuestService(ApplicationDbContext db, JoinCodes codes)
         {
             if (!IsCode(code))
             {
-                throw ApiException.Validation("请输入四位入桌码并确认当前用餐。");
+                throw ApiException.Validation(
+                    "Enter the four-digit join code and confirm the current visit."
+                );
             }
             if (!codes.Matches(session, code))
             {
                 throw new ApiException(
                     401,
                     "JOIN_CODE_INCORRECT",
-                    "入桌码不正确，请向同桌顾客或工作人员确认。"
+                    "Wrong join code. Check with your table or the staff."
                 );
             }
         }

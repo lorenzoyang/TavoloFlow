@@ -53,8 +53,8 @@ public static class AccountServiceCollectionExtensions
                     options.Cookie.Path = "/";
                     options.ExpireTimeSpan = StoreAuthentication.Lifetime;
                     options.SlidingExpiration = false;
-                    // StoreCookieEvents needs this request's DbContext and CurrentAccount (both scoped). 
-                    // An instance in options.Events would be shared by every request, 
+                    // StoreCookieEvents needs this request's DbContext and CurrentAccount (both scoped).
+                    // An instance in options.Events would be shared by every request,
                     // so EventsType makes the handler resolve it from the request scope (registered above).
                     options.EventsType = typeof(StoreCookieEvents);
                 }

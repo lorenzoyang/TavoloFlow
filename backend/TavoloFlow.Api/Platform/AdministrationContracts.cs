@@ -118,17 +118,25 @@ public sealed record CreatedRestaurant(
 public static class AdministrationErrors
 {
     public static ApiException RestaurantNotFound() =>
-        new(404, "RESTAURANT_NOT_FOUND", "餐厅不存在。");
+        new(404, "RESTAURANT_NOT_FOUND", "The restaurant doesn't exist.");
 
     public static ApiException NotSuspended() =>
-        new(409, "RESTAURANT_NOT_SUSPENDED", "请先停用餐厅服务，再永久删除。");
+        new(
+            409,
+            "RESTAURANT_NOT_SUSPENDED",
+            "Suspend the restaurant's service first, then delete it."
+        );
 
     public static ApiException AccountNotFound() =>
-        new(404, "ACCOUNT_NOT_FOUND", "账号不存在或不属于此餐厅。");
+        new(
+            404,
+            "ACCOUNT_NOT_FOUND",
+            "The account doesn't exist or doesn't belong to this restaurant."
+        );
 
     public static ApiException InvalidTheme() =>
-        ApiException.Validation("请选择有效的主题。", "theme", "主题不存在。");
+        ApiException.Validation("Choose a valid theme.", "theme", "Unknown theme.");
 
     public static ApiException AccountChanged() =>
-        new(409, "ACCOUNT_CHANGED", "目标账号已变化，请重新读取并确认。");
+        new(409, "ACCOUNT_CHANGED", "The account has changed. Reload and check again.");
 }

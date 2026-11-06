@@ -19,7 +19,7 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
     )
     {
         if (!ApiEnum.TryParse(status, out OrderStatus state))
-            throw OrderErrors.Invalid("status", "订单状态须为 NEW 或 PROCESSED。");
+            throw OrderErrors.Invalid("status", "The order status must be NEW or PROCESSED.");
         Paging.EnsureLimit(limit);
         var after = Paging.Decode<Cursor>(
             cursor,
@@ -139,7 +139,7 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
             throw new ApiException(
                 409,
                 "BILL_LIMIT_REACHED",
-                "本轮账单版本已达到支持的上限，请联系管理员。"
+                "The bill version has reached the supported limit. Contact the administrator."
             );
         var now = clock.GetUtcNow().UtcDateTime;
         if (now < order.CreatedAt)
@@ -327,13 +327,14 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
         return session;
     }
 
-    private static ApiException Missing() => new(404, "ORDER_NOT_FOUND", "订单不存在。");
+    private static ApiException Missing() =>
+        new(404, "ORDER_NOT_FOUND", "The order doesn't exist.");
 
     private static ApiException ItemMissing() =>
-        new(404, "ORDER_ITEM_NOT_FOUND", "订单菜品不存在。");
+        new(404, "ORDER_ITEM_NOT_FOUND", "The ordered dish doesn't exist.");
 
     private static ApiException Changed() =>
-        new(409, "ORDER_ITEM_CHANGED", "菜品状态已变化，请重新读取并确认。");
+        new(409, "ORDER_ITEM_CHANGED", "The dish status has changed. Reload and check.");
 
     private static DateTime SortTime(Order order, OrderStatus status) =>
         status == OrderStatus.New ? order.CreatedAt : order.ProcessedAt!.Value;

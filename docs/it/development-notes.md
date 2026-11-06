@@ -226,7 +226,7 @@ flowchart TD
   }
   ```
 
-  Alcuni codici aggiungono campi: per esempio `BILL_CHANGED` porta anche `currentBill`, il conto aggiornato. I messaggi del server sono in cinese; in italiano e in inglese il frontend non li mostra, ma sceglie il testo in base a `code` (`lib/api-messages.ts`).
+  Alcuni codici aggiungono campi: per esempio `BILL_CHANGED` porta anche `currentBill`, il conto aggiornato. I messaggi del server sono in inglese e servono agli sviluppatori; il frontend non li mostra, ma in tutte e tre le lingue sceglie il testo in base a `code` (`lib/api-messages.ts`).
 
 ### Frontend: organizzazione delle feature
 
@@ -578,7 +578,7 @@ Le notifiche push (Web Push) le ho rimandate: richiederebbero chiavi VAPID e le 
 - **Il codice del tavolo è corto.** Quattro caratteri da un alfabeto di 32 fanno circa un milione di combinazioni (2²⁰). Contro chi prova a indovinarlo lo protegge solo il rate limit, per IP e per visita: prima di un uso pubblico vero andrebbe rivalutato, magari con un codice più lungo.
 - **Polling.** Il carico sul server cresce con il numero di dispositivi accesi: con molti ristoranti varrebbe la pena passare a WebSocket o a Server-Sent Events.
 - **Test.** Il backend ha oltre 150 test di integrazione, che girano su un PostgreSQL vero in Docker; il frontend ha solo test della logica pura con `node --test`. Nel repository mancano test dei componenti e test end-to-end, e non c'è una CI: i test si lanciano a mano prima di ogni rilascio.
-- **Messaggi di errore in cinese.** La tabella con cui il frontend traduce i codici di errore in italiano e in inglese (`lib/api-messages.ts`, vedi «Backend: moduli e percorso di una richiesta») va tenuta allineata a mano con il backend.
+- **Codici di errore allineati a mano.** La tabella con cui il frontend traduce i codici di errore nelle tre lingue (`lib/api-messages.ts`, vedi «Backend: moduli e percorso di una richiesta») va tenuta allineata a mano con il backend: TypeScript segnala una traduzione mancante, ma non un codice nuovo del backend.
 - **Rilascio artigianale.** Una sola VPS, script di rilascio lanciati a mano, backup affidati a un timer di systemd, nessun sistema di monitoraggio o di allarme: se il server si ferma, me ne accorgo solo quando qualcuno se ne lamenta.
 - **Frontend complesso in alcuni punti.** La gestione dei risultati sconosciuti (per esempio in `useCart`) è molto robusta, ma anche pesante da leggere e da mantenere per una prima versione.
 

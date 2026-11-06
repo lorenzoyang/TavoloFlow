@@ -73,5 +73,5 @@ public sealed class PublicMenuService(ApplicationDbContext context)
         ?? throw MenuErrors.ImageNotFound();
 
     private static ApiException NotFound() =>
-        new(404, "QR_NOT_FOUND", "二维码无效，请联系餐厅工作人员。");
+        new(404, "QR_NOT_FOUND", "Invalid QR code. Ask the restaurant staff.");
 }

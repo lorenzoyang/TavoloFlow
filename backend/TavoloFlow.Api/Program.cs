@@ -84,7 +84,7 @@ app.Use(
 
 // Unified handling of unhandled exceptions.
 // Tutte le eccezioni che non sono del tipo ApiException non vengono gestite dal filter ApiException filter,
-// e i controllers non controllano le eccezioni (non catturano), quindi le eccezioni verrano propagate 
+// e i controllers non controllano le eccezioni (non catturano), quindi le eccezioni verrano propagate
 app.UseExceptionHandler(handler =>
     handler.Run(async context =>
     {
@@ -96,7 +96,11 @@ app.UseExceptionHandler(handler =>
         context.Response.Headers.CacheControl = "no-store";
 
         await context.Response.WriteAsJsonAsync(
-            ApiError.Create(context, "INTERNAL_ERROR", "服务暂时不可用，请稍后重试。")
+            ApiError.Create(
+                context,
+                "INTERNAL_ERROR",
+                "The service is temporarily unavailable. Try again later."
+            )
         );
     })
 );

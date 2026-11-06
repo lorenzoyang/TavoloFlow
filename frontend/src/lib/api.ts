@@ -26,7 +26,7 @@ export class ApiError extends Error {
   readonly body: ErrorBody;
 
   constructor(status: number, body: ErrorBody, retryAfter: string | null) {
-    super(body.message ?? apiMessages.zh.genericError);
+    super(body.message ?? apiMessages.en.genericError);
     this.status = status;
     this.errors = body.errors ?? {};
     this.requestId = body.requestId;
@@ -149,24 +149,23 @@ export async function guestWrite<T>(path: string, body: unknown, signal: AbortSi
   });
 }
 
-// Chinese pages show the server's message; Italian and English pages translate its code instead.
+// The server's English message is meant for developers; pages translate its code instead.
 export function errorMessage(
   error: unknown,
-  unknownResult?: string,
-  language: Language = "zh",
+  unknownResult: string | undefined,
+  language: Language,
 ): string {
   const messages = apiMessages[language];
   if (!(error instanceof ApiError) || error.status >= 500)
     return unknownResult ?? messages.connectionError;
   if (error.code === "CSRF_VALIDATION_FAILED") return messages.csrfExpired;
-  if (language === "zh") return error.message;
-  return errorTranslations[language][error.code] ?? messages.genericError;
+  const translations: Partial<Record<string, string>> = errorTranslations[language];
+  return translations[error.code] ?? messages.genericError;
 }
 
-// Field errors also arrive in Chinese; Italian and English pages only mark the fields to check.
+// Field errors also arrive in English for developers; pages only mark the fields to check.
 export function fieldErrors(error: unknown, language: Language): Record<string, string[]> {
   if (!(error instanceof ApiError)) return {};
-  if (language === "zh") return error.errors;
   return Object.fromEntries(
     Object.keys(error.errors).map((field) => [field, [apiMessages[language].invalidField]]),
   );

@@ -15,7 +15,11 @@ public static class Paging
     {
         if (limit is < 1 or > MaxLimit)
         {
-            throw ApiException.Validation("每页数量须为 1–100。", "limit", "每页数量须为 1–100。");
+            throw ApiException.Validation(
+                "The page size must be 1–100.",
+                "limit",
+                "The page size must be 1–100."
+            );
         }
     }
 
@@ -45,9 +49,9 @@ public static class Paging
 
     public static ApiException InvalidCursor() =>
         ApiException.Validation(
-            "分页位置无效，请重新读取。",
+            "Invalid paging cursor. Reload.",
             "cursor",
-            "分页位置无效，请重新读取。"
+            "Invalid paging cursor. Reload."
         );
 
     // A position is a UTC timestamp, as PostgreSQL returns it, plus a non-empty ID that breaks ties.

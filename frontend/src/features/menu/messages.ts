@@ -74,8 +74,22 @@ const zh = {
   removePhotoHint: "客人菜单将不再显示这张图片，需要时可以重新上传。",
   photoTooLarge: "图片超过 15 MB，请换一张较小的照片。",
   photoSaved: "图片已更新。",
-  // Empty: Chinese pages show the server's own allergen descriptions.
-  allergenHints: {} as Record<string, string>,
+  allergenHints: {
+    GLUTEN: "例如小麦、黑麦、大麦、燕麦及其制品",
+    CRUSTACEANS: "例如虾、蟹、龙虾及其制品",
+    EGGS: "蛋及其制品",
+    FISH: "鱼及其制品",
+    PEANUTS: "花生及其制品",
+    SOY: "大豆及其制品",
+    MILK: "奶及其制品，包括乳糖",
+    NUTS: "例如杏仁、榛子、核桃、腰果及其制品",
+    CELERY: "芹菜及其制品",
+    MUSTARD: "芥末及其制品",
+    SESAME: "芝麻及其制品",
+    SULPHITES: "以总二氧化硫计，浓度超过 10 mg/kg 或 10 mg/L",
+    LUPIN: "羽扇豆及其制品",
+    MOLLUSCS: "例如贻贝、牡蛎、鱿鱼、蜗牛及其制品",
+  } as Record<string, string>,
 };
 
 export const menuMessages: Record<Language, typeof zh> = {
@@ -256,7 +270,7 @@ export const menuMessages: Record<Language, typeof zh> = {
   },
 };
 
-// The server names allergens in Chinese; Italian and English pages reuse the guest menu's names.
+// Store pages reuse the guest menu's allergen names; the server's English label is only a fallback.
 export function allergenLabel(option: { code: string; label: string }, language: Language) {
-  return language === "zh" ? option.label : (allergenNames[language][option.code] ?? option.label);
+  return allergenNames[language][option.code] ?? option.label;
 }

@@ -22,7 +22,7 @@ public sealed record GuestIdentity(Guid RestaurantId, Guid TableId, Guid Session
         {
             throw GuestErrors.AuthRequired();
         }
-        
+
         return new(restaurant, table, session);
     }
 }
@@ -96,14 +96,14 @@ public static class GuestAuthentication
                                 ctx.HttpContext,
                                 401,
                                 "GUEST_AUTH_REQUIRED",
-                                "请验证本轮入桌码。"
+                                "Verify this visit's join code."
                             ),
                         OnRedirectToAccessDenied = ctx =>
                             ApiError.WriteAsync(
                                 ctx.HttpContext,
                                 403,
                                 "GUEST_ACCESS_DENIED",
-                                "无法访问本轮用餐。"
+                                "This visit can't be accessed."
                             ),
                     };
                 }

@@ -36,12 +36,15 @@ public sealed class GuestController(
                 "Guest join rate limit reached. Request {RequestId}.",
                 HttpContext.TraceIdentifier
             );
-            throw ApiException.RateLimited(wait.Value, "验证过于频繁，请稍后再试。");
+            throw ApiException.RateLimited(
+                wait.Value,
+                "Too many join attempts. Try again shortly."
+            );
         }
 
         var guest = await guests.JoinAsync(token, input, ct);
         await GuestAuthentication.SignInAsync(HttpContext, guest, clock);
-        
+
         return Ok(new JoinResponse(guest.RestaurantId, guest.TableId, guest.SessionId));
     }
 

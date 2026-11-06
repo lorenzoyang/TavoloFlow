@@ -42,5 +42,9 @@ public static class BillingErrors
         new(409, code, message) { Extensions = new() { ["currentBill"] = bill } };
 
     public static ApiException Changed(BillSummaryResponse bill) =>
-        Conflict("BILL_CHANGED", "账单已变化，请重新核对桌号、金额和订单。", bill);
+        Conflict(
+            "BILL_CHANGED",
+            "The bill has changed. Check the table, amount and orders again.",
+            bill
+        );
 }

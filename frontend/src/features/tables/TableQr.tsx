@@ -31,14 +31,18 @@ export function TableQr({
   const language = useStaffLanguage();
   const m = tableMessages[language];
   let url = "";
-  let configurationError = "";
+  let configurationDetail = "";
   try {
     url = publicMenuUrl(table.qrPath, window.location.origin, import.meta.env.VITE_PUBLIC_BASE_URL);
   } catch (error) {
-    // The detailed reason is written in Chinese for whoever configures the deployment.
-    configurationError =
-      language === "zh" && error instanceof Error ? error.message : m.configError;
+    configurationDetail = error instanceof Error ? error.message : String(error);
   }
+  const configurationError = configurationDetail ? m.configError : "";
+  // The page shows a translated notice; whoever configures the deployment finds the English
+  // reason in the browser console.
+  useEffect(() => {
+    if (configurationDetail) console.error(configurationDetail);
+  }, [configurationDetail]);
   const [image, setImage] = useState<{ url: string; data?: string; error?: string }>();
   const [notice, setNotice] = useState("");
   const [rendering, setRendering] = useState(false);

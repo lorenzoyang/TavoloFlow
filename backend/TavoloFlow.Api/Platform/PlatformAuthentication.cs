@@ -159,9 +159,20 @@ public sealed class PlatformCookieEvents(ApplicationDbContext db, CurrentPlatfor
     }
 
     public override Task RedirectToLogin(RedirectContext<CookieAuthenticationOptions> context) =>
-        ApiError.WriteAsync(context.HttpContext, 401, "UNAUTHENTICATED", "请先登录平台。");
+        ApiError.WriteAsync(
+            context.HttpContext,
+            401,
+            "UNAUTHENTICATED",
+            "Sign in to the platform first."
+        );
 
     public override Task RedirectToAccessDenied(
         RedirectContext<CookieAuthenticationOptions> context
-    ) => ApiError.WriteAsync(context.HttpContext, 403, "FORBIDDEN", "没有平台管理权限。");
+    ) =>
+        ApiError.WriteAsync(
+            context.HttpContext,
+            403,
+            "FORBIDDEN",
+            "You don't have platform administration permissions."
+        );
 }

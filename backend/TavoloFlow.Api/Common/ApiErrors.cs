@@ -97,11 +97,19 @@ public sealed class ApiExceptionFilter : IExceptionFilter
             .ModelState.Where(entry => entry.Value?.Errors.Count > 0)
             .ToDictionary(
                 entry => entry.Key,
-                entry => entry.Value!.Errors.Select(_ => "请检查字段格式和长度。").ToArray()
+                entry =>
+                    entry
+                        .Value!.Errors.Select(_ => "Check the field's format and length.")
+                        .ToArray()
             );
 
         return new BadRequestObjectResult(
-            ApiError.Create(context.HttpContext, "VALIDATION_FAILED", "请检查输入内容。", errors)
+            ApiError.Create(
+                context.HttpContext,
+                "VALIDATION_FAILED",
+                "Check the data you entered.",
+                errors
+            )
         );
     }
 }

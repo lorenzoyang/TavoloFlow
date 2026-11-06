@@ -114,7 +114,7 @@ The VPS must be AMD64 because the script builds the images only for `linux/amd64
 Before starting, know that some things are fixed in the code:
 
 - **Euro and the Rome time zone.** Every restaurant is created with `EUR` and `Europe/Rome` (`Entities/Restaurant.cs`), and there is no interface to change them. The backup timer runs at 03:30 Rome time.
-- **Three languages.** Staff area, administrator area and guest menu are in Chinese, Italian or English. The server's error messages are written in Chinese: in Italian and English the interface translates them starting from the error code.
+- **Three languages.** Staff area, administrator area and guest menu are in Chinese, Italian or English. The server's error messages are written in English: the interface translates them into all three languages starting from the error code.
 - **A single instance.** The rate limiter keeps its counters in memory: the architecture is designed for a single API on a single server.
 
 ## Part 1: first installation

@@ -51,7 +51,7 @@ public sealed class TableService(ApplicationDbContext context, CatalogDeletionSe
         {
             throw TableErrors.LabelConflict();
         }
-        
+
         return new(table.Id, table.TableLabel, table.IsEnabled, "/q/" + table.QrToken, null);
     }
 
@@ -127,7 +127,7 @@ public sealed class TableService(ApplicationDbContext context, CatalogDeletionSe
             throw new ApiException(
                 409,
                 "TABLE_HAS_ACTIVE_SESSION",
-                "此桌仍有进行中的用餐，结束用餐后才能删除。"
+                "The table has an open visit: close it before deleting the table."
             );
     }
 
@@ -136,9 +136,9 @@ public sealed class TableService(ApplicationDbContext context, CatalogDeletionSe
         var label = value?.Trim();
         if (string.IsNullOrEmpty(label) || label.Length > 50)
             throw ApiException.Validation(
-                "请检查桌号。",
+                "Check the table label.",
                 "tableLabel",
-                "桌号去除首尾空白后须为 1–50 个字符。"
+                "The table label must be 1–50 characters after trimming."
             );
         return label;
     }

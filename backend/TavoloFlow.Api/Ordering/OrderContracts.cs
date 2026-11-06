@@ -101,10 +101,10 @@ public sealed record MenuChange(
 public static class OrderErrors
 {
     public static ApiException Invalid(string field, string message) =>
-        ApiException.Validation("请检查订单内容。", field, message);
+        ApiException.Validation("Check the order.", field, message);
 
     public static ApiException MenuChanged(MenuChange[] changes) =>
-        new(409, "MENU_CHANGED", "菜品信息已变化，请重新核对菜单和金额。")
+        new(409, "MENU_CHANGED", "Dish details have changed. Check the menu and amounts again.")
         {
             Extensions = new() { ["changes"] = changes },
         };

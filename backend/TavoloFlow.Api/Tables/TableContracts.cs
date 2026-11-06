@@ -21,13 +21,13 @@ public sealed record TableResponse(
 public static class TableErrors
 {
     public static ApiException NotFound() =>
-        new(404, "TABLE_NOT_FOUND", "桌位不存在，请刷新列表。");
+        new(404, "TABLE_NOT_FOUND", "Table not found. Refresh the list.");
 
     public static ApiException LabelConflict() =>
         new(
             409,
             "TABLE_LABEL_CONFLICT",
-            "本店已有相同桌号。",
-            new Dictionary<string, string[]> { ["tableLabel"] = ["请使用不同的桌号。"] }
+            "A table with this label already exists.",
+            new Dictionary<string, string[]> { ["tableLabel"] = ["Use a different table label."] }
         );
 }

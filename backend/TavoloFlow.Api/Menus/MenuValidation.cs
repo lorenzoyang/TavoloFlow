@@ -40,9 +40,12 @@ public static class MenuValidation
         var errors = new Dictionary<string, string[]>();
         Names(value.NameZh, value.NameIt, value.NameEn, MaxItemNameLength, errors);
         if (value.ItemCode?.Length > MaxItemCodeLength)
-            errors["itemCode"] = [$"编号最多 {MaxItemCodeLength} 个字符。"];
+            errors["itemCode"] = [$"The item code can be at most {MaxItemCodeLength} characters."];
         if (value.PriceCents < 1 || value.PriceCents > MaxSafeCents)
-            errors["priceCents"] = ["价格必须为正整数欧分，且不能超过安全整数范围。"];
+            errors["priceCents"] =
+            [
+                "The price must be positive whole euro cents within the safe integer range.",
+            ];
         foreach (
             var (name, description, field) in new[]
             {
@@ -52,9 +55,9 @@ public static class MenuValidation
             }
         )
             if (description is not null && name is null)
-                errors[field] = ["请先填写对应语言的名称。"];
+                errors[field] = ["Enter the name in this language first."];
         if (!value.AllergenReviewed)
-            errors["allergenReviewed"] = ["保存前必须确认已完成过敏原审核。"];
+            errors["allergenReviewed"] = ["Confirm the allergen review before saving."];
         if (
             value.AllergenCodes is null
             || value.AllergenCodes.Any(code =>
@@ -63,7 +66,7 @@ public static class MenuValidation
         )
             errors["allergenCodes"] =
             [
-                "请选择有效的过敏原选项；已审核未识别出过敏原时请提交空数组。",
+                "Choose valid allergen options; send an empty array when the review found no allergens.",
             ];
         Reject(errors);
         // Canonical order and no duplicates, independent of checkbox selection order.
@@ -85,15 +88,15 @@ public static class MenuValidation
     )
     {
         if (zh is null && it is null && en is null)
-            errors["names"] = ["至少填写一种语言的名称。"];
+            errors["names"] = ["Enter a name in at least one language."];
         foreach (var (name, field) in new[] { (zh, "nameZh"), (it, "nameIt"), (en, "nameEn") })
             if (name?.Length > max)
-                errors[field] = [$"名称最多 {max} 个字符。"];
+                errors[field] = [$"The name can be at most {max} characters."];
     }
 
     private static void Reject(Dictionary<string, string[]> errors)
     {
         if (errors.Count > 0)
-            throw ApiException.Validation("请检查菜单内容。", errors);
+            throw ApiException.Validation("Check the menu content.", errors);
     }
 }

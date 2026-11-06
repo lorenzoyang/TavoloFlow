@@ -226,7 +226,7 @@ flowchart TD
   }
   ```
 
-  Some codes add fields: for example `BILL_CHANGED` also carries `currentBill`, the updated bill. The server's messages are in Chinese; in Italian and English the frontend doesn't show them, but picks the text based on `code` (`lib/api-messages.ts`).
+  Some codes add fields: for example `BILL_CHANGED` also carries `currentBill`, the updated bill. The server's messages are in English and meant for developers; the frontend doesn't show them, but in all three languages picks the text based on `code` (`lib/api-messages.ts`).
 
 ### Frontend: how features are organized
 
@@ -578,7 +578,7 @@ I postponed push notifications (Web Push): they would require VAPID keys and dev
 - **The table code is short.** Four characters from an alphabet of 32 make about a million combinations (2²⁰). Against someone trying to guess it, only the rate limit protects it, per IP and per visit: before real public use it should be reconsidered, perhaps with a longer code.
 - **Polling.** The load on the server grows with the number of devices switched on: with many restaurants it would be worth moving to WebSocket or Server-Sent Events.
 - **Tests.** The backend has over 150 integration tests, which run on a real PostgreSQL in Docker; the frontend has only pure-logic tests with `node --test`. The repository lacks component tests and end-to-end tests, and there is no CI: tests are run by hand before every release.
-- **Error messages in Chinese.** The table the frontend uses to translate error codes into Italian and English (`lib/api-messages.ts`, see "Backend: modules and the path of a request") has to be kept in sync with the backend by hand.
+- **Error codes kept in sync by hand.** The table the frontend uses to translate error codes into the three languages (`lib/api-messages.ts`, see "Backend: modules and the path of a request") has to be kept in sync with the backend by hand: TypeScript flags a missing translation, but not a new backend code.
 - **Hand-made release process.** A single VPS, release scripts run by hand, backups left to a systemd timer, no monitoring or alerting system: if the server stops, I only notice when someone complains.
 - **A complex frontend in places.** Handling unknown results (for example in `useCart`) is very robust, but also heavy to read and maintain for a first version.
 

@@ -244,7 +244,7 @@ public sealed class SubscriptionService(
                     throw new ApiException(
                         409,
                         "SUBSCRIPTION_PERIOD_PAID",
-                        "已收款周期的约定金额和收款信息已冻结；如需延期请单独调整期限。"
+                        "A paid period's agreed amount and payment are frozen; change only its end date to extend it."
                     );
                 ValidatePeriod(p.Id, input.StartsOn, input.EndsOn, input.Years, input.AmountCents);
                 await EnsureNoOverlapAsync(restaurantId, input.StartsOn, input.EndsOn, p.Id, ct);
@@ -307,7 +307,7 @@ public sealed class SubscriptionService(
                     throw new ApiException(
                         409,
                         "SUBSCRIPTION_PERIOD_PAID",
-                        "此周期已登记全额收款，请核对原记录。"
+                        "This period is already fully paid. Check the original record."
                     );
                 p.PaidOn = input.PaidOn;
                 return true;
@@ -335,7 +335,7 @@ public sealed class SubscriptionService(
             throw new ApiException(
                 409,
                 "SUBSCRIPTION_CHANGED",
-                "年费资料已变化（可能是本次或其他操作已生效），请核对最新资料后再确认。"
+                "The subscription has changed (perhaps by this or another action). Check the latest data and confirm again."
             );
         var changed = await apply(restaurant);
         if (changed)
@@ -407,11 +407,15 @@ public sealed class SubscriptionService(
         ?? throw new ApiException(
             404,
             "SUBSCRIPTION_PERIOD_NOT_FOUND",
-            "收费周期不存在或不属于此餐厅。"
+            "The period doesn't exist or doesn't belong to this restaurant."
         );
 
     private static ApiException PeriodExists() =>
-        new(409, "SUBSCRIPTION_PERIOD_EXISTS", "此收费周期编号已使用，请核对原记录。");
+        new(
+            409,
+            "SUBSCRIPTION_PERIOD_EXISTS",
+            "This period ID is already used. Check the original period."
+        );
 
     private async Task EnsureNoOverlapAsync(
         Guid restaurantId,
@@ -434,14 +438,16 @@ public sealed class SubscriptionService(
             throw new ApiException(
                 409,
                 "SUBSCRIPTION_PERIOD_OVERLAP",
-                "收费周期不能重叠，请核对开始和截止日期。"
+                "Periods can't overlap. Check the start and end dates."
             );
     }
 
     private static void ValidateMetadata(string? contact, long? annualFee)
     {
         if (contact?.Length > 500 || annualFee is < 0 or > InputRules.MaxSafeCents)
-            throw ApiException.Validation("联系方式最多 500 字，年费须为有效的非负金额。");
+            throw ApiException.Validation(
+                "The owner contact can be at most 500 characters and the annual fee must be a valid non-negative amount."
+            );
     }
 
     private static void ValidatePeriod(
@@ -460,12 +466,16 @@ public sealed class SubscriptionService(
             || starts.Year + years > 9999
             || amount is < 1 or > InputRules.MaxSafeCents
         )
-            throw ApiException.Validation("请填写有效的收费周期、正整数年数和正数总金额。");
+            throw ApiException.Validation(
+                "Enter a valid period, a positive whole number of years and a positive total amount."
+            );
     }
 
     private static void ValidatePaidOn(DateOnly? paidOn, DateOnly today)
     {
         if (paidOn == DateOnly.MinValue || paidOn > today)
-            throw ApiException.Validation("付费日期须为有效日期，且不能晚于餐厅当地今天。");
+            throw ApiException.Validation(
+                "The payment date must be a valid date no later than the restaurant's local today."
+            );
     }
 }

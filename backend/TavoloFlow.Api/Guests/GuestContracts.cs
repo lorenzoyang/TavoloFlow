@@ -26,11 +26,15 @@ public sealed record GuestAccessResponse(
 public static class GuestErrors
 {
     public static ApiException AuthRequired() =>
-        new(401, "GUEST_AUTH_REQUIRED", "请验证本轮入桌码。");
+        new(401, "GUEST_AUTH_REQUIRED", "Verify this visit's join code.");
 
     public static ApiException SessionMismatch() =>
-        new(403, "GUEST_SESSION_MISMATCH", "当前浏览器授权属于另一轮用餐，请重新验证。");
+        new(
+            403,
+            "GUEST_SESSION_MISMATCH",
+            "This browser's access belongs to another visit. Verify again."
+        );
 
     public static ApiException QrNotFound() =>
-        new(404, "QR_NOT_FOUND", "二维码无效，请联系工作人员。");
+        new(404, "QR_NOT_FOUND", "Invalid QR code. Ask the staff.");
 }

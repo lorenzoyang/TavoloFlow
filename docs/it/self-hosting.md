@@ -114,7 +114,7 @@ La VPS deve essere AMD64 perché lo script costruisce le immagini solo per `linu
 Prima di cominciare, sappi che alcune cose sono fisse nel codice:
 
 - **Euro e fuso orario di Roma.** Ogni ristorante nasce con `EUR` ed `Europe/Rome` (`Entities/Restaurant.cs`), e non c'è un'interfaccia per cambiarli. Il timer del backup gira alle 03:30 ora di Roma.
-- **Tre lingue.** Area staff, area amministratore e menu del cliente sono in cinese, italiano o inglese. I messaggi di errore del server sono scritti in cinese: in italiano e in inglese l'interfaccia li traduce partendo dal codice dell'errore.
+- **Tre lingue.** Area staff, area amministratore e menu del cliente sono in cinese, italiano o inglese. I messaggi di errore del server sono scritti in inglese: l'interfaccia li traduce in tutte e tre le lingue partendo dal codice dell'errore.
 - **Una sola istanza.** Il rate limiter tiene i contatori in memoria: l'architettura è pensata per un'API sola su un server solo.
 
 ## Parte 1: prima installazione

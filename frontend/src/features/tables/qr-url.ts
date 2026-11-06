@@ -13,11 +13,11 @@ export function publicMenuUrl(
     base.hash
   ) {
     throw new Error(
-      "VITE_PUBLIC_BASE_URL 必须是 HTTP(S) 网站 origin，不含路径、账号、查询参数或片段。",
+      "VITE_PUBLIC_BASE_URL must be an HTTP(S) origin, without path, credentials, query or fragment.",
     );
   }
   if (!/^\/q\/[A-Za-z0-9_-]{1,128}$/.test(path))
-    throw new Error("二维码路径无效，请重新读取桌位。");
+    throw new Error("Invalid QR path. Reload the tables.");
   return new URL(path, base.origin).href;
 }
 

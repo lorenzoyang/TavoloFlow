@@ -43,7 +43,10 @@ public sealed class AccountRateLimiter(AccountRateLimitOptions options) : IDispo
     {
         if (waitSeconds is { } seconds)
         {
-            throw ApiException.RateLimited(seconds, $"操作过于频繁，请在 {seconds} 秒后重试。");
+            throw ApiException.RateLimited(
+                seconds,
+                $"Too many attempts. Try again in {seconds} seconds."
+            );
         }
     }
 

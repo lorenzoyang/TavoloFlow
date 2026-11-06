@@ -118,7 +118,7 @@ public sealed class StoreCookieEvents(ApplicationDbContext context, CurrentAccou
                 user.MustChangePassword ? "true" : "false"
             )
         );
-        
+
         currentAccount.User = user;
     }
 
@@ -128,7 +128,7 @@ public sealed class StoreCookieEvents(ApplicationDbContext context, CurrentAccou
             context.HttpContext,
             StatusCodes.Status401Unauthorized,
             "UNAUTHENTICATED",
-            "请先登录。"
+            "Sign in to continue."
         );
 
     // Rewrite to return JSON; the default is to return a redirect (302).
@@ -139,7 +139,7 @@ public sealed class StoreCookieEvents(ApplicationDbContext context, CurrentAccou
             context.HttpContext,
             StatusCodes.Status403Forbidden,
             "FORBIDDEN",
-            "没有执行此操作的权限。"
+            "You don't have permission for this."
         );
 
     private static async Task RejectAsync(CookieValidatePrincipalContext context)

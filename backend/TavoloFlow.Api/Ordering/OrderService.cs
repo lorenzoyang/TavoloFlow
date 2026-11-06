@@ -23,7 +23,7 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
             || input.ClientRequestId is null
             || input.ClientRequestId == Guid.Empty
         )
-            throw OrderErrors.Invalid("sessionId", "请提供有效的用餐和请求标识。");
+            throw OrderErrors.Invalid("sessionId", "Provide a valid visit ID and request ID.");
         RequireTarget(guest, input.SessionId.Value);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
@@ -46,7 +46,11 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
 
         DiningEntrance.Require(restaurant, table);
         if (!restaurant.OrderingEnabled)
-            throw new ApiException(409, "ORDERING_PAUSED", "餐厅暂未接受扫码订单。");
+            throw new ApiException(
+                409,
+                "ORDERING_PAUSED",
+                "The restaurant isn't accepting QR orders right now."
+            );
         var lines = Validate(input);
         var ids = lines.Select(x => x.MenuItemId).Distinct().ToArray();
         var menu = await db
@@ -75,7 +79,10 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
                 || price > MaxCents / line.Quantity
                 || total > MaxCents - price * line.Quantity
             )
-                throw OrderErrors.Invalid("items", "订单金额超出安全整数范围。");
+                throw OrderErrors.Invalid(
+                    "items",
+                    "The order total exceeds the safe integer range."
+                );
             total += price * line.Quantity;
         }
         var existingTotal = await db
@@ -89,7 +96,7 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
             throw new ApiException(
                 409,
                 "BILL_LIMIT_REACHED",
-                "本轮账单已达到支持的上限，请联系工作人员。"
+                "The bill has reached the supported limit. Ask the staff."
             );
 
         var order = new Order
@@ -148,7 +155,7 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
             ?? throw new ApiException(
                 404,
                 "ORDER_NOT_FOUND",
-                "暂未查到这次提交，请继续核对，或使用原请求重试。"
+                "This submission hasn't been found yet. Keep checking, or retry with the original request."
             );
         var result = OrderResponse.From(order);
         await transaction.CommitAsync(ct);
@@ -238,7 +245,7 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
             || input.Items.Length is < 1 or > 30
             || input.Items.Any(x => x is null)
         )
-            throw OrderErrors.Invalid("items", "每笔订单须包含 1–30 行菜品。");
+            throw OrderErrors.Invalid("items", "An order must have 1–30 lines.");
         var lines = input.Items.Select(x => x!).ToArray();
         foreach (var (line, index) in lines.Select((line, index) => (line, index)))
         {
@@ -251,11 +258,11 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
             )
                 throw OrderErrors.Invalid(
                     $"items[{index}]",
-                    "菜品须有效，每行 1–20 份，备注最多 200 字符，确认价格须为正整数欧分。"
+                    "Each line needs a valid dish, 1–20 portions, a remark of at most 200 characters and a confirmed price in positive whole euro cents."
                 );
         }
         if (lines.Sum(x => x.Quantity) > 100)
-            throw OrderErrors.Invalid("items", "每单最多 100 份。");
+            throw OrderErrors.Invalid("items", "An order can have at most 100 portions.");
         return lines;
     }
 

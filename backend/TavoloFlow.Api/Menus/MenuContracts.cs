@@ -114,15 +114,20 @@ public sealed record PublicMenuResponse(
 public static class MenuErrors
 {
     public static ApiException NotFound() =>
-        new(404, "MENU_RESOURCE_NOT_FOUND", "分类或菜品不存在，请刷新菜单。");
+        new(404, "MENU_RESOURCE_NOT_FOUND", "Category or dish not found. Refresh the menu.");
 
     public static ApiException ImageInvalid() =>
-        new(400, "IMAGE_INVALID", "无法读取该图片，请上传 JPG、PNG 或 WebP 格式的照片。");
+        new(400, "IMAGE_INVALID", "Can't read the image. Upload a JPG, PNG or WebP photo.");
 
     public static ApiException ImageTooLarge() =>
-        new(413, "IMAGE_TOO_LARGE", "图片太大，请上传不超过 15 MB、约 5000 万像素以内的照片。");
+        new(
+            413,
+            "IMAGE_TOO_LARGE",
+            "Image too large: upload a photo up to 15 MB (about 50 megapixels)."
+        );
 
-    public static ApiException ImageNotFound() => new(404, "MENU_IMAGE_NOT_FOUND", "图片不存在。");
+    public static ApiException ImageNotFound() =>
+        new(404, "MENU_IMAGE_NOT_FOUND", "The image doesn't exist.");
 }
 
 public static class MenuAllergens
@@ -130,19 +135,39 @@ public static class MenuAllergens
     // Application codes, based on the EU 14 categories; these are not a legal certification.
     public static readonly IReadOnlyList<AllergenOption> Options =
         Array.AsReadOnly<AllergenOption>([
-            new("GLUTEN", "含麸质谷物", "例如小麦、黑麦、大麦、燕麦及其制品"),
-            new("CRUSTACEANS", "甲壳类", "例如虾、蟹、龙虾及其制品"),
-            new("EGGS", "蛋", "蛋及其制品"),
-            new("FISH", "鱼", "鱼及其制品"),
-            new("PEANUTS", "花生", "花生及其制品"),
-            new("SOY", "大豆", "大豆及其制品"),
-            new("MILK", "奶", "奶及其制品，包括乳糖"),
-            new("NUTS", "坚果", "例如杏仁、榛子、核桃、腰果及其制品"),
-            new("CELERY", "芹菜", "芹菜及其制品"),
-            new("MUSTARD", "芥末", "芥末及其制品"),
-            new("SESAME", "芝麻", "芝麻及其制品"),
-            new("SULPHITES", "二氧化硫及亚硫酸盐", "以总二氧化硫计，浓度超过 10 mg/kg 或 10 mg/L"),
-            new("LUPIN", "羽扇豆", "羽扇豆及其制品"),
-            new("MOLLUSCS", "软体动物", "例如贻贝、牡蛎、鱿鱼、蜗牛及其制品"),
+            new(
+                "GLUTEN",
+                "Cereals containing gluten",
+                "For example wheat, rye, barley, oats and products thereof"
+            ),
+            new(
+                "CRUSTACEANS",
+                "Crustaceans",
+                "For example prawns, crabs, lobsters and products thereof"
+            ),
+            new("EGGS", "Eggs", "Eggs and products thereof"),
+            new("FISH", "Fish", "Fish and products thereof"),
+            new("PEANUTS", "Peanuts", "Peanuts and products thereof"),
+            new("SOY", "Soy", "Soybeans and products thereof"),
+            new("MILK", "Milk", "Milk and products thereof, including lactose"),
+            new(
+                "NUTS",
+                "Tree nuts",
+                "For example almonds, hazelnuts, walnuts, cashews and products thereof"
+            ),
+            new("CELERY", "Celery", "Celery and products thereof"),
+            new("MUSTARD", "Mustard", "Mustard and products thereof"),
+            new("SESAME", "Sesame", "Sesame seeds and products thereof"),
+            new(
+                "SULPHITES",
+                "Sulphur dioxide and sulphites",
+                "Above 10 mg/kg or 10 mg/L, expressed as total sulphur dioxide"
+            ),
+            new("LUPIN", "Lupin", "Lupin and products thereof"),
+            new(
+                "MOLLUSCS",
+                "Molluscs",
+                "For example mussels, oysters, squid, snails and products thereof"
+            ),
         ]);
 }

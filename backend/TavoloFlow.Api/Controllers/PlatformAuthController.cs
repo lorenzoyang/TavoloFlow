@@ -35,7 +35,7 @@ public sealed class PlatformAuthController(
             ?? throw new ApiException(
                 StatusCodes.Status401Unauthorized,
                 "INVALID_CREDENTIALS",
-                "用户名或密码不正确。"
+                "Wrong username or password."
             );
         await PlatformAuthentication.SignInAsync(HttpContext, user, clock);
         return Ok(PlatformIdentityResponse.From(user));
@@ -66,7 +66,7 @@ public sealed class PlatformAuthController(
             input.NewPassword,
             ct
         );
-        result.EnsureChanged("平台凭据已变化，请重新登录。");
+        result.EnsureChanged("Your platform credentials have changed. Sign in again.");
         await PlatformAuthentication.SignInAsync(HttpContext, user, clock);
         return Ok(PlatformIdentityResponse.From(user));
     }
