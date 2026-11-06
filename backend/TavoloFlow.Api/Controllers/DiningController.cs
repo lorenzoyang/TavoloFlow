@@ -12,19 +12,24 @@ public sealed class DiningController(DiningService dining, CurrentAccount curren
     private Guid RestaurantId => current.RequireUser().RestaurantId;
 
     [HttpPatch("api/staff/accepting-orders")]
-    public async Task<IActionResult> AcceptingOrders(AcceptingOrdersInput input, CancellationToken ct) =>
-        Ok(await dining.SetAcceptingOrdersAsync(RestaurantId, input.Enabled!.Value, ct));
+    public async Task<IActionResult> AcceptingOrders(
+        AcceptingOrdersInput input,
+        CancellationToken ct
+    ) => Ok(await dining.SetAcceptingOrdersAsync(RestaurantId, input.Enabled!.Value, ct));
 
     [HttpGet("api/staff/floor")]
-    public async Task<IActionResult> Floor(CancellationToken ct) => Ok(await dining.FloorAsync(RestaurantId, ct));
+    public async Task<IActionResult> Floor(CancellationToken ct) =>
+        Ok(await dining.FloorAsync(RestaurantId, ct));
 
     [HttpPost("api/staff/tables/{tableId:guid}/open")]
     public async Task<IActionResult> Open(Guid tableId, CancellationToken ct) =>
         StatusCode(201, await dining.OpenAsync(RestaurantId, tableId, ct));
 
     [HttpGet("api/staff/sessions/{id:guid}")]
-    public async Task<IActionResult> Session(Guid id, CancellationToken ct) => Ok(await dining.ReadAsync(RestaurantId, id, ct));
+    public async Task<IActionResult> Session(Guid id, CancellationToken ct) =>
+        Ok(await dining.ReadAsync(RestaurantId, id, ct));
 
     [HttpGet("api/staff/sessions/{id:guid}/join-code")]
-    public async Task<IActionResult> Code(Guid id, CancellationToken ct) => Ok(await dining.ReadCodeAsync(RestaurantId, id, ct));
+    public async Task<IActionResult> Code(Guid id, CancellationToken ct) =>
+        Ok(await dining.ReadCodeAsync(RestaurantId, id, ct));
 }

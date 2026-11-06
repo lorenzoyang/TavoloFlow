@@ -6,11 +6,13 @@ namespace TavoloFlow.Api.Accounts;
 
 public sealed record LoginRequest(
     [Required, StringLength(50)] string Username,
-    [Required, StringLength(128)] string Password);
+    [Required, StringLength(128)] string Password
+);
 
 public sealed record ChangePasswordRequest(
     [Required, StringLength(128)] string CurrentPassword,
-    [Required, StringLength(128, MinimumLength = 6)] string NewPassword);
+    [Required, StringLength(128, MinimumLength = 6)] string NewPassword
+);
 
 public sealed record CurrentAccountResponse(
     Guid UserId,
@@ -19,11 +21,19 @@ public sealed record CurrentAccountResponse(
     Guid RestaurantId,
     string RestaurantName,
     string RestaurantTheme,
-    bool MustChangePassword)
+    bool MustChangePassword
+)
 {
-    public static CurrentAccountResponse From(RestaurantUser user) => new(
-        user.Id, user.Username, ApiEnum.Text(user.Role),
-        user.RestaurantId, user.Restaurant.Name, ApiEnum.Text(user.Restaurant.Theme), user.MustChangePassword);
+    public static CurrentAccountResponse From(RestaurantUser user) =>
+        new(
+            user.Id,
+            user.Username,
+            ApiEnum.Text(user.Role),
+            user.RestaurantId,
+            user.Restaurant.Name,
+            ApiEnum.Text(user.Restaurant.Theme),
+            user.MustChangePassword
+        );
 }
 
 public static class AccountInput
@@ -37,7 +47,11 @@ public static class AccountInput
     {
         if (!IsValidPassword(password))
         {
-            throw ApiException.Validation("新密码须为 6–128 个字符。", "newPassword", "密码不能全部为空白。");
+            throw ApiException.Validation(
+                "新密码须为 6–128 个字符。",
+                "newPassword",
+                "密码不能全部为空白。"
+            );
         }
     }
 }
@@ -47,13 +61,16 @@ public enum PasswordChangeResult
     Changed,
     IncorrectPassword,
     SamePassword,
-    CredentialsChanged
+    CredentialsChanged,
 }
 
 public static class PasswordChangeResults
 {
     // Store and platform accounts report the same outcomes; only the re-login hint differs.
-    public static void EnsureChanged(this PasswordChangeResult result, string credentialsChangedMessage)
+    public static void EnsureChanged(
+        this PasswordChangeResult result,
+        string credentialsChangedMessage
+    )
     {
         switch (result)
         {
@@ -73,5 +90,6 @@ public sealed class CurrentAccount
     public RestaurantUser? User { get; internal set; }
 
     public RestaurantUser RequireUser() =>
-        User ?? throw new InvalidOperationException("An authenticated restaurant account is required.");
+        User
+        ?? throw new InvalidOperationException("An authenticated restaurant account is required.");
 }

@@ -9,7 +9,8 @@ namespace TavoloFlow.Api.Controllers;
 [ApiController]
 [Route("api/owner/subscription")]
 [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
-public sealed class OwnerSubscriptionController(SubscriptionService service, CurrentAccount current) : ControllerBase
+public sealed class OwnerSubscriptionController(SubscriptionService service, CurrentAccount current)
+    : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Read(CancellationToken ct) =>

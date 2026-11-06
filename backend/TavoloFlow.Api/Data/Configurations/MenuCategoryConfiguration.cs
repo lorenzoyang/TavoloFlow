@@ -8,12 +8,20 @@ internal sealed class MenuCategoryConfiguration : IEntityTypeConfiguration<MenuC
 {
     public void Configure(EntityTypeBuilder<MenuCategory> builder)
     {
-        builder.ToTable("menu_categories", table => table.HasCheckConstraint("ck_category_has_name",
-            "concat(name_zh, name_it, name_en) ~ '[^[:space:]]'"));
+        builder.ToTable(
+            "menu_categories",
+            table =>
+                table.HasCheckConstraint(
+                    "ck_category_has_name",
+                    "concat(name_zh, name_it, name_en) ~ '[^[:space:]]'"
+                )
+        );
 
         builder.HasKey(category => category.Id);
 
-        builder.HasAlternateKey(category => new { category.Id, category.RestaurantId }).HasName("uq_categories_id_tenant");
+        builder
+            .HasAlternateKey(category => new { category.Id, category.RestaurantId })
+            .HasName("uq_categories_id_tenant");
 
         builder.Property(category => category.Id).HasColumnName("id");
 
@@ -23,7 +31,10 @@ internal sealed class MenuCategoryConfiguration : IEntityTypeConfiguration<MenuC
         builder.Property(category => category.NameIt).HasColumnName("name_it").HasMaxLength(100);
         builder.Property(category => category.NameEn).HasColumnName("name_en").HasMaxLength(100);
 
-        builder.HasOne(category => category.Restaurant).WithMany(restaurant => restaurant.MenuCategories)
-            .HasForeignKey(category => category.RestaurantId).OnDelete(DeleteBehavior.Cascade);
+        builder
+            .HasOne(category => category.Restaurant)
+            .WithMany(restaurant => restaurant.MenuCategories)
+            .HasForeignKey(category => category.RestaurantId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

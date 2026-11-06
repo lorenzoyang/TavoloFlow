@@ -9,12 +9,18 @@ public static class DiningEntrance
 {
     // SHARE locks let concurrent guests of the restaurant proceed together, while menu writers and
     // table maintenance (UPDATE) wait until this transaction ends. Call before any session lock.
-    public static async Task<(Restaurant Restaurant, RestaurantTable Table)> LockAsync(ApplicationDbContext db,
-        Guid restaurantId, Guid tableId, CancellationToken ct)
+    public static async Task<(Restaurant Restaurant, RestaurantTable Table)> LockAsync(
+        ApplicationDbContext db,
+        Guid restaurantId,
+        Guid tableId,
+        CancellationToken ct
+    )
     {
-        var restaurant = await RowLocks.RestaurantAsync(db, restaurantId, RowLock.Share, ct)
+        var restaurant =
+            await RowLocks.RestaurantAsync(db, restaurantId, RowLock.Share, ct)
             ?? throw DiningErrors.RestaurantNotFound();
-        var table = await RowLocks.TableAsync(db, restaurantId, tableId, RowLock.Share, ct)
+        var table =
+            await RowLocks.TableAsync(db, restaurantId, tableId, RowLock.Share, ct)
             ?? throw DiningErrors.TableNotFound();
         return (restaurant, table);
     }

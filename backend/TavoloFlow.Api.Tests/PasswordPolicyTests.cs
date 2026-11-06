@@ -11,12 +11,16 @@ public sealed class PasswordPolicyTests
     [InlineData("12345", false)]
     [InlineData("      ", false)]
     [InlineData("\t\r\n   ", false)]
-    public void IsValidPassword_LengthAndNonblankRules_AcceptsShortNumericPasswords(string password, bool expected) =>
-        Assert.Equal(expected, AccountInput.IsValidPassword(password));
+    public void IsValidPassword_LengthAndNonblankRules_AcceptsShortNumericPasswords(
+        string password,
+        bool expected
+    ) => Assert.Equal(expected, AccountInput.IsValidPassword(password));
 
     [Theory]
     [InlineData(128, true)]
     [InlineData(129, false)]
-    public void IsValidPassword_MaximumLength_PreservesLongPasswordSupport(int length, bool expected) =>
-        Assert.Equal(expected, AccountInput.IsValidPassword(new string('a', length)));
+    public void IsValidPassword_MaximumLength_PreservesLongPasswordSupport(
+        int length,
+        bool expected
+    ) => Assert.Equal(expected, AccountInput.IsValidPassword(new string('a', length)));
 }

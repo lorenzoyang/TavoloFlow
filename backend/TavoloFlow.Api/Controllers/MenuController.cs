@@ -12,11 +12,15 @@ public sealed class MenuController(MenuService menus, CurrentAccount current) : 
     private Guid RestaurantId => current.RequireUser().RestaurantId;
 
     [HttpGet("api/staff/menu")]
-    public async Task<IActionResult> Get(CancellationToken ct) => Ok(await menus.ReadAsync(RestaurantId, ct));
+    public async Task<IActionResult> Get(CancellationToken ct) =>
+        Ok(await menus.ReadAsync(RestaurantId, ct));
 
     [HttpPatch("api/staff/menu-items/{id:guid}/availability")]
-    public async Task<IActionResult> Availability(Guid id, AvailabilityInput input, CancellationToken ct) =>
-        Ok(await menus.SetAvailabilityAsync(RestaurantId, id, input.IsAvailable!.Value, ct));
+    public async Task<IActionResult> Availability(
+        Guid id,
+        AvailabilityInput input,
+        CancellationToken ct
+    ) => Ok(await menus.SetAvailabilityAsync(RestaurantId, id, input.IsAvailable!.Value, ct));
 
     [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
     [HttpPost("api/owner/menu/categories")]
@@ -25,8 +29,11 @@ public sealed class MenuController(MenuService menus, CurrentAccount current) : 
 
     [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
     [HttpPut("api/owner/menu/categories/{id:guid}")]
-    public async Task<IActionResult> UpdateCategory(Guid id, CategoryInput input, CancellationToken ct) =>
-        Ok(await menus.SaveCategoryAsync(RestaurantId, id, input, ct));
+    public async Task<IActionResult> UpdateCategory(
+        Guid id,
+        CategoryInput input,
+        CancellationToken ct
+    ) => Ok(await menus.SaveCategoryAsync(RestaurantId, id, input, ct));
 
     [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
     [HttpDelete("api/owner/menu/categories/{id:guid}")]
@@ -43,8 +50,11 @@ public sealed class MenuController(MenuService menus, CurrentAccount current) : 
 
     [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
     [HttpPut("api/owner/menu/items/{id:guid}")]
-    public async Task<IActionResult> UpdateItem(Guid id, MenuItemInput input, CancellationToken ct) =>
-        Ok(await menus.SaveItemAsync(RestaurantId, id, input, ct));
+    public async Task<IActionResult> UpdateItem(
+        Guid id,
+        MenuItemInput input,
+        CancellationToken ct
+    ) => Ok(await menus.SaveItemAsync(RestaurantId, id, input, ct));
 
     [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
     [HttpDelete("api/owner/menu/items/{id:guid}")]
@@ -58,7 +68,9 @@ public sealed class MenuController(MenuService menus, CurrentAccount current) : 
     [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
     [HttpPut("api/owner/menu/items/{id:guid}/image")]
     public async Task<IActionResult> SetItemImage(Guid id, CancellationToken ct) =>
-        Ok(await menus.SetItemImageAsync(RestaurantId, id, Request.Body, Request.ContentLength, ct));
+        Ok(
+            await menus.SetItemImageAsync(RestaurantId, id, Request.Body, Request.ContentLength, ct)
+        );
 
     [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
     [HttpDelete("api/owner/menu/items/{id:guid}/image")]
@@ -67,6 +79,8 @@ public sealed class MenuController(MenuService menus, CurrentAccount current) : 
 
     [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
     [HttpPatch("api/owner/menu/default-language")]
-    public async Task<IActionResult> DefaultLanguage(DefaultLanguageInput input, CancellationToken ct) =>
-        Ok(await menus.SetDefaultLanguageAsync(RestaurantId, input.DefaultLanguage, ct));
+    public async Task<IActionResult> DefaultLanguage(
+        DefaultLanguageInput input,
+        CancellationToken ct
+    ) => Ok(await menus.SetDefaultLanguageAsync(RestaurantId, input.DefaultLanguage, ct));
 }

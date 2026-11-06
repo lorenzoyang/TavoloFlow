@@ -18,8 +18,12 @@ public sealed class OrderController(OrderService orders) : ControllerBase
     }
 
     [HttpGet("api/public/sessions/{id:guid}/orders")]
-    public async Task<IActionResult> List(Guid id, CancellationToken ct, [FromQuery] string? cursor = null, [FromQuery] int limit = 50) =>
-        Ok(await orders.ListAsync(GuestIdentity.Require(User), id, cursor, limit, ct));
+    public async Task<IActionResult> List(
+        Guid id,
+        CancellationToken ct,
+        [FromQuery] string? cursor = null,
+        [FromQuery] int limit = 50
+    ) => Ok(await orders.ListAsync(GuestIdentity.Require(User), id, cursor, limit, ct));
 
     [HttpGet("api/public/sessions/{id:guid}/orders/by-request/{requestId:guid}")]
     public async Task<IActionResult> ByRequest(Guid id, Guid requestId, CancellationToken ct) =>

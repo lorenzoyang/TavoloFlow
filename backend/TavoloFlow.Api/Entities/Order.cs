@@ -3,7 +3,7 @@ namespace TavoloFlow.Api.Entities;
 public enum OrderStatus
 {
     New,
-    Processed
+    Processed,
 }
 
 public sealed class Order

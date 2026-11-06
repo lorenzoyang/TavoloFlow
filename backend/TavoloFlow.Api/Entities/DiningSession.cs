@@ -3,14 +3,14 @@ namespace TavoloFlow.Api.Entities;
 public enum DiningSessionStatus
 {
     Active,
-    Closed
+    Closed,
 }
 
 public enum SessionCloseReason
 {
     Paid,
     Voided,
-    Empty
+    Empty,
 }
 
 public sealed class DiningSession

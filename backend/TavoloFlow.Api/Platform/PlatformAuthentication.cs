@@ -19,8 +19,11 @@ public static class PlatformAuthentication
     public const string CookieName = "TavoloFlow.Platform";
     public static readonly TimeSpan Lifetime = TimeSpan.FromDays(30);
 
-    public static IServiceCollection AddPlatformAccounts(this IServiceCollection services,
-        IConfiguration configuration, IHostEnvironment environment)
+    public static IServiceCollection AddPlatformAccounts(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment
+    )
     {
         services.AddSingleton<IPasswordHasher<PlatformUser>, PasswordHasher<PlatformUser>>();
         services.AddSingleton<UnknownPlatformPassword>();
@@ -29,76 +32,136 @@ public static class PlatformAuthentication
         services.AddScoped<CurrentPlatformAccount>();
         services.AddScoped<PlatformCookieEvents>();
         // Platform logins get their own limiter instance and limits, resolved as a keyed service.
-        services.AddOptions<AccountRateLimitOptions>(Scheme).Bind(configuration.GetSection("PlatformRateLimits"))
-            .ValidateDataAnnotations().ValidateOnStart();
-        services.AddKeyedSingleton(Scheme, (provider, _) =>
-            new AccountRateLimiter(provider.GetRequiredService<IOptionsMonitor<AccountRateLimitOptions>>().Get(Scheme)));
-        services.AddAuthentication().AddCookie(Scheme, options =>
-        {
-            options.Cookie.Name = CookieName;
-            options.Cookie.Path = "/api/platform";
-            options.Cookie.HttpOnly = true;
-            options.Cookie.SameSite = SameSiteMode.Lax;
-            options.Cookie.SecurePolicy = BrowserSecurity.CookiePolicy(environment);
-            options.ExpireTimeSpan = Lifetime;
-            options.SlidingExpiration = false;
-            options.EventsType = typeof(PlatformCookieEvents);
-        });
-        services.AddAuthorizationBuilder().AddPolicy(Policy, policy =>
-            policy.AddAuthenticationSchemes(Scheme).RequireAuthenticatedUser().RequireRole("PLATFORM_ADMIN"));
+        services
+            .AddOptions<AccountRateLimitOptions>(Scheme)
+            .Bind(configuration.GetSection("PlatformRateLimits"))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddKeyedSingleton(
+            Scheme,
+            (provider, _) =>
+                new AccountRateLimiter(
+                    provider
+                        .GetRequiredService<IOptionsMonitor<AccountRateLimitOptions>>()
+                        .Get(Scheme)
+                )
+        );
+        services
+            .AddAuthentication()
+            .AddCookie(
+                Scheme,
+                options =>
+                {
+                    options.Cookie.Name = CookieName;
+                    options.Cookie.Path = "/api/platform";
+                    options.Cookie.HttpOnly = true;
+                    options.Cookie.SameSite = SameSiteMode.Lax;
+                    options.Cookie.SecurePolicy = BrowserSecurity.CookiePolicy(environment);
+                    options.ExpireTimeSpan = Lifetime;
+                    options.SlidingExpiration = false;
+                    options.EventsType = typeof(PlatformCookieEvents);
+                }
+            );
+        services
+            .AddAuthorizationBuilder()
+            .AddPolicy(
+                Policy,
+                policy =>
+                    policy
+                        .AddAuthenticationSchemes(Scheme)
+                        .RequireAuthenticatedUser()
+                        .RequireRole("PLATFORM_ADMIN")
+            );
         return services;
     }
 
     public static Task SignInAsync(HttpContext http, PlatformUser user, TimeProvider clock)
     {
         var now = clock.GetUtcNow();
-        var identity = new ClaimsIdentity([
-            // A separate identifier namespace also prevents cross-scheme CSRF identity collisions.
-            new Claim(ClaimTypes.NameIdentifier, $"platform:{user.Id}"),
-            new Claim(ClaimTypes.Name, user.Username), new Claim(ClaimTypes.Role, "PLATFORM_ADMIN"),
-            new Claim(StoreAuthentication.VersionClaim, user.CredentialVersion.ToString(CultureInfo.InvariantCulture))
-        ], Scheme);
-        return http.SignInAsync(Scheme, new ClaimsPrincipal(identity), new AuthenticationProperties
-        { IsPersistent = true, AllowRefresh = false, IssuedUtc = now, ExpiresUtc = now + Lifetime });
+        var identity = new ClaimsIdentity(
+            [
+                // A separate identifier namespace also prevents cross-scheme CSRF identity collisions.
+                new Claim(ClaimTypes.NameIdentifier, $"platform:{user.Id}"),
+                new Claim(ClaimTypes.Name, user.Username),
+                new Claim(ClaimTypes.Role, "PLATFORM_ADMIN"),
+                new Claim(
+                    StoreAuthentication.VersionClaim,
+                    user.CredentialVersion.ToString(CultureInfo.InvariantCulture)
+                ),
+            ],
+            Scheme
+        );
+        return http.SignInAsync(
+            Scheme,
+            new ClaimsPrincipal(identity),
+            new AuthenticationProperties
+            {
+                IsPersistent = true,
+                AllowRefresh = false,
+                IssuedUtc = now,
+                ExpiresUtc = now + Lifetime,
+            }
+        );
     }
 }
 
 public sealed class CurrentPlatformAccount
 {
     public PlatformUser? User { get; internal set; }
-    public PlatformUser RequireUser() => User ?? throw new InvalidOperationException("A platform identity is required.");
+
+    public PlatformUser RequireUser() =>
+        User ?? throw new InvalidOperationException("A platform identity is required.");
 }
 
-public sealed record PlatformIdentityResponse(Guid UserId, string Username, string Role = "PLATFORM_ADMIN")
+public sealed record PlatformIdentityResponse(
+    Guid UserId,
+    string Username,
+    string Role = "PLATFORM_ADMIN"
+)
 {
     public static PlatformIdentityResponse From(PlatformUser user) => new(user.Id, user.Username);
 }
 
-public sealed class PlatformCookieEvents(ApplicationDbContext db, CurrentPlatformAccount current) : CookieAuthenticationEvents
+public sealed class PlatformCookieEvents(ApplicationDbContext db, CurrentPlatformAccount current)
+    : CookieAuthenticationEvents
 {
     public override async Task ValidatePrincipal(CookieValidatePrincipalContext context)
     {
         var subject = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
         PlatformUser? user = null;
-        if (subject?.StartsWith("platform:", StringComparison.Ordinal) == true &&
-            Guid.TryParse(subject[9..], out var id) &&
-            int.TryParse(context.Principal?.FindFirstValue(StoreAuthentication.VersionClaim), out var version))
+        if (
+            subject?.StartsWith("platform:", StringComparison.Ordinal) == true
+            && Guid.TryParse(subject[9..], out var id)
+            && int.TryParse(
+                context.Principal?.FindFirstValue(StoreAuthentication.VersionClaim),
+                out var version
+            )
+        )
         {
-            user = await db.PlatformUsers.AsNoTracking().SingleOrDefaultAsync(u => u.Id == id, context.HttpContext.RequestAborted);
-            if (user is not { IsActive: true } || user.CredentialVersion != version ||
-                context.Principal?.FindFirstValue(ClaimTypes.Name) != user.Username ||
-                context.Principal?.FindFirstValue(ClaimTypes.Role) != "PLATFORM_ADMIN") user = null;
+            user = await db
+                .PlatformUsers.AsNoTracking()
+                .SingleOrDefaultAsync(u => u.Id == id, context.HttpContext.RequestAborted);
+            if (
+                user is not { IsActive: true }
+                || user.CredentialVersion != version
+                || context.Principal?.FindFirstValue(ClaimTypes.Name) != user.Username
+                || context.Principal?.FindFirstValue(ClaimTypes.Role) != "PLATFORM_ADMIN"
+            )
+                user = null;
         }
         if (user is null)
         {
             context.RejectPrincipal();
             await context.HttpContext.SignOutAsync(PlatformAuthentication.Scheme);
         }
-        else current.User = user;
+        else
+            current.User = user;
     }
 
     public override Task RedirectToLogin(RedirectContext<CookieAuthenticationOptions> context) =>
         ApiError.WriteAsync(context.HttpContext, 401, "UNAUTHENTICATED", "请先登录平台。");
-    public override Task RedirectToAccessDenied(RedirectContext<CookieAuthenticationOptions> context) =>
-        ApiError.WriteAsync(context.HttpContext, 403, "FORBIDDEN", "没有平台管理权限。");
+
+    public override Task RedirectToAccessDenied(
+        RedirectContext<CookieAuthenticationOptions> context
+    ) => ApiError.WriteAsync(context.HttpContext, 403, "FORBIDDEN", "没有平台管理权限。");
 }

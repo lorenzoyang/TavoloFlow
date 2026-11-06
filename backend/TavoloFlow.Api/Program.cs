@@ -17,12 +17,16 @@ var command = MaintenanceCommands.Parse(args, out var hostArgs);
 var builder = WebApplication.CreateBuilder(hostArgs);
 
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddControllers(options =>
-{
-    // Every write must carry its identity's CSRF token; every business error shares one JSON shape.
-    options.Filters.Add<CsrfValidationFilter>();
-    options.Filters.Add<ApiExceptionFilter>();
-}).ConfigureApiBehaviorOptions(options => options.InvalidModelStateResponseFactory = ApiExceptionFilter.InvalidModelState);
+builder
+    .Services.AddControllers(options =>
+    {
+        // Every write must carry its identity's CSRF token; every business error shares one JSON shape.
+        options.Filters.Add<CsrfValidationFilter>();
+        options.Filters.Add<ApiExceptionFilter>();
+    })
+    .ConfigureApiBehaviorOptions(options =>
+        options.InvalidModelStateResponseFactory = ApiExceptionFilter.InvalidModelState
+    );
 builder.Services.AddOpenApi();
 builder.Services.AddDataLayer(builder.Configuration);
 builder.Services.AddDeploymentHosting(builder.Configuration);
@@ -55,29 +59,37 @@ if (command is not null)
 }
 
 app.UseForwardedHeaders();
+
 // The container probes over HTTP. Caddy blocks this path at the public edge.
 app.UseHealthChecks("/health/ready");
 
-app.Use(async (context, next) =>
-{
-    if (context.Request.Path.StartsWithSegments("/api"))
+app.Use(
+    async (context, next) =>
     {
-        context.Response.Headers.CacheControl = "no-store";
+        if (context.Request.Path.StartsWithSegments("/api"))
+        {
+            context.Response.Headers.CacheControl = "no-store";
+        }
+        await next();
     }
-    await next();
-});
+);
+
 // Unified handling of unhandled exceptions.
-app.UseExceptionHandler(handler => handler.Run(async context =>
-{
-    var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+app.UseExceptionHandler(handler =>
+    handler.Run(async context =>
+    {
+        var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
 
-    app.Logger.LogError(exception, "Request {RequestId} failed.", context.TraceIdentifier);
+        app.Logger.LogError(exception, "Request {RequestId} failed.", context.TraceIdentifier);
 
-    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-    context.Response.Headers.CacheControl = "no-store";
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.Headers.CacheControl = "no-store";
 
-    await context.Response.WriteAsJsonAsync(ApiError.Create(context, "INTERNAL_ERROR", "服务暂时不可用，请稍后重试。"));
-}));
+        await context.Response.WriteAsJsonAsync(
+            ApiError.Create(context, "INTERNAL_ERROR", "服务暂时不可用，请稍后重试。")
+        );
+    })
+);
 
 if (app.Environment.IsDevelopment())
 {

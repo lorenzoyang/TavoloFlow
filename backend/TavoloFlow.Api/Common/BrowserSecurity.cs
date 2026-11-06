@@ -15,16 +15,20 @@ public static class BrowserSecurity
     public const string PlatformScheme = "Platform";
 
     public static string SchemeFor(PathString path) =>
-        path.StartsWithSegments("/api/platform") ? PlatformScheme :
-        path.StartsWithSegments("/api/public") ? GuestScheme : StoreScheme;
+        path.StartsWithSegments("/api/platform") ? PlatformScheme
+        : path.StartsWithSegments("/api/public") ? GuestScheme
+        : StoreScheme;
 
     // Outside Development every cookie requires HTTPS; locally the Vite proxy uses plain HTTP.
     public static CookieSecurePolicy CookiePolicy(IHostEnvironment environment) =>
         environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
 
     // Each identity module then adds its own cookie scheme and authorization policies.
-    public static IServiceCollection AddBrowserSecurity(this IServiceCollection services,
-        IConfiguration configuration, IHostEnvironment environment)
+    public static IServiceCollection AddBrowserSecurity(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment
+    )
     {
         // Protects cookies, antiforgery tokens and join codes. Without DataProtection:KeyRingPath the keys
         // live in the framework's per-user directory; losing them invalidates logins and active join codes.
@@ -36,8 +40,13 @@ public static class BrowserSecurity
         }
 
         // HttpContext.User comes from the identity that owns the path, which also scopes CSRF tokens.
-        services.AddAuthentication(DefaultScheme).AddPolicyScheme(DefaultScheme, null,
-            options => options.ForwardDefaultSelector = http => SchemeFor(http.Request.Path));
+        services
+            .AddAuthentication(DefaultScheme)
+            .AddPolicyScheme(
+                DefaultScheme,
+                null,
+                options => options.ForwardDefaultSelector = http => SchemeFor(http.Request.Path)
+            );
 
         services.AddAntiforgery(options =>
         {
@@ -48,7 +57,7 @@ public static class BrowserSecurity
             options.Cookie.SecurePolicy = CookiePolicy(environment);
         });
         services.AddSingleton<IAntiforgeryAdditionalDataProvider, BrowserCsrfScope>();
-        
+
         return services;
     }
 }
@@ -70,7 +79,11 @@ public sealed class CsrfValidationFilter(IAntiforgery antiforgery) : IAsyncAutho
     public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
         var method = context.HttpContext.Request.Method;
-        if (HttpMethods.IsGet(method) || HttpMethods.IsHead(method) || HttpMethods.IsOptions(method))
+        if (
+            HttpMethods.IsGet(method)
+            || HttpMethods.IsHead(method)
+            || HttpMethods.IsOptions(method)
+        )
         {
             return;
         }
@@ -80,8 +93,13 @@ public sealed class CsrfValidationFilter(IAntiforgery antiforgery) : IAsyncAutho
         }
         catch (AntiforgeryValidationException)
         {
-            context.Result = new BadRequestObjectResult(ApiError.Create(context.HttpContext,
-                "CSRF_VALIDATION_FAILED", "页面验证已失效，请刷新后重试。"));
+            context.Result = new BadRequestObjectResult(
+                ApiError.Create(
+                    context.HttpContext,
+                    "CSRF_VALIDATION_FAILED",
+                    "页面验证已失效，请刷新后重试。"
+                )
+            );
         }
     }
 }

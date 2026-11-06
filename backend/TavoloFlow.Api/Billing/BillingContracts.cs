@@ -7,17 +7,33 @@ using TavoloFlow.Api.Kitchen;
 namespace TavoloFlow.Api.Billing;
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record CheckoutInput([Required, Range(1, int.MaxValue)] int? ExpectedBillVersion,
-    [Required] long? ConfirmedTotalCents);
+public sealed record CheckoutInput(
+    [Required, Range(1, int.MaxValue)] int? ExpectedBillVersion,
+    [Required] long? ConfirmedTotalCents
+);
 
 // EMPTY and VOIDED closures record no payment: staff confirm a zero bill and that the guests have left.
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record CloseZeroBillInput([Required, Range(1, int.MaxValue)] int? ExpectedBillVersion,
-    [Required] long? ConfirmedTotalCents, [Required] bool? GuestsLeftConfirmed);
+public sealed record CloseZeroBillInput(
+    [Required, Range(1, int.MaxValue)] int? ExpectedBillVersion,
+    [Required] long? ConfirmedTotalCents,
+    [Required] bool? GuestsLeftConfirmed
+);
 
-public sealed record BillPage(BillSummaryResponse Summary, KitchenOrderResponse[] Orders, string? NextCursor);
-public sealed record HistoryPage(BillSummaryResponse[] Items, string? NextCursor, long TotalCount,
-    DateOnly FromDate, DateOnly ToDate, string TimeZone);
+public sealed record BillPage(
+    BillSummaryResponse Summary,
+    KitchenOrderResponse[] Orders,
+    string? NextCursor
+);
+
+public sealed record HistoryPage(
+    BillSummaryResponse[] Items,
+    string? NextCursor,
+    long TotalCount,
+    DateOnly FromDate,
+    DateOnly ToDate,
+    string TimeZone
+);
 
 public static class BillingErrors
 {

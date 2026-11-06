@@ -3,7 +3,7 @@ namespace TavoloFlow.Api.Entities;
 public enum RestaurantUserRole
 {
     Owner,
-    Staff
+    Staff,
 }
 
 public sealed class RestaurantUser

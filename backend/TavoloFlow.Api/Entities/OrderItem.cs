@@ -4,7 +4,7 @@ public enum OrderItemStatus
 {
     New,
     Ready,
-    Cancelled
+    Cancelled,
 }
 
 public sealed class OrderItem
@@ -24,6 +24,7 @@ public sealed class OrderItem
     public OrderItemStatus Status { get; set; } = OrderItemStatus.New;
     public DateTime? ReadyAt { get; set; }
     public DateTime? CancelledAt { get; set; }
+
     // Set when a waiter takes a READY item from the pass; never affects the bill.
     public DateTime? ServedAt { get; set; }
 

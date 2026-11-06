@@ -10,11 +10,21 @@ public sealed class JoinCodes(IDataProtectionProvider protection)
 {
     public const string Alphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 
-    public string Generate() => new(Enumerable.Range(0, 4)
-        .Select(_ => Alphabet[RandomNumberGenerator.GetInt32(Alphabet.Length)]).ToArray());
+    public string Generate() =>
+        new(
+            Enumerable
+                .Range(0, 4)
+                .Select(_ => Alphabet[RandomNumberGenerator.GetInt32(Alphabet.Length)])
+                .ToArray()
+        );
 
-    private IDataProtector Protector(DiningSession session) => protection.CreateProtector(
-        "TavoloFlow.Dining.JoinCode.v1", session.RestaurantId.ToString(), session.TableId.ToString()!, session.Id.ToString());
+    private IDataProtector Protector(DiningSession session) =>
+        protection.CreateProtector(
+            "TavoloFlow.Dining.JoinCode.v1",
+            session.RestaurantId.ToString(),
+            session.TableId.ToString()!,
+            session.Id.ToString()
+        );
 
     public string Encrypt(DiningSession session, string code) => Protector(session).Protect(code);
 
@@ -22,13 +32,23 @@ public sealed class JoinCodes(IDataProtectionProvider protection)
     {
         if (session.Status != DiningSessionStatus.Active || session.JoinCodeCiphertext is null)
             throw DiningErrors.SessionClosed();
-        try { return Protector(session).Unprotect(session.JoinCodeCiphertext); }
+        try
+        {
+            return Protector(session).Unprotect(session.JoinCodeCiphertext);
+        }
         catch (CryptographicException)
         {
-            throw new ApiException(503, "JOIN_CODE_UNAVAILABLE", "暂时无法读取入桌码，请联系工作人员。");
+            throw new ApiException(
+                503,
+                "JOIN_CODE_UNAVAILABLE",
+                "暂时无法读取入桌码，请联系工作人员。"
+            );
         }
     }
 
-    public bool Matches(DiningSession session, string input) => CryptographicOperations.FixedTimeEquals(
-        Encoding.UTF8.GetBytes(Read(session)), Encoding.UTF8.GetBytes(input));
+    public bool Matches(DiningSession session, string input) =>
+        CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(Read(session)),
+            Encoding.UTF8.GetBytes(input)
+        );
 }

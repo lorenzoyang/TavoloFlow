@@ -3,7 +3,7 @@ namespace TavoloFlow.Api.Entities;
 public enum RestaurantServiceStatus
 {
     Suspended,
-    Active
+    Active,
 }
 
 // Colour presets for the guest and staff pages; the platform chooses one per restaurant.
@@ -13,7 +13,7 @@ public enum RestaurantTheme
     Lacquer,
     Indigo,
     Ink,
-    Taro
+    Taro,
 }
 
 public sealed class Restaurant

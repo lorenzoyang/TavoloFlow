@@ -12,7 +12,8 @@ public sealed class TableController(TableService tables, CurrentAccount current)
     private Guid RestaurantId => current.RequireUser().RestaurantId;
 
     [HttpGet("api/staff/tables")]
-    public async Task<IActionResult> Get(CancellationToken ct) => Ok(await tables.ReadAsync(RestaurantId, ct));
+    public async Task<IActionResult> Get(CancellationToken ct) =>
+        Ok(await tables.ReadAsync(RestaurantId, ct));
 
     [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
     [HttpPost("api/owner/tables")]
@@ -26,8 +27,11 @@ public sealed class TableController(TableService tables, CurrentAccount current)
 
     [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
     [HttpPatch("api/owner/tables/{id:guid}/enabled")]
-    public async Task<IActionResult> Enabled(Guid id, TableEnabledInput input, CancellationToken ct) =>
-        Ok(await tables.SetEnabledAsync(RestaurantId, id, input.IsEnabled!.Value, ct));
+    public async Task<IActionResult> Enabled(
+        Guid id,
+        TableEnabledInput input,
+        CancellationToken ct
+    ) => Ok(await tables.SetEnabledAsync(RestaurantId, id, input.IsEnabled!.Value, ct));
 
     [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
     [HttpDelete("api/owner/tables/{id:guid}")]

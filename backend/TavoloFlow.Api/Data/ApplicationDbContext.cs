@@ -3,11 +3,13 @@ using TavoloFlow.Api.Entities;
 
 namespace TavoloFlow.Api.Data;
 
-public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
+public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+    : DbContext(options)
 {
     public DbSet<PlatformUser> PlatformUsers => Set<PlatformUser>();
     public DbSet<Restaurant> Restaurants => Set<Restaurant>();
-    public DbSet<RestaurantSubscriptionPeriod> RestaurantSubscriptionPeriods => Set<RestaurantSubscriptionPeriod>();
+    public DbSet<RestaurantSubscriptionPeriod> RestaurantSubscriptionPeriods =>
+        Set<RestaurantSubscriptionPeriod>();
     public DbSet<RestaurantUser> RestaurantUsers => Set<RestaurantUser>();
     public DbSet<RestaurantTable> RestaurantTables => Set<RestaurantTable>();
     public DbSet<MenuCategory> MenuCategories => Set<MenuCategory>();

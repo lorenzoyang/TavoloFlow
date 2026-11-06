@@ -28,54 +28,115 @@ public sealed class DemoSeederTests(PostgreSqlFixture database) : IClassFixture<
         Assert.True(restaurant.OrderingEnabled);
         Assert.True(restaurant.JoinCodeRequired);
         var users = await db.RestaurantUsers.OrderBy(x => x.Username).ToArrayAsync();
-        Assert.Equal(new[] { "demo.ramen.owner", "demo.ramen.staff" }, users.Select(x => x.Username));
+        Assert.Equal(
+            new[] { "demo.ramen.owner", "demo.ramen.staff" },
+            users.Select(x => x.Username)
+        );
         Assert.Equal(RestaurantUserRole.Owner, users[0].Role);
         Assert.Equal(RestaurantUserRole.Staff, users[1].Role);
-        Assert.All(users, user =>
-        {
-            Assert.True(user.IsActive);
-            Assert.False(user.MustChangePassword);
-            Assert.Equal(PasswordVerificationResult.Success,
-                new PasswordHasher<RestaurantUser>().VerifyHashedPassword(user, user.PasswordHash, "123456"));
-        });
+        Assert.All(
+            users,
+            user =>
+            {
+                Assert.True(user.IsActive);
+                Assert.False(user.MustChangePassword);
+                Assert.Equal(
+                    PasswordVerificationResult.Success,
+                    new PasswordHasher<RestaurantUser>().VerifyHashedPassword(
+                        user,
+                        user.PasswordHash,
+                        "123456"
+                    )
+                );
+            }
+        );
         var admin = await db.PlatformUsers.SingleAsync();
         Assert.True(admin.IsActive);
         Assert.Equal("demo.admin", admin.Username);
-        Assert.Equal(PasswordVerificationResult.Success,
-            new PasswordHasher<PlatformUser>().VerifyHashedPassword(admin, admin.PasswordHash, "123456"));
+        Assert.Equal(
+            PasswordVerificationResult.Success,
+            new PasswordHasher<PlatformUser>().VerifyHashedPassword(
+                admin,
+                admin.PasswordHash,
+                "123456"
+            )
+        );
         var tables = await db.RestaurantTables.OrderBy(x => x.TableLabel).ToArrayAsync();
-        Assert.Equal(Enumerable.Range(1, 8).Select(x => $"T{x:00}"), tables.Select(x => x.TableLabel));
+        Assert.Equal(
+            Enumerable.Range(1, 8).Select(x => $"T{x:00}"),
+            tables.Select(x => x.TableLabel)
+        );
         Assert.All(tables, table => Assert.True(table.IsEnabled));
         var categories = await db.MenuCategories.ToArrayAsync();
         Assert.Equal(4, categories.Length);
-        Assert.All(categories, category => Assert.All(new[] { category.NameZh, category.NameIt, category.NameEn },
-            value => Assert.False(string.IsNullOrWhiteSpace(value))));
+        Assert.All(
+            categories,
+            category =>
+                Assert.All(
+                    new[] { category.NameZh, category.NameIt, category.NameEn },
+                    value => Assert.False(string.IsNullOrWhiteSpace(value))
+                )
+        );
         var items = await db.MenuItems.ToArrayAsync();
         Assert.Equal(12, items.Length);
-        Assert.All(items, item =>
-        {
-            Assert.True(item.IsAvailable);
-            Assert.True(item.AllergenReviewed);
-            Assert.All(new[] { item.NameZh, item.NameIt, item.NameEn, item.DescriptionZh, item.DescriptionIt, item.DescriptionEn },
-                value => Assert.False(string.IsNullOrWhiteSpace(value)));
-        });
+        Assert.All(
+            items,
+            item =>
+            {
+                Assert.True(item.IsAvailable);
+                Assert.True(item.AllergenReviewed);
+                Assert.All(
+                    new[]
+                    {
+                        item.NameZh,
+                        item.NameIt,
+                        item.NameEn,
+                        item.DescriptionZh,
+                        item.DescriptionIt,
+                        item.DescriptionEn,
+                    },
+                    value => Assert.False(string.IsNullOrWhiteSpace(value))
+                );
+            }
+        );
         // Screens list rows by ID: categories, dishes and tables must keep the fixtures' order.
-        Assert.Equal(new[] { "Ramen", "Sides", "Drinks", "Desserts" },
-            (await db.MenuCategories.OrderBy(x => x.Id).ToArrayAsync()).Select(x => x.NameEn));
-        Assert.Equal(new[] { "tonkotsu-ramen", "shoyu-ramen", "miso-ramen", "vegan-ramen" },
-            (await db.MenuItems.OrderBy(x => x.CategoryId).ThenBy(x => x.Id).Take(4).ToArrayAsync()).Select(x => x.ItemCode));
-        Assert.Equal(Enumerable.Range(1, 8).Select(x => $"T{x:00}"),
-            (await db.RestaurantTables.OrderBy(x => x.Id).ToArrayAsync()).Select(x => x.TableLabel));
+        Assert.Equal(
+            new[] { "Ramen", "Sides", "Drinks", "Desserts" },
+            (await db.MenuCategories.OrderBy(x => x.Id).ToArrayAsync()).Select(x => x.NameEn)
+        );
+        Assert.Equal(
+            new[] { "tonkotsu-ramen", "shoyu-ramen", "miso-ramen", "vegan-ramen" },
+            (
+                await db
+                    .MenuItems.OrderBy(x => x.CategoryId)
+                    .ThenBy(x => x.Id)
+                    .Take(4)
+                    .ToArrayAsync()
+            ).Select(x => x.ItemCode)
+        );
+        Assert.Equal(
+            Enumerable.Range(1, 8).Select(x => $"T{x:00}"),
+            (await db.RestaurantTables.OrderBy(x => x.Id).ToArrayAsync()).Select(x => x.TableLabel)
+        );
         var images = await db.MenuItemImages.ToArrayAsync();
         Assert.Equal(12, images.Length);
-        Assert.All(images, image =>
-        {
-            Assert.NotEmpty(image.Content);
-            Assert.Equal(image.Id, items.Single(x => x.Id == image.MenuItemId).ImageId);
-        });
+        Assert.All(
+            images,
+            image =>
+            {
+                Assert.NotEmpty(image.Content);
+                Assert.Equal(image.Id, items.Single(x => x.Id == image.MenuItemId).ImageId);
+            }
+        );
         var period = await db.RestaurantSubscriptionPeriods.SingleAsync();
-        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow,
-            TimeZoneInfo.FindSystemTimeZoneById(restaurant.TimeZone)).DateTime);
+        var today = DateOnly.FromDateTime(
+            TimeZoneInfo
+                .ConvertTime(
+                    DateTimeOffset.UtcNow,
+                    TimeZoneInfo.FindSystemTimeZoneById(restaurant.TimeZone)
+                )
+                .DateTime
+        );
         Assert.Equal(today, period.StartsOn);
         Assert.Equal(today.AddYears(1), period.EndsOn);
         Assert.Equal(today, period.PaidOn);
@@ -85,13 +146,19 @@ public sealed class DemoSeederTests(PostgreSqlFixture database) : IClassFixture<
         Assert.False(await db.OrderItems.AnyAsync());
 
         var owner = users[0];
-        owner.PasswordHash = new PasswordHasher<RestaurantUser>().HashPassword(owner, "Changed-demo-password");
+        owner.PasswordHash = new PasswordHasher<RestaurantUser>().HashPassword(
+            owner,
+            "Changed-demo-password"
+        );
         var changedHash = owner.PasswordHash;
         db.MenuItems.Remove(items[0]);
         await db.SaveChangesAsync();
         Assert.False(await Seeder(db).SeedAsync("/fixtures-are-not-read-after-import"));
         db.ChangeTracker.Clear();
-        Assert.Equal(changedHash, (await db.RestaurantUsers.SingleAsync(x => x.Id == owner.Id)).PasswordHash);
+        Assert.Equal(
+            changedHash,
+            (await db.RestaurantUsers.SingleAsync(x => x.Id == owner.Id)).PasswordHash
+        );
         Assert.Equal(11, await db.MenuItems.CountAsync());
         Assert.Equal(11, await db.MenuItemImages.CountAsync());
         Assert.Equal(2, await db.RestaurantUsers.CountAsync());
@@ -101,18 +168,26 @@ public sealed class DemoSeederTests(PostgreSqlFixture database) : IClassFixture<
     [Theory]
     [InlineData("Production")]
     [InlineData("Staging")]
-    public async Task Seed_NotDevelopment_RejectsBeforeReadingFilesOrAccessingDatabase(string environment)
+    public async Task Seed_NotDevelopment_RejectsBeforeReadingFilesOrAccessingDatabase(
+        string environment
+    )
     {
         // No database provider: touching the database before the environment check would fail differently.
         await using var db = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            Seeder(db, environment).SeedAsync("/missing-fixtures"));
+            Seeder(db, environment).SeedAsync("/missing-fixtures")
+        );
         Assert.Equal("Demo initialization requires Development.", error.Message);
     }
 
-    private static DemoSeeder Seeder(ApplicationDbContext db, string environment = "Development") => new(db,
-        new TestEnvironment { EnvironmentName = environment }, new PasswordHasher<RestaurantUser>(),
-        new PasswordHasher<PlatformUser>(), TimeProvider.System);
+    private static DemoSeeder Seeder(ApplicationDbContext db, string environment = "Development") =>
+        new(
+            db,
+            new TestEnvironment { EnvironmentName = environment },
+            new PasswordHasher<RestaurantUser>(),
+            new PasswordHasher<PlatformUser>(),
+            TimeProvider.System
+        );
 
     private static string FindFixtures()
     {
@@ -120,7 +195,8 @@ public sealed class DemoSeederTests(PostgreSqlFixture database) : IClassFixture<
         while (directory is not null)
         {
             var root = Path.Combine(directory.FullName, "demo");
-            if (File.Exists(Path.Combine(root, "data", "menu.json"))) return root;
+            if (File.Exists(Path.Combine(root, "data", "menu.json")))
+                return root;
             directory = directory.Parent;
         }
         throw new InvalidOperationException("Demo fixture directory not found.");

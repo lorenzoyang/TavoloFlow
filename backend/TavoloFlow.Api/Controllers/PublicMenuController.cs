@@ -9,7 +9,8 @@ namespace TavoloFlow.Api.Controllers;
 public sealed class PublicMenuController(PublicMenuService menus) : ControllerBase
 {
     [HttpGet("api/public/qr/{token}/bootstrap")]
-    public async Task<IActionResult> Get(string token, CancellationToken ct) => Ok(await menus.ReadAsync(token, ct));
+    public async Task<IActionResult> Get(string token, CancellationToken ct) =>
+        Ok(await menus.ReadAsync(token, ct));
 
     // Every upload gets a new id, so a URL never changes content and browsers may keep it for a year.
     // Program.cs marks /api responses no-store first; a successful read replaces that, and Caddy passes it on.

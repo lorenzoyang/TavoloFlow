@@ -10,9 +10,18 @@ public sealed record CategoryInput(string? NameZh, string? NameIt, string? NameE
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record MenuItemInput(
-    Guid CategoryId, string? ItemCode, string? NameZh, string? NameIt, string? NameEn,
-    string? DescriptionZh, string? DescriptionIt, string? DescriptionEn,
-    long PriceCents, string[]? AllergenCodes, bool AllergenReviewed);
+    Guid CategoryId,
+    string? ItemCode,
+    string? NameZh,
+    string? NameIt,
+    string? NameEn,
+    string? DescriptionZh,
+    string? DescriptionIt,
+    string? DescriptionEn,
+    long PriceCents,
+    string[]? AllergenCodes,
+    bool AllergenReviewed
+);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record AvailabilityInput([Required] bool? IsAvailable);
@@ -27,54 +36,113 @@ public sealed record CategoryResponse(Guid Id, string? NameZh, string? NameIt, s
 }
 
 public sealed record MenuItemResponse(
-    Guid Id, Guid CategoryId, string? ItemCode, string? NameZh, string? NameIt, string? NameEn,
-    string? DescriptionZh, string? DescriptionIt, string? DescriptionEn,
-    long PriceCents, string[] AllergenCodes, bool AllergenReviewed, bool IsAvailable, Guid? ImageId)
+    Guid Id,
+    Guid CategoryId,
+    string? ItemCode,
+    string? NameZh,
+    string? NameIt,
+    string? NameEn,
+    string? DescriptionZh,
+    string? DescriptionIt,
+    string? DescriptionEn,
+    long PriceCents,
+    string[] AllergenCodes,
+    bool AllergenReviewed,
+    bool IsAvailable,
+    Guid? ImageId
+)
 {
-    public static MenuItemResponse From(MenuItem item) => new(item.Id, item.CategoryId, item.ItemCode,
-        item.NameZh, item.NameIt, item.NameEn, item.DescriptionZh, item.DescriptionIt, item.DescriptionEn,
-        item.PriceCents, item.AllergenCodes, item.AllergenReviewed, item.IsAvailable, item.ImageId);
+    public static MenuItemResponse From(MenuItem item) =>
+        new(
+            item.Id,
+            item.CategoryId,
+            item.ItemCode,
+            item.NameZh,
+            item.NameIt,
+            item.NameEn,
+            item.DescriptionZh,
+            item.DescriptionIt,
+            item.DescriptionEn,
+            item.PriceCents,
+            item.AllergenCodes,
+            item.AllergenReviewed,
+            item.IsAvailable,
+            item.ImageId
+        );
 }
 
 public sealed record DefaultLanguageResponse(string DefaultLanguage);
+
 public sealed record AllergenOption(string Code, string Label, string Description);
+
 public sealed record MenuResponse(
-    Guid RestaurantId, string DefaultLanguage, string[] AvailableLanguages,
-    CategoryResponse[] Categories, MenuItemResponse[] Items, IReadOnlyList<AllergenOption> Allergens);
+    Guid RestaurantId,
+    string DefaultLanguage,
+    string[] AvailableLanguages,
+    CategoryResponse[] Categories,
+    MenuItemResponse[] Items,
+    IReadOnlyList<AllergenOption> Allergens
+);
 
 // Anonymous QR bootstrap: entrance state plus the menu, never join codes, orders or accounts.
-public sealed record PublicRestaurantResponse(Guid Id, string Name, string CurrencyCode, string DefaultLanguage,
-    string ServiceStatus, bool OrderingEnabled, bool JoinCodeRequired, string Theme);
+public sealed record PublicRestaurantResponse(
+    Guid Id,
+    string Name,
+    string CurrencyCode,
+    string DefaultLanguage,
+    string ServiceStatus,
+    bool OrderingEnabled,
+    bool JoinCodeRequired,
+    string Theme
+);
+
 public sealed record PublicTableResponse(Guid Id, string TableLabel, bool IsEnabled);
-public sealed record PublicMenuContent(string[] AvailableLanguages, CategoryResponse[] Categories, MenuItemResponse[] Items);
-public sealed record PublicMenuResponse(PublicRestaurantResponse Restaurant, PublicTableResponse Table,
-    Guid? ActiveSessionId, PublicMenuContent Menu);
+
+public sealed record PublicMenuContent(
+    string[] AvailableLanguages,
+    CategoryResponse[] Categories,
+    MenuItemResponse[] Items
+);
+
+public sealed record PublicMenuResponse(
+    PublicRestaurantResponse Restaurant,
+    PublicTableResponse Table,
+    Guid? ActiveSessionId,
+    PublicMenuContent Menu
+);
 
 public static class MenuErrors
 {
-    public static ApiException NotFound() => new(404, "MENU_RESOURCE_NOT_FOUND", "分类或菜品不存在，请刷新菜单。");
-    public static ApiException ImageInvalid() => new(400, "IMAGE_INVALID", "无法读取该图片，请上传 JPG、PNG 或 WebP 格式的照片。");
-    public static ApiException ImageTooLarge() => new(413, "IMAGE_TOO_LARGE", "图片太大，请上传不超过 15 MB、约 5000 万像素以内的照片。");
+    public static ApiException NotFound() =>
+        new(404, "MENU_RESOURCE_NOT_FOUND", "分类或菜品不存在，请刷新菜单。");
+
+    public static ApiException ImageInvalid() =>
+        new(400, "IMAGE_INVALID", "无法读取该图片，请上传 JPG、PNG 或 WebP 格式的照片。");
+
+    public static ApiException ImageTooLarge() =>
+        new(413, "IMAGE_TOO_LARGE", "图片太大，请上传不超过 15 MB、约 5000 万像素以内的照片。");
+
     public static ApiException ImageNotFound() => new(404, "MENU_IMAGE_NOT_FOUND", "图片不存在。");
 }
 
 public static class MenuAllergens
 {
     // Application codes, based on the EU 14 categories; these are not a legal certification.
-    public static readonly IReadOnlyList<AllergenOption> Options = Array.AsReadOnly<AllergenOption>([
-        new("GLUTEN", "含麸质谷物", "例如小麦、黑麦、大麦、燕麦及其制品"),
-        new("CRUSTACEANS", "甲壳类", "例如虾、蟹、龙虾及其制品"),
-        new("EGGS", "蛋", "蛋及其制品"),
-        new("FISH", "鱼", "鱼及其制品"),
-        new("PEANUTS", "花生", "花生及其制品"),
-        new("SOY", "大豆", "大豆及其制品"),
-        new("MILK", "奶", "奶及其制品，包括乳糖"),
-        new("NUTS", "坚果", "例如杏仁、榛子、核桃、腰果及其制品"),
-        new("CELERY", "芹菜", "芹菜及其制品"),
-        new("MUSTARD", "芥末", "芥末及其制品"),
-        new("SESAME", "芝麻", "芝麻及其制品"),
-        new("SULPHITES", "二氧化硫及亚硫酸盐", "以总二氧化硫计，浓度超过 10 mg/kg 或 10 mg/L"),
-        new("LUPIN", "羽扇豆", "羽扇豆及其制品"),
-        new("MOLLUSCS", "软体动物", "例如贻贝、牡蛎、鱿鱼、蜗牛及其制品")
-    ]);
+    public static readonly IReadOnlyList<AllergenOption> Options =
+        Array.AsReadOnly<AllergenOption>([
+            new("GLUTEN", "含麸质谷物", "例如小麦、黑麦、大麦、燕麦及其制品"),
+            new("CRUSTACEANS", "甲壳类", "例如虾、蟹、龙虾及其制品"),
+            new("EGGS", "蛋", "蛋及其制品"),
+            new("FISH", "鱼", "鱼及其制品"),
+            new("PEANUTS", "花生", "花生及其制品"),
+            new("SOY", "大豆", "大豆及其制品"),
+            new("MILK", "奶", "奶及其制品，包括乳糖"),
+            new("NUTS", "坚果", "例如杏仁、榛子、核桃、腰果及其制品"),
+            new("CELERY", "芹菜", "芹菜及其制品"),
+            new("MUSTARD", "芥末", "芥末及其制品"),
+            new("SESAME", "芝麻", "芝麻及其制品"),
+            new("SULPHITES", "二氧化硫及亚硫酸盐", "以总二氧化硫计，浓度超过 10 mg/kg 或 10 mg/L"),
+            new("LUPIN", "羽扇豆", "羽扇豆及其制品"),
+            new("MOLLUSCS", "软体动物", "例如贻贝、牡蛎、鱿鱼、蜗牛及其制品"),
+        ]);
 }

@@ -17,22 +17,32 @@ public sealed class DeploymentHostingTests
     [InlineData("10.20.0.2", "::ffff:10.20.0.2", "https", "198.51.100.7")]
     [InlineData("10.20.0.2", "10.20.0.3", "http", "10.20.0.3")]
     [InlineData(null, "10.20.0.2", "http", "10.20.0.2")]
-    public async Task ForwardedHeaders_TrustsOnlyConfiguredPeer(string? trusted, string peer,
-        string expectedScheme, string expectedIp)
+    public async Task ForwardedHeaders_TrustsOnlyConfiguredPeer(
+        string? trusted,
+        string peer,
+        string expectedScheme,
+        string expectedIp
+    )
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
-        if (trusted is not null) builder.Configuration["ReverseProxy:KnownProxies:0"] = trusted;
+        if (trusted is not null)
+            builder.Configuration["ReverseProxy:KnownProxies:0"] = trusted;
         builder.Services.AddDeploymentHosting(builder.Configuration);
         await using var app = builder.Build();
-        app.Use((context, next) =>
-        {
-            context.Connection.RemoteIpAddress = IPAddress.Parse(peer);
-            return next(context);
-        });
+        app.Use(
+            (context, next) =>
+            {
+                context.Connection.RemoteIpAddress = IPAddress.Parse(peer);
+                return next(context);
+            }
+        );
         app.UseForwardedHeaders();
-        app.MapGet("/probe", (Microsoft.AspNetCore.Http.HttpContext context) =>
-            new Probe(context.Request.Scheme, context.Connection.RemoteIpAddress!.ToString()));
+        app.MapGet(
+            "/probe",
+            (Microsoft.AspNetCore.Http.HttpContext context) =>
+                new Probe(context.Request.Scheme, context.Connection.RemoteIpAddress!.ToString())
+        );
         await app.StartAsync();
         using var client = app.GetTestClient();
         client.DefaultRequestHeaders.Add("X-Forwarded-Proto", "http, https");
@@ -50,10 +60,13 @@ public sealed class ReadinessTests(PostgreSqlFixture database) : IClassFixture<P
     public async Task Readiness_ProductionHttpProbe_ReturnsNoDatabaseDetailsOrRedirect()
     {
         await using var host = new AccountTestHost(database, production: true);
-        using var browser = host.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
-        {
-            BaseAddress = new Uri("http://localhost"), AllowAutoRedirect = false
-        });
+        using var browser = host.CreateClient(
+            new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+            {
+                BaseAddress = new Uri("http://localhost"),
+                AllowAutoRedirect = false,
+            }
+        );
         var response = await browser.GetAsync("/health/ready");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("Healthy", await response.Content.ReadAsStringAsync());
@@ -64,13 +77,18 @@ public sealed class ReadinessTests(PostgreSqlFixture database) : IClassFixture<P
     public async Task Readiness_UnreachableDatabase_ReturnsServiceUnavailable()
     {
         await using var host = new AccountTestHost(database, production: true);
-        await using var unavailable = host.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-        {
-            services.AddScoped(_ => new TavoloFlow.Api.Data.ApplicationDbContext(
-                new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<TavoloFlow.Api.Data.ApplicationDbContext>()
-                    .UseNpgsql("Host=127.0.0.1;Port=1;Database=unavailable;Username=probe;Password=not-a-secret;Timeout=1")
-                    .Options));
-        }));
+        await using var unavailable = host.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.AddScoped(_ => new TavoloFlow.Api.Data.ApplicationDbContext(
+                    new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<TavoloFlow.Api.Data.ApplicationDbContext>()
+                        .UseNpgsql(
+                            "Host=127.0.0.1;Port=1;Database=unavailable;Username=probe;Password=not-a-secret;Timeout=1"
+                        )
+                        .Options
+                ));
+            })
+        );
         using var browser = unavailable.CreateClient();
         var response = await browser.GetAsync("/health/ready");
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);

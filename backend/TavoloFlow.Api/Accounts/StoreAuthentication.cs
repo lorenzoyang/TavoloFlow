@@ -21,30 +21,43 @@ public static class StoreAuthentication
     public const string PasswordChangeClaim = "must_change_password";
     public static readonly TimeSpan Lifetime = TimeSpan.FromDays(30);
 
-    public static Task SignInAsync(HttpContext context, RestaurantUser user, TimeProvider timeProvider)
+    public static Task SignInAsync(
+        HttpContext context,
+        RestaurantUser user,
+        TimeProvider timeProvider
+    )
     {
         var now = timeProvider.GetUtcNow();
         var identity = new ClaimsIdentity(
-        [
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim(ClaimTypes.Name, user.Username),
-            new Claim(ClaimTypes.Role, ApiEnum.Text(user.Role)),
-            new Claim(RestaurantClaim, user.RestaurantId.ToString()),
-            new Claim(VersionClaim, user.CredentialVersion.ToString(CultureInfo.InvariantCulture)),
-            new Claim(PasswordChangeClaim, user.MustChangePassword ? "true" : "false")
-        ], Scheme);
+            [
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new Claim(ClaimTypes.Name, user.Username),
+                new Claim(ClaimTypes.Role, ApiEnum.Text(user.Role)),
+                new Claim(RestaurantClaim, user.RestaurantId.ToString()),
+                new Claim(
+                    VersionClaim,
+                    user.CredentialVersion.ToString(CultureInfo.InvariantCulture)
+                ),
+                new Claim(PasswordChangeClaim, user.MustChangePassword ? "true" : "false"),
+            ],
+            Scheme
+        );
 
-        return context.SignInAsync(Scheme, new ClaimsPrincipal(identity), new AuthenticationProperties
-        {
-            IsPersistent = true,
-            AllowRefresh = false,
-            IssuedUtc = now,
-            ExpiresUtc = now + Lifetime
-        });
+        return context.SignInAsync(
+            Scheme,
+            new ClaimsPrincipal(identity),
+            new AuthenticationProperties
+            {
+                IsPersistent = true,
+                AllowRefresh = false,
+                IssuedUtc = now,
+                ExpiresUtc = now + Lifetime,
+            }
+        );
     }
 }
 
-// This is a set of "hooks" attached to the Store Cookie processor. 
+// This is a set of "hooks" attached to the Store Cookie processor.
 // When handling cookies, some methods of this class will be called at certain moments.
 public sealed class StoreCookieEvents(ApplicationDbContext context, CurrentAccount currentAccount)
     : CookieAuthenticationEvents
@@ -55,23 +68,37 @@ public sealed class StoreCookieEvents(ApplicationDbContext context, CurrentAccou
     {
         // When "reading", it is more convenient to use the Principal type because it will search through all its identities.
         var principal = cookieContext.Principal;
-        if (!Guid.TryParse(principal?.FindFirstValue(ClaimTypes.NameIdentifier), out var userId) ||
-            !Guid.TryParse(principal.FindFirstValue(StoreAuthentication.RestaurantClaim), out var restaurantId) ||
-            !int.TryParse(principal.FindFirstValue(StoreAuthentication.VersionClaim), out var version))
+        if (
+            !Guid.TryParse(principal?.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)
+            || !Guid.TryParse(
+                principal.FindFirstValue(StoreAuthentication.RestaurantClaim),
+                out var restaurantId
+            )
+            || !int.TryParse(
+                principal.FindFirstValue(StoreAuthentication.VersionClaim),
+                out var version
+            )
+        )
         {
             await RejectAsync(cookieContext);
             return;
         }
 
-        var user = await context.RestaurantUsers
-            .AsNoTracking()
+        var user = await context
+            .RestaurantUsers.AsNoTracking()
             .Include(user => user.Restaurant)
-            .SingleOrDefaultAsync(user => user.Id == userId && user.RestaurantId == restaurantId,
-                cookieContext.HttpContext.RequestAborted);
+            .SingleOrDefaultAsync(
+                user => user.Id == userId && user.RestaurantId == restaurantId,
+                cookieContext.HttpContext.RequestAborted
+            );
 
-        if (user is null || !user.IsActive || user.CredentialVersion != version ||
-            principal.FindFirstValue(ClaimTypes.Role) != ApiEnum.Text(user.Role) ||
-            principal.FindFirstValue(ClaimTypes.Name) != user.Username)
+        if (
+            user is null
+            || !user.IsActive
+            || user.CredentialVersion != version
+            || principal.FindFirstValue(ClaimTypes.Role) != ApiEnum.Text(user.Role)
+            || principal.FindFirstValue(ClaimTypes.Name) != user.Username
+        )
         {
             await RejectAsync(cookieContext);
             return;
@@ -84,20 +111,34 @@ public sealed class StoreCookieEvents(ApplicationDbContext context, CurrentAccou
         {
             identity.RemoveClaim(claim);
         }
-        identity.AddClaim(new Claim(StoreAuthentication.PasswordChangeClaim,
-            user.MustChangePassword ? "true" : "false"));
+        identity.AddClaim(
+            new Claim(
+                StoreAuthentication.PasswordChangeClaim,
+                user.MustChangePassword ? "true" : "false"
+            )
+        );
         currentAccount.User = user;
     }
 
     // Rewrite to return JSON; the default is to return a redirect (302).
     public override Task RedirectToLogin(RedirectContext<CookieAuthenticationOptions> context) =>
-        ApiError.WriteAsync(context.HttpContext, StatusCodes.Status401Unauthorized,
-            "UNAUTHENTICATED", "请先登录。");
+        ApiError.WriteAsync(
+            context.HttpContext,
+            StatusCodes.Status401Unauthorized,
+            "UNAUTHENTICATED",
+            "请先登录。"
+        );
 
     // Rewrite to return JSON; the default is to return a redirect (302).
-    public override Task RedirectToAccessDenied(RedirectContext<CookieAuthenticationOptions> context) =>
-        ApiError.WriteAsync(context.HttpContext, StatusCodes.Status403Forbidden,
-            "FORBIDDEN", "没有执行此操作的权限。");
+    public override Task RedirectToAccessDenied(
+        RedirectContext<CookieAuthenticationOptions> context
+    ) =>
+        ApiError.WriteAsync(
+            context.HttpContext,
+            StatusCodes.Status403Forbidden,
+            "FORBIDDEN",
+            "没有执行此操作的权限。"
+        );
 
     private static async Task RejectAsync(CookieValidatePrincipalContext context)
     {

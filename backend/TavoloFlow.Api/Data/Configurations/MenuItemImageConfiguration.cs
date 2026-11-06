@@ -23,7 +23,10 @@ internal sealed class MenuItemImageConfiguration : IEntityTypeConfiguration<Menu
         builder.HasIndex(image => image.MenuItemId).IsUnique();
 
         // Deleting a dish (CatalogDeletionService) removes its photo; order snapshots never reference it.
-        builder.HasOne<MenuItem>().WithOne()
-            .HasForeignKey<MenuItemImage>(image => image.MenuItemId).OnDelete(DeleteBehavior.Cascade);
+        builder
+            .HasOne<MenuItem>()
+            .WithOne()
+            .HasForeignKey<MenuItemImage>(image => image.MenuItemId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

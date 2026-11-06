@@ -9,7 +9,9 @@ public sealed class PasswordChangedRequirement : IAuthorizationRequirement;
 public sealed class PasswordChangedHandler : AuthorizationHandler<PasswordChangedRequirement>
 {
     protected override Task HandleRequirementAsync(
-        AuthorizationHandlerContext context, PasswordChangedRequirement requirement)
+        AuthorizationHandlerContext context,
+        PasswordChangedRequirement requirement
+    )
     {
         if (context.User.FindFirst(StoreAuthentication.PasswordChangeClaim)?.Value == "false")
         {
@@ -23,14 +25,26 @@ public sealed class AccountAuthorizationResultHandler : IAuthorizationMiddleware
 {
     private readonly AuthorizationMiddlewareResultHandler defaultHandler = new();
 
-    public Task HandleAsync(RequestDelegate next, HttpContext context, AuthorizationPolicy policy,
-        PolicyAuthorizationResult result)
+    public Task HandleAsync(
+        RequestDelegate next,
+        HttpContext context,
+        AuthorizationPolicy policy,
+        PolicyAuthorizationResult result
+    )
     {
-        if (result.Forbidden &&
-            result.AuthorizationFailure?.FailedRequirements.OfType<PasswordChangedRequirement>().Any() == true)
+        if (
+            result.Forbidden
+            && result
+                .AuthorizationFailure?.FailedRequirements.OfType<PasswordChangedRequirement>()
+                .Any() == true
+        )
         {
-            return ApiError.WriteAsync(context, StatusCodes.Status403Forbidden,
-                "PASSWORD_CHANGE_REQUIRED", "请先修改初始密码。");
+            return ApiError.WriteAsync(
+                context,
+                StatusCodes.Status403Forbidden,
+                "PASSWORD_CHANGE_REQUIRED",
+                "请先修改初始密码。"
+            );
         }
         return defaultHandler.HandleAsync(next, context, policy, result);
     }
