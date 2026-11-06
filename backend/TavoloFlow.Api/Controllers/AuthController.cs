@@ -43,6 +43,7 @@ public sealed class AuthController(
                 "用户名或密码不正确。"
             );
         await StoreAuthentication.SignInAsync(HttpContext, user, timeProvider);
+        
         return Ok(CurrentAccountResponse.From(user));
     }
 
@@ -67,6 +68,7 @@ public sealed class AuthController(
         );
         result.EnsureChanged("账号凭据已变化，请重新登录。");
         await StoreAuthentication.SignInAsync(HttpContext, user, timeProvider);
+
         return Ok(CurrentAccountResponse.From(user));
     }
 
@@ -74,6 +76,7 @@ public sealed class AuthController(
     public async Task<IActionResult> Logout()
     {
         await HttpContext.SignOutAsync(StoreAuthentication.Scheme);
+        
         return NoContent();
     }
 }

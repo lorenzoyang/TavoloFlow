@@ -46,6 +46,7 @@ public sealed class AccountAuthorizationResultHandler : IAuthorizationMiddleware
                 "请先修改初始密码。"
             );
         }
+        
         return defaultHandler.HandleAsync(next, context, policy, result);
     }
 }

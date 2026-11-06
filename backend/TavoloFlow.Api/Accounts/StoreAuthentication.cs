@@ -111,12 +111,14 @@ public sealed class StoreCookieEvents(ApplicationDbContext context, CurrentAccou
         {
             identity.RemoveClaim(claim);
         }
+
         identity.AddClaim(
             new Claim(
                 StoreAuthentication.PasswordChangeClaim,
                 user.MustChangePassword ? "true" : "false"
             )
         );
+        
         currentAccount.User = user;
     }
 

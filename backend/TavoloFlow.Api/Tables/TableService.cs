@@ -51,6 +51,7 @@ public sealed class TableService(ApplicationDbContext context, CatalogDeletionSe
         {
             throw TableErrors.LabelConflict();
         }
+        
         return new(table.Id, table.TableLabel, table.IsEnabled, "/q/" + table.QrToken, null);
     }
 

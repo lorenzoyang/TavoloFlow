@@ -12,13 +12,17 @@ public sealed record GuestIdentity(Guid RestaurantId, Guid TableId, Guid Session
         var identity = user.Identities.SingleOrDefault(x =>
             x.AuthenticationType == GuestAuthentication.Scheme
         );
+
         if (
             identity?.IsAuthenticated != true
             || !Guid.TryParse(identity.FindFirst("restaurant_id")?.Value, out var restaurant)
             || !Guid.TryParse(identity.FindFirst("table_id")?.Value, out var table)
             || !Guid.TryParse(identity.FindFirst("session_id")?.Value, out var session)
         )
+        {
             throw GuestErrors.AuthRequired();
+        }
+        
         return new(restaurant, table, session);
     }
 }

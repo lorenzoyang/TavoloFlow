@@ -29,6 +29,7 @@ public sealed class GuestController(
             HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             input.SessionId!.Value
         );
+
         if (wait is not null)
         {
             logger.LogWarning(
@@ -37,8 +38,10 @@ public sealed class GuestController(
             );
             throw ApiException.RateLimited(wait.Value, "验证过于频繁，请稍后再试。");
         }
+
         var guest = await guests.JoinAsync(token, input, ct);
         await GuestAuthentication.SignInAsync(HttpContext, guest, clock);
+        
         return Ok(new JoinResponse(guest.RestaurantId, guest.TableId, guest.SessionId));
     }
 

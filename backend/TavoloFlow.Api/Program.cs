@@ -64,7 +64,11 @@ if (command is not null)
 
 app.UseForwardedHeaders();
 
-// The container probes over HTTP. Caddy blocks this path at the public edge.
+// Docker probes this path from inside the container, over plain HTTP.
+// Caddy blocks it at the public edge: only Docker needs it, not the public.
+// This middleware comes before UseHsts and UseHttpsRedirection, so HTTPS rules never affect
+// the plain-HTTP probe, and before UseAuthentication and UseAuthorization, because the probe
+// carries no login cookie and the fallback policy would reject it with 401.
 app.UseHealthChecks("/health/ready");
 
 app.Use(
@@ -79,6 +83,8 @@ app.Use(
 );
 
 // Unified handling of unhandled exceptions.
+// Tutte le eccezioni che non sono del tipo ApiException non vengono gestite dal filter ApiException filter,
+// e i controllers non controllano le eccezioni (non catturano), quindi le eccezioni verrano propagate 
 app.UseExceptionHandler(handler =>
     handler.Run(async context =>
     {

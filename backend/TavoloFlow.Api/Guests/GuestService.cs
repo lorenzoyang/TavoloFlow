@@ -27,6 +27,7 @@ public sealed class GuestService(ApplicationDbContext db, JoinCodes codes)
             ?? throw GuestErrors.QrNotFound();
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
+
         var (restaurant, table) = await DiningEntrance.LockAsync(
             db,
             entrance.RestaurantId,
@@ -34,28 +35,43 @@ public sealed class GuestService(ApplicationDbContext db, JoinCodes codes)
             ct
         );
         if (table.QrToken != token)
+        {
             throw GuestErrors.QrNotFound();
+        }
+
         DiningEntrance.Require(restaurant, table);
+
         var session =
             await RowLocks.SessionAsync(db, restaurant.Id, input.SessionId.Value, RowLock.Share, ct)
             ?? throw DiningErrors.SessionNotFound();
+
         if (session.TableId != table.Id)
+        {
             throw DiningErrors.SessionNotFound();
+        }
         if (session.Status != DiningSessionStatus.Active)
+        {
             throw DiningErrors.SessionClosed();
+        }
         // Read under the restaurant SHARE lock: the platform switch waits until this join commits.
         if (restaurant.JoinCodeRequired)
         {
             if (!IsCode(code))
+            {
                 throw ApiException.Validation("请输入四位入桌码并确认当前用餐。");
+            }
             if (!codes.Matches(session, code))
+            {
                 throw new ApiException(
                     401,
                     "JOIN_CODE_INCORRECT",
                     "入桌码不正确，请向同桌顾客或工作人员确认。"
                 );
+            }
         }
+
         await transaction.CommitAsync(ct);
+
         return new(restaurant.Id, table.Id, session.Id);
     }
 
@@ -66,6 +82,7 @@ public sealed class GuestService(ApplicationDbContext db, JoinCodes codes)
     )
     {
         RequireTarget(guest, target);
+
         // One SQL statement gives a consistent view. Do not expose closed history to a guest.
         var state =
             await db
@@ -81,10 +98,16 @@ public sealed class GuestService(ApplicationDbContext db, JoinCodes codes)
                 })
                 .SingleOrDefaultAsync(ct)
             ?? throw DiningErrors.SessionNotFound();
+
         if (state.Status != DiningSessionStatus.Active)
+        {
             throw DiningErrors.SessionClosed();
+        }
         if (state.TableId != guest.TableId)
+        {
             throw GuestErrors.SessionMismatch();
+        }
+
         return new(
             guest.RestaurantId,
             guest.TableId,
@@ -103,7 +126,9 @@ public sealed class GuestService(ApplicationDbContext db, JoinCodes codes)
     )
     {
         RequireTarget(guest, target);
+
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
+
         var (restaurant, table) = await DiningEntrance.LockAsync(
             db,
             guest.RestaurantId,
@@ -113,13 +138,22 @@ public sealed class GuestService(ApplicationDbContext db, JoinCodes codes)
         var session =
             await RowLocks.SessionAsync(db, guest.RestaurantId, target, RowLock.Share, ct)
             ?? throw DiningErrors.SessionNotFound();
+
         if (session.Status != DiningSessionStatus.Active)
+        {
             throw DiningErrors.SessionClosed();
+        }
         if (session.TableId != guest.TableId)
+        {
             throw GuestErrors.SessionMismatch();
+        }
+
         DiningEntrance.Require(restaurant, table);
+
         var result = new JoinCodeResponse(target, codes.Read(session));
+
         await transaction.CommitAsync(ct);
+
         return result;
     }
 
@@ -129,6 +163,8 @@ public sealed class GuestService(ApplicationDbContext db, JoinCodes codes)
     private static void RequireTarget(GuestIdentity guest, Guid target)
     {
         if (guest.SessionId != target)
+        {
             throw GuestErrors.SessionMismatch();
+        }
     }
 }

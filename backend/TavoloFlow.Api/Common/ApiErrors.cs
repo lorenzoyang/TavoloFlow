@@ -5,7 +5,8 @@ using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace TavoloFlow.Api.Common;
 
-// The single JSON error body every endpoint returns: { code, message, requestId, errors, ...extensions }.
+// The single JSON error body every endpoint returns:
+// { code, message, requestId, errors, ...extensions }.
 public sealed record ApiError(
     string Code,
     string Message,
@@ -33,7 +34,8 @@ public sealed record ApiError(
     }
 }
 
-// An expected business rejection. Services throw it; ApiExceptionFilter turns it into an ApiError response,
+// An expected business rejection. Services throw it;
+// ApiExceptionFilter turns it into an ApiError response,
 // so controllers never need to know which errors a service path can raise.
 public sealed class ApiException(
     int status,
@@ -66,7 +68,9 @@ public sealed class ApiExceptionFilter : IExceptionFilter
     public void OnException(ExceptionContext context)
     {
         if (context.Exception is not ApiException error)
+        {
             return;
+        }
         if (error.RetryAfterSeconds is { } seconds)
         {
             context.HttpContext.Response.Headers.RetryAfter = seconds.ToString(
@@ -95,6 +99,7 @@ public sealed class ApiExceptionFilter : IExceptionFilter
                 entry => entry.Key,
                 entry => entry.Value!.Errors.Select(_ => "请检查字段格式和长度。").ToArray()
             );
+
         return new BadRequestObjectResult(
             ApiError.Create(context.HttpContext, "VALIDATION_FAILED", "请检查输入内容。", errors)
         );

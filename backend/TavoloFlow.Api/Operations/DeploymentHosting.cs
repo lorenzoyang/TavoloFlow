@@ -14,25 +14,30 @@ public static class DeploymentHosting
     {
         var proxies = configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? [];
         var addresses = proxies.Select(IPAddress.Parse).ToArray();
+
         services.Configure<ForwardedHeadersOptions>(options =>
         {
             // With no configured proxy, leave processing disabled. Clearing both trust lists while
             // processing is enabled would trust everyone, which must never be our fallback.
             if (addresses.Length == 0)
+            {
                 return;
+            }
             options.ForwardedHeaders =
                 ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
             options.ForwardLimit = 1;
             options.KnownIPNetworks.Clear();
             options.KnownProxies.Clear();
             foreach (var address in addresses)
+            {
                 options.KnownProxies.Add(address);
+            }
         });
         services.AddHealthChecks().AddCheck<DatabaseReadiness>("database");
+
         return services;
     }
 }
-
 
 // Only connectivity is reported. Migration remains a separate, explicit deployment operation.
 public sealed class DatabaseReadiness(ApplicationDbContext db) : IHealthCheck
