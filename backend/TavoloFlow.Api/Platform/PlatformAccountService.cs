@@ -94,7 +94,10 @@ public sealed class PlatformBootstrap(
     )
     {
         var username = AccountInput.NormalizeUsername(options.Username);
-        if (username.Length is < 1 or > 50 || !AccountInput.IsValidPassword(options.Password))
+        if (
+            !AccountInput.IsValidUsername(username)
+            || !AccountInput.IsValidPassword(options.Password)
+        )
             throw new InvalidOperationException(
                 "Configure PlatformBootstrap username (1–50) and password (6–128 nonblank characters)."
             );

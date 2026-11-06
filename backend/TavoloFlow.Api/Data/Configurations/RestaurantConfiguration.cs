@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Entities;
 
 namespace TavoloFlow.Api.Data.Configurations;
@@ -46,7 +47,7 @@ internal sealed class RestaurantConfiguration : IEntityTypeConfiguration<Restaur
         builder
             .Property(restaurant => restaurant.Name)
             .HasColumnName("name")
-            .HasMaxLength(150)
+            .HasMaxLength(InputRules.MaxRestaurantNameLength)
             .IsRequired();
 
         builder

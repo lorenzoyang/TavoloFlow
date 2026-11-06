@@ -110,10 +110,9 @@ public sealed class RestaurantAdministration(
         var staff = AccountInput.NormalizeUsername(input.StaffUsername);
         if (
             input.Id == Guid.Empty
-            || string.IsNullOrWhiteSpace(input.Name)
-            || input.Name.Trim().Length > 150
-            || owner.Length is < 1 or > 50
-            || staff.Length is < 1 or > 50
+            || !InputRules.IsRestaurantName(input.Name)
+            || !AccountInput.IsValidUsername(owner)
+            || !AccountInput.IsValidUsername(staff)
             || owner == staff
             || !InputRules.IsLanguage(input.DefaultLanguage)
         )

@@ -5,13 +5,17 @@ using TavoloFlow.Api.Entities;
 namespace TavoloFlow.Api.Accounts;
 
 public sealed record LoginRequest(
-    [Required, StringLength(50)] string Username,
-    [Required, StringLength(128)] string Password
+    [Required, StringLength(AccountInput.MaxUsernameLength)] string Username,
+    [Required, StringLength(AccountInput.MaxPasswordLength)] string Password
 );
 
 public sealed record ChangePasswordRequest(
-    [Required, StringLength(128)] string CurrentPassword,
-    [Required, StringLength(128, MinimumLength = 6)] string NewPassword
+    [Required, StringLength(AccountInput.MaxPasswordLength)] string CurrentPassword,
+    [
+        Required,
+        StringLength(AccountInput.MaxPasswordLength, MinimumLength = AccountInput.MinPasswordLength)
+    ]
+        string NewPassword
 );
 
 public sealed record CurrentAccountResponse(
@@ -38,10 +42,19 @@ public sealed record CurrentAccountResponse(
 
 public static class AccountInput
 {
+    public const int MaxUsernameLength = 50;
+    public const int MinPasswordLength = 6;
+    public const int MaxPasswordLength = 128;
+
     public static string NormalizeUsername(string username) => username.Trim().ToLowerInvariant();
 
+    public static bool IsValidUsername(string? username) =>
+        !string.IsNullOrWhiteSpace(username)
+        && NormalizeUsername(username).Length <= MaxUsernameLength;
+
     public static bool IsValidPassword(string password) =>
-        password.Length is >= 6 and <= 128 && !string.IsNullOrWhiteSpace(password);
+        password.Length is >= MinPasswordLength and <= MaxPasswordLength
+        && !string.IsNullOrWhiteSpace(password);
 
     public static void EnsureValidNewPassword(string password)
     {

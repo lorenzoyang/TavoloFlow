@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Entities;
 
@@ -41,10 +42,9 @@ public sealed class DevelopmentAccountSeeder(
         var staffName = AccountInput.NormalizeUsername(options.Staff.Username);
         if (
             options.RestaurantId == Guid.Empty
-            || string.IsNullOrWhiteSpace(options.RestaurantName)
-            || options.RestaurantName.Trim().Length > 150
-            || ownerName.Length is < 1 or > 50
-            || staffName.Length is < 1 or > 50
+            || !InputRules.IsRestaurantName(options.RestaurantName)
+            || !AccountInput.IsValidUsername(ownerName)
+            || !AccountInput.IsValidUsername(staffName)
             || ownerName == staffName
             || !AccountInput.IsValidPassword(options.Owner.Password)
             || !AccountInput.IsValidPassword(options.Staff.Password)
@@ -59,6 +59,7 @@ public sealed class DevelopmentAccountSeeder(
         await using var transaction = await context.Database.BeginTransactionAsync(
             cancellationToken
         );
+
         // Serialize concurrent initializations; the unique constraints remain the final safeguard.
         await context.Database.ExecuteSqlRawAsync(
             "SELECT pg_advisory_xact_lock(726186210001)",

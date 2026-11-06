@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
+using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Entities;
 
@@ -8,10 +9,10 @@ namespace TavoloFlow.Api.Platform;
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record CreateRestaurantInput(
     Guid Id,
-    [Required, StringLength(150)] string Name,
+    [Required, StringLength(InputRules.MaxRestaurantNameLength)] string Name,
     [Required, RegularExpression("^(zh|it|en)$")] string DefaultLanguage,
-    [Required, StringLength(50)] string OwnerUsername,
-    [Required, StringLength(50)] string StaffUsername,
+    [Required, StringLength(AccountInput.MaxUsernameLength)] string OwnerUsername,
+    [Required, StringLength(AccountInput.MaxUsernameLength)] string StaffUsername,
     [StringLength(500)] string? OwnerContact = null,
     long? DefaultAnnualFeeCents = null,
     InitialSubscriptionPeriod? InitialPeriod = null,

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Entities;
 
 namespace TavoloFlow.Api.Data.Configurations;
@@ -23,7 +24,7 @@ internal sealed class PlatformUserConfiguration : IEntityTypeConfiguration<Platf
         builder
             .Property(user => user.Username)
             .HasColumnName("username")
-            .HasMaxLength(50)
+            .HasMaxLength(AccountInput.MaxUsernameLength)
             .IsRequired();
 
         builder

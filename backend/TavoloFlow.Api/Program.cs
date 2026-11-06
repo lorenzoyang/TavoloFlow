@@ -20,10 +20,14 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder
     .Services.AddControllers(options =>
     {
-        // Every write must carry its identity's CSRF token; every business error shares one JSON shape.
+        // Every write must carry its identity's CSRF token;
         options.Filters.Add<CsrfValidationFilter>();
+        // every business error shares one JSON shape.
         options.Filters.Add<ApiExceptionFilter>();
     })
+    // If the request body is malformed (bad GUID, unknown JSON field...), [ApiController] rejects it
+    // with its own 400 before the action runs, and our exception filter never sees it.
+    // This makes that automatic response use the same ApiError JSON as every other error.
     .ConfigureApiBehaviorOptions(options =>
         options.InvalidModelStateResponseFactory = ApiExceptionFilter.InvalidModelState
     );

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
@@ -20,16 +21,22 @@ public sealed class DemoSeeder(
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
-        UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
     };
 
     public async Task<bool> SeedAsync(string root, CancellationToken ct = default)
     {
         if (!environment.IsDevelopment())
+        {
             throw new InvalidOperationException("Demo initialization requires Development.");
-        // This local fixture is imported once. Existing business data is never repaired or overwritten.
+        }
+
+        // This local fixture is imported once.
+        // Existing business data is never repaired or overwritten.
         if (await db.Restaurants.AnyAsync(ct) || await db.PlatformUsers.AnyAsync(ct))
+        {
             return false;
+        }
 
         var restaurantData = await ReadAsync<DemoRestaurant>(root, "restaurant.json", ct);
         var accounts = await ReadAsync<DemoAccounts>(root, "accounts.json", ct);
@@ -51,8 +58,10 @@ public sealed class DemoSeeder(
             DefaultAnnualFeeCents = restaurantData.AnnualFeeCents,
         };
 
-        // Menus and table lists sort rows by ID, so IDs that grow in file order keep the fixtures' order on
-        // screen (random IDs would shuffle categories, dishes and tables). Photo IDs stay random on purpose.
+        // Menus and table lists sort rows by ID,
+        // so IDs that grow in file order keep the fixtures' order on
+        // screen (random IDs would shuffle categories, dishes and tables).
+        // Photo IDs stay random on purpose.
         var idTime = clock.GetUtcNow();
         Guid NextId() => Guid.CreateVersion7(idTime = idTime.AddMilliseconds(1));
 
@@ -73,8 +82,11 @@ public sealed class DemoSeeder(
                 };
             }
         );
+
         var images = new List<MenuItemImage>();
-        // Decode all images before opening the write transaction, just like ordinary image uploads.
+
+        // Decode all images before opening the write transaction,
+        // just like ordinary image uploads.
         foreach (var item in menu.Items)
         {
             var category = categories[item.Category];
@@ -84,9 +96,12 @@ public sealed class DemoSeeder(
                 || item.Image.Contains('\\')
                 || !item.Image.EndsWith(".webp", StringComparison.Ordinal)
             )
+            {
                 throw new InvalidOperationException(
                     "Demo image names must be WebP filenames without directories."
                 );
+            }
+
             var content = MenuValidation.Normalize(
                 new MenuItemInput(
                     category.Id,
@@ -102,6 +117,7 @@ public sealed class DemoSeeder(
                     item.AllergenReviewed
                 )
             );
+
             await using var stream = File.OpenRead(Path.Combine(root, "images", item.Image));
             var bytes = await MenuImages.EncodeAsync(stream, stream.Length, ct);
             var imageId = Guid.NewGuid();
@@ -123,6 +139,7 @@ public sealed class DemoSeeder(
                 IsAvailable = item.IsAvailable,
                 ImageId = imageId,
             };
+
             restaurant.MenuItems.Add(entity);
             images.Add(
                 new MenuItemImage
@@ -135,9 +152,13 @@ public sealed class DemoSeeder(
         }
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
+
         foreach (var category in categories.Values)
+        {
             restaurant.MenuCategories.Add(category);
+        }
         foreach (var table in tables)
+        {
             restaurant.Tables.Add(
                 new RestaurantTable
                 {
@@ -147,9 +168,12 @@ public sealed class DemoSeeder(
                     QrToken = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32)),
                 }
             );
+        }
+
         restaurant.Users.Add(CreateUser(accounts.Owner, RestaurantUserRole.Owner));
         restaurant.Users.Add(CreateUser(accounts.Staff, RestaurantUserRole.Staff));
         db.Restaurants.Add(restaurant);
+
         var admin = new PlatformUser
         {
             Id = Guid.NewGuid(),
@@ -158,6 +182,7 @@ public sealed class DemoSeeder(
         };
         admin.PasswordHash = platformHasher.HashPassword(admin, accounts.Admin.Password);
         db.PlatformUsers.Add(admin);
+
         var today = DateOnly.FromDateTime(
             TimeZoneInfo
                 .ConvertTime(
@@ -166,6 +191,7 @@ public sealed class DemoSeeder(
                 )
                 .DateTime
         );
+
         db.RestaurantSubscriptionPeriods.Add(
             new RestaurantSubscriptionPeriod
             {
@@ -178,10 +204,12 @@ public sealed class DemoSeeder(
                 PaidOn = today,
             }
         );
-        await db.SaveChangesAsync(ct);
+
         db.MenuItemImages.AddRange(images);
         await db.SaveChangesAsync(ct);
+
         await transaction.CommitAsync(ct);
+
         return true;
     }
 
@@ -196,12 +224,14 @@ public sealed class DemoSeeder(
             MustChangePassword = false,
         };
         user.PasswordHash = storeHasher.HashPassword(user, account.Password);
+
         return user;
     }
 
     private static async Task<T> ReadAsync<T>(string root, string file, CancellationToken ct)
     {
         await using var stream = File.OpenRead(Path.Combine(root, "data", file));
+
         return await JsonSerializer.DeserializeAsync<T>(stream, JsonOptions, ct)
             ?? throw new InvalidOperationException($"Empty demo fixture: {file}.");
     }
@@ -212,13 +242,14 @@ public sealed class DemoSeeder(
         if (
             all.Any(x =>
                 x is null
-                || string.IsNullOrWhiteSpace(x.Username)
-                || AccountInput.NormalizeUsername(x.Username).Length > 50
+                || !AccountInput.IsValidUsername(x.Username)
                 || !AccountInput.IsValidPassword(x.Password)
             )
             || AccountInput.NormalizeUsername(accounts.Owner.Username)
                 == AccountInput.NormalizeUsername(accounts.Staff.Username)
         )
+        {
             throw new InvalidOperationException("Invalid demo account configuration.");
+        }
     }
 }

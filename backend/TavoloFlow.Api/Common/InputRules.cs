@@ -5,6 +5,8 @@ namespace TavoloFlow.Api.Common;
 
 public static class InputRules
 {
+    public const int MaxRestaurantNameLength = 150;
+
     // JavaScript's Number.MAX_SAFE_INTEGER: the browser must represent every amount in cents exactly.
     public const long MaxSafeCents = 9_007_199_254_740_991;
 
@@ -13,6 +15,9 @@ public static class InputRules
 
     public static bool IsLanguage([NotNullWhen(true)] string? value) =>
         value is "zh" or "it" or "en";
+
+    public static bool IsRestaurantName(string? name) =>
+        !string.IsNullOrWhiteSpace(name) && name.Trim().Length <= MaxRestaurantNameLength;
 
     // Optional text fields store blank input as NULL.
     public static string? TrimToNull(string? value) =>
