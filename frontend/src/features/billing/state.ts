@@ -86,13 +86,6 @@ export function closureRequest(confirmation: Confirmation) {
 
 // Recovery has no write body: the only possible automatic operation is a read of the original visit.
 export const recoveryPath = (action: PendingClosure) => `/api/staff/sessions/${action.sessionId}`;
-export const canAcceptResult = (
-  mounted: boolean,
-  started: number,
-  current: number,
-  aborted: boolean,
-  sameIdentity: boolean,
-) => mounted && started === current && !aborted && sameIdentity;
 
 export type HistoryFilters = {
   fromDate?: string;

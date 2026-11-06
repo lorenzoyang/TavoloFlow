@@ -14,6 +14,7 @@ import {
 import { staffMessages } from "@/lib/staff-messages";
 import { useAlertSound } from "@/lib/useAlertSound";
 import { onLifecycleChange, useLiveView } from "@/lib/useLiveView";
+import { useOperations } from "@/lib/useOperations";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { uniqueBy } from "@/lib/utils";
 import { markServed, passKey, readPass, type PassItem, type PassPage } from "./api";
@@ -28,21 +29,21 @@ const settled = new Set([
   "SESSION_NOT_FOUND",
 ]);
 
+// The pass screen: polls the dishes that are ready but not yet served, chimes when a new one is ready
+// and marks a dish served. Serving is harmless to repeat, so it persists no pending marker.
 export function usePass(account: CurrentAccount) {
   const client = useQueryClient();
   const language = useStaffLanguage();
   const m = passMessages[language];
-  const view = useLiveView();
-  const [openedAt] = useState(Date.now);
-  const [notice, setNotice] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState<string[]>([]);
   const { restaurantId, userId, role } = account;
   const key = useMemo(() => passKey({ restaurantId, userId }), [restaurantId, userId]);
-  const { play, ...sound } = useAlertSound("tavoloflow:pass-sound", passChime);
-  const mounted = useRef(false);
-  const operations = useRef(new Map<string, AbortController>());
-  const baseline = useRef<WatermarkBaseline>(null);
+  const sameAccount = useCallback(
+    () => isSameAccount(client, { restaurantId, userId, role }),
+    [client, restaurantId, userId, role],
+  );
+
+  const view = useLiveView();
+  const [openedAt] = useState(Date.now);
   const query = useInfiniteQuery({
     queryKey: key,
     initialPageParam: null as string | null,
@@ -68,29 +69,26 @@ export function usePass(account: CurrentAccount) {
     query.isError,
   );
 
-  const sameAccount = useCallback(
-    () => isSameAccount(client, { restaurantId, userId, role }),
-    [client, restaurantId, userId, role],
-  );
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState<string[]>([]);
+  const { play, ...sound } = useAlertSound("tavoloflow:pass-sound", passChime);
+  const baseline = useRef<WatermarkBaseline>(null);
+  const ops = useOperations();
+
   const refresh = useCallback(() => client.invalidateQueries({ queryKey: key }), [client, key]);
 
   useEffect(() => {
-    mounted.current = true;
-    const controllers = operations.current;
     // Late write responses are discarded on lifecycle changes; the refreshed list shows what happened.
     const stop = onLifecycleChange(() => {
-      controllers.forEach((controller) => controller.abort());
-      controllers.clear();
+      ops.cancelAll();
       setBusy([]);
     });
     return () => {
-      mounted.current = false;
       stop();
-      controllers.forEach((controller) => controller.abort());
-      controllers.clear();
       void client.cancelQueries({ queryKey: key });
     };
-  }, [client, key]);
+  }, [ops, client, key]);
 
   useEffect(() => {
     let alive = true;
@@ -119,15 +117,15 @@ export function usePass(account: CurrentAccount) {
   // No pending marker is persisted: the write only applies to a READY dish not yet served, so a repeat
   // is harmless, and the list itself answers whether a lost request went through.
   async function serve(item: PassItem) {
-    if (!fresh || operations.current.has(item.id) || !sameAccount()) return;
-    const controller = new AbortController();
-    operations.current.set(item.id, controller);
-    const current = () => mounted.current && !controller.signal.aborted && sameAccount();
+    if (!fresh || !sameAccount()) return;
+    const op = ops.start(item.id);
+    if (!op) return;
+    const current = () => op.isCurrent() && sameAccount();
     const table = staffMessages[language].table(item.tableLabel);
     const label = `${table} · ${displayName(item, item.defaultLanguage, language).text} ×${item.quantity}`;
     setBusy((ids) => [...ids, item.id]);
     try {
-      await markServed(item, withTimeout(controller.signal));
+      await markServed(item, withTimeout(op.signal));
       if (!current()) return;
       // Stop older list reads that could still contain the dish before removing it.
       await client.cancelQueries({ queryKey: key });
@@ -157,8 +155,7 @@ export function usePass(account: CurrentAccount) {
       }
       void refresh();
     } finally {
-      if (operations.current.get(item.id) === controller) operations.current.delete(item.id);
-      if (mounted.current) setBusy((ids) => ids.filter((id) => id !== item.id));
+      if (op.finish()) setBusy((ids) => ids.filter((id) => id !== item.id));
     }
   }
 

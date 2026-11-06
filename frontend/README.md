@@ -35,6 +35,22 @@ Store, Guest, Platform and anonymous requests use separate helpers in `lib/api.t
 reads omit credentials. Protected query keys isolate identities and restaurant/account/visit data;
 writes have no automatic retry or offline queue. The domain documents describe their recovery rules.
 
+Every hook that writes follows the same shape:
+
+- `useOperations()` (`lib/operations.ts`) tracks the requests in flight, one per key. A result may
+  apply only while `op.isCurrent()`. A lifecycle change calls `cancelAll()`, and unmounting cancels
+  everything. `op.finish()` says whether the hook may still clear the busy state it set.
+- Before a POST whose result may be lost, the hook saves a minimal marker in `sessionStorage` and
+  later checks it by GET. Kitchen and billing do this with `usePendingMarkers()`; the floor, cart
+  and platform management keep a single marker of their own.
+- After a service write, `invalidateStoreViews()` (`lib/store-views.ts`) refreshes the other store
+  pages it affects, such as the floor, bill or kitchen.
+
+Inside hooks, code follows one order: identity and copy, server data, local state, in-flight work,
+helpers, effects, actions, then the returned object. Short names recur in every feature: `m` is
+the feature's messages in the current language, `c` the shared staff messages, `ops` the operation
+tracker and `op` one tracked request.
+
 Node-tested pure modules use relative `.ts` imports rather than browser/React runtime dependencies or
 `@/` aliases. Other source imports use `@/`. Shared UI, touch controls, state colors, responsive detail
 views and confirmation conventions are in [AGENTS.md](../AGENTS.md#ui-conventions).

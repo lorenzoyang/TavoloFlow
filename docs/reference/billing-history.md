@@ -136,7 +136,8 @@ Sources: [BillingController](../../backend/TavoloFlow.Api/Controllers/BillingCon
 [BillingService](../../backend/TavoloFlow.Api/Billing/BillingService.cs),
 [summary projection](../../backend/TavoloFlow.Api/Dining/SessionSummaries.cs),
 [bill hook](../../frontend/src/features/billing/useBill.ts),
-[closure hook](../../frontend/src/features/billing/useClosure.ts).
+[closure hook](../../frontend/src/features/billing/useClosure.ts),
+[pending markers](../../frontend/src/lib/usePendingMarkers.ts).
 
 Tests: [billing integration](../../backend/TavoloFlow.Api.Tests/BillingTests.cs) and
 [frontend confirmation/recovery](../../frontend/tests/billing.test.ts).

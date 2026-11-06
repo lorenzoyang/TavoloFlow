@@ -1,6 +1,7 @@
 import type { AccountScope } from "@/features/accounts/api";
 import type { KitchenOrder } from "@/features/kitchen/api";
 import { request } from "@/lib/api";
+import { storeKey } from "@/lib/store-views";
 import type { BillSummary, HistoryFilters } from "./state";
 
 type BillPage = {
@@ -17,10 +18,8 @@ type HistoryPage = {
   toDate: string;
   timeZone: string;
 };
-export const billingKey = (account: AccountScope) =>
-  ["billing", account.restaurantId, account.userId] as const;
-export const historyKey = (account: AccountScope) =>
-  ["history", account.restaurantId, account.userId] as const;
+export const billingKey = (account: AccountScope) => storeKey("billing", account);
+export const historyKey = (account: AccountScope) => storeKey("history", account);
 export async function readBill(
   id: string,
   history: boolean,

@@ -1,31 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  useInfiniteQuery,
-  useQuery,
-  useQueryClient,
-  type InfiniteData,
-} from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useInfiniteQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { isSameAccount } from "@/features/accounts/queries";
-import { billingKey } from "@/features/billing/api";
-import { displayName } from "@/lib/language";
 import type { OrderLine } from "@/features/orders/api";
-import { diningKey, floorKey } from "@/features/dining/api";
-import { menuQuery } from "@/features/menu/api";
-import { ApiError, errorMessage, withTimeout } from "@/lib/api";
-import {
-  syncIsFresh,
-  syncIsStalled,
-  watermarkAdvanced,
-  type WatermarkBaseline,
-} from "@/lib/live-view";
-import { isLive, onLifecycleChange } from "@/lib/useLiveView";
 import { orderChime } from "@/lib/alert-sound";
-import { useAlertSound } from "@/lib/useAlertSound";
+import { ApiError, errorMessage, withTimeout } from "@/lib/api";
+import { displayName } from "@/lib/language";
+import { syncIsFresh, syncIsStalled } from "@/lib/live-view";
 import { staffMessages } from "@/lib/staff-messages";
+import { invalidateStoreViews } from "@/lib/store-views";
+import { useAlertSound } from "@/lib/useAlertSound";
+import { isLive, onLifecycleChange, useLiveView } from "@/lib/useLiveView";
+import { useOperations } from "@/lib/useOperations";
+import { usePendingMarkers } from "@/lib/usePendingMarkers";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { uniqueBy } from "@/lib/utils";
-import { passKey } from "@/features/pass/api";
 import {
   cancelItem,
   kitchenKey,
@@ -37,71 +26,57 @@ import {
 } from "./api";
 import { kitchenMessages } from "./messages";
 import {
-  categoryFilter,
   dishGroups,
-  hiddenCategoriesKey,
   pendingKitchenKey,
-  readHiddenCategories,
   readPending,
   recoveryOutcome,
-  screenArrivals,
   type KitchenView,
-  type LineBaseline,
   type OrderStatus,
   type PendingKitchenAction,
 } from "./state";
+import { useKitchenCategories } from "./useKitchenCategories";
+import { useKitchenChime } from "./useKitchenChime";
 
+const markerOrder = (marker: PendingKitchenAction) => marker.orderId;
+
+// The kitchen queue: polls the open visits' orders, announces new ones and marks each line READY or
+// CANCELLED. Writes need a fresh view; each one is marked before its POST so that a lost result is
+// checked by GET, and one operation at a time runs per order.
 export function useKitchen(account: CurrentAccount) {
   const client = useQueryClient();
   const language = useStaffLanguage();
   const m = kitchenMessages[language];
   const c = staffMessages[language];
-  const [view, setView] = useState<KitchenView>("DISHES");
-  const status: OrderStatus = view === "PROCESSED" ? "PROCESSED" : "NEW";
-  const [active, setActive] = useState(isLive);
-  const [resumeAfter, setResumeAfter] = useState(Date.now);
-  const [switchedAt, setSwitchedAt] = useState(0);
-  const [now, setNow] = useState(Date.now);
-  const [notice, setNotice] = useState("");
-  const [error, setError] = useState("");
-  const [storageWarning, setStorageWarning] = useState(false);
-  const [busy, setBusy] = useState<string[]>([]);
-  const [writing, setWriting] = useState<string[]>([]);
-  const { play, ...sound } = useAlertSound("tavoloflow:kitchen-sound", orderChime);
   const { restaurantId, userId, role } = account;
-  const storageKey = pendingKitchenKey(restaurantId, userId);
-  const [pending, setPending] = useState<PendingKitchenAction[]>(() => {
-    try {
-      return readPending(sessionStorage.getItem(storageKey));
-    } catch {
-      return [];
-    }
-  });
-  const pendingRef = useRef(pending);
-  const mounted = useRef(false);
-  const epoch = useRef(0);
-  const operations = useRef(new Map<string, AbortController>());
-  const baseline = useRef<WatermarkBaseline>(null);
-  const lineBaseline = useRef<LineBaseline>(null);
-  const [latest, setLatest] = useState<Record<string, KitchenOrder>>({});
   const scope = useMemo(() => kitchenKey({ restaurantId, userId }), [restaurantId, userId]);
+  const sameAccount = useCallback(
+    () => isSameAccount(client, { restaurantId, userId, role }),
+    [client, restaurantId, userId, role],
+  );
+
+  // Data counts as synced only after a poll received since this page opened or last resumed.
+  const live = useLiveView();
+  const [openedAt] = useState(Date.now);
+  const resumedAt = Math.max(live.resumeAfter, openedAt);
+  const [view, setView] = useState<KitchenView>("DISHES");
+  const [switchedAt, setSwitchedAt] = useState(0);
+  const status: OrderStatus = view === "PROCESSED" ? "PROCESSED" : "NEW";
   const query = useInfiniteQuery({
     queryKey: [...scope, status],
     initialPageParam: null as string | null,
     queryFn: ({ pageParam, signal }) => readKitchen(status, pageParam, signal),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
-    enabled: active,
-    refetchInterval: active ? 10_000 : false,
+    enabled: live.active,
+    refetchInterval: live.active ? 10_000 : false,
     refetchIntervalInBackground: false,
   });
   const head = query.data?.pages[0];
-  const hasNextPage = query.hasNextPage;
-  const fresh = syncIsFresh(head?.receivedAt ?? 0, now, resumeAfter, active, query.isError);
+  const fresh = syncIsFresh(head?.receivedAt ?? 0, live.now, resumedAt, live.active, query.isError);
   const stalled = syncIsStalled(
     fresh,
-    now,
-    Math.max(resumeAfter, switchedAt),
-    active,
+    live.now,
+    Math.max(resumedAt, switchedAt),
+    live.active,
     query.isError,
   );
   // Restaurant-wide figures (pending count, last sync) come from the newest poll of any tab, so they
@@ -117,238 +92,135 @@ export function useKitchen(account: CurrentAccount) {
     [query.data, status],
   );
 
-  const hiddenKey = hiddenCategoriesKey(restaurantId);
-  const [hidden, setHidden] = useState(() => {
-    try {
-      return readHiddenCategories(localStorage.getItem(hiddenKey));
-    } catch {
-      return [];
-    }
-  });
-  const [choosing, setChoosing] = useState(false);
-  // The menu maps dishes to categories. It is read only while this screen hides some or is choosing,
-  // and refreshed slowly, because a kitchen tablet can stay in the foreground all day.
-  const menu = useQuery({
-    ...menuQuery(account),
-    enabled: active && (hidden.length > 0 || choosing),
-    refetchInterval: active && hidden.length > 0 ? 5 * 60_000 : false,
-    refetchIntervalInBackground: false,
-  });
-  const filter = useMemo(() => categoryFilter(menu.data?.items, hidden), [menu.data, hidden]);
+  const categories = useKitchenCategories(account, live.active);
+  const { filter, hidden } = categories;
 
-  const sameAccount = useCallback(
-    () => isSameAccount(client, { restaurantId, userId, role }),
-    [client, restaurantId, userId, role],
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  // Orders with any operation running (write or recovery), and those with a write running.
+  const [busy, setBusy] = useState<string[]>([]);
+  const [writing, setWriting] = useState<string[]>([]);
+  // The newest version of each order a write or recovery returned, for the cancel confirmation.
+  const [latest, setLatest] = useState<Record<string, KitchenOrder>>({});
+  const { play, ...sound } = useAlertSound("tavoloflow:kitchen-sound", orderChime);
+
+  const ops = useOperations();
+  const markers = usePendingMarkers({
+    storageKey: pendingKitchenKey(restaurantId, userId),
+    parse: readPending,
+    idOf: markerOrder,
+    recover,
+  });
+  const { recoverAll, discardStored } = markers;
+
+  // A screen hiding categories judges its own new lines only while every NEW order is loaded.
+  const screenLines = useMemo(
+    () =>
+      filter && status === "NEW" && !query.hasNextPage
+        ? orders.flatMap((order) =>
+            order.items.filter((i) => i.status === "NEW" && filter(i)).map((i) => i.id),
+          )
+        : null,
+    [filter, status, query.hasNextPage, orders],
   );
-
-  const remember = useCallback(
-    (entries: PendingKitchenAction[]) => {
-      pendingRef.current = entries;
-      setPending(entries);
-      try {
-        if (entries.length) sessionStorage.setItem(storageKey, JSON.stringify(entries));
-        else sessionStorage.removeItem(storageKey);
-      } catch {
-        setStorageWarning(true);
-      }
+  const announce = useCallback(
+    (added: number | null) => {
+      // Server arrivals are an external event, announced even when audio is disabled.
+      setNotice(added !== null ? m.screenArrivals(added) : m.arrivals(head?.pendingCount ?? 0));
+      play();
     },
-    [storageKey],
+    [m, head?.pendingCount, play],
   );
-  const forget = useCallback(
-    (id: string) => remember(pendingRef.current.filter((p) => p.orderId !== id)),
-    [remember],
-  );
+  useKitchenChime({ head, active: live.active, resumedAt, screenLines, hidden, announce });
 
-  const refresh = useCallback(async () => {
+  async function refresh() {
     await client.invalidateQueries({ queryKey: scope, refetchType: "active" });
-    void client.invalidateQueries({ queryKey: diningKey({ restaurantId, userId }) });
-    void client.invalidateQueries({ queryKey: floorKey({ restaurantId, userId }) });
-    void client.invalidateQueries({ queryKey: billingKey({ restaurantId, userId }) });
-    void client.invalidateQueries({ queryKey: passKey({ restaurantId, userId }) });
-  }, [restaurantId, userId, scope, client]);
+    invalidateStoreViews(client, account, ["dining", "floor", "billing", "pass"]);
+  }
 
-  const acceptOrder = useCallback(
-    async (order: KitchenOrder, valid: () => boolean) => {
-      // Stop older list reads before applying a newer mutation/recovery result.
-      await client.cancelQueries({ queryKey: scope });
-      if (!mounted.current || !sameAccount() || !valid()) return;
-      setLatest((values) => ({ ...values, [order.id]: order }));
-      client.setQueriesData<InfiniteData<KitchenPage>>({ queryKey: scope }, (data) =>
-        data
-          ? {
-              ...data,
-              pages: data.pages.map((page) => ({
-                ...page,
-                items: page.items.map((item) => (item.id === order.id ? order : item)),
-              })),
-            }
-          : data,
-      );
-      void refresh();
-    },
-    [scope, client, refresh, sameAccount],
-  );
-
-  const recover = useCallback(
-    async (action: PendingKitchenAction) => {
-      if (!isLive() || operations.current.has(action.orderId) || !sameAccount()) return;
-      const controller = new AbortController();
-      operations.current.set(action.orderId, controller);
-      const generation = epoch.current;
-      const current = () =>
-        mounted.current &&
-        generation === epoch.current &&
-        !controller.signal.aborted &&
-        sameAccount();
-      setBusy((ids) => [...ids, action.orderId]);
-      try {
-        const order = await readKitchenOrder(action.orderId, withTimeout(controller.signal));
-        if (!current()) return;
-        if (order.sessionId !== action.sessionId) throw new Error("Invalid recovery session");
-        await acceptOrder(order, current);
-        if (!current()) return;
-        forget(action.orderId);
-        const result = recoveryOutcome(
-          action,
-          order.items.find((i) => i.id === action.itemId)?.status,
-        );
-        setNotice(m.recovered(c.table(order.tableLabel), result));
-        setError("");
-      } catch (e) {
-        if (!current()) return;
-        if (
-          e instanceof ApiError &&
-          (e.code === "SESSION_CLOSED" || e.code === "ORDER_NOT_FOUND")
-        ) {
-          forget(action.orderId);
-          setNotice(m.recoveryClosed);
-          void refresh();
-        } else setError(errorMessage(e, m.recoveryUnknown, language));
-      } finally {
-        if (operations.current.get(action.orderId) === controller)
-          operations.current.delete(action.orderId);
-        if (mounted.current && generation === epoch.current)
-          setBusy((ids) => ids.filter((id) => id !== action.orderId));
-      }
-    },
-    [acceptOrder, forget, refresh, sameAccount, m, c, language],
-  );
-  const recoveryRef = useRef(recover);
-  useEffect(() => {
-    recoveryRef.current = recover;
-  }, [recover]);
+  // Puts an order returned by a write or recovery in place in every loaded page.
+  async function acceptOrder(order: KitchenOrder, valid: () => boolean) {
+    // Stop older list reads before applying a newer mutation/recovery result.
+    await client.cancelQueries({ queryKey: scope });
+    if (!valid()) return;
+    setLatest((values) => ({ ...values, [order.id]: order }));
+    client.setQueriesData<InfiniteData<KitchenPage>>({ queryKey: scope }, (data) =>
+      data
+        ? {
+            ...data,
+            pages: data.pages.map((page) => ({
+              ...page,
+              items: page.items.map((item) => (item.id === order.id ? order : item)),
+            })),
+          }
+        : data,
+    );
+    void refresh();
+  }
 
   useEffect(() => {
-    mounted.current = true;
-    const controllers = operations.current;
-    const check = () => {
-      epoch.current++;
-      baseline.current = null;
-      lineBaseline.current = null;
-      controllers.forEach((controller) => controller.abort());
-      controllers.clear();
+    let mounted = true;
+    const stop = onLifecycleChange(() => {
+      // Results of work started before the change no longer apply; the pending markers stay.
+      ops.cancelAll();
       setBusy([]);
       setWriting([]);
+      // Reread the queue, without letting a read started before the change land after it.
       const online = isLive();
-      setActive(online);
-      setResumeAfter(Date.now());
-      setNow(Date.now());
       void client.cancelQueries({ queryKey: scope }).then(() => {
-        if (mounted.current && online && sameAccount())
-          void client.invalidateQueries({ queryKey: scope });
+        if (mounted && online && sameAccount()) void client.invalidateQueries({ queryKey: scope });
       });
-    };
-    const recoverPending = () => {
-      if (isLive()) for (const action of pendingRef.current) void recoveryRef.current(action);
-    };
-    const initial = window.setTimeout(recoverPending, 0);
-    const recoveryTimer = window.setInterval(recoverPending, 10_000);
-    const tick = window.setInterval(() => setNow(Date.now()), 1000);
-    const stopListening = onLifecycleChange(() => {
-      check();
-      recoverPending();
+      recoverAll();
     });
     return () => {
-      mounted.current = false;
-      // epoch is an operation generation counter, not a DOM ref: invalidate all work from this mount.
-      // oxlint-disable-next-line react-hooks/exhaustive-deps
-      epoch.current++;
-      controllers.forEach((c) => c.abort());
-      controllers.clear();
-      baseline.current = null;
-      window.clearTimeout(initial);
-      window.clearInterval(recoveryTimer);
-      window.clearInterval(tick);
-      stopListening();
+      mounted = false;
+      stop();
       void client.cancelQueries({ queryKey: scope });
-      if (!sameAccount()) {
-        try {
-          sessionStorage.removeItem(storageKey);
-        } catch {
-          /* Identity-scoped memory is also discarded. */
-        }
-      }
+      if (!sameAccount()) discardStored();
     };
-  }, [scope, client, sameAccount, storageKey]);
+  }, [ops, client, scope, sameAccount, recoverAll, discardStored]);
 
-  useEffect(() => {
-    if (!head || !active || head.receivedAt < resumeAfter) return;
-    // The order watermark is restaurant-wide, so the polls of every tab share one baseline. A cached tab's
-    // older head, or another loaded page, is not a new poll.
-    if (baseline.current && head.receivedAt <= baseline.current.at) return;
-    const result = watermarkAdvanced(baseline.current, head.latestCreatedAt, head.receivedAt);
-    baseline.current = result.baseline;
-    // A screen hiding categories announces only its own new dishes, judged while every NEW order is
-    // loaded. On another tab, with further pages or without the menu it falls back to the global
-    // timestamp watermark. That may chime for other stations and is not durable event delivery.
-    const own =
-      filter && status === "NEW" && !hasNextPage
-        ? screenArrivals(
-            lineBaseline.current,
-            orders.flatMap((order) =>
-              order.items.filter((i) => i.status === "NEW" && filter(i)).map((i) => i.id),
-            ),
-            hidden.join(),
-            head.receivedAt,
-          )
-        : null;
-    lineBaseline.current = own?.baseline ?? null;
-    const added = own?.added;
-    if (added != null ? added > 0 : result.advanced) {
-      // Server arrivals are an external event, announced even when audio is disabled.
-      setNotice(added != null ? m.screenArrivals(added) : m.arrivals(head.pendingCount));
-      play();
+  async function recover(action: PendingKitchenAction) {
+    if (!isLive() || !sameAccount()) return;
+    const op = ops.start(action.orderId);
+    if (!op) return;
+    const current = () => op.isCurrent() && sameAccount();
+    setBusy((ids) => [...ids, action.orderId]);
+    try {
+      const order = await readKitchenOrder(action.orderId, withTimeout(op.signal));
+      if (!current()) return;
+      if (order.sessionId !== action.sessionId) throw new Error("Invalid recovery session");
+      await acceptOrder(order, current);
+      if (!current()) return;
+      markers.remove(action.orderId);
+      const result = recoveryOutcome(
+        action,
+        order.items.find((i) => i.id === action.itemId)?.status,
+      );
+      setNotice(m.recovered(c.table(order.tableLabel), result));
+      setError("");
+    } catch (e) {
+      if (!current()) return;
+      if (e instanceof ApiError && (e.code === "SESSION_CLOSED" || e.code === "ORDER_NOT_FOUND")) {
+        markers.remove(action.orderId);
+        setNotice(m.recoveryClosed);
+        void refresh();
+      } else setError(errorMessage(e, m.recoveryUnknown, language));
+    } finally {
+      if (op.finish()) setBusy((ids) => ids.filter((id) => id !== action.orderId));
     }
-  }, [head, active, resumeAfter, play, m, filter, status, hasNextPage, orders, hidden]);
+  }
 
   async function perform(order: KitchenOrder, item: OrderLine, kind: "ready" | "cancel") {
-    if (
-      !fresh ||
-      operations.current.has(order.id) ||
-      pendingRef.current.some((p) => p.orderId === order.id) ||
-      item.status !== "NEW" ||
-      !sameAccount()
-    )
-      return;
-    const action: PendingKitchenAction = {
-      orderId: order.id,
-      sessionId: order.sessionId,
-      kind,
-      itemId: item.id,
-    };
-    const controller = new AbortController();
-    operations.current.set(order.id, controller);
-    const generation = epoch.current;
-    const current = () =>
-      mounted.current &&
-      generation === epoch.current &&
-      !controller.signal.aborted &&
-      sameAccount();
+    if (!fresh || item.status !== "NEW" || markers.has(order.id) || !sameAccount()) return;
+    const op = ops.start(order.id);
+    if (!op) return;
+    const current = () => op.isCurrent() && sameAccount();
     setBusy((ids) => [...ids, order.id]);
     setWriting((ids) => [...ids, order.id]);
-    remember([...pendingRef.current, action]);
+    markers.add({ orderId: order.id, sessionId: order.sessionId, kind, itemId: item.id });
     try {
-      const signal = withTimeout(controller.signal);
+      const signal = withTimeout(op.signal);
       const result =
         kind === "cancel"
           ? await cancelItem(order.id, item.id, signal)
@@ -362,7 +234,7 @@ export function useKitchen(account: CurrentAccount) {
         throw new Error("Invalid item operation result");
       await acceptOrder(result, current);
       if (!current()) return;
-      forget(order.id);
+      markers.remove(order.id);
       // Feedback is replaced when the result arrives, not cleared on tap, so it does not flicker.
       setError("");
       const dish = displayName(item, order.defaultLanguage, language).text;
@@ -372,12 +244,13 @@ export function useKitchen(account: CurrentAccount) {
       if (!current()) return;
       setNotice("");
       if (e instanceof ApiError && e.status < 500) {
-        forget(order.id);
+        // A rejection is a definite answer: nothing was written, so nothing is left to recover.
+        markers.remove(order.id);
         setError(errorMessage(e, undefined, language));
         if (e.status === 409) {
           // A cancellation confirmation cannot survive the target item becoming terminal.
           try {
-            const updated = await readKitchenOrder(order.id, withTimeout(controller.signal));
+            const updated = await readKitchenOrder(order.id, withTimeout(op.signal));
             if (current()) await acceptOrder(updated, current);
           } catch {
             if (current()) void refresh();
@@ -385,8 +258,7 @@ export function useKitchen(account: CurrentAccount) {
         }
       } else setError(m.writeUnknown);
     } finally {
-      if (operations.current.get(order.id) === controller) operations.current.delete(order.id);
-      if (mounted.current && generation === epoch.current) {
+      if (op.finish()) {
         setBusy((ids) => ids.filter((id) => id !== order.id));
         setWriting((ids) => ids.filter((id) => id !== order.id));
       }
@@ -406,40 +278,24 @@ export function useKitchen(account: CurrentAccount) {
       setError("");
     },
     query,
-    orders,
-    dishes: view === "DISHES" ? dishGroups(orders, filter ?? undefined) : [],
-    hidden,
-    // Saved on every change, like the sound switch; without storage it still applies to this page.
-    setHidden: (next: string[]) => {
-      setHidden(next);
-      try {
-        if (next.length) localStorage.setItem(hiddenKey, JSON.stringify(next));
-        else localStorage.removeItem(hiddenKey);
-      } catch {
-        /* Kept for this page only. */
-      }
-    },
-    hiddenCount: menu.data
-      ? menu.data.categories.filter((category) => hidden.includes(category.id)).length
-      : hidden.length,
-    choosing,
-    setChoosing,
-    menu,
     head,
     summary,
+    orders,
+    dishes: view === "DISHES" ? dishGroups(orders, filter ?? undefined) : [],
+    categories,
     fresh,
     stalled,
-    active,
-    now,
+    active: live.active,
+    now: live.now,
     notice,
     error,
     busy,
     // Each marker is persisted before its POST, but shown only once the result is unknown (a failed or
     // timed-out request, or a reload); while the request is in flight only its ticket is locked.
-    pending: pending.filter((p) => !writing.includes(p.orderId)),
-    storageWarning,
-    ...sound,
+    pending: markers.markers.filter((p) => !writing.includes(p.orderId)),
+    storageWarning: markers.storageWarning,
     latest,
+    ...sound,
     perform,
     recover,
     refresh,

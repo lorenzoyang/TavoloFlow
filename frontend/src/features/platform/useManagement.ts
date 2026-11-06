@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ApiError, errorMessage, platformRequest, request } from "@/lib/api";
 import { isPlatformQuery, isPrivateQuery } from "@/lib/query-scope";
 import { isLive, onLifecycleChange } from "@/lib/useLiveView";
+import { useOperations } from "@/lib/useOperations";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { accountKey } from "@/features/accounts/queries";
 import { platformKey } from "./identity";
@@ -27,7 +28,10 @@ function temporaryCredentials(result: unknown): TemporaryCredential[] {
     : [];
 }
 
-// Platform pages and the OWNER's store page share the device's interface language.
+// Restaurant and account administration writes (create, reset password, enable/disable, delete) for
+// the platform pages and the OWNER's staff settings. One write runs at a time; its intent is stored
+// before sending, so a lost result is checked by GET after a reload. Platform pages and the OWNER's
+// store page share the device's interface language.
 export function useManagement(scope: "platform" | "store", userId: string, restaurantId?: string) {
   const client = useQueryClient();
   const language = useStaffLanguage();
@@ -44,11 +48,12 @@ export function useManagement(scope: "platform" | "store", userId: string, resta
   const [pending, setPending] = useState<PendingManagement | null>(initial.pending);
   const pendingRef = useRef<PendingManagement | null>(initial.pending);
   const [missingCreate, setMissingCreate] = useState(false);
+
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(initial.damaged ? m.damaged : "");
   const [secrets, setSecrets] = useState<TemporaryCredential[]>([]);
-  const epoch = useRef(0);
-  const operation = useRef<AbortController | null>(null);
+  const ops = useOperations();
+
   const sameIdentity = useCallback(() => {
     const identity = client.getQueryData<{ userId: string; restaurantId?: string }>(
       scope === "platform" ? platformKey : accountKey,
@@ -71,6 +76,7 @@ export function useManagement(scope: "platform" | "store", userId: string, resta
     },
     [key],
   );
+
   // After a delete nothing refetches here: the deleted restaurant's page would only read a 404.
   // The other pages refetch their stale queries when they mount.
   const invalidate = useCallback(
@@ -84,16 +90,16 @@ export function useManagement(scope: "platform" | "store", userId: string, resta
 
   const recover = useCallback(async () => {
     const p = pendingRef.current;
-    if (!p || operation.current || !sameIdentity() || !isLive()) return;
-    const controller = new AbortController();
-    operation.current = controller;
-    const generation = epoch.current;
+    if (!p || !sameIdentity() || !isLive()) return;
+    const op = ops.start("management");
+    if (!op) return;
+    const current = () => op.isCurrent() && sameIdentity();
     setBusy(true);
     try {
       const result = await (scope === "platform" ? platformRequest : request)<
         RestaurantDetail | ManagedAccount
-      >(recoveryUrl(scope, p), { signal: controller.signal });
-      if (controller.signal.aborted || generation !== epoch.current || !sameIdentity()) return;
+      >(recoveryUrl(scope, p), { signal: op.signal });
+      if (!current()) return;
       const feedback =
         p.kind === "reset" || p.kind === "active"
           ? m.recoveredAccount(
@@ -109,7 +115,7 @@ export function useManagement(scope: "platform" | "store", userId: string, resta
       setMessage(feedback);
       await invalidate();
     } catch (error) {
-      if (controller.signal.aborted || generation !== epoch.current || !sameIdentity()) return;
+      if (!current()) return;
       if (error instanceof ApiError && error.status === 404 && p.kind === "create") {
         setMissingCreate(true);
         setMessage(m.missingCreate);
@@ -120,35 +126,26 @@ export function useManagement(scope: "platform" | "store", userId: string, resta
         await invalidate();
       } else setMessage(errorMessage(error, m.recoverUnknown, language));
     } finally {
-      if (operation.current === controller) {
-        operation.current = null;
-        setBusy(false);
-      }
+      if (op.finish()) setBusy(false);
     }
-  }, [scope, sameIdentity, remember, invalidate, m, language]);
+  }, [scope, ops, sameIdentity, remember, invalidate, m, language]);
 
   useEffect(() => {
-    const cancel = () => {
-      epoch.current++;
-      operation.current?.abort();
-      operation.current = null;
-    };
-    const lifecycle = () => {
-      cancel();
+    const initial = window.setTimeout(() => void recover(), 0);
+    const timer = window.setInterval(() => void recover(), 15_000);
+    const stop = onLifecycleChange(() => {
+      // A late result no longer applies, and one-time passwords leave the screen.
+      ops.cancelAll();
       setBusy(false);
       setSecrets([]);
       void recover();
-    };
-    const initial = window.setTimeout(() => void recover(), 0);
-    const timer = window.setInterval(() => void recover(), 15_000);
-    const stopListening = onLifecycleChange(lifecycle);
+    });
     return () => {
-      cancel();
       window.clearTimeout(initial);
       window.clearInterval(timer);
-      stopListening();
+      stop();
     };
-  }, [key, recover]);
+  }, [ops, recover]);
 
   // The intent is stored before sending, so a lost result can be recovered by GET after a reload.
   const run = async (
@@ -156,7 +153,6 @@ export function useManagement(scope: "platform" | "store", userId: string, resta
     send: (signal: AbortSignal) => Promise<unknown>,
   ) => {
     if (
-      operation.current ||
       damaged ||
       !sameIdentity() ||
       !isLive() ||
@@ -168,32 +164,31 @@ export function useManagement(scope: "platform" | "store", userId: string, resta
         ))
     )
       return false;
+    const op = ops.start("management");
+    if (!op) return false;
     const wasUnknown = !!pendingRef.current;
     try {
       remember(action);
     } catch {
+      op.finish();
       setMessage(m.storageBlocked);
       return false;
     }
-    const controller = new AbortController();
-    operation.current = controller;
-    const generation = epoch.current;
+    const current = () => op.isCurrent() && sameIdentity();
     setBusy(true);
     setSecrets([]);
     setMessage("");
     try {
       // Direct promises deliberately keep one-time credentials out of the mutation/query cache.
-      const result = await send(controller.signal);
-      if (controller.signal.aborted || generation !== epoch.current || !sameIdentity())
-        return false;
+      const result = await send(op.signal);
+      if (!current()) return false;
       remember(null);
       setSecrets(temporaryCredentials(result ?? {}));
       setMessage(m.done);
       await invalidate(action.kind === "delete" ? "none" : "active");
       return true;
     } catch (error) {
-      if (controller.signal.aborted || generation !== epoch.current || !sameIdentity())
-        return false;
+      if (!current()) return false;
       const definitive =
         !wasUnknown &&
         error instanceof ApiError &&
@@ -209,12 +204,10 @@ export function useManagement(scope: "platform" | "store", userId: string, resta
       setMessage(errorMessage(error, m.writeUnknown, language));
       return false;
     } finally {
-      if (operation.current === controller) {
-        operation.current = null;
-        setBusy(false);
-      }
+      if (op.finish()) setBusy(false);
     }
   };
+
   return {
     run,
     recover,

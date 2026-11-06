@@ -2,6 +2,7 @@ import type { AccountScope } from "@/features/accounts/api";
 import type { Order } from "@/features/orders/api";
 import { confirmedOrder } from "@/features/orders/response";
 import { request, write } from "@/lib/api";
+import { storeKey } from "@/lib/store-views";
 import type { OrderStatus } from "./state";
 
 export type KitchenOrder = Order & {
@@ -16,8 +17,7 @@ export type KitchenPage = {
   latestCreatedAt: string | null;
   receivedAt: number;
 };
-export const kitchenKey = (account: AccountScope) =>
-  ["kitchen", account.restaurantId, account.userId] as const;
+export const kitchenKey = (account: AccountScope) => storeKey("kitchen", account);
 export async function readKitchen(
   status: OrderStatus,
   cursor: string | null,

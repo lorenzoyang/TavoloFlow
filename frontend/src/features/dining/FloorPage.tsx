@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { LayoutGrid, RefreshCw } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -15,244 +14,33 @@ import { Switch } from "@/components/ui/switch";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { ActiveBillPanel } from "@/features/billing/BillViews";
-import { tablesKey } from "@/features/tables/api";
-import { ApiError, errorMessage, withTimeout } from "@/lib/api";
 import { staffMessages } from "@/lib/staff-messages";
-import { isLive } from "@/lib/useLiveView";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
-import {
-  floorQuery,
-  openTable,
-  readFloor,
-  readStaffJoinCode,
-  sessionQuery,
-  sessionKey,
-  setAcceptingOrders,
-  type FloorTable,
-  type CodeResult,
-} from "./api";
-import {
-  parsePendingAction,
-  pendingDiningKey,
-  recoveredOpen,
-  type PendingDiningAction,
-} from "./state";
+import type { FloorTable } from "./api";
 import { SessionSummary, TableTile } from "./FloorViews";
 import { diningMessages } from "./messages";
+import { useFloor } from "./useFloor";
 
 type FloorProps = { sessionId?: string; select: (id: string) => void };
+
 function FloorContent({
   account,
-  sessionId = "",
-  select: setSelected,
+  sessionId: selected = "",
+  select,
 }: FloorProps & { account: CurrentAccount }) {
-  const client = useQueryClient();
   const language = useStaffLanguage();
   const m = diningMessages[language];
   const c = staffMessages[language];
-  const floor = useQuery(floorQuery(account));
-  const selected = sessionId;
-  const session = useQuery(sessionQuery(account, selected));
-  const key = pendingDiningKey(account.restaurantId, account.userId);
-  const [pending, setPending] = useState<PendingDiningAction | null>(() => {
-    try {
-      return parsePendingAction(sessionStorage.getItem(key));
-    } catch {
-      return null;
-    }
-  });
-  const [confirmation, setConfirmation] = useState<{ kind: "open"; table: FloorTable } | null>(
-    null,
-  );
-  const [code, setCode] = useState<CodeResult | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState("");
-  const [error, setError] = useState("");
-  const operation = useRef<AbortController | null>(null);
-  const codeEpoch = useRef(0);
-  const mounted = useRef(true);
-  const remember = useCallback(
-    (action: PendingDiningAction | null) => {
-      setPending(action);
-      try {
-        if (action) sessionStorage.setItem(key, JSON.stringify(action));
-        else sessionStorage.removeItem(key);
-      } catch {
-        /* GET recovery remains available. */
-      }
-    },
-    [key],
-  );
+  const model = useFloor(account, selected, select);
+  const { floor, session, busy, pending } = model;
 
-  useEffect(() => {
-    mounted.current = true;
-    const hide = () => {
-      codeEpoch.current++;
-      setCode(null);
-    };
-    window.addEventListener("offline", hide);
-    document.addEventListener("visibilitychange", hide);
-    return () => {
-      mounted.current = false;
-      operation.current?.abort();
-      window.removeEventListener("offline", hide);
-      document.removeEventListener("visibilitychange", hide);
-    };
-  }, []);
-  useEffect(() => {
-    // Synchronize protected display with failed/closed server state, including late reads.
-    // oxlint-disable-next-line react/set-state-in-effect
-    if (floor.isError || session.isError || session.data?.status === "CLOSED") setCode(null);
-    if (floor.isError || session.isError || session.data?.status === "CLOSED") codeEpoch.current++;
-  }, [floor.isError, session.isError, session.data?.status]);
-
-  async function refresh() {
-    await floor.refetch();
-    if (selected) await session.refetch();
-    void client.invalidateQueries({ queryKey: tablesKey(account) });
-  }
-
-  const recover = useCallback(async () => {
-    if (!pending || operation.current) return;
-    const controller = new AbortController();
-    operation.current = controller;
-    setBusy(true);
-    setError("");
-    setCode(null);
-    try {
-      if (pending.kind === "accepting") {
-        const data = await readFloor(controller.signal);
-        if (!mounted.current) return;
-        client.setQueryData(floorQuery(account).queryKey, data);
-        setNotice(m.checkedAccepting(data.orderingEnabled));
-      } else {
-        const data = await readFloor(controller.signal);
-        if (!mounted.current) return;
-        client.setQueryData(floorQuery(account).queryKey, data);
-        const table = data.tables.find((t) => t.id === pending.tableId);
-        const result = recoveredOpen(table?.session?.id);
-        if (result.kind === "active") {
-          setSelected(result.sessionId);
-          setNotice(m.foundVisit(data.joinCodeRequired));
-        } else {
-          setSelected("");
-          setNotice(table ? m.checkedFree : m.tableGone);
-        }
-      }
-      remember(null);
-    } catch (e) {
-      if (mounted.current) setError(errorMessage(e, m.recoverUnknown, language));
-    } finally {
-      operation.current = null;
-      if (mounted.current) setBusy(false);
-    }
-  }, [pending, client, account, remember, setSelected, m, language]);
-
-  useEffect(() => {
-    // Schedule restoration after mount so StrictMode's setup/cleanup probe cannot abort the only recovery.
-    const initial = window.setTimeout(() => {
-      if (pending) void recover();
-    }, 0);
-    const check = () => {
-      if (document.visibilityState === "visible") void recover();
-    };
-    window.addEventListener("online", check);
-    document.addEventListener("visibilitychange", check);
-    return () => {
-      window.clearTimeout(initial);
-      window.removeEventListener("online", check);
-      document.removeEventListener("visibilitychange", check);
-    };
-  }, [pending, recover]);
-
-  async function submit() {
-    if (!confirmation || operation.current || pending) return;
-    const action: PendingDiningAction = { kind: "open", tableId: confirmation.table.id };
-    const controller = new AbortController();
-    operation.current = controller;
-    const signal = withTimeout(controller.signal);
-    remember(action);
-    setBusy(true);
-    setError("");
-    setNotice("");
-    setCode(null);
-    try {
-      const result = await openTable(action.tableId, signal);
-      if (!mounted.current) return;
-      setSelected(result.session.sessionId);
-      client.setQueryData(sessionKey(account, result.session.sessionId), result.session);
-      if (result.joinCode && isLive())
-        setCode({ sessionId: result.session.sessionId, joinCode: result.joinCode });
-      setNotice(m.opened(!!result.joinCode));
-      remember(null);
-      void refresh();
-    } catch (e) {
-      if (!mounted.current) return;
-      if (e instanceof ApiError && e.status < 500) remember(null);
-      setError(errorMessage(e, m.openUnknown, language));
-      if (e instanceof ApiError && e.status === 409) void refresh();
-    } finally {
-      operation.current = null;
-      if (mounted.current) {
-        setBusy(false);
-        setConfirmation(null);
-      }
-    }
-  }
-
-  async function setAccepting() {
-    if (!floor.data || operation.current || pending) return;
-    const enabled = !floor.data.orderingEnabled;
-    const controller = new AbortController();
-    operation.current = controller;
-    remember({ kind: "accepting", enabled });
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      await setAcceptingOrders(enabled, withTimeout(controller.signal));
-      if (!mounted.current) return;
-      remember(null);
-      setNotice(m.acceptingSaved(enabled));
-      void refresh();
-    } catch (e) {
-      if (!mounted.current) return;
-      if (e instanceof ApiError && e.status < 500) remember(null);
-      setError(errorMessage(e, m.acceptingUnknown, language));
-    } finally {
-      operation.current = null;
-      if (mounted.current) setBusy(false);
-    }
-  }
-
-  async function viewCode() {
-    if (!selected || operation.current) return;
-    const id = selected;
-    const controller = new AbortController();
-    operation.current = controller;
-    const generation = ++codeEpoch.current;
-    setBusy(true);
-    setError("");
-    try {
-      const result = await readStaffJoinCode(id, controller.signal);
-      if (
-        mounted.current &&
-        !controller.signal.aborted &&
-        generation === codeEpoch.current &&
-        isLive()
-      )
-        setCode(result);
-    } catch (e) {
-      if (mounted.current) {
-        setCode(null);
-        setError(errorMessage(e, undefined, language));
-        void refresh();
-      }
-    } finally {
-      operation.current = null;
-      if (mounted.current) setBusy(false);
-    }
+  // Opening a table needs a human confirmation.
+  const [confirmation, setConfirmation] = useState<FloorTable | null>(null);
+  async function confirmOpen() {
+    if (!confirmation) return;
+    await model.open(confirmation);
+    setConfirmation(null);
   }
 
   const tables = floor.data?.tables ?? [];
@@ -270,7 +58,7 @@ function FloorContent({
             size="icon"
             aria-label={m.refresh}
             disabled={busy || floor.isFetching}
-            onClick={() => void refresh()}
+            onClick={() => void model.refresh()}
           >
             <RefreshCw className={cn(floor.isFetching && "animate-spin")} />
           </Button>
@@ -278,15 +66,15 @@ function FloorContent({
       />
       <div className="mb-5 space-y-3">
         {floor.data?.serviceStatus === "SUSPENDED" && <Notice tone="warning">{m.suspended}</Notice>}
-        {notice && <Notice>{notice}</Notice>}
-        {(error || floor.isError || session.isError || floor.fetchStatus === "paused") && (
-          <Notice tone="error">{error || m.readError}</Notice>
+        {model.notice && <Notice>{model.notice}</Notice>}
+        {(model.error || floor.isError || session.isError || floor.fetchStatus === "paused") && (
+          <Notice tone="error">{model.error || m.readError}</Notice>
         )}
         {pending && (
           <Notice
             tone="warning"
             action={
-              <Button disabled={busy} onClick={() => void recover()}>
+              <Button disabled={busy} onClick={() => void model.recover()}>
                 {m.verify}
               </Button>
             }
@@ -310,7 +98,7 @@ function FloorContent({
                 aria-labelledby="accepting-orders"
                 checked={floor.data.orderingEnabled}
                 disabled={writeLocked || floor.isError || floor.fetchStatus === "paused"}
-                onCheckedChange={() => void setAccepting()}
+                onCheckedChange={() => void model.toggleAccepting()}
               />
             </div>
           </div>
@@ -319,16 +107,16 @@ function FloorContent({
       <MasterDetail
         open={!!selected}
         title={session.data ? c.table(session.data.tableLabel) : m.visit}
-        onClose={() => setSelected("")}
+        onClose={() => select("")}
         detail={
           selected && (
             <div className="space-y-6">
               <SessionSummary
                 session={session.data}
                 codeRequired={floor.data?.joinCodeRequired ?? true}
-                code={code}
+                code={model.code}
                 disabled={busy || !!pending}
-                viewCode={() => void viewCode()}
+                viewCode={() => void model.viewCode()}
               />
               <ActiveBillPanel
                 key={`${account.restaurantId}:${account.userId}:${selected}`}
@@ -381,11 +169,9 @@ function FloorContent({
                     (!table.session && (!table.isEnabled || floor.data?.serviceStatus !== "ACTIVE"))
                   }
                   onSelect={() => {
-                    setCode(null);
-                    setError("");
-                    setNotice("");
-                    if (table.session) setSelected(table.session.id);
-                    else setConfirmation({ kind: "open", table });
+                    model.clearFeedback();
+                    if (table.session) select(table.session.id);
+                    else setConfirmation(table);
                   }}
                 />
               ))}
@@ -395,12 +181,12 @@ function FloorContent({
       </MasterDetail>
       <ConfirmDialog
         open={!!confirmation}
-        title={m.openTitle(confirmation?.table.tableLabel ?? "")}
+        title={m.openTitle(confirmation?.tableLabel ?? "")}
         description={floor.data?.joinCodeRequired === false ? m.openHintNoCode : m.openHint}
         confirmLabel={m.confirmOpen}
         busy={busy}
         confirmDisabled={!!pending}
-        onConfirm={() => void submit()}
+        onConfirm={() => void confirmOpen()}
         onCancel={() => setConfirmation(null)}
       />
     </div>

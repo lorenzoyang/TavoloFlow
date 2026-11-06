@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 import type { AccountScope } from "@/features/accounts/api";
 import type { BillSummary } from "@/features/billing/state";
 import { request, write } from "@/lib/api";
+import { storeKey } from "@/lib/store-views";
 
 export type FloorTable = {
   id: string;
@@ -25,10 +26,8 @@ export type CodeResult = { sessionId: string; joinCode: string };
 // joinCode is null when guests of this restaurant join without one.
 type OpenResult = { session: BillSummary; joinCode: string | null };
 
-export const floorKey = (account: AccountScope) =>
-  ["floor", account.restaurantId, account.userId] as const;
-export const diningKey = (account: AccountScope) =>
-  ["dining", account.restaurantId, account.userId] as const;
+export const floorKey = (account: AccountScope) => storeKey("floor", account);
+export const diningKey = (account: AccountScope) => storeKey("dining", account);
 export const sessionKey = (account: AccountScope, id: string) =>
   [...diningKey(account), id] as const;
 
