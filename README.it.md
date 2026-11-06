@@ -6,10 +6,13 @@ Un'app di ordinazione al tavolo tramite QR per piccoli ristoranti, da installare
 clienti scansionano il QR del tavolo e ordinano dal telefono; cucina e pass vedono i piatti appena
 arrivano; il titolare chiude il conto dopo aver incassato alla cassa.
 
-[![Licenza: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-![.NET 10](https://img.shields.io/badge/.NET-10-512BD4)
-![React 19](https://img.shields.io/badge/React-19-61DAFB)
-![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-4169E1)
+[![CI](https://github.com/lorenzoyang/TavoloFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/lorenzoyang/TavoloFlow/actions/workflows/ci.yml)
+[![Licenza: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![.NET 10](https://img.shields.io/badge/.NET-10-512BD4)](https://dotnet.microsoft.com)
+[![React 19](https://img.shields.io/badge/React-19-61DAFB)](https://react.dev)
+[![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-4169E1)](https://www.postgresql.org)
+
+![Lo schermo Cucina su un tablet, con il menu del cliente su un telefono](docs/images/hero-it.webp)
 
 Tutte le interfacce (cliente, staff, amministratore) sono in italiano, inglese e cinese. L'area staff
 si installa come PWA su telefoni e tablet della cucina. L'app non gestisce pagamenti online e non
@@ -31,6 +34,28 @@ Non ci sono stampa delle comande, pagamenti online, divisione del conto, gestion
 asporto o notifiche push. I [requisiti del prodotto](docs/reference/product-requirements.md), in
 inglese, descrivono tutto il perimetro.
 
+## Schermate
+
+**Un tavolo dall'inizio alla fine** (circa 20 secondi): apertura del tavolo, ordine dal telefono,
+cucina, pass e conto.
+
+![Una visita completa: apertura del tavolo, ordine dal telefono, cucina, pass e conto](docs/images/walkthrough-it.webp)
+
+**Clienti**: il menu con foto e allergeni, il carrello e gli ordini del tavolo.
+
+![Menu, carrello e ordini del tavolo su un telefono](docs/images/guest-it.webp)
+
+**Staff e titolare**: Sala, Pass, Conto e modifica di un piatto su un tablet.
+
+![Sala, Pass, Conto e modifica di un piatto su un tablet](docs/images/staff-it.webp)
+
+**Temi**: cinque palette di colori, scelte per ogni ristorante dall'amministratore della piattaforma.
+
+![Il menu del cliente nei cinque temi](docs/images/themes-it.webp)
+
+Tutte le schermate mostrano il ristorante fittizio Demo Ramen della [demo veloce](#demo-veloce) qui
+sotto.
+
 ## Demo veloce
 
 Servono Git e Docker con Compose v2 (su Windows, Docker Desktop con i container Linux). Non servono
@@ -39,10 +64,12 @@ Servono Git e Docker con Compose v2 (su Windows, Docker Desktop con i container 
 ```bash
 git clone https://github.com/lorenzoyang/TavoloFlow.git
 cd TavoloFlow
-docker compose -f demo/compose.yaml up -d --build
+docker compose -f demo/compose.yaml up -d
 ```
 
-La prima build richiede qualche minuto. Poi apri <http://127.0.0.1:8080>.
+Docker scarica le immagini già pronte dell'ultima release, oppure le costruisce dal tuo checkout se non
+riesce a scaricarle (qualche minuto); aggiungi `--build` per costruirle sempre dal checkout. Poi apri
+<http://127.0.0.1:8080>.
 
 | Ruolo                            | Utente             | Password | Dove si entra                                           |
 | -------------------------------- | ------------------ | -------- | ------------------------------------------------------- |
@@ -185,7 +212,8 @@ Ogni classe di test del backend avvia un suo PostgreSQL usa e getta, con le migr
 - **Riferimento**, in inglese: [requisiti del prodotto](docs/reference/product-requirements.md),
   [schema del database](docs/reference/er-diagram.png) e i contratti delle funzionalità elencati
   nell'[indice della documentazione](docs/README.md).
-- Le convenzioni di codice e interfaccia sono in [AGENTS.md](AGENTS.md).
+- Le convenzioni di codice e interfaccia sono in [AGENTS.md](AGENTS.md); come contribuire è in
+  [CONTRIBUTING.md](CONTRIBUTING.md), in inglese.
 
 ## Come è nato
 
@@ -199,5 +227,6 @@ ogni scelta.
 
 ## Licenza
 
-[MIT](LICENSE). Il ristorante della demo, i suoi piatti e le foto generate dall'AI sono dati di
-esempio inventati.
+Copyright (c) 2026 lorenzoyang. Distribuito con licenza [GNU Affero General Public License
+v3.0](LICENSE): se modifichi TavoloFlow e lo offri agli utenti tramite una rete, devi rendere
+disponibile a quegli utenti il codice sorgente modificato con la stessa licenza.

@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet tool restore
+      - name: Check formatting
+        run: dotnet csharpier check .
+      - run: dotnet build TavoloFlow.slnx
+      - name: Check that migrations match the model
+        env:
+          # Only to construct the design-time context; nothing connects to it.
+          ConnectionStrings__Default: Host=localhost;Database=ci;Username=ci;Password=ci
+        run: dotnet ef migrations has-pending-model-changes --project backend/TavoloFlow.Api --no-build
+      - name: Integration tests (disposable PostgreSQL containers)
+        run: dotnet test TavoloFlow.slnx --no-build
+
+  frontend:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - name: Logic tests
+        run: node --test --test-isolation=none tests/*.test.ts
+      - run: npm run build

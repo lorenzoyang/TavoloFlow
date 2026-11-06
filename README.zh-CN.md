@@ -5,10 +5,13 @@
 一个面向小餐厅、可以自行部署的扫码点餐应用。顾客扫桌上的二维码，用手机点餐；厨房和传菜台在菜品到达时
 立即看到；店主在收银台收款后关闭账单。
 
-[![许可证: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-![.NET 10](https://img.shields.io/badge/.NET-10-512BD4)
-![React 19](https://img.shields.io/badge/React-19-61DAFB)
-![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-4169E1)
+[![CI](https://github.com/lorenzoyang/TavoloFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/lorenzoyang/TavoloFlow/actions/workflows/ci.yml)
+[![许可证: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![.NET 10](https://img.shields.io/badge/.NET-10-512BD4)](https://dotnet.microsoft.com)
+[![React 19](https://img.shields.io/badge/React-19-61DAFB)](https://react.dev)
+[![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-4169E1)](https://www.postgresql.org)
+
+![平板上的厨房屏和手机上的顾客菜单](docs/images/hero-zh.webp)
 
 所有界面（顾客、员工、管理员）都支持中文、意大利语和英语。员工端可以作为 PWA 安装在手机和厨房平板上。
 本应用不处理在线支付，也不替代收银机。
@@ -25,6 +28,26 @@
 不包含：厨房单打印、在线支付、分单结账、库存管理、外卖和推送通知。完整范围见
 [产品需求](docs/reference/product-requirements.md)（英文）。
 
+## 截图
+
+**一桌客人的完整流程**（约 20 秒）：开桌、手机点菜、厨房、传菜和结账。
+
+![一轮完整的用餐：开桌、手机点菜、厨房、传菜和结账](docs/images/walkthrough-zh.webp)
+
+**顾客**：带照片和过敏原的菜单、购物车和本桌订单。
+
+![手机上的菜单、购物车和本桌订单](docs/images/guest-zh.webp)
+
+**员工和店主**：平板上的桌台、传菜、结账和菜品编辑页面。
+
+![平板上的桌台、传菜、结账和菜品编辑页面](docs/images/staff-zh.webp)
+
+**主题**：五套配色，由平台管理员为每家餐厅选择。
+
+![顾客菜单的五种主题](docs/images/themes-zh.webp)
+
+所有截图都来自下面[快速体验](#快速体验)里的虚构餐厅 Demo Ramen。
+
 ## 快速体验
 
 需要 Git 和带 Compose v2 的 Docker（Windows 上用使用 Linux 容器的 Docker Desktop）。不需要 .NET、
@@ -33,10 +56,11 @@ Node，也不需要 `.env` 文件。
 ```bash
 git clone https://github.com/lorenzoyang/TavoloFlow.git
 cd TavoloFlow
-docker compose -f demo/compose.yaml up -d --build
+docker compose -f demo/compose.yaml up -d
 ```
 
-第一次构建需要几分钟。然后打开 <http://127.0.0.1:8080>。
+Docker 会下载最新版本预先构建好的镜像；下载不到时会用你的代码在本地构建（需要几分钟）。加上 `--build`
+则总是用本地代码构建。然后打开 <http://127.0.0.1:8080>。
 
 | 角色       | 用户名             | 密码     | 登录地址                                                |
 | ---------- | ------------------ | -------- | ------------------------------------------------------- |
@@ -164,7 +188,7 @@ npm run lint
   [意大利语](docs/it/)和[英语](docs/en/)版本。
 - **参考文档**，英文：[产品需求](docs/reference/product-requirements.md)、
   [数据库结构](docs/reference/er-diagram.png)，以及[文档索引](docs/README.md)里列出的各功能约定。
-- 代码和界面规范见 [AGENTS.md](AGENTS.md)。
+- 代码和界面规范见 [AGENTS.md](AGENTS.md)；如何参与贡献见 [CONTRIBUTING.md](CONTRIBUTING.md)（英文）。
 
 ## 它是怎么来的
 
@@ -176,4 +200,4 @@ npm run lint
 
 ## 许可证
 
-[MIT](LICENSE)。演示餐厅、菜品以及 AI 生成的照片都是虚构的示例数据。
+Copyright (c) 2026 lorenzoyang。本项目采用 [GNU Affero 通用公共许可证 第 3 版（AGPL-3.0）](LICENSE)：如果你修改了 TavoloFlow 并通过网络向用户提供服务，就必须以同样的许可证向这些用户公开修改后的源代码。

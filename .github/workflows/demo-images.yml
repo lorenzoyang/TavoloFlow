@@ -1,0 +1,78 @@
+name: Demo images
+
+# Publishes the three images of the local demo (demo/compose.yaml) to GitHub Container Registry for
+# every release tag, so `docker compose -f demo/compose.yaml up -d` can pull them instead of building.
+# Each architecture builds on its own native runner (no emulation), then one multi-arch tag joins them.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: true
+      matrix:
+        image:
+          - { name: tavoloflow-demo-init, file: demo/Dockerfile.api, target: init }
+          - { name: tavoloflow-demo-api, file: demo/Dockerfile.api, target: runtime }
+          - { name: tavoloflow-demo-web, file: demo/Dockerfile.web, target: '' }
+        platform:
+          - { arch: amd64, runner: ubuntu-24.04 }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.platform.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push ${{ matrix.image.name }} (${{ matrix.platform.arch }})
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.image.file }}
+          target: ${{ matrix.image.target }}
+          platforms: linux/${{ matrix.platform.arch }}
+          push: true
+          provenance: false
+          tags: ${{ env.REGISTRY }}/${{ matrix.image.name }}:${{ github.sha }}-${{ matrix.platform.arch }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.licenses=AGPL-3.0-only
+          cache-from: type=gha,scope=${{ matrix.image.name }}-${{ matrix.platform.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}-${{ matrix.platform.arch }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        name: [tavoloflow-demo-init, tavoloflow-demo-api, tavoloflow-demo-web]
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Join both architectures under the release tag and latest
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ matrix.name }}
+          SHA: ${{ github.sha }}
+          REF: ${{ github.ref_name }}
+          IS_TAG: ${{ github.ref_type == 'tag' }}
+        run: |
+          tags=(-t "$IMAGE:$SHA")
+          if [ "$IS_TAG" = true ]; then tags+=(-t "$IMAGE:${REF#v}" -t "$IMAGE:latest"); fi
+          docker buildx imagetools create "${tags[@]}" "$IMAGE:$SHA-amd64" "$IMAGE:$SHA-arm64"

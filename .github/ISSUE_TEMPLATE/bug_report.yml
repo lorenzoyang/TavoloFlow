@@ -1,0 +1,48 @@
+name: Bug report
+description: Something in TavoloFlow does not work as described.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: If possible, starting from the local demo (`docker compose -f demo/compose.yaml up -d`).
+      placeholder: |
+        1. Sign in as demo.ramen.owner
+        2. Open table T01 on the Floor
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Guest menu and ordering
+        - Floor
+        - Kitchen
+        - Pass
+        - Bill and history
+        - Menu and tables
+        - Platform administration
+        - Deployment and self-hosting
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Version or commit, how you run it (demo, self-hosted), browser and device.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Never paste passwords, join codes, cookies or connection strings.

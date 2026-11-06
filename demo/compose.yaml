@@ -1,5 +1,8 @@
 name: tavoloflow-demo
 
+# `up` pulls the prebuilt images published from each release; `up --build` builds them from this
+# checkout instead. Images that cannot be pulled are built automatically.
+
 x-api-environment: &api-environment
   ASPNETCORE_ENVIRONMENT: Development
   ConnectionStrings__Default: Host=db;Database=tavoloflow_demo;Username=demo_user;Password=demo-local-database
@@ -25,6 +28,7 @@ services:
       start_period: 20s
 
   init:
+    image: ghcr.io/lorenzoyang/tavoloflow-demo-init:${DEMO_TAG:-latest}
     build:
       context: ..
       dockerfile: demo/Dockerfile.api
@@ -41,6 +45,7 @@ services:
     restart: "no"
 
   api:
+    image: ghcr.io/lorenzoyang/tavoloflow-demo-api:${DEMO_TAG:-latest}
     build:
       context: ..
       dockerfile: demo/Dockerfile.api
@@ -63,6 +68,7 @@ services:
       start_period: 15s
 
   web:
+    image: ghcr.io/lorenzoyang/tavoloflow-demo-web:${DEMO_TAG:-latest}
     build:
       context: ..
       dockerfile: demo/Dockerfile.web

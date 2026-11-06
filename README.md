@@ -6,10 +6,13 @@ A self-hostable QR table-ordering app for small restaurants. Guests scan the tab
 from their phones; the kitchen and the pass see the dishes as they arrive; the owner closes the bill
 after taking payment at the till.
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-![.NET 10](https://img.shields.io/badge/.NET-10-512BD4)
-![React 19](https://img.shields.io/badge/React-19-61DAFB)
-![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-4169E1)
+[![CI](https://github.com/lorenzoyang/TavoloFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/lorenzoyang/TavoloFlow/actions/workflows/ci.yml)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![.NET 10](https://img.shields.io/badge/.NET-10-512BD4)](https://dotnet.microsoft.com)
+[![React 19](https://img.shields.io/badge/React-19-61DAFB)](https://react.dev)
+[![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-4169E1)](https://www.postgresql.org)
+
+![The Kitchen screen on a tablet, with the guest menu on a phone](docs/images/hero-en.webp)
 
 Every interface (guest, staff, administrator) is available in English, Italian and Chinese. The staff
 area installs as a PWA on phones and kitchen tablets. The app does not process online payments and
@@ -30,6 +33,27 @@ There are no order printers, online payments, split bills, stock management, tak
 notifications. The [product requirements](docs/reference/product-requirements.md) describe the full
 scope.
 
+## Screenshots
+
+**One table, start to finish** (about 20 seconds): opening the table, ordering from a phone, the
+kitchen, the pass and the bill.
+
+![A whole visit: open the table, order from the phone, kitchen, pass and bill](docs/images/walkthrough-en.webp)
+
+**Guests**: the menu with photos and allergens, the cart, and the table's orders.
+
+![Guest menu, cart and table orders on a phone](docs/images/guest-en.webp)
+
+**Staff and owner**: Floor, Pass, Bill and dish editing on a tablet.
+
+![Floor, Pass, Bill and dish editing on a tablet](docs/images/staff-en.webp)
+
+**Themes**: five colour presets, chosen per restaurant by the platform administrator.
+
+![The guest menu in the five restaurant themes](docs/images/themes-en.webp)
+
+Every screenshot shows the fictional Demo Ramen from the [quick demo](#quick-demo) below.
+
 ## Quick demo
 
 You need Git and Docker with Compose v2 (on Windows, Docker Desktop with Linux containers). No .NET,
@@ -38,10 +62,12 @@ Node or `.env` file is required.
 ```bash
 git clone https://github.com/lorenzoyang/TavoloFlow.git
 cd TavoloFlow
-docker compose -f demo/compose.yaml up -d --build
+docker compose -f demo/compose.yaml up -d
 ```
 
-The first build takes a few minutes. Then open <http://127.0.0.1:8080>.
+Docker downloads the prebuilt images of the latest release, or builds them from your checkout when
+they cannot be downloaded (a few minutes); add `--build` to always build from the checkout. Then open
+<http://127.0.0.1:8080>.
 
 | Role                   | Username           | Password | Sign in at                                              |
 | ---------------------- | ------------------ | -------- | ------------------------------------------------------- |
@@ -180,7 +206,8 @@ Each backend test class starts its own throwaway PostgreSQL with the real migrat
 - **Reference**, in English: [product requirements](docs/reference/product-requirements.md), the
   [database schema](docs/reference/er-diagram.png) and the feature contracts listed in the
   [documentation index](docs/README.md).
-- Coding and UI conventions are in [AGENTS.md](AGENTS.md).
+- Coding and UI conventions are in [AGENTS.md](AGENTS.md); how to contribute is in
+  [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## How it was built
 
@@ -194,4 +221,6 @@ behind each choice.
 
 ## License
 
-[MIT](LICENSE). The demo restaurant, its dishes and its AI-generated photos are fictional sample data.
+Copyright (c) 2026 lorenzoyang. Released under the [GNU Affero General Public License
+v3.0](LICENSE): if you modify TavoloFlow and offer it to users over a network, you must make your
+modified source code available to them under the same license.

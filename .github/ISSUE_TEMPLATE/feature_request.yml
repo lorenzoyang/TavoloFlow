@@ -1,0 +1,23 @@
+name: Feature idea
+description: Suggest a change. Please check the scope in CONTRIBUTING.md first.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What a restaurant, its staff or its guests cannot do today, and how they cope now.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: How TavoloFlow could solve it. Keep it as small as possible.
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: I checked that this is not one of the deliberate exclusions listed in CONTRIBUTING.md.
+          required: true
