@@ -1,5 +1,6 @@
 import type { AccountScope } from "@/features/accounts/api";
 import { request, write } from "@/lib/api";
+import { storeKey } from "@/lib/store-views";
 import type { Language, Names } from "@/lib/language";
 
 export type PassItem = Names & {
@@ -22,8 +23,7 @@ export type PassPage = {
   latestReadyAt: string | null;
   receivedAt: number;
 };
-export const passKey = (account: AccountScope) =>
-  ["pass", account.restaurantId, account.userId] as const;
+export const passKey = (account: AccountScope) => storeKey("pass", account);
 
 export async function readPass(cursor: string | null, signal: AbortSignal): Promise<PassPage> {
   const params = new URLSearchParams({ limit: "100" });

@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import type { AccountScope } from "@/features/accounts/api";
 import { request, write } from "@/lib/api";
+import { storeKey } from "@/lib/store-views";
 
 export type RestaurantTable = {
   id: string;
@@ -10,8 +11,7 @@ export type RestaurantTable = {
   activeSessionId: string | null;
 };
 
-export const tablesKey = (account: AccountScope) =>
-  ["tables", account.restaurantId, account.userId] as const;
+export const tablesKey = (account: AccountScope) => storeKey("tables", account);
 export const tablesQuery = (account: AccountScope) =>
   queryOptions({
     queryKey: tablesKey(account),

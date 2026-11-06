@@ -10,6 +10,7 @@ import {
 } from "../src/lib/format.ts";
 import { isUuid, randomUuid } from "../src/lib/ids.ts";
 import { isLanguage } from "../src/lib/language.ts";
+import { createOperations } from "../src/lib/operations.ts";
 import {
   browserLanguage,
   readStaffLanguage,
@@ -123,4 +124,53 @@ test("dates follow the interface language; English uses the European day/month o
   const value = "2026-11-04T17:05:00Z";
   assert.equal(formatDateTime(value, "en"), "04/11/2026, 18:05:00");
   assert.equal(formatDateTime(value, "zh"), "2026/11/4 18:05:00");
+});
+
+test("one operation per key; a duplicate start is refused until the first finishes", () => {
+  const ops = createOperations();
+  const first = ops.start("order")!;
+  assert.equal(ops.start("order"), null);
+  assert.ok(ops.start("other"));
+  assert.equal(ops.has("order"), true);
+  assert.equal(first.finish(), true);
+  assert.equal(ops.has("order"), false);
+  assert.ok(ops.start("order"));
+});
+
+test("invalidate discards later results but lets requests finish and clear their busy state", () => {
+  const ops = createOperations();
+  const op = ops.start("join")!;
+  assert.equal(op.isCurrent(), true);
+  ops.invalidate();
+  assert.equal(op.isCurrent(), false);
+  assert.equal(op.signal.aborted, false);
+  assert.equal(ops.running(), true);
+  assert.equal(op.finish(), true);
+  assert.equal(ops.running(), false);
+});
+
+test("cancelAll aborts every request, discards their results and leaves busy state to the canceller", () => {
+  const ops = createOperations();
+  const a = ops.start("a")!;
+  const b = ops.start("b")!;
+  ops.cancelAll();
+  for (const op of [a, b]) {
+    assert.equal(op.signal.aborted, true);
+    assert.equal(op.isCurrent(), false);
+    assert.equal(op.finish(), false);
+  }
+  assert.equal(ops.running(), false);
+  // Work started after a cancellation is current again.
+  assert.equal(ops.start("a")!.isCurrent(), true);
+});
+
+test("a cancelled operation never unregisters a newer one under the same key", () => {
+  const ops = createOperations();
+  const old = ops.start("floor")!;
+  ops.cancelAll();
+  const next = ops.start("floor")!;
+  assert.equal(old.finish(), false);
+  assert.equal(ops.has("floor"), true);
+  assert.equal(next.isCurrent(), true);
+  assert.equal(next.finish(), true);
 });
