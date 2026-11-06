@@ -6,7 +6,6 @@ import {
   closureRequest,
   readClosures,
   recoveryPath,
-  canAcceptResult,
   historySearch,
   closureKey,
   type BillSummary,
@@ -86,16 +85,6 @@ test("reload recovery retains only original visit and closure kind", () => {
   assert.equal(recoveryPath(rows[0]), `/api/staff/sessions/${id}`);
   assert.deepEqual(readClosures("broken"), []);
   assert.deepEqual(readClosures("{}"), []);
-});
-test("late results cannot apply after lifecycle or account changes", () => {
-  assert.equal(canAcceptResult(true, 2, 2, false, true), true);
-  for (const args of [
-    [false, 2, 2, false, true],
-    [true, 2, 3, false, true],
-    [true, 2, 2, true, true],
-    [true, 2, 2, false, false],
-  ] as const)
-    assert.equal(canAcceptResult(...args), false);
 });
 test("history URL keeps exact filter values and validates session identifiers", () => {
   assert.deepEqual(

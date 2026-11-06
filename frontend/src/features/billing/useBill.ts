@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CurrentAccount } from "@/features/accounts/api";
-import { floorKey, sessionQuery } from "@/features/dining/api";
+import { sessionQuery } from "@/features/dining/api";
 import { syncIsFresh, syncIsStalled } from "@/lib/live-view";
 import { ApiError } from "@/lib/api";
+import { invalidateStoreViews } from "@/lib/store-views";
 import { useLiveView } from "@/lib/useLiveView";
 import { uniqueBy } from "@/lib/utils";
 import { billingKey, readBill } from "./api";
@@ -34,7 +35,7 @@ export function useBill(account: CurrentAccount, id: string, history = false) {
   const refresh = useCallback(async () => {
     if (!history) {
       await client.invalidateQueries({ queryKey: sessionQuery(account, id).queryKey });
-      void client.invalidateQueries({ queryKey: floorKey(account) });
+      invalidateStoreViews(client, account, ["floor"]);
     }
     await client.invalidateQueries({ queryKey: key });
   }, [account, client, history, id, key]);

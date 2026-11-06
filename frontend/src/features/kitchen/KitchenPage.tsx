@@ -1,15 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  Check,
-  MoreHorizontal,
-  ChefHat,
-  ListFilter,
-  RefreshCw,
-  Sun,
-  Timer,
-  Volume2,
-  VolumeX,
-} from "lucide-react";
+import { ChefHat, ListFilter, RefreshCw, Sun, Volume2, VolumeX } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { LoadingState } from "@/components/loading-state";
@@ -18,306 +8,27 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu";
-import type { OrderLine } from "@/features/orders/api";
-import { onLifecycleChange } from "@/lib/useLiveView";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
+import type { OrderLine } from "@/features/orders/api";
+import { formatDateTime, formatMoney, shortId } from "@/lib/format";
 import { displayName } from "@/lib/language";
-import { formatDateTime, formatMoney, formatTime, shortId } from "@/lib/format";
 import { staffMessages } from "@/lib/staff-messages";
+import { onLifecycleChange } from "@/lib/useLiveView";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import { useWakeLock } from "@/lib/useWakeLock";
 import type { KitchenOrder } from "./api";
 import { CategoryDialog } from "./CategoryDialog";
+import { DishCard, OrderTicket, type LineControls } from "./KitchenViews";
 import { kitchenMessages } from "./messages";
-import { canCancel, waitLevel, type DishGroup, type KitchenView } from "./state";
+import { canCancel, type KitchenView } from "./state";
 import { useKitchen } from "./useKitchen";
 
 type ItemConfirmation = { order: KitchenOrder; item: OrderLine };
-type KitchenModel = ReturnType<typeof useKitchen>;
-const waitStyles = {
-  normal: "bg-secondary text-secondary-foreground",
-  late: "bg-warning text-warning-foreground",
-  overdue: "bg-destructive text-white",
-};
+
 const toggleStyle =
   "aria-pressed:border-primary/40 aria-pressed:bg-accent aria-pressed:text-accent-foreground";
-
-// One operation at a time per order, and none on a view that is not known to be current.
-const isLocked = (model: KitchenModel, order: KitchenOrder) =>
-  !model.fresh ||
-  model.busy.includes(order.id) ||
-  model.pending.some((p) => p.orderId === order.id);
-const waitedMinutes = (model: KitchenModel, order: KitchenOrder) =>
-  Math.max(0, Math.floor((model.now - Date.parse(order.createdAt)) / 60_000));
-
-function WaitBadge({ minutes }: { minutes: number }) {
-  const m = kitchenMessages[useStaffLanguage()];
-  return (
-    <span
-      className={cn(
-        "flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-sm font-semibold tabular-nums",
-        waitStyles[waitLevel(minutes)],
-      )}
-    >
-      <Timer aria-hidden="true" className="size-4" />
-      {m.waited(minutes)}
-    </span>
-  );
-}
-
-function LineActions({
-  order,
-  line,
-  label,
-  model,
-  cancel,
-}: {
-  order: KitchenOrder;
-  line: OrderLine;
-  label: string;
-  model: KitchenModel;
-  cancel: (order: KitchenOrder, item: OrderLine) => void;
-}) {
-  const m = kitchenMessages[useStaffLanguage()];
-  const locked = isLocked(model, order);
-  return (
-    <>
-      <Button
-        className="flex-1"
-        disabled={locked}
-        onClick={() => void model.perform(order, line, "ready")}
-      >
-        <Check />
-        {m.ready}
-      </Button>
-      <DropdownMenu modal={false}>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              variant="outline"
-              size="icon"
-              disabled={locked}
-              aria-label={m.moreActions(label)}
-            />
-          }
-        >
-          <MoreHorizontal />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            variant="destructive"
-            disabled={locked}
-            onClick={() => cancel(order, line)}
-          >
-            {m.cancelItem}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </>
-  );
-}
-
-// Every NEW line of one dish across the loaded orders, the longest wait first. Each line is still
-// written on its own, so recovery and locking stay per order exactly as on the tickets.
-function DishCard({
-  group,
-  model,
-  cancel,
-}: {
-  group: DishGroup;
-  model: KitchenModel;
-  cancel: (order: KitchenOrder, item: OrderLine) => void;
-}) {
-  const language = useStaffLanguage();
-  const m = kitchenMessages[language];
-  const c = staffMessages[language];
-  const first = group.lines[0];
-  const name = displayName(first.line, first.order.defaultLanguage, language);
-  return (
-    <article className="flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-xs">
-      {/* The total keeps its own column, so a long name never pushes it onto a line of its own. */}
-      <header className="space-y-2">
-        <h2 className="flex items-start justify-between gap-3 text-2xl font-bold">
-          <span lang={name.language} className="min-w-0 wrap-break-word">
-            {first.line.itemCode && (
-              <span className="mr-2 text-base font-medium text-muted-foreground">
-                {first.line.itemCode}
-              </span>
-            )}
-            {name.text}
-          </span>
-          <span className="shrink-0 tabular-nums">×{group.quantity}</span>
-        </h2>
-        <div className="flex">
-          <WaitBadge minutes={waitedMinutes(model, first.order)} />
-        </div>
-      </header>
-      <ul className="divide-y border-t">
-        {group.lines.map(({ order, line }) => (
-          <li key={line.id} className="space-y-2 py-2.5">
-            <div className="flex items-center gap-2">
-              <div className="min-w-0 flex-1">
-                <p className="text-lg leading-7 font-semibold wrap-break-word">
-                  {c.table(order.tableLabel)} ×{line.quantity}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {m.waited(waitedMinutes(model, order))}
-                </p>
-              </div>
-              <div className="flex shrink-0 gap-2">
-                <LineActions
-                  order={order}
-                  line={line}
-                  label={`${c.table(order.tableLabel)} · ${name.text}`}
-                  model={model}
-                  cancel={cancel}
-                />
-              </div>
-            </div>
-            {line.remark && (
-              <p className="rounded-lg bg-warning/20 px-2.5 py-1.5 font-medium whitespace-pre-wrap wrap-break-word">
-                {c.remark(line.remark)}
-              </p>
-            )}
-          </li>
-        ))}
-      </ul>
-    </article>
-  );
-}
-
-// Keep every line in its original position until the whole ticket is processed.
-function OrderTicket({
-  order,
-  model,
-  cancel,
-}: {
-  order: KitchenOrder;
-  model: KitchenModel;
-  cancel: (order: KitchenOrder, item: OrderLine) => void;
-}) {
-  const language = useStaffLanguage();
-  const m = kitchenMessages[language];
-  const c = staffMessages[language];
-  const minutes = waitedMinutes(model, order);
-  const cancelled = order.items.every((i) => i.status === "CANCELLED");
-  const waiting = order.items.filter((i) => i.status === "NEW").length;
-  return (
-    <article
-      className={cn(
-        "flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-xs",
-        cancelled && "bg-muted/60",
-      )}
-    >
-      <header className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-2xl font-bold wrap-break-word">{c.table(order.tableLabel)}</h2>
-          <p className="text-sm text-muted-foreground">
-            {m.orderedAt(formatTime(order.createdAt, language))} · #{shortId(order.id)}
-          </p>
-          <p className="mt-1 text-sm font-medium">{m.itemsWaiting(waiting, order.items.length)}</p>
-        </div>
-        {order.status === "NEW" ? (
-          <WaitBadge minutes={minutes} />
-        ) : (
-          <Badge variant={cancelled ? "outline" : "success"}>
-            {cancelled ? m.allCancelled : m.processed}
-          </Badge>
-        )}
-      </header>
-      <ul className="divide-y border-y">
-        {order.items.map((line) => {
-          const name = displayName(line, order.defaultLanguage, language);
-          const compact = order.status === "NEW" && line.status !== "NEW";
-          return (
-            <li
-              key={line.id}
-              className={cn("space-y-2 py-2.5", compact && "py-1.5 text-sm text-muted-foreground")}
-            >
-              <div className="flex items-start gap-2">
-                {line.status === "READY" && (
-                  <Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-success" />
-                )}
-                <p
-                  lang={name.language}
-                  className={cn(
-                    "min-w-0 flex-1 font-medium wrap-break-word",
-                    !compact && "text-lg leading-7",
-                    line.status === "CANCELLED" && "text-muted-foreground line-through",
-                  )}
-                >
-                  {line.itemCode && (
-                    <span className="mr-2 text-sm text-muted-foreground">{line.itemCode}</span>
-                  )}
-                  {name.text} ×{line.quantity}
-                </p>
-                {line.status !== "NEW" && (
-                  <span className="shrink-0 text-sm text-muted-foreground">
-                    {m.item[line.status]}
-                  </span>
-                )}
-              </div>
-              {!compact && (
-                <>
-                  {line.remark && (
-                    <p
-                      className={cn(
-                        "rounded-lg px-2.5 py-1.5 font-medium whitespace-pre-wrap wrap-break-word",
-                        line.status === "NEW" ? "bg-warning/20" : "bg-secondary",
-                      )}
-                    >
-                      {c.remark(line.remark)}
-                    </p>
-                  )}
-                  {line.readyAt && (
-                    <p className="text-xs text-muted-foreground">
-                      {m.readyAt(formatDateTime(line.readyAt, language))}
-                    </p>
-                  )}
-                  {line.cancelledAt && (
-                    <p className="text-xs text-muted-foreground">
-                      {m.cancelledAt(formatDateTime(line.cancelledAt, language))}
-                    </p>
-                  )}
-                </>
-              )}
-              {line.status === "NEW" && (
-                <div className="flex gap-2">
-                  <LineActions
-                    order={order}
-                    line={line}
-                    label={name.text}
-                    model={model}
-                    cancel={cancel}
-                  />
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-      {order.status === "PROCESSED" && (
-        <div className="space-y-1 text-sm text-muted-foreground">
-          <p>
-            {m.amounts(
-              formatMoney(order.totalAmountCents, language),
-              formatMoney(order.payableAmountCents, language),
-            )}
-          </p>
-          {order.processedAt && <p>{m.processedAt(formatDateTime(order.processedAt, language))}</p>}
-        </div>
-      )}
-    </article>
-  );
-}
 
 function KitchenContent({ account }: { account: CurrentAccount }) {
   const language = useStaffLanguage();
@@ -325,8 +36,23 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
   const c = staffMessages[language];
   const model = useKitchen(account);
   const wakeLock = useWakeLock();
+  // Cancelling a line needs a human confirmation, which a lifecycle change withdraws.
   const [confirmation, setConfirmation] = useState<ItemConfirmation | null>(null);
   useEffect(() => onLifecycleChange(() => setConfirmation(null)), []);
+
+  const controls: LineControls = {
+    now: model.now,
+    isLocked: (order) =>
+      !model.fresh ||
+      model.busy.includes(order.id) ||
+      model.pending.some((p) => p.orderId === order.id),
+    ready: (order, line) => void model.perform(order, line, "ready"),
+    cancel: (order, line) => {
+      if (canCancel(line.status)) setConfirmation({ order, item: line });
+    },
+  };
+
+  // The confirmed line as last seen in a write result or a poll.
   const candidates = confirmation
     ? [
         model.latest[confirmation.order.id],
@@ -342,13 +68,11 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
     !!confirmation &&
     (model.busy.includes(confirmation.order.id) ||
       model.pending.some((p) => p.orderId === confirmation.order.id));
-  const cancel = (order: KitchenOrder, item: OrderLine) => {
-    if (canCancel(item.status)) setConfirmation({ order, item });
-  };
   async function submitCancel() {
     if (!confirmation || changed) return;
     if (await model.perform(confirmation.order, confirmation.item, "cancel")) setConfirmation(null);
   }
+
   return (
     <div>
       <PageHeader
@@ -493,7 +217,7 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
               <Button
                 variant="outline"
                 className="shrink-0"
-                onClick={() => model.setChoosing(true)}
+                onClick={() => model.categories.setChoosing(true)}
               >
                 <ListFilter />
                 {m.categories}
@@ -509,11 +233,13 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
             </p>
           )}
           {model.view === "DISHES" &&
-            model.hidden.length > 0 &&
-            (model.menu.isError && !model.menu.data ? (
+            model.categories.hidden.length > 0 &&
+            (model.categories.menu.isError && !model.categories.menu.data ? (
               <Notice tone="warning">{m.categoriesError}</Notice>
             ) : (
-              model.hiddenCount > 0 && <Notice>{m.hiddenCategories(model.hiddenCount)}</Notice>
+              model.categories.hiddenCount > 0 && (
+                <Notice>{m.hiddenCategories(model.categories.hiddenCount)}</Notice>
+              )
             ))}
           {model.view === "DISHES" && model.query.hasNextPage && (
             <Notice tone="warning">{m.dishesIncomplete}</Notice>
@@ -530,10 +256,10 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
           <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
             {model.view === "DISHES"
               ? model.dishes.map((group) => (
-                  <DishCard key={group.key} group={group} model={model} cancel={cancel} />
+                  <DishCard key={group.key} group={group} controls={controls} />
                 ))
               : model.orders.map((order) => (
-                  <OrderTicket key={order.id} order={order} model={model} cancel={cancel} />
+                  <OrderTicket key={order.id} order={order} controls={controls} />
                 ))}
           </div>
           {model.query.hasNextPage && (
@@ -548,7 +274,7 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
           )}
         </TabsContent>
       </Tabs>
-      <CategoryDialog model={model} />
+      <CategoryDialog setting={model.categories} />
       <ConfirmDialog
         open={!!confirmation}
         tone="destructive"

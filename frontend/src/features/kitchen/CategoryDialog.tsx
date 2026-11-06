@@ -13,23 +13,23 @@ import {
 import { displayName } from "@/lib/language";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { kitchenMessages } from "./messages";
-import type { useKitchen } from "./useKitchen";
+import type { KitchenCategories } from "./useKitchenCategories";
 
 // The categories this kitchen screen shows: checked means shown. Each change is saved at once, and only
 // categories still on the menu are kept, so a deleted one drops out of the setting.
-export function CategoryDialog({ model }: { model: ReturnType<typeof useKitchen> }) {
+export function CategoryDialog({ setting }: { setting: KitchenCategories }) {
   const language = useStaffLanguage();
   const m = kitchenMessages[language];
-  const menu = model.menu.data;
+  const menu = setting.menu.data;
   const categories = menu?.categories ?? [];
-  const hidden = categories.filter((category) => model.hidden.includes(category.id));
+  const hidden = categories.filter((category) => setting.hidden.includes(category.id));
   const shown = categories.length - hidden.length;
   const toggle = (id: string, show: boolean) => {
     const ids = hidden.map((category) => category.id);
-    model.setHidden(show ? ids.filter((x) => x !== id) : [...ids, id]);
+    setting.setHidden(show ? ids.filter((x) => x !== id) : [...ids, id]);
   };
   return (
-    <Dialog open={model.choosing} onOpenChange={(open) => model.setChoosing(open)}>
+    <Dialog open={setting.choosing} onOpenChange={(open) => setting.setChoosing(open)}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">{m.categoriesTitle}</DialogTitle>
@@ -61,7 +61,7 @@ export function CategoryDialog({ model }: { model: ReturnType<typeof useKitchen>
               })}
             </ul>
           )
-        ) : model.menu.isError ? (
+        ) : setting.menu.isError ? (
           <Notice tone="error">{m.categoriesError}</Notice>
         ) : (
           <LoadingState label={m.categoriesLoading} />
@@ -70,12 +70,12 @@ export function CategoryDialog({ model }: { model: ReturnType<typeof useKitchen>
           <p className="text-sm text-muted-foreground">{m.keepOne}</p>
         )}
         <DialogFooter>
-          {model.hidden.length > 0 && (
-            <Button variant="outline" onClick={() => model.setHidden([])}>
+          {setting.hidden.length > 0 && (
+            <Button variant="outline" onClick={() => setting.setHidden([])}>
               {m.showAll}
             </Button>
           )}
-          <Button onClick={() => model.setChoosing(false)}>{m.finish}</Button>
+          <Button onClick={() => setting.setChoosing(false)}>{m.finish}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
