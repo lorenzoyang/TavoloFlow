@@ -171,7 +171,7 @@ docker compose up -d db
 ### 2. 把 API 连接到数据库
 
 ```bash
-# 安装仓库指定的 .NET 工具：固定版本的 dotnet-ef
+# 安装仓库指定的 .NET 工具：固定版本的 dotnet-ef 和 CSharpier
 dotnet tool restore
 # 连接字符串：数据库名、用户名和密码与 .env 中一致
 dotnet user-secrets set 'ConnectionStrings:Default' \
@@ -270,9 +270,13 @@ npm run dev
 dotnet test TavoloFlow.slnx
 # 只运行一个测试类（加上 .方法名 可以只运行一个测试）
 dotnet test TavoloFlow.slnx --filter "FullyQualifiedName~KitchenTests"
+# 检查 C# 代码格式
+dotnet csharpier check .
 ```
 
 测试集包括不使用数据库的纯逻辑测试，比如 `PasswordPolicyTests` 和 `SubscriptionSummaryTests`，以及集成测试。每个使用 `PostgreSqlFixture` 的类都会通过 Testcontainers 启动一个专供该测试类使用的临时 PostgreSQL 实例（`postgres:18-alpine`），并执行真实的迁移。HTTP 测试用 `WebApplicationFactory` 调用 API，数据层测试直接使用 `DbContext`。测试不会碰开发数据库，也不会碰演示数据库。运行完整命令需要 Docker；第一次运行集成测试会下载 PostgreSQL 镜像。
+
+`dotnet csharpier format .` 用 CSharpier 修正格式。CSharpier 相当于 C# 的 Prettier，行宽也一样（100 个字符，写在 `.csharpierrc.json` 里）。EF Core 的迁移是生成的代码，所以在 `.csharpierignore` 中排除。在 VS Code 里装上 CSharpier 扩展后，C# 文件每次保存都会自动格式化（`.vscode/settings.json`）。
 
 ### 前端
 

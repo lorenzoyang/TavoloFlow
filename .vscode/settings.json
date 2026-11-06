@@ -1,3 +1,11 @@
 {
-  "dotnet.defaultSolution": "TavoloFlow.slnx"
+  "dotnet.defaultSolution": "TavoloFlow.slnx",
+  "[csharp]": {
+    "editor.defaultFormatter": "csharpier.csharpier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[xml]": {
+    "editor.defaultFormatter": "csharpier.csharpier-vscode",
+    "editor.formatOnSave": true
+  }
 }

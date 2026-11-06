@@ -71,7 +71,7 @@ TavoloFlow 是一个堂食扫码点餐系统。每张桌子有一个固定的二
 
 其实一开始，我用 TypeScript、Hono 和一个 React SPA 做过这个想法的原型，全部放在 Cloudflare 上，没有自己的数据库，而是用 Cloudflare 提供的（D1），幻想着能把维护成本降到最低。我写了一个很详细的提示词，让 AI 生成了整个项目，但结果对我来说完全看不懂。因为从来没做过项目，我不知道会遇到哪些问题和困难，所以也不知道 AI 引入的那些工具、库和框架分别在解决什么问题。我很快就陷入了认知过载，放弃了；那个原型只用来让我大致了解自己的项目应该变成什么样子。
 
-于是我转向了更稳定的东西。考虑到稳定性和在求职市场上的价值，我想到了 Java 和 C#。两个我都会，但 C# 表达力更强，生态更统一，入门门槛更低，框架也更「开箱即用」（batteries-included）。最后我选择了 C# 和 .NET，也就是后端用 ASP.NET Core 作为 Web 框架，EF Core 作为 ORM，Npgsql 作为 PostgreSQL 的驱动。「开箱即用」在这里体现得很明显：cookie 认证、基于策略的授权、数据保护（Data Protection，用来保护 cookie、加密每一轮用餐的入桌码等）和依赖注入，全部是框架自带的，后端在这些方面没有用任何外部库。限流则用项目自己的内存实现 `Common/FixedWindowLimiter`，没有使用 ASP.NET Core 的限流中间件。除了 Npgsql，唯一的第三方库是 SkiaSharp，用来缩放和转换菜品照片。EF Core 没有提供行锁（`SELECT ... FOR UPDATE`）的 API，所以这些地方我用手写的 SQL。测试方面，我用 xUnit：使用 `PostgreSqlFixture` 的集成测试类会通过 Testcontainers 在 Docker 里启动一个临时 PostgreSQL 实例。HTTP 测试用 `WebApplicationFactory` 在内存中启动 API，像浏览器一样发送请求；数据层测试直接使用 `DbContext`。此外还有不使用数据库的纯逻辑测试。
+于是我转向了更稳定的东西。考虑到稳定性和在求职市场上的价值，我想到了 Java 和 C#。两个我都会，但 C# 表达力更强，生态更统一，入门门槛更低，框架也更「开箱即用」（batteries-included）。最后我选择了 C# 和 .NET，也就是后端用 ASP.NET Core 作为 Web 框架，EF Core 作为 ORM，Npgsql 作为 PostgreSQL 的驱动。「开箱即用」在这里体现得很明显：cookie 认证、基于策略的授权、数据保护（Data Protection，用来保护 cookie、加密每一轮用餐的入桌码等）和依赖注入，全部是框架自带的，后端在这些方面没有用任何外部库。限流则用项目自己的内存实现 `Common/FixedWindowLimiter`，没有使用 ASP.NET Core 的限流中间件。除了 Npgsql，唯一的第三方库是 SkiaSharp，用来缩放和转换菜品照片。EF Core 没有提供行锁（`SELECT ... FOR UPDATE`）的 API，所以这些地方我用手写的 SQL。测试方面，我用 xUnit：使用 `PostgreSqlFixture` 的集成测试类会通过 Testcontainers 在 Docker 里启动一个临时 PostgreSQL 实例。HTTP 测试用 `WebApplicationFactory` 在内存中启动 API，像浏览器一样发送请求；数据层测试直接使用 `DbContext`。此外还有不使用数据库的纯逻辑测试。C# 代码用 CSharpier 格式化，它相当于 C# 的 Prettier。
 
 数据库选 PostgreSQL，只是因为它是使用最广泛的开源数据库，也是最强大的数据库之一。
 

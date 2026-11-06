@@ -171,7 +171,7 @@ Il file `.env` lo legge solo Docker Compose, per creare il database: l'API non l
 ### 2. Collegare l'API al database
 
 ```bash
-# Installa gli strumenti .NET del repository: dotnet-ef, alla versione fissata
+# Installa gli strumenti .NET del repository, alle versioni fissate: dotnet-ef e CSharpier
 dotnet tool restore
 # La stringa di connessione: nome del database, utente e password uguali a quelli del .env
 dotnet user-secrets set 'ConnectionStrings:Default' \
@@ -270,9 +270,13 @@ Poi apri <http://localhost:5173/staff/login>, oppure `/platform/login`.
 dotnet test TavoloFlow.slnx
 # Una sola classe di test (aggiungi .NomeDelMetodo per un solo test)
 dotnet test TavoloFlow.slnx --filter "FullyQualifiedName~KitchenTests"
+# Formattazione del codice C#
+dotnet csharpier check .
 ```
 
 La suite comprende test puri senza database, come `PasswordPolicyTests` e `SubscriptionSummaryTests`, e test di integrazione. Ogni classe con `PostgreSqlFixture` avvia con Testcontainers un suo PostgreSQL usa e getta (`postgres:18-alpine`) e ci applica le migrazioni vere. I test HTTP usano `WebApplicationFactory` per chiamare l’API; quelli del livello dati usano direttamente il `DbContext`. I test non toccano né il database di sviluppo né quello della demo. Il comando completo richiede Docker; alla prima esecuzione dei test di integrazione viene scaricata l’immagine di PostgreSQL.
+
+`dotnet csharpier format .` corregge la formattazione con CSharpier, l'equivalente di Prettier per C#, con la stessa larghezza di riga (100 caratteri, in `.csharpierrc.json`). Le migrazioni di EF Core sono escluse in `.csharpierignore`, perché sono codice generato. In VS Code, con l'estensione CSharpier, i file C# vengono formattati a ogni salvataggio (`.vscode/settings.json`).
 
 ### Frontend
 
