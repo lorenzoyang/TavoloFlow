@@ -7,6 +7,7 @@ import { readGuestAccess } from "@/features/guests/api";
 import type { useGuestVisit } from "@/features/guests/useGuestVisit";
 import { accessOutcome } from "@/features/guests/state";
 import { isLive } from "@/lib/useLiveView";
+import { useOperations } from "@/lib/useOperations";
 import { createOrder, ordersKey, readOrderByRequest, type Order } from "./api";
 import { confirmedOrder } from "./response";
 import { orderError, type OrderMessage } from "./messages";
@@ -30,6 +31,9 @@ import {
 type Guest = ReturnType<typeof useGuestVisit>;
 type Review = { cart: Cart; sessionId: string; tableLabel: string; newVisit: boolean };
 
+// The guest's cart for one table in this tab, and the order it becomes. The order's intent (with its
+// request ID) is saved inside the cart before sending, so a lost result is recovered by GET, and only
+// an explicit retry resends the same request. The cart runs one request step at a time.
 export function useCart(token: string, data: PublicMenu, guest: Guest, confirmedAt: number) {
   const client = useQueryClient();
   const key = cartKey(data.restaurant.id, data.table.id);
@@ -52,8 +56,8 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
   useLayoutEffect(() => {
     live.current = { data, guest };
   }, [data, guest]);
-  const operation = useRef<AbortController | null>(null);
-  const epoch = useRef(0);
+  const ops = useOperations();
+
   const remember = useCallback(
     (next: Cart, required = false) => {
       try {
@@ -70,14 +74,13 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
     [blocked, key],
   );
 
+  // Abandons the request in flight and any confirmation built on the state it read.
   const cancel = useCallback(() => {
-    epoch.current++;
-    operation.current?.abort();
-    operation.current = null;
+    ops.cancelAll();
     setBusy(false);
     setReview(null);
     setReceipt(null);
-  }, []);
+  }, [ops]);
   useEffect(() => {
     const hidden = () => {
       if (!isLive()) cancel();
@@ -88,11 +91,6 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
     window.addEventListener("offline", hidden);
     document.addEventListener("visibilitychange", hidden);
     return () => {
-      // Cleanup must cancel the latest operation, not the operation present at effect setup.
-      // oxlint-disable-next-line react-hooks/exhaustive-deps
-      epoch.current++;
-      operation.current?.abort();
-      operation.current = null;
       channel?.close();
       window.removeEventListener("offline", hidden);
       document.removeEventListener("visibilitychange", hidden);
@@ -129,11 +127,13 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
   useEffect(() => {
     if (guest.verified) return;
     // Reauthentication retains only the local draft/intent, never protected responses or confirmation screens.
+    // Losing verification is an external event that must also abort the request in flight.
+    // oxlint-disable-next-line react/set-state-in-effect
     cancel();
   }, [guest.verified, cancel]);
 
   function edit(change: (value: Cart) => Cart) {
-    if (current.current.pending || operation.current) return;
+    if (current.current.pending || ops.running()) return;
     try {
       const next = change(current.current);
       setMessage(null);
@@ -143,24 +143,20 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
       setMessage(e instanceof CartError ? e.issue : "generic");
     }
   }
+
+  // The cart runs one request step at a time; one timeout covers the whole step.
   function start() {
-    if (operation.current) return null;
-    const controller = new AbortController();
-    operation.current = controller;
+    const op = ops.start("order");
+    if (!op) return null;
     setBusy(true);
     setMessage(null);
-    const generation = ++epoch.current;
     return {
-      controller,
-      signal: withTimeout(controller.signal),
-      active: () => !controller.signal.aborted && generation === epoch.current,
+      signal: withTimeout(op.signal),
+      active: op.isCurrent,
+      finish: () => {
+        if (op.finish()) setBusy(false);
+      },
     };
-  }
-  function finish(controller: AbortController) {
-    if (operation.current === controller) {
-      operation.current = null;
-      setBusy(false);
-    }
   }
 
   const success = useCallback(
@@ -180,40 +176,25 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
   const recover = useCallback(async () => {
     const pending = current.current.pending;
     const state = live.current;
-    if (
-      !pending ||
-      operation.current ||
-      state.guest.visit.ended ||
-      !state.guest.verified ||
-      !isLive()
-    )
-      return;
-    const controller = new AbortController();
-    operation.current = controller;
-    const generation = ++epoch.current;
-    const signal = withTimeout(controller.signal);
+    if (!pending || state.guest.visit.ended || !state.guest.verified || !isLive()) return;
+    const op = ops.start("order");
+    if (!op) return;
+    const signal = withTimeout(op.signal);
     setBusy(true);
     try {
       await readGuestAccess(pending.sessionId, signal);
       const result = await readOrderByRequest(pending.sessionId, pending.clientRequestId, signal);
-      if (
-        !controller.signal.aborted &&
-        generation === epoch.current &&
-        current.current.pending?.clientRequestId === pending.clientRequestId
-      )
+      if (op.isCurrent() && current.current.pending?.clientRequestId === pending.clientRequestId)
         success(confirmedOrder(result, pending.sessionId), pending);
     } catch (e) {
-      if (!controller.signal.aborted && generation === epoch.current) {
+      if (op.isCurrent()) {
         if (e instanceof ApiError && accessOutcome(e.code)) live.current.guest.invalidate(e.code);
         setMessage(e instanceof ApiError ? orderError(e.code) : "offline");
       }
     } finally {
-      if (operation.current === controller) {
-        operation.current = null;
-        setBusy(false);
-      }
+      if (op.finish()) setBusy(false);
     }
-  }, [success]);
+  }, [ops, success]);
 
   const pendingId = cart.pending?.clientRequestId;
   useEffect(() => {
@@ -280,7 +261,7 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
         );
       }
     } finally {
-      finish(work.controller);
+      work.finish();
     }
   }
 
@@ -319,7 +300,7 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
       if (e instanceof ApiError && e.code === "MENU_CHANGED")
         void client.invalidateQueries({ queryKey: publicMenuKey(token) });
     } finally {
-      finish(work.controller);
+      work.finish();
     }
   }
 
