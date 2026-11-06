@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
+import { staffNavItems } from "@/features/accounts/navigation";
 import { formatDateTime } from "@/lib/format";
 import { displayName } from "@/lib/language";
 import { staffMessages } from "@/lib/staff-messages";
@@ -91,12 +92,14 @@ function PassContent({ account }: { account: CurrentAccount }) {
   const c = staffMessages[language];
   const model = usePass(account);
   const wakeLock = useWakeLock();
+  // Only pages outside the tabs link back: Pass is a STAFF tab but an OWNER Home entry.
+  const isTab = staffNavItems(account.role, language).some((item) => item.to === "/staff/pass");
   return (
     <div>
       <PageHeader
         title={m.title}
         description={m.description}
-        back={{ to: "/staff", label: c.home }}
+        back={isTab ? undefined : { to: "/staff", label: c.home }}
         actions={
           <>
             <Button

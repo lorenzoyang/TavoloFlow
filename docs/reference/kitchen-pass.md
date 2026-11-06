@@ -135,7 +135,8 @@ advancing the maximum, so a new item can appear without an additional chime.
 
 For a counter tablet, install the [staff PWA](pwa.md), open Pass, enable keep-screen-on and set system
 volume. Optional OS Guided Access/screen pinning can restrict navigation; the application itself has
-no screen lock. Relaunch starts at Home (`/staff`), then staff choose Pass again.
+no screen lock. Relaunch starts at Home (`/staff`); Pass is a tab for STAFF accounts and a Home entry
+for OWNER, so sign the counter tablet in as STAFF to keep Pass one tap away in the side rail.
 
 ## Migration compatibility and verification
 
