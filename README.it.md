@@ -219,11 +219,11 @@ Ogni classe di test del backend avvia un suo PostgreSQL usa e getta, con le migr
 
 È il mio primo progetto full stack. Ho progettato il prodotto e preso le decisioni di architettura; la
 maggior parte del codice l'ho scritta insieme ad agenti AI di programmazione (Claude Code e Codex).
-L'avevo pensato per i ristoranti cinesi in Italia e l'ho messo online, ma non ha funzionato: quasi
-tutti i ristoranti avevano bisogno di stampare le comande, cosa che l'app non fa; alcuni usavano già
-un servizio SaaS cinese; e alla fine l'ho trovato poco utile. Così ho deciso di renderlo open source. Le
-[note di sviluppo](docs/it/development-notes.md) raccontano tutta la storia e spiegano il perché di
-ogni scelta.
+L'ho pensato per i ristoranti cinesi in Italia, e continuo a offrirlo come servizio su
+[qiaotavoloflow.it](https://qiaotavoloflow.it). Visitando i ristoranti ho capito cosa gli manca
+ancora, prima di tutto la stampa delle comande. Ho reso il codice open source perché chiunque possa
+studiarlo o installarlo sul proprio server. Le [note di sviluppo](docs/it/development-notes.md)
+raccontano tutta la storia e spiegano il perché di ogni scelta.
 
 ## Licenza
 

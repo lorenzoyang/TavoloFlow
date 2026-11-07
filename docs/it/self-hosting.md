@@ -4,7 +4,7 @@
 
 Questa guida è per chi vuole installare TavoloFlow su un proprio server: una VPS Linux, un dominio e Docker. Alla fine avrai l'app raggiungibile in HTTPS su un tuo sottodominio, per esempio `https://app.esempio.it`, con l'area amministratore, l'area staff installabile come PWA, i QR dei tavoli che puntano al tuo dominio e un backup automatico ogni notte.
 
-È anche il racconto di come l'ho messa online io. Per costruire i pacchetti usavo un PC Windows con WSL2 (Ubuntu) e Docker Desktop; il server era una VPS di netcup; il dominio l'avevo registrato su OVHcloud e il DNS lo gestiva Cloudflare. Dove una scelta dipende dal mio caso lo scrivo, così puoi adattarla al tuo.
+È anche il racconto di come l'ho messa online io. Per costruire i pacchetti uso un PC Windows con WSL2 (Ubuntu) e Docker Desktop; il server è una VPS di netcup; il dominio è registrato su OVHcloud e il DNS lo gestisce Cloudflare. Dove una scelta dipende dal mio caso lo scrivo, così puoi adattarla al tuo.
 
 Come leggerla:
 
@@ -730,7 +730,7 @@ Un backup nasce in quattro casi: ogni notte con il timer, a ogni rilascio (prima
 
 #### Scaricare un backup sul tuo computer
 
-Un backup che sta solo sul server sparisce insieme al server (disco rotto, VPS cancellata, account bloccato). Quanto spesso lo scarichi decide quanti giorni di dati perderesti nel caso peggiore; io avevo scelto una volta a settimana, più prima di ogni rilascio importante.
+Un backup che sta solo sul server sparisce insieme al server (disco rotto, VPS cancellata, account bloccato). Quanto spesso lo scarichi decide quanti giorni di dati perderesti nel caso peggiore; io ho scelto una volta a settimana, più prima di ogni rilascio importante.
 
 Non si può scaricare con un solo comando: i backup sono di root e `deploy` non li può leggere, e `ssh deploy@VPS_IP sudo cat ...` non funziona perché `sudo` chiede la password e senza un terminale interattivo non c'è dove scriverla. Quindi si fa una copia temporanea che appartiene a `deploy`.
 

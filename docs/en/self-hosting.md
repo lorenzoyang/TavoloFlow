@@ -4,7 +4,7 @@
 
 This guide is for anyone who wants to install TavoloFlow on their own server: a Linux VPS, a domain and Docker. At the end you will have the app reachable over HTTPS on a subdomain of yours, for example `https://app.example.com`, with the administrator area, the staff area installable as a PWA, table QR codes pointing to your domain and an automatic backup every night.
 
-It is also the story of how I put it online myself. To build the packages I used a Windows PC with WSL2 (Ubuntu) and Docker Desktop; the server was a netcup VPS; I had registered the domain with OVHcloud and the DNS was handled by Cloudflare. Where a choice depends on my case I say so, so you can adapt it to yours.
+It is also the story of how I put it online myself. To build the packages I use a Windows PC with WSL2 (Ubuntu) and Docker Desktop; the server is a netcup VPS; the domain is registered with OVHcloud and its DNS is handled by Cloudflare. Where a choice depends on my case I say so, so you can adapt it to yours.
 
 How to read it:
 
@@ -730,7 +730,7 @@ A backup is created in four cases: every night with the timer, at every release 
 
 #### Downloading a backup to your computer
 
-A backup that lives only on the server disappears together with the server (broken disk, deleted VPS, blocked account). How often you download it decides how many days of data you would lose in the worst case; I had chosen once a week, plus before every major release.
+A backup that lives only on the server disappears together with the server (broken disk, deleted VPS, blocked account). How often you download it decides how many days of data you would lose in the worst case; I chose once a week, plus before every major release.
 
 You can't download it with a single command: the backups belong to root and `deploy` can't read them, and `ssh deploy@VPS_IP sudo cat ...` doesn't work because `sudo` asks for the password and without an interactive terminal there's nowhere to type it. So you make a temporary copy owned by `deploy`.
 

@@ -213,11 +213,11 @@ Each backend test class starts its own throwaway PostgreSQL with the real migrat
 
 This is my first full-stack project. I designed the product and made the architectural decisions;
 most of the code was written together with AI coding agents (Claude Code and Codex). I built it for
-Chinese restaurants in Italy and deployed it, but it didn't take off: almost every restaurant needed
-kitchen ticket printing, which the app doesn't support; some already used a Chinese SaaS product; and
-in the end I found it of little real use. So I decided to make it open source. The
-[development notes](docs/en/development-notes.md) tell the whole story and explain the reasoning
-behind each choice.
+Chinese restaurants in Italy, and I still offer it to them as a hosted service at
+[qiaotavoloflow.it](https://qiaotavoloflow.it). Visiting restaurants showed me what it still lacks,
+above all kitchen ticket printing. I made the code open source so that anyone can study it or run
+it on their own server. The [development notes](docs/en/development-notes.md) tell the whole story
+and explain the reasoning behind each choice.
 
 ## License
 
