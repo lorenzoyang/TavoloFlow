@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw, X } from "lucide-react";
 import { BrandMark } from "@/components/brand";
+import { SourceLink } from "@/components/source-link";
 import { Notice } from "@/components/notice";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
@@ -177,7 +178,8 @@ function MenuContent({
                 menu
               )}
               <footer className="border-t pt-5 text-xs leading-6 text-muted-foreground">
-                {m.allergyHint}
+                <p>{m.allergyHint}</p>
+                <SourceLink label={m.sourceCode} />
               </footer>
             </>
           )}

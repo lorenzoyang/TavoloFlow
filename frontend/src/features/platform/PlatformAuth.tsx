@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import { Link, Navigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { BrandMark } from "@/components/brand";
+import { SourceLink } from "@/components/source-link";
 import { LoadingState } from "@/components/loading-state";
 import { Notice } from "@/components/notice";
 import { Button } from "@/components/ui/button";
@@ -36,7 +37,10 @@ export function PlatformLayout({ children }: { children: ReactNode }) {
           <LanguageSwitch />
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 pt-6 pb-12">{children}</main>
+      <main className="mx-auto max-w-5xl px-4 pt-6 pb-6">{children}</main>
+      <footer className="mx-auto max-w-5xl px-4 pb-safe">
+        <SourceLink />
+      </footer>
     </div>
   );
 }

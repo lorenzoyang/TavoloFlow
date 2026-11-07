@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { BrandMark } from "@/components/brand";
+import { SourceLink } from "@/components/source-link";
 import { Card, CardContent } from "@/components/ui/card";
 import { OwnerSubscriptionReminder } from "@/features/subscriptions/SubscriptionReminders";
 import { useDocumentTheme } from "@/lib/useDocumentTheme";
@@ -38,6 +39,7 @@ export function StaffLayout({ children }: { children: ReactNode }) {
         <BrandMark caption={accountMessages[language].brandCaption} className="mb-5" />
         <LanguageSwitch className="mb-6" />
         <main className="w-full">{children}</main>
+        <SourceLink className="mt-6" />
       </div>
     );
   return (

@@ -23,6 +23,7 @@ type Messages = {
   reviewedEmpty: string;
   allergyHint: string;
   scanToOrder: string;
+  sourceCode: string;
 };
 
 export const languageLabels: Record<Language, string> = {
@@ -54,6 +55,7 @@ export const messages: Record<Language, Messages> = {
     reviewedEmpty: "餐厅已审核，未识别出需声明的过敏原。",
     allergyHint: "如有食物过敏，请告知餐厅。过敏原信息不代表不存在交叉接触风险。",
     scanToOrder: "扫码点餐",
+    sourceCode: "源代码（AGPL-3.0）",
   },
   it: {
     menu: "Menu",
@@ -83,6 +85,7 @@ export const messages: Record<Language, Messages> = {
     allergyHint:
       "In caso di allergie alimentari, informa il personale. Le informazioni sugli allergeni non escludono il rischio di contaminazione crociata.",
     scanToOrder: "Scansiona per ordinare",
+    sourceCode: "Codice sorgente (AGPL-3.0)",
   },
   en: {
     menu: "Menu",
@@ -110,6 +113,7 @@ export const messages: Record<Language, Messages> = {
     allergyHint:
       "Tell the staff about any food allergies. Allergen information does not exclude the risk of cross-contact.",
     scanToOrder: "Scan to order",
+    sourceCode: "Source code (AGPL-3.0)",
   },
 };
 

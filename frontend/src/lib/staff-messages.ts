@@ -17,6 +17,7 @@ const zh = {
   notSynced: "尚未同步",
   disconnected: "连接已断开或页面暂停。",
   remark: (text: string) => `备注：${text}`,
+  sourceCode: "源代码（AGPL-3.0）",
 };
 
 export const staffMessages: Record<Language, typeof zh> = {
@@ -39,6 +40,7 @@ export const staffMessages: Record<Language, typeof zh> = {
     notSynced: "Non ancora aggiornato",
     disconnected: "Connessione persa o pagina in pausa.",
     remark: (text) => `Nota: ${text}`,
+    sourceCode: "Codice sorgente (AGPL-3.0)",
   },
   en: {
     table: (label) => `Table ${label}`,
@@ -57,5 +59,6 @@ export const staffMessages: Record<Language, typeof zh> = {
     notSynced: "Not updated yet",
     disconnected: "Connection lost or page paused.",
     remark: (text) => `Note: ${text}`,
+    sourceCode: "Source code (AGPL-3.0)",
   },
 };
