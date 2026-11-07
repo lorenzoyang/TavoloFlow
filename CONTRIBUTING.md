@@ -55,7 +55,7 @@ npm run build
 
 Please do not open a public issue for a vulnerability. Use GitHub's
 [private vulnerability reporting](https://github.com/lorenzoyang/TavoloFlow/security/advisories/new)
-instead.
+instead; [SECURITY.md](SECURITY.md) explains what to include and what is in scope.
 
 ## License
 
