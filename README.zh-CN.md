@@ -201,3 +201,5 @@ npm run lint
 ## 许可证
 
 Copyright (c) 2026 lorenzoyang。本项目采用 [GNU Affero 通用公共许可证 第 3 版（AGPL-3.0）](LICENSE)：如果你修改了 TavoloFlow 并通过网络向用户提供服务，就必须以同样的许可证向这些用户公开修改后的源代码。
+
+许可证只授权代码，不包括 Qiao TavoloFlow 这个名称：如果你分发或在线提供修改后的版本，请给它换一个名字。

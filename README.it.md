@@ -230,3 +230,6 @@ raccontano tutta la storia e spiegano il perché di ogni scelta.
 Copyright (c) 2026 lorenzoyang. Distribuito con licenza [GNU Affero General Public License
 v3.0](LICENSE): se modifichi TavoloFlow e lo offri agli utenti tramite una rete, devi rendere
 disponibile a quegli utenti il codice sorgente modificato con la stessa licenza.
+
+La licenza riguarda il codice, non il nome Qiao TavoloFlow: se distribuisci o offri online una
+versione modificata, dalle un altro nome.

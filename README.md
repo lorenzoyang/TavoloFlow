@@ -224,3 +224,6 @@ and explain the reasoning behind each choice.
 Copyright (c) 2026 lorenzoyang. Released under the [GNU Affero General Public License
 v3.0](LICENSE): if you modify TavoloFlow and offer it to users over a network, you must make your
 modified source code available to them under the same license.
+
+The license covers the code, not the Qiao TavoloFlow name: if you distribute or host a modified
+version, give it a different name.
