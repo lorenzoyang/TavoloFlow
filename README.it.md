@@ -42,9 +42,9 @@ cucina, pass e conto.
 
 ![Una visita completa: apertura del tavolo, ordine dal telefono, cucina, pass e conto](docs/images/walkthrough-it.webp)
 
-**Clienti**: il menu con foto e allergeni, il carrello e gli ordini del tavolo.
+**Clienti**: il menu con foto e allergeni, le opzioni di un piatto (qui piccantezza e aggiunte) e il carrello.
 
-![Menu, carrello e ordini del tavolo su un telefono](docs/images/guest-it.webp)
+![Menu, opzioni del piatto e carrello su un telefono](docs/images/guest-it.webp)
 
 **Staff e titolare**: Sala, Pass, Conto e modifica di un piatto su un tablet.
 

@@ -41,9 +41,9 @@ kitchen, the pass and the bill.
 
 ![A whole visit: open the table, order from the phone, kitchen, pass and bill](docs/images/walkthrough-en.webp)
 
-**Guests**: the menu with photos and allergens, the cart, and the table's orders.
+**Guests**: the menu with photos and allergens, the options of a dish (here spice level and extras), and the cart.
 
-![Guest menu, cart and table orders on a phone](docs/images/guest-en.webp)
+![Guest menu, option picker and cart on a phone](docs/images/guest-en.webp)
 
 **Staff and owner**: Floor, Pass, Bill and dish editing on a tablet.
 
