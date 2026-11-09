@@ -70,6 +70,7 @@ Il ristorante **Demo Ramen**: tema LACQUER, euro e fuso orario di Roma, menu pre
 
 - 8 tavoli, da T01 a T08, tutti liberi; i token dei QR vengono generati a caso durante l'inizializzazione;
 - 4 categorie e 12 piatti, con prezzi, descrizioni, allergeni di esempio e una foto ciascuno;
+- 2 gruppi di opzioni: **Piccantezza** (obbligatoria, su tutti i ramen) e **Aggiunte** (fino a tre, con supplemento, sui ramen tranne quello vegano);
 - un periodo di abbonamento di un anno da 199 €, già pagato (si vede nell'area amministratore e nella pagina Abbonamento del titolare);
 - nessuna visita, nessun ordine, nessun conto: si comincia aprendo un tavolo.
 
@@ -79,11 +80,12 @@ Il ristorante e i piatti sono inventati, allergeni compresi, e le foto sono gene
 
 1. Entra come **titolare**. Dalla Home apri **Tavoli e QR**, tocca **«QR»** sul tavolo T01 e poi **«Copia link»**: è l'indirizzo che il cliente aprirebbe scansionando il QR.
 2. Vai in **Sala**, scegli T01 e conferma con **«Apri tavolo»**. Compare il codice del tavolo, di quattro caratteri.
-3. In un'altra scheda incolla il link: sei il cliente. Inserisci il codice e tocca **«Verifica codice»**, metti qualche piatto con **«Aggiungi al carrello»**, poi **«Controlla ordine»** e **«Conferma e ordina»**.
-4. Torna all'area staff e apri **Cucina**: l'ordine è arrivato. Segna i piatti con **«Pronto»**. Per il suono il browser vuole prima un tocco sulla pagina.
+3. In un'altra scheda incolla il link: sei il cliente. Inserisci il codice e tocca **«Verifica codice»**, metti qualche piatto con **«Aggiungi al carrello»** (per un ramen si apre prima un pannello: scegli la **Piccantezza**, che è obbligatoria, ed eventualmente fino a tre **Aggiunte**, poi tocca **«Aggiungi · € …»**), poi **«Controlla ordine»** e **«Conferma e ordina»**.
+4. Torna all'area staff e apri **Cucina**: l'ordine è arrivato, con le opzioni scelte sotto ogni piatto. Segna i piatti con **«Pronto»**. Per il suono il browser vuole prima un tocco sulla pagina.
 5. Dalla Home apri **Pass** e segna i piatti con **«Servito»**.
 6. Apri **Conto**, scegli T01 e tocca **«Incassa e libera il tavolo»**; spunta la conferma e chiudi con **«Incassato, libera tavolo»**. Il conto chiuso lo ritrovi in **Storico conti**, dalla Home.
-7. Se vuoi, entra anche come amministratore da `/platform/login`, nello stesso browser: le identità di cliente, staff e amministratore hanno cookie separati e non si disturbano (vedi [«Tre identità»](development-notes.md#tre-identità-staff-cliente-piattaforma)).
+7. Come titolare apri **Menu** e la scheda **Opzioni**: ci sono i due gruppi della demo. Prova **«Nuovo gruppo»** partendo da un modello, per esempio Formato per le bevande, oppure segna un'aggiunta come esaurita con il suo interruttore: il cliente non potrà più sceglierla.
+8. Se vuoi, entra anche come amministratore da `/platform/login`, nello stesso browser: le identità di cliente, staff e amministratore hanno cookie separati e non si disturbano (vedi [«Tre identità»](development-notes.md#tre-identità-staff-cliente-piattaforma)).
 
 Tutte le schede normali di un browser condividono lo stesso login dell'area staff: per usare insieme titolare e staff serve un altro profilo, un altro browser o una finestra anonima.
 
@@ -137,7 +139,7 @@ Da PowerShell si imposta prima la variabile, con `$env:DEMO_PORT = "8081"`, e po
 
 ### Modificare i dati della demo
 
-I dati stanno in [`demo/data/`](../../demo/data/): `restaurant.json`, `accounts.json`, `tables.json` e `menu.json`. Le foto stanno in [`demo/images/`](../../demo/images/), in WebP 640×640, e i prompt con cui le ho generate in `demo/image-prompts.json`.
+I dati stanno in [`demo/data/`](../../demo/data/): `restaurant.json`, `accounts.json`, `tables.json` e `menu.json`. Le foto stanno in [`demo/images/`](../../demo/images/), in WebP 640×640, e i prompt con cui le ho generate in `demo/image-prompts.json`. In `menu.json`, `optionGroups` elenca i gruppi di opzioni; ognuno indica in `items` le chiavi dei piatti che lo usano.
 
 Questi file vengono copiati nell'immagine di `init` durante la build, quindi dopo una modifica serve `--build`. E valgono solo per un database vuoto: per vederli su una demo già avviata bisogna azzerarla. Il seeder è severo: un campo JSON che non conosce fa fallire l'importazione, e il motivo si legge nei log di `init`.
 

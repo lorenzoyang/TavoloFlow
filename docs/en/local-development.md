@@ -70,6 +70,7 @@ The **Demo Ramen** restaurant: LACQUER theme, euro and the Rome time zone, Engli
 
 - 8 tables, T01 to T08, all free; the QR tokens are generated at random during initialization;
 - 4 categories and 12 dishes, with prices, descriptions, sample allergens and one photo each;
+- 2 option groups: **Spice level** (required, on every ramen) and **Extras** (up to three, with extra prices, on every ramen except the vegan one);
 - a one-year subscription period of €199, already paid (visible in the administrator area and on the owner's Subscription page);
 - no visits, no orders, no bills: you start by opening a table.
 
@@ -79,11 +80,12 @@ The restaurant and the dishes are made up, allergens included, and the photos ar
 
 1. Sign in as the **owner**. From Home open **Tables & QR**, tap **"QR"** on table T01 and then **"Copy link"**: it is the address a guest would open by scanning the QR code.
 2. Go to **Floor**, choose T01 and confirm with **"Open table"**. The table code appears: four characters.
-3. Paste the link into another tab: you are now the guest. Enter the code and tap **"Verify code"**, add a few dishes with **"Add to cart"**, then **"Review order"** and **"Confirm and place order"**.
-4. Go back to the staff area and open **Kitchen**: the order has arrived. Mark the dishes **"Ready"**. For the sound, the browser first wants a tap on the page.
+3. Paste the link into another tab: you are now the guest. Enter the code and tap **"Verify code"**, add a few dishes with **"Add to cart"** (a ramen first opens a panel: choose the required **Spice level** and, if you like, up to three **Extras**, then tap **"Add to cart · € …"**), then **"Review order"** and **"Confirm and place order"**.
+4. Go back to the staff area and open **Kitchen**: the order has arrived, with the chosen options under each dish. Mark the dishes **"Ready"**. For the sound, the browser first wants a tap on the page.
 5. From Home open **Pass** and mark the dishes **"Served"**.
 6. Open **Bill**, choose T01 and tap **"Take payment, free table"**; tick the confirmation and close with **"Paid, free table"**. You will find the closed bill in **Bill history**, from Home.
-7. If you like, also sign in as the administrator at `/platform/login`, in the same browser: the guest, staff and administrator identities have separate cookies and don't get in each other's way (see ["Three identities"](development-notes.md#three-identities-staff-guest-platform)).
+7. As the owner, open **Menu** and its **Options** tab: the demo's two groups are there. Try **"New group"** from a template, for example Size for the drinks, or mark an extra as sold out with its switch: the guest can no longer choose it.
+8. If you like, also sign in as the administrator at `/platform/login`, in the same browser: the guest, staff and administrator identities have separate cookies and don't get in each other's way (see ["Three identities"](development-notes.md#three-identities-staff-guest-platform)).
 
 All normal tabs of a browser share the same staff-area login: to use owner and staff at the same time you need another profile, another browser or a private window.
 
@@ -137,7 +139,7 @@ In PowerShell, set the variable first with `$env:DEMO_PORT = "8081"`, then run t
 
 ### Changing the demo data
 
-The data lives in [`demo/data/`](../../demo/data/): `restaurant.json`, `accounts.json`, `tables.json` and `menu.json`. The photos are in [`demo/images/`](../../demo/images/), as 640×640 WebP, and the prompts I generated them with are in `demo/image-prompts.json`.
+The data lives in [`demo/data/`](../../demo/data/): `restaurant.json`, `accounts.json`, `tables.json` and `menu.json`. The photos are in [`demo/images/`](../../demo/images/), as 640×640 WebP, and the prompts I generated them with are in `demo/image-prompts.json`. In `menu.json`, `optionGroups` lists the option groups; each one names in `items` the keys of the dishes that use it.
 
 These files are copied into the `init` image at build time, so after a change you need `--build`. And they only apply to an empty database: to see them on a demo that already ran, you have to reset it. The seeder is strict: a JSON field it doesn't know makes the import fail, and the reason is in the `init` logs.
 

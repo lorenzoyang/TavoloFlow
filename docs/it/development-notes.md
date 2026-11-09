@@ -30,20 +30,21 @@ TavoloFlow è un sistema di ordinazione al tavolo tramite codice QR. Ogni tavolo
 
 - scansiona il QR e consulta il menu in cinese, italiano o inglese, con foto, allergeni e piatti esauriti;
 - entra nella visita del tavolo aperta dal personale, inserendo il codice del tavolo (quattro caratteri) se il ristorante lo richiede;
+- per i piatti con opzioni (formato, zucchero, topping, piccantezza…) sceglie prima le opzioni in un pannello: quelle obbligatorie non sono mai preselezionate, e i supplementi si sommano al prezzo;
 - compone il carrello, con una nota per ogni piatto, e invia l'ordine; può ordinare più volte durante il pasto;
 - vede gli ordini di tutto il tavolo e lo stato di ogni piatto: ricevuto, pronto in cucina, annullato.
 
 **Staff**, da telefono o tablet; l'area staff si può installare come app (PWA):
 
 - **Sala**: vede i tavoli e i loro conti, apre un tavolo quando arrivano i clienti e comunica il codice; mette in pausa o riattiva i nuovi ordini; chiude senza incasso un tavolo senza ordini o con tutti i piatti annullati;
-- **Cucina**: riceve i nuovi ordini con un avviso sonoro, aggiornati ogni 10 secondi; li vede nelle viste Piatti (raggruppati per piatto), Ordini ed Evasi; nella vista Piatti ogni schermo può mostrare solo alcune categorie del menu (per esempio uno schermo solo per le bevande); segna ogni piatto come pronto o lo annulla;
+- **Cucina**: riceve i nuovi ordini con un avviso sonoro, aggiornati ogni 10 secondi; li vede nelle viste Piatti (raggruppati per piatto), Ordini ed Evasi; nella vista Piatti ogni schermo può mostrare solo alcune categorie del menu (per esempio uno schermo solo per le bevande); sotto ogni piatto vede le opzioni scelte dal cliente; segna ogni piatto come pronto o lo annulla;
 - **Pass**: su un tablet al bancone, mostra i piatti pronti da portare ai tavoli; quando un piatto arriva al tavolo si tocca «Servito»;
-- **Menu**: segna un piatto come esaurito o di nuovo disponibile;
+- **Menu**: segna un piatto, o una singola opzione (per esempio un topping finito), come esaurito o di nuovo disponibile;
 - l'interfaccia è in cinese, italiano o inglese, scelta per ogni dispositivo; finché nessuno la sceglie, segue la lingua del browser.
 
 **Titolare**: tutto quello che fa lo staff, e in più:
 
-- gestisce il menu: categorie, piatti in tre lingue, prezzi, allergeni, foto;
+- gestisce il menu: categorie, piatti in tre lingue, prezzi, allergeni, foto, e i gruppi di opzioni condivisi tra i piatti (formato, zucchero, topping, piccantezza…), con supplementi, allergeni propri e modelli già tradotti nelle tre lingue;
 - gestisce i tavoli e ne scarica il QR e il segnatavolo da stampare;
 - nella sezione Conto chiude la visita dopo l'incasso, e nello Storico conti consulta i conti chiusi;
 - reimposta la password dell'account staff e vede lo stato del proprio abbonamento.
@@ -120,14 +121,14 @@ Alcuni punti da tenere a mente:
 
 ### Modello dei dati
 
-Il database ha undici tabelle. Lo schema completo è in [`er-diagram.dbml`](../reference/er-diagram.dbml), e c'è anche un'[immagine](../reference/er-diagram.png). Divise per argomento:
+Il database ha quattordici tabelle. Lo schema completo è in [`er-diagram.dbml`](../reference/er-diagram.dbml), e c'è anche un'[immagine](../reference/er-diagram.png). Divise per argomento:
 
-| Gruppo            | Tabelle                                                                                                                                                        |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Account           | `platform_users` (amministratori), `restaurant_users` (per ogni ristorante un account titolare e uno staff)                                                    |
-| Ristorante e menu | `restaurants`, `menu_categories`, `menu_items`, `menu_item_images` (i byte delle foto, separati così le letture del menu non li caricano), `restaurant_tables` |
-| Servizio          | `dining_sessions`, `orders`, `order_items`                                                                                                                     |
-| Abbonamento       | `restaurant_subscription_periods`                                                                                                                              |
+| Gruppo            | Tabelle                                                                                                                                                                                                                                                                                                |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Account           | `platform_users` (amministratori), `restaurant_users` (per ogni ristorante un account titolare e uno staff)                                                                                                                                                                                            |
+| Ristorante e menu | `restaurants`, `menu_categories`, `menu_items`, `menu_item_images` (i byte delle foto, separati così le letture del menu non li caricano), `menu_option_groups` e `menu_options` (le opzioni condivise tra i piatti), `menu_item_option_groups` (quali piatti usano quale gruppo), `restaurant_tables` |
+| Servizio          | `dining_sessions`, `orders`, `order_items`                                                                                                                                                                                                                                                             |
+| Abbonamento       | `restaurant_subscription_periods`                                                                                                                                                                                                                                                                      |
 
 Il concetto centrale è la **visita** (`DiningSession`, tabella `dining_sessions`). Quando arrivano i clienti, lo staff apre il tavolo dalla Sala e nasce una visita `ACTIVE`, con il suo codice del tavolo (cifrato) e un numero di versione del conto, `bill_version`. I clienti non hanno account: per il sistema un cliente è solo "un browser che è entrato in questa visita".
 
@@ -145,7 +146,7 @@ Il frontend rende l'uso più comodo, ma non garantisce niente. Alcune regole, po
 | Stato e campi sono sempre coerenti                  | check constraint come `ck_session_lifecycle`: una visita `ACTIVE` ha il codice cifrato e nessun dato di chiusura, una `CLOSED` ha ora, motivo e totale, e il codice è cancellato; `ck_order_item_lifecycle` fa lo stesso per le righe                                                                   |
 | Solo valori ammessi                                 | gli enum sono salvati come testo maiuscolo (`ACTIVE`, `READY`…) e un check constraint elenca i valori validi                                                                                                                                                                                            |
 
-La storia degli ordini, invece, non la protegge il database. Ogni riga salva una copia (snapshot) di nome, prezzo e allergeni del piatto: se poi il piatto cambia prezzo, la riga resta com'era. Ma PostgreSQL non impedisce un UPDATE diretto su queste copie o sui conti chiusi: che non cambino lo garantiscono i service, che non li modificano mai. Anche l'eliminazione di un piatto o di un tavolo passa da un service, `CatalogDeletionService`: prima azzera il riferimento (`menu_item_id` nelle righe, `table_id` nelle visite chiuse), poi elimina, e la copia resta. Qui il database fa solo da controllo: la chiave esterna non permette di eliminare un piatto o un tavolo ancora collegati.
+La storia degli ordini, invece, non la protegge il database. Ogni riga salva una copia (snapshot) di nome, prezzo e allergeni del piatto: se poi il piatto cambia prezzo, la riga resta com'era. Lo stesso vale per le opzioni scelte: la riga le salva in `options_snapshot` (una colonna jsonb), con i nomi del gruppo e dell'opzione e il supplemento. Il prezzo unitario della riga comprende già i supplementi, quindi il conto resta sempre prezzo unitario × quantità, e gli allergeni salvati sono quelli del piatto più quelli delle opzioni scelte. Ma PostgreSQL non impedisce un UPDATE diretto su queste copie o sui conti chiusi: che non cambino lo garantiscono i service, che non li modificano mai. Anche l'eliminazione di un piatto o di un tavolo passa da un service, `CatalogDeletionService`: prima azzera il riferimento (`menu_item_id` nelle righe, `table_id` nelle visite chiuse), poi elimina, e la copia resta. Qui il database fa solo da controllo: la chiave esterna non permette di eliminare un piatto o un tavolo ancora collegati.
 
 Altre convenzioni:
 
@@ -162,18 +163,18 @@ Il backend è un solo progetto, `backend/TavoloFlow.Api/`, organizzato per argom
 | Cartella             | Cosa contiene                                                                                                                                                                                                                              |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `Program.cs`         | il punto di partenza: registra i servizi e la pipeline dei middleware. Con un'opzione come `--seed-dev-accounts` diventa invece un comando una tantum, che esegue e termina (`Operations/MaintenanceCommands.cs`)                          |
-| `Controllers/`       | 15 classi controller in 14 file, tutte molto sottili                                                                                                                                                                                                         |
+| `Controllers/`       | 16 classi controller in 15 file, tutte molto sottili                                                                                                                                                                                       |
 | `Common/`            | codice trasversale: il formato degli errori (`ApiError`, `ApiException` e il filtro globale), la scelta dell'identità e il CSRF (`BrowserSecurity`), la paginazione con cursore, gli enum come testo, le regole di input e il rate limiter |
 | `Accounts/`          | login, logout e cambio password di titolare e staff                                                                                                                                                                                        |
-| `Menus/`             | gestione del menu, disponibilità, foto dei piatti, lettura del menu pubblico                                                                                                                                                               |
+| `Menus/`             | gestione del menu, disponibilità, foto dei piatti, gruppi di opzioni (`MenuOptionService`), lettura del menu pubblico; tutte le scritture del menu passano dallo stesso lock (`MenuWrites`)                                                |
 | `Tables/`            | tavoli e token dei QR                                                                                                                                                                                                                      |
 | `Dining/`            | apertura del tavolo, la Sala, il codice del tavolo cifrato, il riepilogo del conto condiviso, la pausa dei nuovi ordini                                                                                                                    |
 | `Guests/`            | ingresso del cliente nella visita e il suo cookie                                                                                                                                                                                          |
-| `Ordering/`          | creazione idempotente degli ordini e ordini del tavolo                                                                                                                                                                                     |
+| `Ordering/`          | creazione idempotente degli ordini, controllo e prezzo delle opzioni scelte (`OrderOptions`), ordini del tavolo                                                                                                                            |
 | `Kitchen/`           | coda della Cucina, piatto pronto o annullato, il Pass                                                                                                                                                                                      |
 | `Billing/`           | conto, le tre chiusure (`PAID`, `VOIDED`, `EMPTY`), Storico conti                                                                                                                                                                          |
 | `Platform/`          | area amministratore: ristoranti, account, abbonamenti                                                                                                                                                                                      |
-| `Data/`, `Entities/` | `ApplicationDbContext`, le mappature e le migrazioni di EF Core, i lock di riga (`RowLocks`), il servizio di eliminazione; le 11 entità                                                                                                    |
+| `Data/`, `Entities/` | `ApplicationDbContext`, le mappature e le migrazioni di EF Core, i lock di riga (`RowLocks`), il servizio di eliminazione; le 14 entità                                                                                                    |
 
 Ogni modulo ha un file `XxxContracts.cs` con i DTO (cosa entra e cosa esce dall'API) e le fabbriche degli errori, per esempio `DiningErrors.SessionClosed()`, più uno o più service con le regole e le transazioni.
 
@@ -246,13 +247,13 @@ export const Route = createFileRoute("/staff/kitchen")({
 | --------------- | -------------------------------------------------------------------------------------------------- |
 | `public-menu`   | menu del cliente, `/q/{token}`                                                                     |
 | `guests`        | ingresso del cliente nella visita, con il codice del tavolo                                        |
-| `orders`        | carrello, invio dell'ordine, ordini del tavolo                                                     |
+| `orders`        | pannello delle opzioni, carrello, invio dell'ordine, ordini del tavolo                             |
 | `accounts`      | login, cambio password, Home, navigazione, installazione della PWA                                 |
 | `dining`        | Sala, `/staff/floor`                                                                               |
 | `kitchen`       | Cucina, `/staff/kitchen`                                                                           |
 | `pass`          | Pass, `/staff/pass`                                                                                |
 | `billing`       | Conto, `/staff/orders`, e Storico conti, `/staff/history`                                          |
-| `menu`          | Menu, `/staff/menu`                                                                                |
+| `menu`          | Menu, `/staff/menu`, con le schede Piatti e Opzioni                                                |
 | `tables`        | Tavoli e QR, `/staff/tables`                                                                       |
 | `subscriptions` | Abbonamento del titolare, `/staff/subscription`, e periodi di abbonamento nell'area amministratore |
 | `platform`      | area amministratore, `/platform/*`, e Account staff, `/staff/settings`                             |
@@ -357,7 +358,7 @@ sequenceDiagram
 1. **Apertura.** Dalla Sala lo staff apre il tavolo. Il backend blocca la riga del ristorante in modalità condivisa e quella del tavolo in modo esclusivo, controlla che il tavolo non abbia già una visita aperta e crea la nuova visita con il codice cifrato. Se il ristorante non usa il codice, la risposta ha `joinCode: null`.
 2. **Bootstrap.** Il cliente scansiona il QR. La pagina `/q/{token}` legge, senza nessun cookie, ristorante, tavolo, menu e l'ID della visita aperta, tutto in una sola transazione Repeatable Read. Il bootstrap non crea niente e non rivela mai il codice.
 3. **Ingresso.** Il cliente inserisce il codice (oppure, se il ristorante non lo richiede, la pagina entra da sola). Se il codice è giusto, il backend risponde con il cookie Guest, legato a quella visita. Un rate limit per IP e per visita impedisce di indovinare il codice a forza di tentativi.
-4. **Ordine.** Il frontend genera un `clientRequestId`, lo salva in `sessionStorage` insieme all'ordine e solo dopo manda la POST. Il backend, dopo i lock, cerca prima un ordine con lo stesso ID: se c'è, restituisce quello. Altrimenti controlla che il ristorante accetti ordini, che i piatti siano disponibili e che i prezzi non siano cambiati, poi salva l'ordine con le copie dei piatti e incrementa `bill_version`, tutto nella stessa transazione.
+4. **Ordine.** Il frontend genera un `clientRequestId`, lo salva in `sessionStorage` insieme all'ordine e solo dopo manda la POST. Il backend, dopo i lock, cerca prima un ordine con lo stesso ID: se c'è, restituisce quello. Altrimenti controlla che il ristorante accetti ordini, che i piatti siano disponibili, che le opzioni scelte appartengano ancora al piatto, non siano esaurite e rispettino il minimo e il massimo di ogni gruppo, e che i prezzi (supplementi compresi) non siano cambiati, poi salva l'ordine con le copie dei piatti e incrementa `bill_version`, tutto nella stessa transazione.
 5. **Cucina e Pass.** La Cucina interroga il server ogni 10 secondi e suona quando arriva un ordine nuovo. Segnare un piatto come pronto è un UPDATE condizionale (`WHERE status = 'NEW'`) sotto il lock della visita; dal Pass si segna poi `served_at` allo stesso modo. Il cliente vede lo stato dei piatti aggiornarsi ogni 30 secondi.
 6. **Chiusura.** Il titolare conferma il conto mandando la versione e il totale che ha visto. Il backend blocca la visita, ricalcola tutto e, se nel frattempo qualcosa è cambiato, risponde `409 BILL_CHANGED` con il conto aggiornato. Se tutto coincide, chiude la visita come `PAID`, salva il totale, cancella il codice e segna come serviti i piatti pronti rimasti al Pass. Da questo momento il cookie del cliente non serve più: ogni sua richiesta risponde `SESSION_CLOSED`.
 
@@ -403,11 +404,11 @@ Ogni operazione prende solo un tratto di questa catena, sempre in questa direzio
 | Inviare un ordine                                               | ristorante SHARE → tavolo SHARE → visita UPDATE                      |
 | Leggere gli ordini del tavolo o il conto                        | visita SHARE                                                         |
 | Piatto pronto o annullato, «Servito», chiusura del conto        | solo visita UPDATE                                                   |
-| Modificare il menu                                              | ristorante UPDATE (eliminando un piatto, poi anche il piatto UPDATE) |
+| Modificare il menu, comprese le opzioni e la loro disponibilità | ristorante UPDATE (eliminando un piatto, poi anche il piatto UPDATE) |
 | Pausa dei nuovi ordini, sospensione del ristorante, abbonamento | ristorante UPDATE                                                    |
 | Rinominare, attivare o eliminare un tavolo                      | tavolo UPDATE                                                        |
 
-Perché l'ordine prende il ristorante in SHARE? Chi modifica il menu prende il ristorante in UPDATE, quindi mentre un ordine è in corso nessuno può cambiare prezzi o disponibilità, e i prezzi copiati nell'ordine sono proprio quelli appena controllati. Due ordini da tavoli diversi, invece, prendono entrambi un lock SHARE: sono compatibili e vanno in parallelo.
+Perché l'ordine prende il ristorante in SHARE? Chi modifica il menu prende il ristorante in UPDATE, quindi mentre un ordine è in corso nessuno può cambiare prezzi, disponibilità o opzioni, e i prezzi e le opzioni copiati nell'ordine sono proprio quelli appena controllati. Due ordini da tavoli diversi, invece, prendono entrambi un lock SHARE: sono compatibili e vanno in parallelo.
 
 Ordine, Cucina e chiusura del conto prendono tutti la stessa visita in UPDATE, quindi sulla stessa visita si mettono in fila. Se l'ordine arriva per primo, la chiusura trova il conto cambiato (`BILL_CHANGED`, vedi più sotto); se arriva prima la chiusura, l'ordine trova la visita chiusa (`SESSION_CLOSED`).
 
@@ -566,7 +567,7 @@ Le notifiche push (Web Push) le ho rimandate: richiederebbero chiavi VAPID e le 
 ### Altri compromessi
 
 - **Aprire un tavolo non è idempotente.** A differenza dell'ordine, l'apertura non ha un ID di richiesta. Se la risposta si perde, il frontend rilegge la Sala e lo staff decide se riaprire; una seconda apertura sullo stesso tavolo riceve `SESSION_ALREADY_ACTIVE`, e l'indice unico garantisce comunque una sola visita aperta per tavolo. Resta un rischio, che ho accettato consapevolmente per la prima versione: una richiesta vecchia che arriva in grande ritardo, quando il tavolo è già stato chiuso, e apre una visita che nessuno voleva, da chiudere poi senza incasso. Se nell'uso reale succedesse spesso, aggiungerei un ID di richiesta anche all'apertura. Per un ordine o un conto un rischio del genere non sarebbe accettabile, ed è per questo che lì ci sono `clientRequestId` e `bill_version`.
-- **Menu: l'ultima modifica vince.** Se il titolare modifica lo stesso piatto da due dispositivi, vale l'ultimo salvataggio, senza avvisi di conflitto. Non è grave, perché quello che conta lo controlla l'ordine: il backend ricontrolla sempre prezzi e disponibilità e, se qualcosa è cambiato, risponde `MENU_CHANGED` con l'elenco delle modifiche.
+- **Menu: l'ultima modifica vince.** Se il titolare modifica lo stesso piatto da due dispositivi, vale l'ultimo salvataggio, senza avvisi di conflitto. Non è grave, perché quello che conta lo controlla l'ordine: il backend ricontrolla sempre prezzi, disponibilità e opzioni e, se qualcosa è cambiato, risponde `MENU_CHANGED` con l'elenco delle modifiche (per un'opzione esaurita o non più valida il motivo è `OPTIONS_CHANGED`).
 - **Un formato di errore mio invece di ProblemDetails.** ASP.NET Core supporta un formato standard per gli errori (ProblemDetails, RFC 9457), ma il frontend era già costruito attorno al campo `code`. Generare tutto da un solo filtro costava meno che passare al formato standard, che per un'API pubblica resterebbe comunque la scelta più corretta.
 - **Abbonamenti senza storico.** Nel progetto iniziale c'era una tabella di eventi degli abbonamenti, con lo storico delle modifiche, gli avvisi al titolare e un ID per ogni operazione contro i duplicati. L'ho eliminata quando è stato chiaro che la sola `subscription_version` bastava a impedire che due modifiche consumassero la stessa versione. Ho perso lo storico, ma per una prima versione non serviva.
 
@@ -577,7 +578,7 @@ Le notifiche push (Web Push) le ho rimandate: richiederebbero chiavi VAPID e le 
 - **Pensato per una sola istanza.** Il rate limiter (`FixedWindowLimiter`) tiene i contatori in memoria: si azzerano a ogni riavvio e, con più istanze dell'API, ognuna avrebbe i suoi. Per scalare servirebbe un archivio condiviso, per esempio Redis o lo stesso PostgreSQL.
 - **Il codice del tavolo è corto.** Quattro caratteri da un alfabeto di 32 fanno circa un milione di combinazioni (2²⁰). Contro chi prova a indovinarlo lo protegge solo il rate limit, per IP e per visita: prima di un uso pubblico vero andrebbe rivalutato, magari con un codice più lungo.
 - **Polling.** Il carico sul server cresce con il numero di dispositivi accesi: con molti ristoranti varrebbe la pena passare a WebSocket o a Server-Sent Events.
-- **Test.** Il backend ha oltre 150 test di integrazione, che girano su un PostgreSQL vero in Docker; il frontend ha solo test della logica pura con `node --test`. Nel repository mancano test dei componenti e test end-to-end. Tutti i test che ci sono girano a ogni push nella CI (`.github/workflows/ci.yml`).
+- **Test.** Il backend ha oltre 300 test di integrazione, che girano su un PostgreSQL vero in Docker; il frontend ha solo test della logica pura con `node --test`. Nel repository mancano test dei componenti e test end-to-end. Tutti i test che ci sono girano a ogni push nella CI (`.github/workflows/ci.yml`).
 - **Codici di errore allineati a mano.** La tabella con cui il frontend traduce i codici di errore nelle tre lingue (`lib/api-messages.ts`, vedi «Backend: moduli e percorso di una richiesta») va tenuta allineata a mano con il backend: TypeScript segnala una traduzione mancante, ma non un codice nuovo del backend.
 - **Rilascio artigianale.** Una sola VPS, script di rilascio lanciati a mano, backup affidati a un timer di systemd, nessun sistema di monitoraggio o di allarme: se il server si ferma, me ne accorgo solo quando qualcuno se ne lamenta.
 - **Frontend complesso in alcuni punti.** La gestione dei risultati sconosciuti (per esempio in `useCart`) è molto robusta, ma anche pesante da leggere e da mantenere per una prima versione.
