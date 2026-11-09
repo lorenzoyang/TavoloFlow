@@ -244,7 +244,7 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
         );
         return;
       }
-      const next = refreshCart(current.current, latest.menu.items);
+      const next = refreshCart(current.current, latest.menu.items, latest.menu.optionGroups);
       remember(next);
       setReview({
         cart: next,
@@ -311,7 +311,9 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
     review,
     receipt: guest.verified ? receipt : null,
     blocked,
-    add: (item: MenuItem) => edit((c) => addItem(c, item)),
+    // A dish with option groups comes from the option picker with the guest's choice.
+    add: (item: MenuItem, optionIds: string[] = []) =>
+      edit((c) => addItem(c, item, live.current.data.menu.optionGroups, optionIds)),
     line: (index: number, patch: Partial<Pick<CartLine, "quantity" | "remark">>) =>
       edit((c) => editLine(c, index, patch)),
     prepare,

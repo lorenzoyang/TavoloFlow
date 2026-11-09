@@ -1224,5 +1224,18 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
     private static string Availability(Guid id) => $"/api/staff/menu-items/{id}/availability";
 
     private static MenuItemInput ValidItem(Guid categoryId) =>
-        new(categoryId, null, "炒饭", null, null, null, null, null, 1250, ["GLUTEN", "SOY"], true);
+        new(
+            categoryId,
+            null,
+            "炒饭",
+            null,
+            null,
+            null,
+            null,
+            null,
+            1250,
+            ["GLUTEN", "SOY"],
+            true,
+            []
+        );
 }

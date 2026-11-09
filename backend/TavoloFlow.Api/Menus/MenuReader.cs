@@ -32,6 +32,26 @@ internal static class MenuReader
             .. categories.Select(x => new[] { x.NameZh, x.NameIt, x.NameEn }),
             .. items.Select(x => new[] { x.NameZh, x.NameIt, x.NameEn }),
         ];
+        var groups = await context
+            .MenuOptionGroups.AsNoTracking()
+            .Where(x => x.RestaurantId == restaurantId)
+            .OrderBy(x => x.Position)
+            .ThenBy(x => x.Id)
+            .ToArrayAsync(ct);
+        var options = (
+            await context
+                .MenuOptions.AsNoTracking()
+                .Where(x => x.RestaurantId == restaurantId)
+                .ToArrayAsync(ct)
+        ).ToLookup(x => x.GroupId);
+        var rank = groups.Select((group, index) => (group.Id, index)).ToDictionary();
+        var links = (
+            await context
+                .MenuItemOptionGroups.AsNoTracking()
+                .Where(x => x.RestaurantId == restaurantId)
+                .ToArrayAsync(ct)
+        ).ToLookup(x => x.MenuItemId, x => x.GroupId);
+        // Option names don't count: they never decide which languages a guest can choose either.
         var languages = InputRules
             .Languages.Where((_, i) => names.Any(name => !string.IsNullOrWhiteSpace(name[i])))
             .ToArray();
@@ -40,7 +60,12 @@ internal static class MenuReader
             defaultLanguage,
             languages,
             categories.Select(CategoryResponse.From).ToArray(),
-            items.Select(MenuItemResponse.From).ToArray(),
+            items
+                .Select(x =>
+                    MenuItemResponse.From(x, links[x.Id].OrderBy(id => rank[id]).ToArray())
+                )
+                .ToArray(),
+            groups.Select(x => OptionGroupResponse.From(x, options[x.Id])).ToArray(),
             MenuAllergens.Options
         );
     }

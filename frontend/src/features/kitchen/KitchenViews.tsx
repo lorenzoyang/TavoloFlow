@@ -10,6 +10,7 @@ import {
 import type { OrderLine } from "@/features/orders/api";
 import { formatDateTime, formatMoney, formatTime, shortId } from "@/lib/format";
 import { displayName } from "@/lib/language";
+import { optionSummary } from "@/lib/options";
 import { staffMessages } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
@@ -135,6 +136,11 @@ export function DishCard({ group, controls }: { group: DishGroup; controls: Line
                 <p className="text-sm text-muted-foreground">
                   {m.waited(waitedMinutes(controls.now, order))}
                 </p>
+                {line.options.length > 0 && (
+                  <p className="font-medium wrap-break-word">
+                    {optionSummary(line.options, order.defaultLanguage, language)}
+                  </p>
+                )}
               </div>
               <div className="flex shrink-0 gap-2">
                 <LineActions
@@ -219,6 +225,17 @@ export function OrderTicket({ order, controls }: { order: KitchenOrder; controls
                   </span>
                 )}
               </div>
+              {line.options.length > 0 && (
+                <p
+                  className={cn(
+                    "wrap-break-word",
+                    !compact && "font-medium",
+                    line.status === "CANCELLED" && "text-muted-foreground line-through",
+                  )}
+                >
+                  {optionSummary(line.options, order.defaultLanguage, language)}
+                </p>
+              )}
               {!compact && (
                 <>
                   {line.remark && (

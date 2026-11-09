@@ -22,7 +22,8 @@ CANCELLED lines. Actual cancellation increments the visit's bill version once; R
 | Processed       | PROCESSED orders, including fully cancelled orders | `(processedAt, id)` descending       |
 
 Dishes and Orders share one NEW query. Dish grouping is client-side by `menuItemId`, or snapshot code
-and names after deletion. Remarks stay on their own lines. A group shows its oldest name, total
+and names after deletion. Remarks and chosen options (size, sweetness, spice…) stay on their own
+lines, shown as one summary such as "Size: Large · Toppings: Pearls, Coconut jelly". A group shows its oldest name, total
 portions and longest wait; each line still invokes the individual endpoint. There is no batch write.
 Kitchen cards omit allergen details; the guest's special requests remain in remarks.
 
@@ -87,7 +88,8 @@ a warning color without changing order. The entry is on Home for OWNER and STAFF
 | `POST /api/staff/orders/{id}/items/{itemId}/served` | No business fields                     | The updated pass item                              |
 
 Pass items contain `id`, `orderId`, `sessionId`, `tableLabel`, `defaultLanguage`, `itemCode`, three names,
-`quantity`, `remark`, `readyAt` and nullable `servedAt`. They contain no prices or request IDs.
+`quantity`, `remark`, the `options` snapshot, `readyAt` and nullable `servedAt`. They contain no prices
+or request IDs.
 The list uses ascending `(readyAt, id)` keyset paging with tenant-bound cursors. Rows, count and
 watermark come from one Repeatable Read snapshot. `latestReadyAt` is the restaurant-wide maximum ready
 time of waiting READY lines; closure stamping keeps closed work out of that partial waiting index.

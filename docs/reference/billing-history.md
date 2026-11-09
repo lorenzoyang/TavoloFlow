@@ -38,6 +38,7 @@ come from stored `closed_total_cents`. Neither is a page subtotal.
 
 Orders reuse the [kitchen DTO](kitchen-pass.md#kitchen-apis-and-transactions): original amount,
 remaining payable amount, status and immutable line snapshots with READY/cancellation timestamps.
+A line's unit price already includes its chosen options' deltas; the options appear under its name.
 Cancelled lines retain original prices and content and are shown as excluded from receivables.
 There is no cancellation reason or whole-order note.
 

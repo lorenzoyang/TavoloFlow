@@ -1,7 +1,7 @@
 Project TavoloFlow_MVP_V1 {
   database_type: 'PostgreSQL'
   Note: '''
-    TavoloFlow: 11 tables, one menu per restaurant, offline service subscriptions.
+    TavoloFlow: 14 tables, one menu per restaurant, offline service subscriptions.
     Credential versions revoke account tickets; subscription_version guards
     service administration and bill_version guards session bill confirmation.
     No join-code/QR reset in V1; closing a session invalidates guest cookies.
@@ -9,8 +9,9 @@ Project TavoloFlow_MVP_V1 {
     Cross-table rules, filtered unique indexes, and transaction locks
     are configured in EF Core and application services.
     Permanent restaurant deletion cascades to all restaurant-owned data,
-    including historical records. Session-to-order, order-to-line and
-    item-to-photo references cascade; other internal references use NO ACTION.
+    including historical records. Session-to-order, order-to-line,
+    item-to-photo, group-to-option and both dish/group-to-link references
+    cascade; other internal references use NO ACTION.
     Catalog deletion operations detach nullable historical links first.
     Platform users are independent.
   '''
@@ -202,6 +203,71 @@ Table menu_item_images {
   '''
 }
 
+Table menu_option_groups {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  name_zh varchar(100)
+  name_it varchar(100)
+  name_en varchar(100)
+  min_select int [not null, note: '0 = optional; at least 1 = required']
+  max_select int [not null]
+  position int [not null, note: 'One restaurant-wide display order shared by every dish']
+
+  Indexes {
+    (id, restaurant_id) [unique, name: 'uq_option_groups_id_tenant']
+    (restaurant_id, position)
+  }
+
+  Checks {
+    `concat(name_zh, name_it, name_en) ~ '[^[:space:]]'` [name: 'ck_option_group_has_name']
+    `min_select >= 0 AND max_select >= 1 AND min_select <= max_select` [name: 'ck_option_group_selection']
+  }
+
+  Note: '''
+    Shared, generic choices such as size, sweetness, ice, toppings or spice level.
+    The API also keeps max_select within the number of options (1-30 per group),
+    at most 50 groups per restaurant and 10 per dish.
+  '''
+}
+
+Table menu_options {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  group_id uuid [not null]
+  name_zh varchar(100)
+  name_it varchar(100)
+  name_en varchar(100)
+  price_delta_cents bigint [not null, note: 'Added to the dish price per portion']
+  allergen_codes "text[]" [not null, default: '{}', note: 'Orders add them to the dish allergens']
+  is_available boolean [not null, default: true, note: 'Sold-out switch, also for STAFF']
+  position int [not null, note: 'Order within the group']
+
+  Indexes {
+    restaurant_id
+    (group_id, restaurant_id)
+  }
+
+  Checks {
+    `concat(name_zh, name_it, name_en) ~ '[^[:space:]]'` [name: 'ck_option_has_name']
+    `price_delta_cents >= 0` [name: 'ck_option_price_delta']
+  }
+}
+
+Table menu_item_option_groups {
+  menu_item_id uuid [not null]
+  group_id uuid [not null]
+  restaurant_id uuid [not null]
+
+  Indexes {
+    (menu_item_id, group_id) [pk]
+    restaurant_id
+    (group_id, restaurant_id)
+    (menu_item_id, restaurant_id)
+  }
+
+  Note: 'Pure join table; display order comes from menu_option_groups.position.'
+}
+
 // 03 - Each visit, submission, and immutable order lines
 Table dining_sessions {
   id uuid [pk]
@@ -301,6 +367,7 @@ Table order_items {
   unit_price_cents bigint [not null]
   quantity int [not null]
   remark text
+  options_snapshot jsonb [not null, default: '[]', note: 'Chosen options: group and option names, price delta; display order']
   status varchar(12) [not null, default: 'NEW']
   ready_at timestamptz
   cancelled_at timestamptz
@@ -319,9 +386,10 @@ Table order_items {
     `status IN ('NEW', 'READY', 'CANCELLED')` [name: 'ck_order_item_status']
     `(status = 'NEW' AND ready_at IS NULL AND cancelled_at IS NULL) OR (status = 'READY' AND ready_at IS NOT NULL AND cancelled_at IS NULL) OR (status = 'CANCELLED' AND cancelled_at IS NOT NULL AND (ready_at IS NULL OR cancelled_at >= ready_at))` [name: 'ck_order_item_lifecycle']
     `served_at IS NULL OR (status = 'READY' AND served_at >= ready_at)` [name: 'ck_order_item_served']
+    `jsonb_typeof(options_snapshot) = 'array'` [name: 'ck_order_item_options']
   }
 
-  Note: 'Historical name, price, and allergen snapshots. Line total = unit_price_cents * quantity; no separate line_total_cents.'
+  Note: 'Historical name, price, allergen and option snapshots. unit_price_cents includes option deltas; line total = unit_price_cents * quantity; no separate line_total_cents.'
 }
 
 // Restaurant ownership: a permanent restaurant DELETE removes the entire tenant.
@@ -330,6 +398,7 @@ Ref: restaurant_subscription_periods.restaurant_id > restaurants.id [delete: cas
 Ref: restaurant_tables.restaurant_id > restaurants.id [delete: cascade]
 Ref: menu_categories.restaurant_id > restaurants.id [delete: cascade]
 Ref: menu_items.restaurant_id > restaurants.id [delete: cascade]
+Ref: menu_option_groups.restaurant_id > restaurants.id [delete: cascade]
 Ref: dining_sessions.restaurant_id > restaurants.id [delete: cascade]
 Ref: orders.restaurant_id > restaurants.id [delete: cascade]
 Ref: order_items.restaurant_id > restaurants.id [delete: cascade]
@@ -338,6 +407,9 @@ Ref: order_items.restaurant_id > restaurants.id [delete: cascade]
 // Composite FKs keep related records in the same restaurant.
 Ref: menu_items.(category_id, restaurant_id) > menu_categories.(id, restaurant_id) [delete: no action]
 Ref: menu_item_images.menu_item_id - menu_items.id [delete: cascade]
+Ref: menu_options.(group_id, restaurant_id) > menu_option_groups.(id, restaurant_id) [delete: cascade]
+Ref: menu_item_option_groups.(menu_item_id, restaurant_id) > menu_items.(id, restaurant_id) [delete: cascade]
+Ref: menu_item_option_groups.(group_id, restaurant_id) > menu_option_groups.(id, restaurant_id) [delete: cascade]
 Ref: dining_sessions.(table_id, restaurant_id) > restaurant_tables.(id, restaurant_id) [delete: no action]
 Ref: orders.(dining_session_id, restaurant_id) > dining_sessions.(id, restaurant_id) [delete: cascade]
 Ref: order_items.(order_id, restaurant_id) > orders.(id, restaurant_id) [delete: cascade]
@@ -355,6 +427,9 @@ TableGroup tables_and_menu {
   menu_categories
   menu_items
   menu_item_images
+  menu_option_groups
+  menu_options
+  menu_item_option_groups
 }
 
 TableGroup dining_and_orders {

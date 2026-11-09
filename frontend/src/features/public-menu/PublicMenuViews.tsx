@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ChevronUp,
   Plus,
@@ -14,10 +15,12 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { formatMoney } from "@/lib/format";
 import { displayName, isLanguage, LANGUAGES, type Language } from "@/lib/language";
 import { cn } from "@/lib/utils";
-import type { MenuItem } from "@/features/menu/api";
+import type { MenuItem, OptionGroup } from "@/features/menu/api";
 import { DishPhoto } from "@/features/menu/ItemImage";
 import { usePhoto } from "@/features/menu/usePhoto";
 import { orderMessages } from "@/features/orders/messages";
+import { OptionPicker } from "@/features/orders/OptionPicker";
+import { hasExtraCost, itemGroups, optionsInStock } from "@/features/orders/options";
 import { totalCents } from "@/features/orders/state";
 import type { useCart } from "@/features/orders/useCart";
 import type { PublicMenu } from "./api";
@@ -124,6 +127,7 @@ function Allergens({ item, language }: { item: MenuItem; language: Language }) {
 
 function DishRow({
   item,
+  groups,
   language,
   defaultLanguage,
   count,
@@ -131,6 +135,7 @@ function DishRow({
   disabled,
 }: {
   item: MenuItem;
+  groups: OptionGroup[];
   language: Language;
   defaultLanguage: Language;
   count: number;
@@ -138,6 +143,9 @@ function DishRow({
   disabled: boolean;
 }) {
   const m = messages[language];
+  // A dish whose required choices have all sold out is sold out too.
+  const soldOut = !item.isAvailable || !optionsInStock(item, groups);
+  const price = formatMoney(item.priceCents, language);
   const name = displayName(item, defaultLanguage, language);
   const description = { zh: item.descriptionZh, it: item.descriptionIt, en: item.descriptionEn }[
     name.language
@@ -150,7 +158,7 @@ function DishRow({
         "relative rounded-full",
         photo.shown && "absolute -right-2 -bottom-2 border-2 border-card shadow-sm",
       )}
-      disabled={disabled || !item.isAvailable || !item.allergenReviewed}
+      disabled={disabled || soldOut || !item.allergenReviewed}
       aria-label={`${orderMessages[language].add}: ${name.text}`}
       onClick={add}
     >
@@ -171,7 +179,7 @@ function DishRow({
         <h3 lang={name.language} className="text-base leading-snug font-semibold wrap-break-word">
           {name.text}
         </h3>
-        {!item.isAvailable && <Badge variant="secondary">{m.soldOut}</Badge>}
+        {soldOut && <Badge variant="secondary">{m.soldOut}</Badge>}
         {description && (
           <p
             lang={name.language}
@@ -185,13 +193,15 @@ function DishRow({
       {/* The text column never moves; a photo only fills the price column, with the add button
           on its corner so that button stays at the card's bottom right either way. */}
       <div className="flex shrink-0 flex-col items-end justify-between gap-3">
-        <p className="font-semibold tabular-nums">{formatMoney(item.priceCents, language)}</p>
+        <p className="font-semibold whitespace-nowrap tabular-nums">
+          {hasExtraCost(item, groups) ? orderMessages[language].fromPrice(price) : price}
+        </p>
         {photo.shown ? (
           <div className="relative mr-2 mb-2">
             <DishPhoto
               imageId={photo.shown}
               onError={photo.fail}
-              className={cn("size-24 sm:size-28", !item.isAvailable && "opacity-60 grayscale")}
+              className={cn("size-24 sm:size-28", soldOut && "opacity-60 grayscale")}
             />
             {addButton}
           </div>
@@ -218,6 +228,9 @@ export function MenuList({
   selectCategory: (id: string) => void;
 }) {
   const m = messages[language];
+  const groups = data.menu.optionGroups;
+  // The dish whose options are being chosen; its picker adds it to the cart.
+  const [picking, setPicking] = useState<MenuItem | null>(null);
   // A removed category falls back to the full menu.
   const selected = data.menu.categories.find((category) => category.id === categoryId);
   const categories = selected ? [selected] : data.menu.categories;
@@ -264,10 +277,13 @@ export function MenuList({
                   <DishRow
                     key={item.id}
                     item={item}
+                    groups={groups}
                     language={language}
                     defaultLanguage={data.restaurant.defaultLanguage}
                     count={counts.get(item.id) ?? 0}
-                    add={() => cart.add(item)}
+                    add={() =>
+                      itemGroups(item, groups).length > 0 ? setPicking(item) : cart.add(item)
+                    }
                     disabled={disabled}
                   />
                 ))}
@@ -278,6 +294,19 @@ export function MenuList({
           </section>
         );
       })}
+      {/* Follows the refreshed menu: a dish that disappears closes the picker. */}
+      <OptionPicker
+        item={data.menu.items.find((item) => item.id === picking?.id) ?? null}
+        groups={groups}
+        defaultLanguage={data.restaurant.defaultLanguage}
+        language={language}
+        disabled={disabled}
+        close={() => setPicking(null)}
+        add={(item, optionIds) => {
+          cart.add(item, optionIds);
+          setPicking(null);
+        }}
+      />
     </div>
   );
 }

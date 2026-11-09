@@ -60,7 +60,7 @@ public sealed class PublicMenuService(ApplicationDbContext context)
             ),
             new(entrance.Id, entrance.TableLabel, entrance.IsEnabled),
             entrance.ActiveSessionId,
-            new(menu.AvailableLanguages, menu.Categories, menu.Items)
+            new(menu.AvailableLanguages, menu.Categories, menu.Items, menu.OptionGroups)
         );
     }
 

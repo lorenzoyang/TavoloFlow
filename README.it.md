@@ -25,8 +25,9 @@ sostituisce il registratore di cassa.
   durante il pasto.
 - **Lo staff** apre i tavoli in Sala, segue gli ordini in Cucina (raggruppati per piatto o per ordine,
   con un avviso sonoro e le categorie filtrate per schermo) e segna i piatti serviti dal Pass.
-- **Il titolare** gestisce menu e tavoli, scarica i QR e i segnatavolo da stampare, chiude il conto
-  dopo l'incasso e consulta lo storico dei conti.
+- **Il titolare** gestisce il menu, con opzioni condivise come formato, zucchero, topping o
+  piccantezza che possono avere un supplemento, e i tavoli, scarica i QR e i segnatavolo da stampare,
+  chiude il conto dopo l'incasso e consulta lo storico dei conti.
 - **L'amministratore della piattaforma** crea i ristoranti e i loro account, sceglie il tema di colori
   di ogni ristorante e registra i periodi di abbonamento e le tariffe pagate fuori dall'app.
 

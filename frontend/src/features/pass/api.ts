@@ -2,6 +2,7 @@ import type { AccountScope } from "@/features/accounts/api";
 import { request, write } from "@/lib/api";
 import { storeKey } from "@/lib/store-views";
 import type { Language, Names } from "@/lib/language";
+import type { OptionSnapshot } from "@/lib/options";
 
 export type PassItem = Names & {
   id: string;
@@ -12,6 +13,7 @@ export type PassItem = Names & {
   itemCode: string | null;
   quantity: number;
   remark: string | null;
+  options: OptionSnapshot[];
   readyAt: string;
   servedAt: string | null;
 };

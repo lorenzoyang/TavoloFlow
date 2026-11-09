@@ -31,6 +31,10 @@ internal sealed class OrderItemConfiguration : IEntityTypeConfiguration<OrderIte
                         + "(status = 'CANCELLED' AND cancelled_at IS NOT NULL AND (ready_at IS NULL OR cancelled_at >= ready_at))"
                 );
                 table.HasCheckConstraint(
+                    "ck_order_item_options",
+                    "jsonb_typeof(options_snapshot) = 'array'"
+                );
+                table.HasCheckConstraint(
                     "ck_order_item_served",
                     "served_at IS NULL OR (status = 'READY' AND served_at >= ready_at)"
                 );
@@ -78,6 +82,23 @@ internal sealed class OrderItemConfiguration : IEntityTypeConfiguration<OrderIte
         builder.Property(item => item.Quantity).HasColumnName("quantity");
 
         builder.Property(item => item.Remark).HasColumnName("remark").HasColumnType("text");
+
+        builder.ComplexCollection(
+            item => item.OptionsSnapshot,
+            options =>
+            {
+                options.ToJson("options_snapshot");
+                options.Property(option => option.GroupNameZh).HasJsonPropertyName("groupNameZh");
+                options.Property(option => option.GroupNameIt).HasJsonPropertyName("groupNameIt");
+                options.Property(option => option.GroupNameEn).HasJsonPropertyName("groupNameEn");
+                options.Property(option => option.NameZh).HasJsonPropertyName("nameZh");
+                options.Property(option => option.NameIt).HasJsonPropertyName("nameIt");
+                options.Property(option => option.NameEn).HasJsonPropertyName("nameEn");
+                options
+                    .Property(option => option.PriceDeltaCents)
+                    .HasJsonPropertyName("priceDeltaCents");
+            }
+        );
 
         builder
             .Property(item => item.Status)

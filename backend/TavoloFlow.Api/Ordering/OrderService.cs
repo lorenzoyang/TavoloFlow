@@ -10,6 +10,7 @@ namespace TavoloFlow.Api.Ordering;
 public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
 {
     private const long MaxCents = InputRules.MaxSafeCents;
+    private const int MaxOptionsPerLine = 50;
 
     public async Task<OrderCreation> CreateAsync(
         GuestIdentity guest,
@@ -57,23 +58,32 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
             .MenuItems.AsNoTracking()
             .Where(x => x.RestaurantId == guest.RestaurantId && ids.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, ct);
+        var groups = await GroupsAsync(guest.RestaurantId, ids, ct);
         var changes = new List<MenuChange>();
-        foreach (var line in lines)
+        var choices = new OrderOptions.Choice?[lines.Length];
+        foreach (var (line, index) in lines.Select((line, index) => (line, index)))
         {
             if (!menu.TryGetValue(line.MenuItemId, out var item))
                 changes.Add(new(line.MenuItemId, "MISSING", null, null));
             else if (!item.IsAvailable || !item.AllergenReviewed)
                 changes.Add(new(item.Id, "UNAVAILABLE", item.PriceCents, false));
-            else if (item.PriceCents != line.ExpectedUnitPriceCents)
-                changes.Add(new(item.Id, "PRICE_CHANGED", item.PriceCents, true));
+            else if (
+                OrderOptions.Resolve(item, groups.GetValueOrDefault(item.Id, []), line.OptionIds!)
+                is not { } choice
+            )
+                changes.Add(new(item.Id, "OPTIONS_CHANGED", null, true));
+            else if (choice.UnitPriceCents != line.ExpectedUnitPriceCents)
+                changes.Add(new(item.Id, "PRICE_CHANGED", choice.UnitPriceCents, true));
+            else
+                choices[index] = choice;
         }
         if (changes.Count > 0)
             throw OrderErrors.MenuChanged(changes.Distinct().ToArray());
 
         long total = 0;
-        foreach (var line in lines)
+        foreach (var (line, index) in lines.Select((line, index) => (line, index)))
         {
-            var price = menu[line.MenuItemId].PriceCents;
+            var price = choices[index]!.UnitPriceCents;
             if (
                 price <= 0
                 || price > MaxCents / line.Quantity
@@ -109,9 +119,10 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
             DefaultLanguageSnapshot = restaurant.DefaultLanguage,
             CreatedAt = clock.GetUtcNow().UtcDateTime,
         };
-        foreach (var line in lines)
+        foreach (var (line, index) in lines.Select((line, index) => (line, index)))
         {
             var item = menu[line.MenuItemId];
+            var choice = choices[index]!;
             order.Items.Add(
                 new OrderItem
                 {
@@ -122,10 +133,11 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
                     NameZhSnapshot = item.NameZh,
                     NameItSnapshot = item.NameIt,
                     NameEnSnapshot = item.NameEn,
-                    AllergenCodesSnapshot = item.AllergenCodes.ToArray(),
-                    UnitPriceCents = item.PriceCents,
+                    AllergenCodesSnapshot = choice.AllergenCodes,
+                    UnitPriceCents = choice.UnitPriceCents,
                     Quantity = line.Quantity,
                     Remark = InputRules.TrimToNull(line.Remark),
+                    OptionsSnapshot = choice.Snapshot,
                 }
             );
         }
@@ -207,6 +219,38 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
         return new(page.Select(OrderResponse.From).ToArray(), next, total);
     }
 
+    // Each ordered dish's option groups, in the restaurant-wide order. Covered by the restaurant SHARE lock,
+    // like the dishes themselves; a restaurant without options pays for a single empty query.
+    private async Task<Dictionary<Guid, MenuOptionGroup[]>> GroupsAsync(
+        Guid restaurantId,
+        Guid[] itemIds,
+        CancellationToken ct
+    )
+    {
+        var links = await db
+            .MenuItemOptionGroups.AsNoTracking()
+            .Where(x => x.RestaurantId == restaurantId && itemIds.Contains(x.MenuItemId))
+            .ToArrayAsync(ct);
+        if (links.Length == 0)
+            return [];
+        var groupIds = links.Select(x => x.GroupId).Distinct().ToArray();
+        var groups = await db
+            .MenuOptionGroups.AsNoTracking()
+            .Include(x => x.Options)
+            .Where(x => x.RestaurantId == restaurantId && groupIds.Contains(x.Id))
+            .OrderBy(x => x.Position)
+            .ThenBy(x => x.Id)
+            .ToArrayAsync(ct);
+        var rank = groups.Select((group, index) => (group.Id, index)).ToDictionary();
+        var byId = groups.ToDictionary(x => x.Id);
+        return links
+            .GroupBy(x => x.MenuItemId)
+            .ToDictionary(
+                x => x.Key,
+                x => x.Select(link => byId[link.GroupId]).OrderBy(g => rank[g.Id]).ToArray()
+            );
+    }
+
     private IQueryable<Order> Orders(GuestIdentity guest) =>
         db
             .Orders.AsNoTracking()
@@ -255,10 +299,14 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
                 || line.ExpectedUnitPriceCents < 1
                 || line.ExpectedUnitPriceCents > MaxCents
                 || line.Remark?.Length > 200
+                || line.OptionIds is null
+                || line.OptionIds.Length > MaxOptionsPerLine
+                || line.OptionIds.Contains(Guid.Empty)
+                || line.OptionIds.Distinct().Count() < line.OptionIds.Length
             )
                 throw OrderErrors.Invalid(
                     $"items[{index}]",
-                    "Each line needs a valid dish, 1–20 portions, a remark of at most 200 characters and a confirmed price in positive whole euro cents."
+                    "Each line needs a valid dish, 1–20 portions, a remark of at most 200 characters, a list of at most 50 distinct options (empty for none) and a confirmed price in positive whole euro cents."
                 );
         }
         if (lines.Sum(x => x.Quantity) > 100)

@@ -124,8 +124,34 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
                 // Never copy availability from a content-edit form.
                 if (id is null)
                     context.MenuItems.Add(item);
+                var groupIds = value.OptionGroupIds!;
+                if (
+                    groupIds.Length > 0
+                    && await context.MenuOptionGroups.CountAsync(
+                        x => x.RestaurantId == restaurantId && groupIds.Contains(x.Id),
+                        ct
+                    ) != groupIds.Length
+                )
+                    throw MenuErrors.NotFound();
                 await context.SaveChangesAsync(ct);
-                return MenuItemResponse.From(item);
+                await context
+                    .MenuItemOptionGroups.Where(x =>
+                        x.RestaurantId == restaurantId && x.MenuItemId == item.Id
+                    )
+                    .ExecuteDeleteAsync(ct);
+                context.MenuItemOptionGroups.AddRange(
+                    groupIds.Select(groupId => new MenuItemOptionGroup
+                    {
+                        MenuItemId = item.Id,
+                        GroupId = groupId,
+                        RestaurantId = restaurantId,
+                    })
+                );
+                await context.SaveChangesAsync(ct);
+                return MenuItemResponse.From(
+                    item,
+                    await MenuWrites.GroupIdsAsync(context, restaurantId, item.Id, ct)
+                );
             },
             ct
         );
@@ -168,7 +194,10 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
                         ct
                     );
                 item.IsAvailable = available;
-                return MenuItemResponse.From(item);
+                return MenuItemResponse.From(
+                    item,
+                    await MenuWrites.GroupIdsAsync(context, restaurantId, id, ct)
+                );
             },
             ct
         );
@@ -203,7 +232,10 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
                 context.MenuItemImages.Add(image);
                 item.ImageId = image.Id;
                 await context.SaveChangesAsync(ct);
-                return MenuItemResponse.From(item);
+                return MenuItemResponse.From(
+                    item,
+                    await MenuWrites.GroupIdsAsync(context, restaurantId, id, ct)
+                );
             },
             ct
         );
@@ -226,7 +258,10 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
                 await context.MenuItemImages.Where(x => x.MenuItemId == id).ExecuteDeleteAsync(ct);
                 item.ImageId = null;
                 await context.SaveChangesAsync(ct);
-                return MenuItemResponse.From(item);
+                return MenuItemResponse.From(
+                    item,
+                    await MenuWrites.GroupIdsAsync(context, restaurantId, id, ct)
+                );
             },
             ct
         );
@@ -268,16 +303,9 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
         CancellationToken ct
     )
     {
-        await using var transaction = await context.Database.BeginTransactionAsync(ct);
-        // Every menu write locks the restaurant row first, then categories/items: last write wins without a
-        // menu version column, and order creation (restaurant SHARE) never sees a half-saved menu.
-        if (await RowLocks.RestaurantAsync(context, restaurantId, RowLock.Update, ct) is null)
-            throw MenuErrors.NotFound();
         try
         {
-            var result = await operation();
-            await transaction.CommitAsync(ct);
-            return result;
+            return await MenuWrites.RunAsync(context, restaurantId, operation, ct);
         }
         catch (DbUpdateException error)
             when (error.InnerException

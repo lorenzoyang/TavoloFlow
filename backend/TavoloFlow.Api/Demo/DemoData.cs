@@ -37,4 +37,20 @@ public sealed record DemoItem(
     string Image
 );
 
-public sealed record DemoMenu(DemoCategory[] Categories, DemoItem[] Items);
+// Items lists the dish keys that use the group; groups keep the fixture's order on every dish.
+public sealed record DemoOptionGroup(
+    string Key,
+    DemoText Names,
+    int MinSelect,
+    int MaxSelect,
+    DemoOption[] Options,
+    string[] Items
+);
+
+public sealed record DemoOption(DemoText Names, long PriceDeltaCents, string[] AllergenCodes);
+
+public sealed record DemoMenu(
+    DemoCategory[] Categories,
+    DemoItem[] Items,
+    DemoOptionGroup[] OptionGroups
+);

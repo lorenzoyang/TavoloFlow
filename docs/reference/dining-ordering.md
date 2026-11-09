@@ -92,25 +92,36 @@ restarts reset them. Multi-instance deployments need a shared or edge limiting d
       "menuItemId": "00000000-0000-4000-8000-000000000003",
       "quantity": 2,
       "remark": "Less salt",
-      "expectedUnitPriceCents": 1250
+      "expectedUnitPriceCents": 1400,
+      "optionIds": ["00000000-0000-4000-8000-000000000004"]
     }
   ]
 }
 ```
 
-Use actual resource IDs. Orders have no whole-order remark. Response fields are `id`, `sessionId`,
+Use actual resource IDs. Orders have no whole-order remark. `optionIds` lists the chosen
+[options](menu-tables.md#option-groups) (required; at most 50, distinct; empty for none) and
+`expectedUnitPriceCents` is the dish price plus their deltas. Response fields are `id`, `sessionId`,
 `status`, `createdAt`, `defaultLanguage`, `totalAmountCents`, `payableAmountCents` and `items`.
 Each item contains `id`, nullable `menuItemId`, `itemCode`, three names, `allergenCodes`,
-`unitPriceCents`, `quantity`, nullable `remark`, `status`, `readyAt` and `cancelledAt`.
+`unitPriceCents`, `quantity`, nullable `remark`, `options`, `status`, `readyAt` and `cancelledAt`.
+Each option is the snapshot `groupNameZh/It/En`, `nameZh/It/En` and `priceDeltaCents`, in display
+order (group order, then option order).
 Client request IDs, tickets, codes and serving timestamps are not returned in this order DTO.
 
-Original order totals and names/codes/allergens/prices remain immutable snapshots. Payable amount is
+Original order totals and names/codes/allergens/prices/options remain immutable snapshots.
+`unitPriceCents` already includes the option deltas, so every bill sum stays
+`unitPriceCents × quantity`; `allergenCodes` is the dish's codes plus the chosen options', in
+canonical order. Options are stored as the `order_items.options_snapshot` JSON array, never as links. Payable amount is
 the sum of uncancelled lines. The list total covers the entire visit's uncancelled items, not just its
 page. Orders sort by `(createdAt, id)` descending; the cursor binds the session. Guest reads require
 an ACTIVE bound visit, even when ordering/service/table availability is paused.
 
 `409 MENU_CHANGED` includes `changes` with `menuItemId`, `reason`, `currentUnitPriceCents` and
-`isAvailable`. Reasons are MISSING, UNAVAILABLE and PRICE_CHANGED. Refresh the menu and require another
+`isAvailable`. Reasons are MISSING, UNAVAILABLE, OPTIONS_CHANGED and PRICE_CHANGED. OPTIONS_CHANGED
+means the choice no longer fits the dish's current groups: an option is gone, sold out or from a group
+the dish doesn't use, or a group's count is outside its minimum/maximum. PRICE_CHANGED compares the
+dish price plus deltas and returns that current unit price. Refresh the menu and require another
 confirmation; do not silently remove lines or submit at a new price. A first definitively refused
 intent may unlock; an already unknown intent follows the stricter recovery rule below.
 
@@ -137,7 +148,9 @@ with different business content cannot create a second order. Closed visits do n
 
 For a first submission, restaurant SHARE coordinates with menu writers' UPDATE and table SHARE with
 enablement changes. The server validates quantities, allergens/review, availability and current prices,
-then saves the entire order and snapshots and increments `BillVersion` once in the same transaction.
+resolves each line's options against the dish's groups (`OrderOptions.Resolve`), then saves the
+entire order and snapshots and increments `BillVersion` once in the same transaction. Option groups
+are menu data, so the same restaurant SHARE lock keeps them stable.
 The session lock serializes same-visit submission, cancellation and closure; different visits can
 proceed in parallel. Reads hold session SHARE without subsequently locking the entrance.
 
@@ -148,10 +161,15 @@ return `BILL_LIMIT_REACHED`; an existing intent still recovers before first-subm
 
 ## Frontend state and unknown results
 
-Carts use tab-local sessionStorage keyed by `tavoloflow:cart:{restaurantId}:{tableId}` and retain the
-observed visit (null before opening). Same item and trimmed remark merge; differing remarks stay
-separate. The first opened visit requires explicit confirmation. An old visit's draft never moves to
-a new visit. UUIDv4 generation uses secure `getRandomValues`, including HTTP LAN environments.
+Carts use tab-local sessionStorage keyed by `tavoloflow:cart:{restaurantId}:{tableId}` and retain
+the observed visit (null before opening). Same item, same options and trimmed remark merge;
+differing options or remarks stay separate. Carts are version 2: each line keeps a snapshot of its
+chosen options (id, group id, names, delta), refreshed with the dish before review; a choice that no
+longer fits stops the review (`CartError("options")`) and the line asks to be removed and added
+again. Option rules shared by the picker and the cart live in the node-tested
+`features/orders/options.ts`. The first opened visit requires explicit confirmation. An old visit's
+draft never moves to a new visit. UUIDv4 generation uses secure `getRandomValues`, including HTTP
+LAN environments.
 
 Before POST, save and read back the complete intent. Storage failure allows editing but blocks
 submission; pending intents freeze edits. Server order responses are not persisted locally.
@@ -190,7 +208,7 @@ and visit changes. Abort requests and discard late results on identity/lifecycle
 Important errors: `GUEST_AUTH_REQUIRED` and `JOIN_CODE_INCORRECT` (401), `GUEST_SESSION_MISMATCH` (403),
 `QR_NOT_FOUND`, `TABLE_NOT_FOUND`, `SESSION_NOT_FOUND`, `ORDER_NOT_FOUND` (404), and
 `SESSION_ALREADY_ACTIVE`, `SESSION_CLOSED`, `SERVICE_SUSPENDED`, `TABLE_DISABLED`, `ORDERING_PAUSED`,
-`MENU_CHANGED`, `BILL_LIMIT_REACHED` (409). `RATE_LIMITED` includes Retry-After. A mismatch never changes
+`MENU_CHANGED` (reasons above), `BILL_LIMIT_REACHED` (409). `RATE_LIMITED` includes Retry-After. A mismatch never changes
 the intended target or deletes another tab's valid guest cookie.
 
 Sources: [DiningService](../../backend/TavoloFlow.Api/Dining/DiningService.cs),

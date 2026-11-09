@@ -9,6 +9,7 @@ import type { CurrentAccount } from "@/features/accounts/api";
 import { staffNavItems } from "@/features/accounts/navigation";
 import { formatDateTime } from "@/lib/format";
 import { displayName } from "@/lib/language";
+import { optionSummary } from "@/lib/options";
 import { staffMessages } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { useWakeLock } from "@/lib/useWakeLock";
@@ -64,6 +65,11 @@ function TableCard({ table, model }: { table: PassTable; model: ReturnType<typeo
                   {minutes === 0 ? m.justReady : m.waited(minutes)}
                 </span>
               </div>
+              {item.options.length > 0 && (
+                <p className="font-medium wrap-break-word">
+                  {optionSummary(item.options, item.defaultLanguage, language)}
+                </p>
+              )}
               {item.remark && (
                 <p className="rounded-lg bg-secondary px-2.5 py-1.5 text-sm whitespace-pre-wrap wrap-break-word">
                   {c.remark(item.remark)}

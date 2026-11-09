@@ -12,8 +12,9 @@ import type { Category, Menu, MenuItem } from "./api";
 import type { Names } from "@/lib/language";
 import { displayName } from "@/lib/language";
 import { allergenLabel, languages, menuMessages } from "./messages";
+import { namesFrom, optionPreview } from "./form-values";
 
-type FormProps = {
+export type FormProps = {
   busy: boolean;
   error: unknown;
   cancel: () => void;
@@ -21,7 +22,7 @@ type FormProps = {
   feedback: ReactNode;
 };
 
-function Errors({ error }: { error: unknown }) {
+export function Errors({ error }: { error: unknown }) {
   const language = useStaffLanguage();
   const m = menuMessages[language];
   if (!(error instanceof ApiError) || Object.keys(error.errors).length === 0) return null;
@@ -38,7 +39,7 @@ function Errors({ error }: { error: unknown }) {
 }
 
 // One block per language: its name and, for dishes, the description in that language.
-function NameFields({
+export function NameFields({
   initial,
   descriptions = false,
   error,
@@ -103,17 +104,48 @@ function NameFields({
   );
 }
 
-function namesFrom(data: FormData) {
-  return Object.fromEntries(
-    languages.map(({ suffix }) => [
-      `name${suffix}`,
-      String(data.get(`name${suffix}`) ?? "").trim() || null,
-    ]),
+// The EU allergen checklist, shared by dishes and their options.
+export function AllergenChecks({
+  menu,
+  codes,
+  change,
+}: {
+  menu: Menu;
+  codes: string[];
+  change: (codes: string[]) => void;
+}) {
+  const language = useStaffLanguage();
+  const m = menuMessages[language];
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {menu.allergens.map((option) => (
+        <label
+          key={option.code}
+          className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm transition-colors has-data-checked:border-primary/40 has-data-checked:bg-accent"
+        >
+          <Checkbox
+            className="mt-0.5"
+            checked={codes.includes(option.code)}
+            onCheckedChange={(checked) =>
+              change(
+                checked ? [...codes, option.code] : codes.filter((code) => code !== option.code),
+              )
+            }
+          />
+          <span>
+            {allergenLabel(option, language)}
+            <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+              {m.allergenHints[option.code] ?? option.description}
+            </span>
+          </span>
+        </label>
+      ))}
+    </div>
   );
 }
 
 // Stays in view at the bottom of the editor sheet, however long the form is.
-function Actions({ busy, cancel }: Pick<FormProps, "busy" | "cancel">) {
+export function Actions({ busy, cancel }: Pick<FormProps, "busy" | "cancel">) {
   const m = menuMessages[useStaffLanguage()];
   return (
     <div className="sticky bottom-0 -mx-4 grid grid-cols-2 gap-3 border-t bg-popover px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
@@ -180,6 +212,7 @@ export function ItemForm({
   const m = menuMessages[language];
   const [codes, setCodes] = useState(initial?.allergenCodes ?? []);
   const [reviewed, setReviewed] = useState(initial?.allergenReviewed ?? false);
+  const [groupIds, setGroupIds] = useState(initial?.optionGroupIds ?? []);
   const [validation, setValidation] = useState("");
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -210,6 +243,8 @@ export function ItemForm({
       ),
       allergenCodes: codes,
       allergenReviewed: reviewed,
+      // Sent in the restaurant-wide order; the server keeps that order whatever it receives.
+      optionGroupIds: menu.optionGroups.map((g) => g.id).filter((id) => groupIds.includes(id)),
     });
   }
   return (
@@ -259,33 +294,14 @@ export function ItemForm({
         <NameFields initial={initial} descriptions error={error} />
         <fieldset className="space-y-3">
           <legend className="mb-3 font-medium">{m.allergens}</legend>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {menu.allergens.map((option) => (
-              <label
-                key={option.code}
-                className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm transition-colors has-data-checked:border-primary/40 has-data-checked:bg-accent"
-              >
-                <Checkbox
-                  className="mt-0.5"
-                  checked={codes.includes(option.code)}
-                  onCheckedChange={(checked) => {
-                    setCodes(
-                      checked
-                        ? [...codes, option.code]
-                        : codes.filter((code) => code !== option.code),
-                    );
-                    setReviewed(false);
-                  }}
-                />
-                <span>
-                  {allergenLabel(option, language)}
-                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                    {m.allergenHints[option.code] ?? option.description}
-                  </span>
-                </span>
-              </label>
-            ))}
-          </div>
+          <AllergenChecks
+            menu={menu}
+            codes={codes}
+            change={(next) => {
+              setCodes(next);
+              setReviewed(false);
+            }}
+          />
           <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-warning/60 bg-warning/12 p-3 text-sm font-medium">
             <Checkbox
               className="mt-0.5"
@@ -295,6 +311,39 @@ export function ItemForm({
             {m.review}
           </label>
           <FieldDescription>{m.reviewHint}</FieldDescription>
+        </fieldset>
+        <fieldset className="space-y-3">
+          <legend className="mb-1 font-medium">{m.optionGroupsField}</legend>
+          <FieldDescription>
+            {menu.optionGroups.length ? m.optionGroupsHint : m.noGroupsForItem}
+          </FieldDescription>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {menu.optionGroups.map((group) => (
+              <label
+                key={group.id}
+                className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm transition-colors has-data-checked:border-primary/40 has-data-checked:bg-accent"
+              >
+                <Checkbox
+                  className="mt-0.5"
+                  checked={groupIds.includes(group.id)}
+                  onCheckedChange={(checked) =>
+                    setGroupIds(
+                      checked ? [...groupIds, group.id] : groupIds.filter((id) => id !== group.id),
+                    )
+                  }
+                />
+                <span className="min-w-0">
+                  <span className="font-medium wrap-break-word">
+                    {displayName(group, menu.defaultLanguage, language).text}
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                    {m.rule(group.minSelect, group.maxSelect)} ·{" "}
+                    {optionPreview(group, menu, language)}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
         </fieldset>
         <Errors error={error} />
         {validation && <FieldError>{validation}</FieldError>}

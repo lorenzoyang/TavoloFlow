@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import type { CurrentAccount } from "@/features/accounts/api";
 import type { KitchenOrder } from "@/features/kitchen/api";
 import { displayName } from "@/lib/language";
+import { optionSummary } from "@/lib/options";
 import { formatDateTime, formatMoney, RESTAURANT_TIME_ZONE, shortId } from "@/lib/format";
 import { errorMessage } from "@/lib/api";
 import { staffMessages } from "@/lib/staff-messages";
@@ -81,6 +82,11 @@ function BillOrder({ order, timeZone }: { order: KitchenOrder; timeZone: string 
                   {formatMoney(item.unitPriceCents * item.quantity, language)}
                 </p>
               </div>
+              {item.options.length > 0 && (
+                <p className="text-sm text-muted-foreground wrap-break-word">
+                  {optionSummary(item.options, order.defaultLanguage, language)}
+                </p>
+              )}
               <Badge variant={itemBadges[item.status]}>{m.item[item.status]}</Badge>
               <p className="text-xs text-muted-foreground">
                 {m.unitPrice(formatMoney(item.unitPriceCents, language))}

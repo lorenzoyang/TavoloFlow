@@ -32,7 +32,8 @@ public sealed class BillingTests(PostgreSqlFixture database) : IClassFixture<Pos
         public Guid Id => Open.Session.SessionId;
         public GuestIdentity Guest => new(RestaurantId, Table.Id, Id);
 
-        public CreateOrderInput Input() => new(Id, Guid.NewGuid(), [new(Item.Id, 1, 700, "少盐")]);
+        public CreateOrderInput Input() =>
+            new(Id, Guid.NewGuid(), [new(Item.Id, 1, 700, "少盐", [])]);
     }
 
     private static string Bill(Guid id) => $"/api/staff/sessions/{id}/bill";

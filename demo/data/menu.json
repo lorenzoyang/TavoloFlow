@@ -186,5 +186,70 @@
       "isAvailable": true,
       "image": "daifuku.webp"
     }
+  ],
+  "optionGroups": [
+    {
+      "key": "spice",
+      "names": { "zh": "辣度", "it": "Piccantezza", "en": "Spice level" },
+      "minSelect": 1,
+      "maxSelect": 1,
+      "options": [
+        {
+          "names": { "zh": "不辣", "it": "Non piccante", "en": "Not spicy" },
+          "priceDeltaCents": 0,
+          "allergenCodes": []
+        },
+        {
+          "names": { "zh": "微辣", "it": "Poco piccante", "en": "Mild" },
+          "priceDeltaCents": 0,
+          "allergenCodes": []
+        },
+        {
+          "names": { "zh": "中辣", "it": "Piccante", "en": "Medium" },
+          "priceDeltaCents": 0,
+          "allergenCodes": []
+        },
+        {
+          "names": { "zh": "特辣", "it": "Molto piccante", "en": "Extra hot" },
+          "priceDeltaCents": 0,
+          "allergenCodes": []
+        }
+      ],
+      "items": ["tonkotsu-ramen", "shoyu-ramen", "miso-ramen", "vegan-ramen"]
+    },
+    {
+      "key": "extras",
+      "names": { "zh": "加料", "it": "Aggiunte", "en": "Extras" },
+      "minSelect": 0,
+      "maxSelect": 3,
+      "options": [
+        {
+          "names": { "zh": "溏心蛋", "it": "Uovo marinato", "en": "Marinated egg" },
+          "priceDeltaCents": 150,
+          "allergenCodes": ["EGGS"]
+        },
+        {
+          "names": { "zh": "加叉烧", "it": "Chashu extra", "en": "Extra chashu" },
+          "priceDeltaCents": 300,
+          "allergenCodes": ["GLUTEN", "SOY"]
+        },
+        {
+          "names": { "zh": "加面", "it": "Noodles extra", "en": "Extra noodles" },
+          "priceDeltaCents": 200,
+          "allergenCodes": ["GLUTEN"]
+        },
+        {
+          "names": { "zh": "海苔", "it": "Alga nori", "en": "Nori" },
+          "priceDeltaCents": 50,
+          "allergenCodes": []
+        },
+        {
+          "names": { "zh": "玉米", "it": "Mais", "en": "Sweet corn" },
+          "priceDeltaCents": 80,
+          "allergenCodes": []
+        }
+      ],
+      "items": ["tonkotsu-ramen", "shoyu-ramen", "miso-ramen"]
+    }
   ]
 }

@@ -38,7 +38,7 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
         public GuestIdentity Guest => new(RestaurantId, Table.Id, Opened.Session.SessionId);
 
         public CreateOrderInput Input() =>
-            new(Guest.SessionId, Guid.NewGuid(), [new(Item.Id, 1, 700, "少盐")]);
+            new(Guest.SessionId, Guid.NewGuid(), [new(Item.Id, 1, 700, "少盐", [])]);
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
         var s = await SeedAsync(host);
         var input = s.Input() with
         {
-            Items = [new(s.Item.Id, 3, 700, "少盐"), new(s.Item.Id, 1, 700, "正常")],
+            Items = [new(s.Item.Id, 3, 700, "少盐", []), new(s.Item.Id, 1, 700, "正常", [])],
         };
         var order = await CreateAsync(host, s, input);
         var first = order.Items.Single(i => i.Quantity == 3);
@@ -583,7 +583,7 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
             s,
             s.Input() with
             {
-                Items = [new(s.Item.Id, 3, 700, "少盐"), new(s.Item.Id, 2, 700, "正常")],
+                Items = [new(s.Item.Id, 3, 700, "少盐", []), new(s.Item.Id, 2, 700, "正常", [])],
             }
         );
         async Task Cancel(Guid itemId)
@@ -642,7 +642,7 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
             s,
             s.Input() with
             {
-                Items = [new(s.Item.Id, 1, 700, "A"), new(s.Item.Id, 1, 700, "B")],
+                Items = [new(s.Item.Id, 1, 700, "A", []), new(s.Item.Id, 1, 700, "B", [])],
             }
         );
         await using var db = database.CreateContext();
@@ -683,7 +683,7 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
             .ExecuteUpdateAsync(u => u.SetProperty(i => i.PriceCents, price));
         var input = s.Input() with
         {
-            Items = [new(s.Item.Id, 1, price, "A"), new(s.Item.Id, 1, price, "B")],
+            Items = [new(s.Item.Id, 1, price, "A", []), new(s.Item.Id, 1, price, "B", [])],
         };
         var order = await CreateAsync(host, s, input);
         await new KitchenService(db, host.Clock).CancelAsync(
@@ -692,7 +692,7 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
             order.Items[0].Id,
             default
         );
-        var single = s.Input() with { Items = [new(s.Item.Id, 1, price, null)] };
+        var single = s.Input() with { Items = [new(s.Item.Id, 1, price, null, [])] };
         await CreateAsync(host, s, single);
         Assert.Equal(
             "BILL_LIMIT_REACHED",
@@ -722,9 +722,9 @@ public sealed class KitchenTests(PostgreSqlFixture database) : IClassFixture<Pos
             {
                 Items =
                 [
-                    new(s.Item.Id, 2, 700, "少盐"),
-                    new(s.Item.Id, 1, 700, "正常"),
-                    new(s.Item.Id, 1, 700, "辣"),
+                    new(s.Item.Id, 2, 700, "少盐", []),
+                    new(s.Item.Id, 1, 700, "正常", []),
+                    new(s.Item.Id, 1, 700, "辣", []),
                 ],
             }
         );

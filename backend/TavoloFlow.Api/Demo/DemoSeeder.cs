@@ -91,6 +91,7 @@ public sealed class DemoSeeder(
         );
 
         var images = new List<MenuItemImage>();
+        var itemIds = new Dictionary<string, Guid>();
 
         // Decode all images before opening the write transaction,
         // just like ordinary image uploads.
@@ -121,7 +122,9 @@ public sealed class DemoSeeder(
                     item.Descriptions.En,
                     item.PriceCents,
                     item.AllergenCodes,
-                    item.AllergenReviewed
+                    item.AllergenReviewed,
+                    // Linked below, once every option group exists.
+                    []
                 )
             );
 
@@ -148,6 +151,7 @@ public sealed class DemoSeeder(
             };
 
             restaurant.MenuItems.Add(entity);
+            itemIds.Add(item.Key, entity.Id);
             images.Add(
                 new MenuItemImage
                 {
@@ -157,6 +161,62 @@ public sealed class DemoSeeder(
                 }
             );
         }
+
+        // Option groups pass the same validation as the owner's form; their dishes are named by key.
+        var groups = menu
+            .OptionGroups.Select(
+                (group, position) =>
+                {
+                    var value = MenuValidation.Normalize(
+                        new OptionGroupInput(
+                            group.Names.Zh,
+                            group.Names.It,
+                            group.Names.En,
+                            group.MinSelect,
+                            group.MaxSelect,
+                            group
+                                .Options.Select(x => new OptionInput(
+                                    null,
+                                    x.Names.Zh,
+                                    x.Names.It,
+                                    x.Names.En,
+                                    x.PriceDeltaCents,
+                                    x.AllergenCodes
+                                ))
+                                .ToArray(),
+                            group.Items.Select(key => itemIds[key]).ToArray(),
+                            true
+                        )
+                    );
+                    var entity = new MenuOptionGroup
+                    {
+                        Id = NextId(),
+                        RestaurantId = restaurant.Id,
+                        NameZh = value.NameZh,
+                        NameIt = value.NameIt,
+                        NameEn = value.NameEn,
+                        MinSelect = value.MinSelect,
+                        MaxSelect = value.MaxSelect,
+                        Position = position,
+                    };
+                    foreach (var (option, index) in value.Options!.Select((x, i) => (x!, i)))
+                        entity.Options.Add(
+                            new MenuOption
+                            {
+                                Id = NextId(),
+                                RestaurantId = restaurant.Id,
+                                NameZh = option.NameZh,
+                                NameIt = option.NameIt,
+                                NameEn = option.NameEn,
+                                PriceDeltaCents = option.PriceDeltaCents,
+                                AllergenCodes = option.AllergenCodes!,
+                                Position = index,
+                            }
+                        );
+                    return (entity, value.MenuItemIds!);
+                }
+            )
+            .ToArray();
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
@@ -213,6 +273,18 @@ public sealed class DemoSeeder(
         );
 
         db.MenuItemImages.AddRange(images);
+        foreach (var (group, dishes) in groups)
+        {
+            db.MenuOptionGroups.Add(group);
+            db.MenuItemOptionGroups.AddRange(
+                dishes.Select(dish => new MenuItemOptionGroup
+                {
+                    MenuItemId = dish,
+                    GroupId = group.Id,
+                    RestaurantId = restaurant.Id,
+                })
+            );
+        }
         await db.SaveChangesAsync(ct);
 
         await transaction.CommitAsync(ct);

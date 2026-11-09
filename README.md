@@ -24,8 +24,9 @@ does not replace a fiscal cash register.
   table's visit with a four-character code, and order as many times as they like during the meal.
 - **Staff** open tables on the Floor, follow orders in the Kitchen (grouped by dish or by order, with
   an alert sound and per-screen category filters), and mark dishes served on the Pass screen.
-- **Owners** manage the menu and the tables, download QR codes and printable table cards, close the
-  bill after payment and browse the bill history.
+- **Owners** manage the menu, with shared options such as drink sizes, sugar, toppings or spice
+  levels that can add to the price, and the tables, download QR codes and printable table cards, close
+  the bill after payment and browse the bill history.
 - **Platform administrators** create restaurants and their accounts, choose each restaurant's color
   theme and record service periods and annual fees paid offline.
 

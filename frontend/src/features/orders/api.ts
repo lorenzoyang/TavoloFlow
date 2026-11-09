@@ -1,6 +1,7 @@
 import { guestKeys } from "@/features/guests/api";
 import { guestRequest, guestWrite } from "@/lib/api";
 import type { Language, Names } from "@/lib/language";
+import type { OptionSnapshot } from "@/lib/options";
 import type { OrderInput } from "./state";
 
 export type OrderItemStatus = "NEW" | "READY" | "CANCELLED";
@@ -13,6 +14,8 @@ export type OrderLine = Names & {
   unitPriceCents: number;
   quantity: number;
   remark: string | null;
+  // The chosen options as ordered; unitPriceCents already includes their deltas.
+  options: OptionSnapshot[];
   status: OrderItemStatus;
   readyAt: string | null;
   cancelledAt: string | null;

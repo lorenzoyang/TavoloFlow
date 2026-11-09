@@ -43,6 +43,7 @@ builder.Services.AddPlatformAccounts(builder.Configuration, builder.Environment)
 
 // Business services are scoped: each request gets its own instance sharing the request's DbContext.
 builder.Services.AddScoped<MenuService>();
+builder.Services.AddScoped<MenuOptionService>();
 builder.Services.AddScoped<PublicMenuService>();
 builder.Services.AddScoped<TableService>();
 builder.Services.AddSingleton<JoinCodes>();

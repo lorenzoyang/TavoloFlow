@@ -13,13 +13,39 @@ public sealed record CreateOrderInput(
     OrderLineInput?[]? Items
 );
 
+// ExpectedUnitPriceCents includes the chosen options' deltas; OptionIds is empty for a dish without options.
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record OrderLineInput(
     Guid MenuItemId,
     int Quantity,
     long ExpectedUnitPriceCents,
-    string? Remark
+    string? Remark,
+    Guid[]? OptionIds
 );
+
+public sealed record OrderLineOptionResponse(
+    string? GroupNameZh,
+    string? GroupNameIt,
+    string? GroupNameEn,
+    string? NameZh,
+    string? NameIt,
+    string? NameEn,
+    long PriceDeltaCents
+)
+{
+    public static OrderLineOptionResponse[] ForLine(OrderItem item) =>
+        item
+            .OptionsSnapshot.Select(x => new OrderLineOptionResponse(
+                x.GroupNameZh,
+                x.GroupNameIt,
+                x.GroupNameEn,
+                x.NameZh,
+                x.NameIt,
+                x.NameEn,
+                x.PriceDeltaCents
+            ))
+            .ToArray();
+}
 
 public sealed record OrderLineResponse(
     Guid Id,
@@ -32,6 +58,7 @@ public sealed record OrderLineResponse(
     long UnitPriceCents,
     int Quantity,
     string? Remark,
+    OrderLineOptionResponse[] Options,
     string Status,
     DateTime? ReadyAt,
     DateTime? CancelledAt
@@ -51,6 +78,7 @@ public sealed record OrderLineResponse(
                 x.UnitPriceCents,
                 x.Quantity,
                 x.Remark,
+                OrderLineOptionResponse.ForLine(x),
                 ApiEnum.Text(x.Status),
                 x.ReadyAt,
                 x.CancelledAt

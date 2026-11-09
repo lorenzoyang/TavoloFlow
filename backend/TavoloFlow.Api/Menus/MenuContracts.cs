@@ -20,8 +20,37 @@ public sealed record MenuItemInput(
     string? DescriptionEn,
     long PriceCents,
     string[]? AllergenCodes,
+    bool AllergenReviewed,
+    // Replaces the dish's option groups; an empty array means none.
+    Guid[]? OptionGroupIds
+);
+
+// Replaces the whole group: options with an id are edited in place (keeping their availability), options
+// without one are added, and options left out are removed. MenuItemIds replaces the dishes that use it.
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record OptionGroupInput(
+    string? NameZh,
+    string? NameIt,
+    string? NameEn,
+    int MinSelect,
+    int MaxSelect,
+    OptionInput?[]? Options,
+    Guid[]? MenuItemIds,
     bool AllergenReviewed
 );
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record OptionInput(
+    Guid? Id,
+    string? NameZh,
+    string? NameIt,
+    string? NameEn,
+    long PriceDeltaCents,
+    string[]? AllergenCodes
+);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record OptionGroupOrderInput(Guid[]? GroupIds);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record AvailabilityInput([Required] bool? IsAvailable);
@@ -49,10 +78,12 @@ public sealed record MenuItemResponse(
     string[] AllergenCodes,
     bool AllergenReviewed,
     bool IsAvailable,
-    Guid? ImageId
+    Guid? ImageId,
+    // In the restaurant-wide group order.
+    Guid[] OptionGroupIds
 )
 {
-    public static MenuItemResponse From(MenuItem item) =>
+    public static MenuItemResponse From(MenuItem item, Guid[] optionGroupIds) =>
         new(
             item.Id,
             item.CategoryId,
@@ -67,7 +98,58 @@ public sealed record MenuItemResponse(
             item.AllergenCodes,
             item.AllergenReviewed,
             item.IsAvailable,
-            item.ImageId
+            item.ImageId,
+            optionGroupIds
+        );
+}
+
+public sealed record OptionResponse(
+    Guid Id,
+    Guid GroupId,
+    string? NameZh,
+    string? NameIt,
+    string? NameEn,
+    long PriceDeltaCents,
+    string[] AllergenCodes,
+    bool IsAvailable
+)
+{
+    public static OptionResponse From(MenuOption option) =>
+        new(
+            option.Id,
+            option.GroupId,
+            option.NameZh,
+            option.NameIt,
+            option.NameEn,
+            option.PriceDeltaCents,
+            option.AllergenCodes,
+            option.IsAvailable
+        );
+}
+
+// Options are listed in their order within the group.
+public sealed record OptionGroupResponse(
+    Guid Id,
+    string? NameZh,
+    string? NameIt,
+    string? NameEn,
+    int MinSelect,
+    int MaxSelect,
+    OptionResponse[] Options
+)
+{
+    public static OptionGroupResponse From(
+        MenuOptionGroup group,
+        IEnumerable<MenuOption> options
+    ) =>
+        new(
+            group.Id,
+            group.NameZh,
+            group.NameIt,
+            group.NameEn,
+            group.MinSelect,
+            group.MaxSelect,
+            options.OrderBy(x => x.Position).ThenBy(x => x.Id).Select(OptionResponse.From).ToArray()
         );
 }
 
@@ -81,6 +163,8 @@ public sealed record MenuResponse(
     string[] AvailableLanguages,
     CategoryResponse[] Categories,
     MenuItemResponse[] Items,
+    // In the restaurant-wide display order.
+    OptionGroupResponse[] OptionGroups,
     IReadOnlyList<AllergenOption> Allergens
 );
 
@@ -101,7 +185,8 @@ public sealed record PublicTableResponse(Guid Id, string TableLabel, bool IsEnab
 public sealed record PublicMenuContent(
     string[] AvailableLanguages,
     CategoryResponse[] Categories,
-    MenuItemResponse[] Items
+    MenuItemResponse[] Items,
+    OptionGroupResponse[] OptionGroups
 );
 
 public sealed record PublicMenuResponse(
@@ -124,6 +209,13 @@ public static class MenuErrors
             413,
             "IMAGE_TOO_LARGE",
             "Image too large: upload a photo up to 15 MB (about 50 megapixels)."
+        );
+
+    public static ApiException OptionGroupsChanged() =>
+        new(
+            409,
+            "OPTION_GROUPS_CHANGED",
+            "The option groups have changed. Refresh the menu and order them again."
         );
 
     public static ApiException ImageNotFound() =>

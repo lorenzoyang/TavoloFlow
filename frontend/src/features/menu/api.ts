@@ -16,6 +16,23 @@ export type MenuItem = Names & {
   allergenReviewed: boolean;
   isAvailable: boolean;
   imageId: string | null;
+  // The dish's option groups in the restaurant-wide order.
+  optionGroupIds: string[];
+};
+// A restaurant-wide choice shared by dishes: minSelect/maxSelect are its whole rule (1/1 is a required
+// single choice, 0/3 up to three optional extras).
+export type MenuOption = Names & {
+  id: string;
+  groupId: string;
+  priceDeltaCents: number;
+  allergenCodes: string[];
+  isAvailable: boolean;
+};
+export type OptionGroup = Names & {
+  id: string;
+  minSelect: number;
+  maxSelect: number;
+  options: MenuOption[];
 };
 export type Menu = {
   restaurantId: string;
@@ -23,6 +40,8 @@ export type Menu = {
   availableLanguages: Language[];
   categories: Category[];
   items: MenuItem[];
+  // In the restaurant-wide display order.
+  optionGroups: OptionGroup[];
   allergens: { code: string; label: string; description: string }[];
 };
 export const menuQuery = (account: CurrentAccount) =>
@@ -53,6 +72,24 @@ export const menuImageUrl = (imageId: string) => `/api/public/menu-images/${imag
 
 export const setItemAvailability = (id: string, isAvailable: boolean) =>
   write<MenuItem>(`/api/staff/menu-items/${id}/availability`, "PATCH", { isAvailable });
+
+// The whole group is replaced: options keep their id (and sold-out state) when sent back with it.
+export const saveOptionGroup = (id: string | undefined, body: unknown) =>
+  write<OptionGroup>(
+    `/api/owner/menu/option-groups${id ? `/${id}` : ""}`,
+    id ? "PUT" : "POST",
+    body,
+  );
+
+export const deleteOptionGroup = (id: string) =>
+  write<void>(`/api/owner/menu/option-groups/${id}`, "DELETE");
+
+// Lists every group in its new order; a list built from an outdated menu is rejected.
+export const reorderOptionGroups = (groupIds: string[]) =>
+  write<void>("/api/owner/menu/option-groups/order", "PUT", { groupIds });
+
+export const setOptionAvailability = (id: string, isAvailable: boolean) =>
+  write<MenuOption>(`/api/staff/menu-options/${id}/availability`, "PATCH", { isAvailable });
 
 export const setDefaultLanguage = (defaultLanguage: string) =>
   write<{ defaultLanguage: Language }>("/api/owner/menu/default-language", "PATCH", {

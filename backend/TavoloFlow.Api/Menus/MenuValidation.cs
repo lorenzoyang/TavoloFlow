@@ -11,6 +11,12 @@ public static class MenuValidation
     public const int MaxItemNameLength = 150;
     public const int MaxItemCodeLength = 40;
 
+    // Option groups and options share one name limit; order lines copy both names into their snapshot.
+    public const int MaxOptionNameLength = 100;
+    public const int MaxOptionsPerGroup = 30;
+    public const int MaxOptionGroups = 50;
+    public const int MaxGroupsPerItem = 10;
+
     public static CategoryInput Normalize(CategoryInput input)
     {
         var value = input with
@@ -58,25 +64,117 @@ public static class MenuValidation
                 errors[field] = ["Enter the name in this language first."];
         if (!value.AllergenReviewed)
             errors["allergenReviewed"] = ["Confirm the allergen review before saving."];
-        if (
-            value.AllergenCodes is null
-            || value.AllergenCodes.Any(code =>
-                !MenuAllergens.Options.Any(option => option.Code == code)
-            )
-        )
+        if (!ValidAllergens(value.AllergenCodes))
             errors["allergenCodes"] =
             [
                 "Choose valid allergen options; send an empty array when the review found no allergens.",
             ];
+        if (
+            value.OptionGroupIds is null
+            || value.OptionGroupIds.Length > MaxGroupsPerItem
+            || value.OptionGroupIds.Contains(Guid.Empty)
+        )
+            errors["optionGroupIds"] =
+            [
+                $"List at most {MaxGroupsPerItem} valid option groups; send an empty array for none.",
+            ];
         Reject(errors);
-        // Canonical order and no duplicates, independent of checkbox selection order.
         return value with
         {
-            AllergenCodes = MenuAllergens
-                .Options.Where(option => value.AllergenCodes!.Contains(option.Code))
-                .Select(option => option.Code)
+            AllergenCodes = CanonicalAllergens(value.AllergenCodes!),
+            OptionGroupIds = value.OptionGroupIds!.Distinct().ToArray(),
+        };
+    }
+
+    public static OptionGroupInput Normalize(OptionGroupInput input)
+    {
+        var options = input.Options ?? [];
+        var value = input with
+        {
+            NameZh = TrimToNull(input.NameZh),
+            NameIt = TrimToNull(input.NameIt),
+            NameEn = TrimToNull(input.NameEn),
+            Options = options
+                .Select(option =>
+                    option is null
+                        ? null
+                        : option with
+                        {
+                            NameZh = TrimToNull(option.NameZh),
+                            NameIt = TrimToNull(option.NameIt),
+                            NameEn = TrimToNull(option.NameEn),
+                        }
+                )
                 .ToArray(),
         };
+        var errors = new Dictionary<string, string[]>();
+        Names(value.NameZh, value.NameIt, value.NameEn, MaxOptionNameLength, errors);
+        if (options.Length is < 1 or > MaxOptionsPerGroup || options.Any(x => x is null))
+            errors["options"] = [$"A group needs 1–{MaxOptionsPerGroup} options."];
+        else
+        {
+            foreach (var (option, index) in value.Options!.Select((x, i) => (x!, i)))
+            {
+                var field = $"options[{index}]";
+                var names = new Dictionary<string, string[]>();
+                Names(option.NameZh, option.NameIt, option.NameEn, MaxOptionNameLength, names);
+                foreach (var (key, messages) in names)
+                    errors[key == "names" ? $"{field}.names" : $"{field}.{key}"] = messages;
+                if (option.Id == Guid.Empty)
+                    errors[$"{field}.id"] = ["Leave the id out for a new option."];
+                if (option.PriceDeltaCents < 0 || option.PriceDeltaCents > MaxSafeCents)
+                    errors[$"{field}.priceDeltaCents"] =
+                    [
+                        "The extra price must be zero or positive whole euro cents within the safe integer range.",
+                    ];
+                if (!ValidAllergens(option.AllergenCodes))
+                    errors[$"{field}.allergenCodes"] =
+                    [
+                        "Choose valid allergen options; send an empty array when the review found no allergens.",
+                    ];
+            }
+            var ids = value.Options!.Select(x => x!.Id).OfType<Guid>().ToArray();
+            if (ids.Length != ids.Distinct().Count())
+                errors["options"] = ["Each option can appear only once."];
+        }
+        if (value.MaxSelect < 1 || value.MaxSelect > Math.Max(options.Length, 1))
+            errors["maxSelect"] = ["Allow between one choice and the number of options."];
+        if (value.MinSelect < 0 || value.MinSelect > value.MaxSelect)
+            errors["minSelect"] = ["The minimum must be between zero and the maximum."];
+        if (value.MenuItemIds is null || value.MenuItemIds.Contains(Guid.Empty))
+            errors["menuItemIds"] =
+            [
+                "List the dishes that use the group; send an empty array for none.",
+            ];
+        if (!value.AllergenReviewed)
+            errors["allergenReviewed"] = ["Confirm the allergen review before saving."];
+        Reject(errors);
+        return value with
+        {
+            Options = value
+                .Options!.Select(x =>
+                    x! with
+                    {
+                        AllergenCodes = CanonicalAllergens(x.AllergenCodes!),
+                    }
+                )
+                .ToArray(),
+            MenuItemIds = value.MenuItemIds!.Distinct().ToArray(),
+        };
+    }
+
+    private static bool ValidAllergens(string[]? codes) =>
+        codes is not null
+        && codes.All(code => MenuAllergens.Options.Any(option => option.Code == code));
+
+    // Canonical order and no duplicates, independent of checkbox selection order.
+    public static string[] CanonicalAllergens(IEnumerable<string> codes)
+    {
+        var set = codes.ToHashSet();
+        return MenuAllergens
+            .Options.Where(option => set.Contains(option.Code))
+            .Select(option => option.Code)
+            .ToArray();
     }
 
     private static void Names(

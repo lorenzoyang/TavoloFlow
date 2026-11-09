@@ -54,6 +54,7 @@ public sealed record PassItemResponse(
     string? NameEn,
     int Quantity,
     string? Remark,
+    OrderLineOptionResponse[] Options,
     DateTime ReadyAt,
     DateTime? ServedAt
 )
@@ -72,6 +73,7 @@ public sealed record PassItemResponse(
             item.NameEnSnapshot,
             item.Quantity,
             item.Remark,
+            OrderLineOptionResponse.ForLine(item),
             item.ReadyAt!.Value,
             item.ServedAt
         );

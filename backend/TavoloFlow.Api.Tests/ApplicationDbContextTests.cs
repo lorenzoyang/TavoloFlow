@@ -31,7 +31,10 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database)
                 "dining_sessions",
                 "menu_categories",
                 "menu_item_images",
+                "menu_item_option_groups",
                 "menu_items",
+                "menu_option_groups",
+                "menu_options",
                 "order_items",
                 "orders",
                 "platform_users",
@@ -93,6 +96,7 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database)
         var line = Assert.Single(saved.Items);
         Assert.NotNull(line.MenuItem);
         Assert.Equal(new[] { "GLUTEN", "SOY" }, line.AllergenCodesSnapshot);
+        Assert.Empty(line.OptionsSnapshot);
         Assert.Equal(line.AllergenCodesSnapshot, line.MenuItem.AllergenCodes);
         Assert.False(line.MenuItem.IsAvailable);
         Assert.False(line.MenuItem.AllergenReviewed);

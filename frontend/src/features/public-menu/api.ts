@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { ApiError, publicRequest } from "@/lib/api";
-import type { Category, MenuItem } from "@/features/menu/api";
+import type { Category, MenuItem, OptionGroup } from "@/features/menu/api";
 import type { Language } from "@/lib/language";
 import type { RestaurantTheme } from "@/lib/theme";
 
@@ -17,7 +17,12 @@ export type PublicMenu = {
   };
   table: { id: string; tableLabel: string; isEnabled: boolean };
   activeSessionId: string | null;
-  menu: { availableLanguages: Language[]; categories: Category[]; items: MenuItem[] };
+  menu: {
+    availableLanguages: Language[];
+    categories: Category[];
+    items: MenuItem[];
+    optionGroups: OptionGroup[];
+  };
 };
 
 export const publicMenuKey = (token: string) => ["public", "qr", token] as const;

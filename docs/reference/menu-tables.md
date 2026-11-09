@@ -1,7 +1,7 @@
 # Menu, tables and the public entrance
 
-OWNER maintains menu content/photos and physical tables. STAFF reads both and can change dish
-availability. Suspended restaurants can prepare their catalog without enabling guest ordering.
+OWNER maintains menu content/photos, shared option groups and physical tables. STAFF reads both and
+can change dish and option availability. Suspended restaurants can prepare their catalog without enabling guest ordering.
 Guests browse `/q/{token}` anonymously; [joining and ordering](dining-ordering.md) add authorization.
 
 ## Menu APIs
@@ -10,25 +10,31 @@ Store APIs use the trusted `CurrentAccount.RestaurantId` and require the first p
 Writes require Store CSRF; JSON DTOs reject unknown fields. Responses are `no-store` except a successful
 public photo read.
 
-| Method and path                                 | Role        | Success                                             |
-| ----------------------------------------------- | ----------- | --------------------------------------------------- |
-| `GET /api/staff/menu`                           | OWNER/STAFF | 200, complete menu without paging                   |
-| `POST /api/owner/menu/categories`               | OWNER       | 201, category                                       |
-| `PUT /api/owner/menu/categories/{id}`           | OWNER       | 200, category                                       |
-| `DELETE /api/owner/menu/categories/{id}`        | OWNER       | 204                                                 |
-| `POST /api/owner/menu/items`                    | OWNER       | 201, item initially available                       |
-| `PUT /api/owner/menu/items/{id}`                | OWNER       | 200, item preserving availability/photo             |
-| `DELETE /api/owner/menu/items/{id}`             | OWNER       | 204                                                 |
-| `PATCH /api/staff/menu-items/{id}/availability` | OWNER/STAFF | 200, item                                           |
-| `PATCH /api/owner/menu/default-language`        | OWNER       | 200, `{ defaultLanguage }`                          |
-| `PUT /api/owner/menu/items/{id}/image`          | OWNER       | 200, item with new `imageId`                        |
-| `DELETE /api/owner/menu/items/{id}/image`       | OWNER       | 200, item with null `imageId`; repeat also succeeds |
-| `GET /api/public/menu-images/{imageId}`         | Anonymous   | 200, `image/webp`                                   |
+| Method and path                                   | Role        | Success                                             |
+| ------------------------------------------------- | ----------- | --------------------------------------------------- |
+| `GET /api/staff/menu`                             | OWNER/STAFF | 200, complete menu without paging                   |
+| `POST /api/owner/menu/categories`                 | OWNER       | 201, category                                       |
+| `PUT /api/owner/menu/categories/{id}`             | OWNER       | 200, category                                       |
+| `DELETE /api/owner/menu/categories/{id}`          | OWNER       | 204                                                 |
+| `POST /api/owner/menu/items`                      | OWNER       | 201, item initially available                       |
+| `PUT /api/owner/menu/items/{id}`                  | OWNER       | 200, item preserving availability/photo             |
+| `DELETE /api/owner/menu/items/{id}`               | OWNER       | 204                                                 |
+| `PATCH /api/staff/menu-items/{id}/availability`   | OWNER/STAFF | 200, item                                           |
+| `PATCH /api/owner/menu/default-language`          | OWNER       | 200, `{ defaultLanguage }`                          |
+| `POST /api/owner/menu/option-groups`              | OWNER       | 201, option group                                   |
+| `PUT /api/owner/menu/option-groups/{id}`          | OWNER       | 200, option group preserving option availability    |
+| `DELETE /api/owner/menu/option-groups/{id}`       | OWNER       | 204, options and dish links removed                 |
+| `PUT /api/owner/menu/option-groups/order`         | OWNER       | 204                                                 |
+| `PATCH /api/staff/menu-options/{id}/availability` | OWNER/STAFF | 200, option                                         |
+| `PUT /api/owner/menu/items/{id}/image`            | OWNER       | 200, item with new `imageId`                        |
+| `DELETE /api/owner/menu/items/{id}/image`         | OWNER       | 200, item with null `imageId`; repeat also succeeds |
+| `GET /api/public/menu-images/{imageId}`           | Anonymous   | 200, `image/webp`                                   |
 
-Menu response: `restaurantId`, `defaultLanguage`, `availableLanguages`, `categories`, `items` and
-`allergens`. Categories sort by ID; items by category ID and item ID. Category response is
-`id/nameZh/nameIt/nameEn`. Items also carry `categoryId`, `itemCode`, three descriptions, `priceCents`,
-`allergenCodes`, `allergenReviewed`, `isAvailable` and nullable `imageId`.
+Menu response: `restaurantId`, `defaultLanguage`, `availableLanguages`, `categories`, `items`,
+`optionGroups` and `allergens`. Categories sort by ID; items by category ID and item ID; option groups
+by their restaurant-wide position. Category response is `id/nameZh/nameIt/nameEn`. Items also carry
+`categoryId`, `itemCode`, three descriptions, `priceCents`, `allergenCodes`, `allergenReviewed`,
+`isAvailable`, nullable `imageId` and `optionGroupIds` (in group order).
 
 Category input contains the three names. An item content request is:
 
@@ -44,12 +50,14 @@ Category input contains the three names. An item content request is:
   "descriptionEn": "An example description, not ingredient advice.",
   "priceCents": 1250,
   "allergenCodes": ["GLUTEN", "SOY"],
-  "allergenReviewed": true
+  "allergenReviewed": true,
+  "optionGroupIds": ["00000000-0000-4000-8000-000000000002"]
 }
 ```
 
 Use an actual category UUID and restaurant-reviewed ingredients/allergens. Item content input excludes
-`isAvailable` and `imageId`. Availability uses `{ "isAvailable": false }`; default language uses
+`isAvailable` and `imageId`. `optionGroupIds` is required and replaces the dish's option groups; send
+an empty array for none. Availability uses `{ "isAvailable": false }`; default language uses
 `{ "defaultLanguage": "it" }`. These endpoints update only their own setting.
 
 ## Content, language and concurrency
@@ -84,6 +92,68 @@ or default language. Form snapshots survive background refresh; drafts are not p
 the form. Writes are not automatically retried or queued offline. After an unknown result, reread and
 compare before resubmitting: category/item creation has no idempotency key. A known successful write
 followed by refresh failure is reported separately.
+
+## Option groups
+
+Option groups are a restaurant-wide library that dishes share: sizes, sweetness, ice, toppings, spice
+level or extras. They are generic, never drink-specific. A group has three names, `minSelect` and
+`maxSelect`, which are its whole rule (`1/1` a required single choice, `0/3` up to three optional
+extras), and 1–30 options. Each option has three names, `priceDeltaCents` (`0..9007199254740991`,
+added to the dish price per portion), its own `allergenCodes` and `isAvailable`. A restaurant has at
+most 50 groups and a dish at most 10. Required groups are never preselected for the guest.
+
+```json
+{
+  "nameZh": "杯型",
+  "nameIt": "Formato",
+  "nameEn": "Size",
+  "minSelect": 1,
+  "maxSelect": 1,
+  "options": [
+    {
+      "id": "…existing option…",
+      "nameZh": "中杯",
+      "nameIt": "Media",
+      "nameEn": "Regular",
+      "priceDeltaCents": 0,
+      "allergenCodes": []
+    },
+    {
+      "id": null,
+      "nameZh": "大杯",
+      "nameIt": "Grande",
+      "nameEn": "Large",
+      "priceDeltaCents": 100,
+      "allergenCodes": []
+    }
+  ],
+  "menuItemIds": ["00000000-0000-4000-8000-000000000003"],
+  "allergenReviewed": true
+}
+```
+
+- A save replaces the whole group: options sent with their id are edited in place and keep their
+  availability, options without an id are added (available), options left out are deleted, and the
+  array order is the option order. `menuItemIds` replaces the dishes that use the group. Foreign ids
+  return `MENU_RESOURCE_NOT_FOUND`. `0 <= minSelect <= maxSelect <= options`, `maxSelect >= 1`.
+- Every save requires `allergenReviewed: true`, as for dishes; options store canonical allergen codes.
+  Orders add the chosen options' allergens to the dish's, so the dish never has to list them.
+- Display order is one restaurant-wide `position`; each dish shows its own groups in that relative
+  order. New groups come last. The order endpoint takes `{ "groupIds": [...] }`, exactly the current
+  groups in their new order, so a repeat changes nothing; a list made from an outdated menu returns
+  `OPTION_GROUPS_CHANGED` (409).
+- Links can be set from either side: the dish's `optionGroupIds` or the group's `menuItemIds`.
+  Deleting a group, a dish or the restaurant removes options and links through `ON DELETE CASCADE`;
+  order snapshots keep the chosen options.
+- All option writes lock restaurant UPDATE first (`MenuWrites`), like every other menu write, so an
+  order's restaurant SHARE lock always prices and snapshots a consistent menu. Option names do not
+  count towards `availableLanguages`.
+
+Templates (size, sugar, ice/temperature, toppings, spice) are frontend constants
+(`features/menu/option-templates.ts`) with names in all three languages that only prefill a new
+group's form; prices start at zero and allergens unchecked. Ice and temperature share one group, so no
+rule between groups is needed. Out of scope: rules between options, several portions of one option, a
+price per dish inside a shared group, negative deltas and combos.
 
 ## Dish photos
 
@@ -151,7 +221,7 @@ Phone/LAN setup, including Windows/WSL forwarding, is in the
 | `restaurant`      | `id`, `name`, `currencyCode`, `defaultLanguage`, `serviceStatus`, `orderingEnabled`, `joinCodeRequired`, `theme` |
 | `table`           | `id`, `tableLabel`, `isEnabled`                                                                                  |
 | `activeSessionId` | Nullable ACTIVE visit ID; not a credential                                                                       |
-| `menu`            | `availableLanguages`, `categories`, `items` using the menu DTOs, including `imageId`                             |
+| `menu`            | `availableLanguages`, `categories`, `items`, `optionGroups` using the menu DTOs, including `imageId`             |
 
 Ownership comes only from the QR token. `PublicMenuService` reads entrance and menu in one Repeatable
 Read transaction; `MenuReader` does not start another. Bootstrap creates no visit and exposes no code,
@@ -169,23 +239,29 @@ not browser language. Blocked storage retains the current in-memory choice.
 
 A confirmed `QR_NOT_FOUND` replaces cached menu data and hides the old menu. Network failures retain
 earlier data with a warning. Sold-out dishes remain visible; unreviewed allergens show pending review.
+A dish with option groups opens an option picker instead of entering the cart at once; its price reads
+"from" when an option costs extra, and it shows as sold out once a required group has fewer options in
+stock than its minimum.
 The restaurant theme applies after bootstrap loads; invalid/loading entrances keep the default theme.
 
 ## Errors and verification
 
 Common errors include `VALIDATION_FAILED` (400), `MENU_RESOURCE_NOT_FOUND`, `TABLE_NOT_FOUND` and
 `QR_NOT_FOUND` (404), plus conflicts `ITEM_CODE_CONFLICT`, `CATEGORY_NOT_EMPTY`,
-`ALLERGEN_REVIEW_REQUIRED`, `TABLE_LABEL_CONFLICT` and `TABLE_HAS_ACTIVE_SESSION` (409).
+`ALLERGEN_REVIEW_REQUIRED`, `OPTION_GROUPS_CHANGED`, `TABLE_LABEL_CONFLICT` and
+`TABLE_HAS_ACTIVE_SESSION` (409).
 Photo errors are `IMAGE_INVALID` (400), `IMAGE_TOO_LARGE` (413) and `MENU_IMAGE_NOT_FOUND` (404).
 Account/CSRF errors follow [accounts](accounts-platform.md).
 
 Sources: [menu DTOs](../../backend/TavoloFlow.Api/Menus/MenuContracts.cs),
 [menu service](../../backend/TavoloFlow.Api/Menus/MenuService.cs),
+[option service](../../backend/TavoloFlow.Api/Menus/MenuOptionService.cs),
 [image pipeline](../../backend/TavoloFlow.Api/Menus/MenuImages.cs),
 [table service](../../backend/TavoloFlow.Api/Tables/TableService.cs) and
 [public reader](../../backend/TavoloFlow.Api/Menus/PublicMenuService.cs).
 
 Tests: [menu integration](../../backend/TavoloFlow.Api.Tests/MenuTests.cs),
+[option groups](../../backend/TavoloFlow.Api.Tests/MenuOptionTests.cs),
 [tables/bootstrap integration](../../backend/TavoloFlow.Api.Tests/TableAndPublicMenuTests.cs),
 [language](../../frontend/tests/menu-language.test.ts) and
 [public menu/QR](../../frontend/tests/public-menu.test.ts).

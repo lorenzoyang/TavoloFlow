@@ -37,7 +37,8 @@ export function confirmedOrder(value: Order, sessionId: string): Order {
         line.unitPriceCents <= 0 ||
         !Number.isInteger(line.quantity) ||
         line.quantity < 1 ||
-        line.quantity > 20,
+        line.quantity > 20 ||
+        !validOptions(line.options),
     )
   )
     throw new Error("Invalid order response");
@@ -59,6 +60,25 @@ export function confirmedOrder(value: Order, sessionId: string): Order {
   )
     throw new Error("Invalid order progress");
   return value;
+}
+
+// Every option needs a name and a safe, non-negative delta.
+function validOptions(options: unknown) {
+  return (
+    Array.isArray(options) &&
+    options.every(
+      (option) =>
+        option &&
+        typeof option === "object" &&
+        [option.nameZh, option.nameIt, option.nameEn].every(text) &&
+        [option.nameZh, option.nameIt, option.nameEn].some(
+          (n) => typeof n === "string" && n.trim(),
+        ) &&
+        [option.groupNameZh, option.groupNameIt, option.groupNameEn].every(text) &&
+        Number.isSafeInteger(option.priceDeltaCents) &&
+        option.priceDeltaCents >= 0,
+    )
+  );
 }
 
 function validTimes(line: Order["items"][number], createdAt: string) {

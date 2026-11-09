@@ -15,7 +15,9 @@ import { ApiError } from "@/lib/api";
 import { cn, uniqueBy } from "@/lib/utils";
 import { ordersKey, readOrders, type Order, type OrderItemStatus } from "./api";
 import { orderMessages, type OrderMessage } from "./messages";
-import { totalCents } from "./state";
+import { linePrice, totalCents } from "./state";
+import { selectionIssue } from "./options";
+import { optionNames, optionSummary } from "@/lib/options";
 import type { useCart } from "./useCart";
 import { formatDateTime, formatMoney, formatTime, shortId } from "@/lib/format";
 
@@ -72,6 +74,11 @@ function OrderCard({ order, language }: { order: Order; language: Language }) {
                   {formatMoney(line.unitPriceCents * line.quantity, language)}
                 </span>
               </div>
+              {line.options.length > 0 && (
+                <p className="text-sm text-muted-foreground wrap-break-word">
+                  {optionSummary(line.options, order.defaultLanguage, language)}
+                </p>
+              )}
               <Badge variant={statusBadge[line.status]}>
                 {m[line.status]}
                 {line.status === "CANCELLED" && ` · ${m.notCharged}`}
@@ -188,6 +195,15 @@ export function CartPanel({
             const name = displayName(line.item, data.restaurant.defaultLanguage, language);
             const currentItem = data.menu.items.find((i) => i.id === line.item.id);
             const available = currentItem?.isAvailable && currentItem.allergenReviewed;
+            // The choice was valid when added; the menu may have changed or sold out an option since.
+            const optionsValid =
+              !currentItem ||
+              selectionIssue(
+                currentItem,
+                data.menu.optionGroups,
+                line.options.map((option) => option.id),
+              ) === null;
+            const unit = linePrice(line);
             return (
               <li key={index} className="space-y-2.5 py-3.5">
                 <div className="flex items-start justify-between gap-3">
@@ -196,10 +212,18 @@ export function CartPanel({
                     {name.text}
                   </p>
                   <p className="shrink-0 font-semibold tabular-nums">
-                    {formatMoney(line.item.priceCents * line.quantity, language)}
+                    {formatMoney(unit * line.quantity, language)}
                   </p>
                 </div>
+                {line.options.length > 0 && (
+                  <p className="text-sm text-muted-foreground wrap-break-word">
+                    {optionNames(line.options, data.restaurant.defaultLanguage, language)}
+                  </p>
+                )}
                 {!available && <p className="text-sm text-destructive">{m.unavailable}</p>}
+                {available && !optionsValid && (
+                  <p className="text-sm text-destructive">{m.optionsChanged}</p>
+                )}
                 {model.review ? (
                   line.remark && (
                     <p className="text-sm whitespace-pre-wrap text-muted-foreground wrap-break-word">
@@ -230,13 +254,13 @@ export function CartPanel({
                         size="icon"
                         className="rounded-full"
                         aria-label={`${m.increase}: ${name.text}`}
-                        disabled={frozen || !available || line.quantity >= 20}
+                        disabled={frozen || !available || !optionsValid || line.quantity >= 20}
                         onClick={() => model.line(index, { quantity: line.quantity + 1 })}
                       >
                         <Plus />
                       </Button>
                       <span className="text-xs text-muted-foreground">
-                        {formatMoney(line.item.priceCents, language)} / {m.portions}
+                        {formatMoney(unit, language)} / {m.portions}
                       </span>
                       <Button
                         variant="ghost"

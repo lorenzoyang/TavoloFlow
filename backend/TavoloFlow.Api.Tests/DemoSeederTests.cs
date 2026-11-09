@@ -128,6 +128,34 @@ public sealed class DemoSeederTests(PostgreSqlFixture database) : IClassFixture<
                 Assert.Equal(image.Id, items.Single(x => x.Id == image.MenuItemId).ImageId);
             }
         );
+        // Every ramen takes a required spice level; the vegan one skips the egg and chashu extras.
+        var groups = await db
+            .MenuOptionGroups.Include(x => x.Options)
+            .OrderBy(x => x.Position)
+            .ToArrayAsync();
+        Assert.Equal(new[] { "Spice level", "Extras" }, groups.Select(x => x.NameEn));
+        Assert.Equal((1, 1), (groups[0].MinSelect, groups[0].MaxSelect));
+        Assert.Equal((0, 3), (groups[1].MinSelect, groups[1].MaxSelect));
+        Assert.Equal(
+            new[] { "Marinated egg", "Extra chashu", "Extra noodles", "Nori", "Sweet corn" },
+            groups[1].Options.OrderBy(x => x.Position).Select(x => x.NameEn)
+        );
+        Assert.Equal(
+            new[] { "EGGS" },
+            groups[1].Options.Single(x => x.Position == 0).AllergenCodes
+        );
+        var links = await db.MenuItemOptionGroups.ToArrayAsync();
+        var ramen = items.Where(x => x.ItemCode!.EndsWith("-ramen")).Select(x => x.Id).ToHashSet();
+        Assert.True(
+            ramen.SetEquals(links.Where(x => x.GroupId == groups[0].Id).Select(x => x.MenuItemId))
+        );
+        var vegan = items.Single(x => x.ItemCode == "vegan-ramen").Id;
+        Assert.True(
+            ramen
+                .Where(x => x != vegan)
+                .ToHashSet()
+                .SetEquals(links.Where(x => x.GroupId == groups[1].Id).Select(x => x.MenuItemId))
+        );
         var period = await db.RestaurantSubscriptionPeriods.SingleAsync();
         var today = DateOnly.FromDateTime(
             TimeZoneInfo

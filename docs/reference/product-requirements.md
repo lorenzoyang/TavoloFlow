@@ -63,11 +63,19 @@ Sold-out items remain visible but cannot be submitted.
 Every item content save requires an explicit allergen review, including sold-out items.
 An empty reviewed allergen list does not promise absence of cross-contact.
 
+Dishes can use shared option groups: sizes, sweetness, ice, toppings for bubble tea, spice levels and
+extras for ramen. A group is required or optional with a maximum number of choices; each option may add
+a non-negative price and carry its own allergens, and can be sold out on its own. Guests choose every
+required group themselves (nothing is preselected); the chosen options are snapshotted on the order
+line and their prices are included in its unit price. Rules between options, several portions of one
+option, per-dish prices inside a shared group and combos are out of scope.
+
 Carts are private to a browser tab and table, with the observed visit attached.
 A draft made before opening requires explicit confirmation of its first visit.
 Drafts from an ended visit never migrate into the next visit.
 Limit one submission to 30 lines, 20 portions per line and 100 portions in total.
 Each line may have a 200-character remark; there is no whole-order note.
+The same dish with different options or remarks stays on separate lines.
 Editing can continue with blocked storage, but submitting requires durable intent storage.
 
 ### 4. Submission and recovery

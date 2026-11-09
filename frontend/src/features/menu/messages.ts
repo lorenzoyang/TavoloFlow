@@ -74,6 +74,52 @@ const zh = {
   removePhotoHint: "客人菜单将不再显示这张图片，需要时可以重新上传。",
   photoTooLarge: "图片超过 15 MB，请换一张较小的照片。",
   photoSaved: "图片已更新。",
+  dishesTab: "菜品",
+  optionsTab: "选项",
+  optionsHint:
+    "选项组可被多道菜共用，例如杯型、甜度、小料或辣度。顾客点这些菜时按规则选择，加价自动计入。",
+  optionsStaffHint: "某个小料或规格卖完时，可在这里设为售罄。",
+  noOptionGroups: "还没有选项组。奶茶的杯型、甜度、小料，拉面的辣度、加料都可以在这里设置。",
+  addOptionGroup: "添加选项组",
+  editOptionGroup: "编辑选项组",
+  templateTitle: "选择模板",
+  templateHint: "模板已填好三种语言的名称，选择后仍可修改；加价和过敏原请按本店实际情况填写。",
+  blankTemplate: "空白选项组",
+  rule: (min: number, max: number) =>
+    min > 0
+      ? max === 1
+        ? "必选 · 单选"
+        : min === max
+          ? `必选 · 选 ${max} 项`
+          : `必选 · 选 ${min}–${max} 项`
+      : max === 1
+        ? "可选 · 单选"
+        : `可选 · 最多 ${max} 项`,
+  usedByCount: (count: number) => (count ? `${count} 道菜使用` : "尚未用于菜品"),
+  required: "顾客必须选择",
+  requiredHint: "打开后，顾客至少选一项才能加入购物车。",
+  maxSelect: "最多可选",
+  maxOption: (count: number) => (count === 1 ? "1 项（单选）" : `${count} 项`),
+  options: "选项",
+  optionNumber: (index: number) => `选项 ${index}`,
+  addOption: "添加选项",
+  moveUp: (name: string) => `上移：${name}`,
+  moveDown: (name: string) => `下移：${name}`,
+  removeOption: (name: string) => `删除选项：${name}`,
+  extraPrice: "加价（欧元）",
+  extraPriceHint: "不加价请填 0。",
+  extraPriceInvalid: "请为每个选项填写 0 或正数、最多两位小数的加价。",
+  optionAllergens: (count: number) => (count ? `过敏原（${count}）` : "过敏原"),
+  optionsInvalid: "每个选项组需要 1–30 个选项，每个选项至少填写一种语言的名称。",
+  usedBy: "适用菜品",
+  usedByHint: "勾选使用这个选项组的菜品。也可以在编辑菜品时勾选。",
+  reviewOptions: "我已核对这些选项的配料，确认以上过敏原声明。",
+  optionGroupsField: "选项组（可选）",
+  optionGroupsHint: "顾客点这道菜时须按选项组的规则选择，例如杯型、甜度。选项组在“选项”页管理。",
+  noGroupsForItem: "还没有选项组，可在“选项”页添加。",
+  removeGroupHint: (count: number) =>
+    `删除后不能恢复${count ? `，将从 ${count} 道菜中移除` : ""}。历史订单里记录的选项会保留。`,
+  optionAvailability: (name: string) => `供应状态：${name}`,
   allergenHints: {
     GLUTEN: "例如小麦、黑麦、大麦、燕麦及其制品",
     CRUSTACEANS: "例如虾、蟹、龙虾及其制品",
@@ -164,6 +210,59 @@ export const menuMessages: Record<Language, typeof zh> = {
     removePhotoHint: "Il menu dei clienti non la mostrerà più; potrai caricarla di nuovo.",
     photoTooLarge: "La foto supera 15 MB: scegline una più piccola.",
     photoSaved: "Foto aggiornata.",
+    dishesTab: "Piatti",
+    optionsTab: "Opzioni",
+    optionsHint:
+      "I gruppi di opzioni valgono per più piatti: formato, zucchero, topping o piccantezza. Il cliente sceglie secondo le regole e i supplementi si sommano da soli.",
+    optionsStaffHint: "Quando un topping o un formato finisce, segnalalo qui come esaurito.",
+    noOptionGroups:
+      "Nessun gruppo di opzioni. Qui si impostano formato, zucchero e topping del bubble tea, o piccantezza e aggiunte del ramen.",
+    addOptionGroup: "Nuovo gruppo",
+    editOptionGroup: "Modifica gruppo",
+    templateTitle: "Scegli un modello",
+    templateHint:
+      "I modelli hanno già i nomi in tre lingue e si possono modificare; supplementi e allergeni vanno inseriti secondo la tua ricetta.",
+    blankTemplate: "Gruppo vuoto",
+    rule: (min, max) =>
+      min > 0
+        ? max === 1
+          ? "Obbligatorio · 1 scelta"
+          : min === max
+            ? `Obbligatorio · ${max} scelte`
+            : `Obbligatorio · da ${min} a ${max}`
+        : max === 1
+          ? "Facoltativo · 1 scelta"
+          : `Facoltativo · fino a ${max}`,
+    usedByCount: (count) =>
+      count ? `Usato da ${count} ${count === 1 ? "piatto" : "piatti"}` : "Non ancora usato",
+    required: "Scelta obbligatoria",
+    requiredHint: "Se attiva, il cliente deve sceglierne almeno una per aggiungere il piatto.",
+    maxSelect: "Scelte massime",
+    maxOption: (count) => (count === 1 ? "1 (scelta singola)" : String(count)),
+    options: "Opzioni",
+    optionNumber: (index) => `Opzione ${index}`,
+    addOption: "Aggiungi opzione",
+    moveUp: (name) => `Sposta su: ${name}`,
+    moveDown: (name) => `Sposta giù: ${name}`,
+    removeOption: (name) => `Elimina opzione: ${name}`,
+    extraPrice: "Supplemento (€)",
+    extraPriceHint: "Scrivi 0 se non costa di più.",
+    extraPriceInvalid:
+      "Per ogni opzione inserisci un supplemento di zero o più, con al massimo due decimali.",
+    optionAllergens: (count) => (count ? `Allergeni (${count})` : "Allergeni"),
+    optionsInvalid: "Ogni gruppo ha da 1 a 30 opzioni, ognuna con il nome in almeno una lingua.",
+    usedBy: "Piatti che lo usano",
+    usedByHint:
+      "Seleziona i piatti che usano questo gruppo. Puoi farlo anche modificando il piatto.",
+    reviewOptions:
+      "Ho controllato gli ingredienti di queste opzioni e confermo gli allergeni indicati.",
+    optionGroupsField: "Gruppi di opzioni (facoltativi)",
+    optionGroupsHint:
+      "Il cliente sceglie secondo le regole dei gruppi, per esempio formato e zucchero. I gruppi si gestiscono nella scheda Opzioni.",
+    noGroupsForItem: "Nessun gruppo di opzioni: aggiungili nella scheda Opzioni.",
+    removeGroupHint: (count) =>
+      `L’eliminazione è definitiva${count ? ` e lo toglie da ${count} ${count === 1 ? "piatto" : "piatti"}` : ""}. Le opzioni registrate negli ordini passati restano.`,
+    optionAvailability: (name) => `Disponibilità: ${name}`,
     allergenHints: {
       GLUTEN: "Ad esempio frumento, segale, orzo, avena e derivati",
       CRUSTACEANS: "Ad esempio gamberi, granchi, astici e derivati",
@@ -251,6 +350,58 @@ export const menuMessages: Record<Language, typeof zh> = {
     removePhotoHint: "The guest menu won’t show it any more; you can upload it again.",
     photoTooLarge: "The photo is over 15 MB: choose a smaller one.",
     photoSaved: "Photo updated.",
+    dishesTab: "Dishes",
+    optionsTab: "Options",
+    optionsHint:
+      "Option groups are shared by dishes: size, sugar, toppings or spice level. Guests choose by the group’s rule and extras are added to the price.",
+    optionsStaffHint: "When a topping or size runs out, mark it sold out here.",
+    noOptionGroups:
+      "No option groups yet. Set up bubble tea sizes, sugar and toppings, or ramen spice levels and extras here.",
+    addOptionGroup: "New group",
+    editOptionGroup: "Edit group",
+    templateTitle: "Choose a template",
+    templateHint:
+      "Templates come with names in all three languages and can be edited; enter extra prices and allergens for your own recipe.",
+    blankTemplate: "Blank group",
+    rule: (min, max) =>
+      min > 0
+        ? max === 1
+          ? "Required · choose 1"
+          : min === max
+            ? `Required · choose ${max}`
+            : `Required · ${min}–${max}`
+        : max === 1
+          ? "Optional · choose 1"
+          : `Optional · up to ${max}`,
+    usedByCount: (count) =>
+      count ? `Used by ${count} ${count === 1 ? "dish" : "dishes"}` : "Not used yet",
+    required: "Guests must choose",
+    requiredHint: "When on, guests choose at least one before adding the dish.",
+    maxSelect: "Maximum choices",
+    maxOption: (count) => (count === 1 ? "1 (single choice)" : String(count)),
+    options: "Options",
+    optionNumber: (index) => `Option ${index}`,
+    addOption: "Add option",
+    moveUp: (name) => `Move up: ${name}`,
+    moveDown: (name) => `Move down: ${name}`,
+    removeOption: (name) => `Delete option: ${name}`,
+    extraPrice: "Extra price (€)",
+    extraPriceHint: "Enter 0 when it costs nothing extra.",
+    extraPriceInvalid:
+      "Give every option an extra price of zero or more, with at most two decimals.",
+    optionAllergens: (count) => (count ? `Allergens (${count})` : "Allergens"),
+    optionsInvalid: "A group needs 1–30 options, each named in at least one language.",
+    usedBy: "Dishes that use it",
+    usedByHint:
+      "Tick the dishes that use this group. You can also tick groups when editing a dish.",
+    reviewOptions: "I checked these options’ ingredients and confirm the allergens listed.",
+    optionGroupsField: "Option groups (optional)",
+    optionGroupsHint:
+      "Guests choose by each group’s rule, such as size and sugar. Groups are managed in the Options tab.",
+    noGroupsForItem: "No option groups yet: add them in the Options tab.",
+    removeGroupHint: (count) =>
+      `Deleting is permanent${count ? ` and removes it from ${count} ${count === 1 ? "dish" : "dishes"}` : ""}. Options recorded in past orders stay.`,
+    optionAvailability: (name) => `Availability: ${name}`,
     allergenHints: {
       GLUTEN: "For example wheat, rye, barley, oats and products thereof",
       CRUSTACEANS: "For example prawns, crabs, lobsters and products thereof",

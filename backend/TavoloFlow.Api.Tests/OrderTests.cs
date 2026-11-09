@@ -12,6 +12,7 @@ using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Dining;
 using TavoloFlow.Api.Entities;
 using TavoloFlow.Api.Guests;
+using TavoloFlow.Api.Kitchen;
 using TavoloFlow.Api.Menus;
 using TavoloFlow.Api.Ordering;
 using TavoloFlow.Api.Platform;
@@ -37,7 +38,7 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
             new(
                 Opened.Session.SessionId,
                 Guid.NewGuid(),
-                [new(Item.Id, quantity, Item.PriceCents, " 少盐 ")]
+                [new(Item.Id, quantity, Item.PriceCents, " 少盐 ", [])]
             );
     }
 
@@ -163,6 +164,10 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
     [InlineData("remark")]
     [InlineData("price")]
     [InlineData("missing-id")]
+    [InlineData("missing-options")]
+    [InlineData("duplicate-option")]
+    [InlineData("empty-option")]
+    [InlineData("too-many-options")]
     public async Task Create_InvalidInput_RejectsWholeOrder(string scenario)
     {
         using var host = new AccountTestHost(database);
@@ -183,6 +188,22 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
             },
             "remark" => input with { Items = [line with { Remark = new string('x', 201) }] },
             "price" => input with { Items = [line with { ExpectedUnitPriceCents = 0 }] },
+            "missing-options" => input with { Items = [line with { OptionIds = null }] },
+            "duplicate-option" => input with
+            {
+                Items = [line with { OptionIds = [s.Item.Id, s.Item.Id] }],
+            },
+            "empty-option" => input with { Items = [line with { OptionIds = [Guid.Empty] }] },
+            "too-many-options" => input with
+            {
+                Items =
+                [
+                    line with
+                    {
+                        OptionIds = Enumerable.Range(0, 51).Select(_ => Guid.NewGuid()).ToArray(),
+                    },
+                ],
+            },
             _ => input with { ClientRequestId = Guid.Empty },
         };
         await AssertErrorAsync(
@@ -225,7 +246,7 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
         if (scenario == "foreign")
         {
             var other = await SeedAsync(host);
-            input = input with { Items = [input.Items![0], new(other.Item.Id, 1, 700, null)] };
+            input = input with { Items = [input.Items![0], new(other.Item.Id, 1, 700, null, [])] };
         }
         var response = await SubmitAsync(guest, input);
         await AssertErrorAsync(response, HttpStatusCode.Conflict, "MENU_CHANGED");
@@ -233,6 +254,153 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
         var change = body.RootElement.GetProperty("changes").EnumerateArray().First();
         Assert.True(change.TryGetProperty("menuItemId", out _));
         Assert.True(change.TryGetProperty("reason", out _));
+        Assert.False(await db.Orders.AnyAsync(o => o.DiningSessionId == s.Guest.SessionId));
+        Assert.Equal(1, (await db.DiningSessions.FindAsync(s.Guest.SessionId))!.BillVersion);
+    }
+
+    [Fact]
+    public async Task Create_WithOptions_PricesSnapshotsAndKeepsThemAfterMenuEdits()
+    {
+        using var host = new AccountTestHost(database);
+        var s = await SeedAsync(host);
+        await using var db = database.CreateContext();
+        var (size, toppings) = await AddOptionsAsync(db, s);
+        using var guest = await JoinAsync(host, s);
+        var (large, pearls, foam) = (size.Options[1], toppings.Options[0], toppings.Options[1]);
+        // Sent in any order; the snapshot follows the group order, then the order within each group.
+        var input = new CreateOrderInput(
+            s.Opened.Session.SessionId,
+            Guid.NewGuid(),
+            [new(s.Item.Id, 2, 1000, null, [foam.Id, large.Id, pearls.Id])]
+        );
+        var response = await SubmitAsync(guest, input);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var order = (await response.Content.ReadFromJsonAsync<OrderResponse>())!;
+        var line = order.Items.Single();
+        Assert.Equal(1000, line.UnitPriceCents);
+        Assert.Equal(2000, order.TotalAmountCents);
+        Assert.Equal(["SOY", "MILK"], line.AllergenCodes);
+        Assert.Equal(
+            [("杯型", "大杯", 100L), ("小料", "珍珠", 80L), ("小料", "奶盖", 120L)],
+            line.Options.Select(x => (x.GroupNameZh, x.NameZh, x.PriceDeltaCents))
+        );
+        Assert.Equal(("Size", "Large"), (line.Options[0].GroupNameEn, line.Options[0].NameEn));
+
+        using var staff = await LoginAsync(host, s.User);
+        var kitchen = (await staff.GetFromJsonAsync<KitchenPage>("/api/staff/orders"))!;
+        Assert.Equal(3, kitchen.Items.Single().Items.Single().Options.Length);
+        var bill = (
+            await staff.GetFromJsonAsync<BillPage>($"/api/staff/sessions/{s.Guest.SessionId}/bill")
+        )!;
+        Assert.Equal(2000, bill.Orders.Single().PayableAmountCents);
+        Assert.Equal("奶盖", bill.Orders.Single().Items.Single().Options[2].NameZh);
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (
+                await PostAsync(
+                    staff,
+                    $"/api/staff/orders/{order.Id}/items/{line.Id}/ready",
+                    new { }
+                )
+            ).StatusCode
+        );
+        var pass = (await staff.GetFromJsonAsync<PassPage>("/api/staff/pass"))!;
+        Assert.Equal("大杯", pass.Items.Single().Options[0].NameZh);
+
+        // Later menu edits never reach the snapshot, and the original request still finds its order.
+        await new MenuOptionService(db).DeleteGroupAsync(
+            s.Guest.RestaurantId,
+            toppings.Id,
+            default
+        );
+        await db
+            .MenuOptionGroups.Where(x => x.Id == size.Id)
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.NameZh, "规格"));
+        var retry = await SubmitAsync(guest, input);
+        Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+        var replayed = (await retry.Content.ReadFromJsonAsync<OrderResponse>())!;
+        Assert.Equal(order.Id, replayed.Id);
+        Assert.Equal(
+            ["杯型", "小料", "小料"],
+            replayed.Items.Single().Options.Select(x => x.GroupNameZh)
+        );
+    }
+
+    [Theory]
+    [InlineData("required", "OPTIONS_CHANGED")]
+    [InlineData("two-sizes", "OPTIONS_CHANGED")]
+    [InlineData("above-max", "OPTIONS_CHANGED")]
+    [InlineData("unlinked-group", "OPTIONS_CHANGED")]
+    [InlineData("sold-out", "OPTIONS_CHANGED")]
+    [InlineData("unknown", "OPTIONS_CHANGED")]
+    [InlineData("delta", "PRICE_CHANGED")]
+    public async Task Create_ChangedOptions_ReportsConflictWithoutPartialOrder(
+        string scenario,
+        string reason
+    )
+    {
+        using var host = new AccountTestHost(database);
+        var s = await SeedAsync(host);
+        await using var db = database.CreateContext();
+        var (size, toppings) = await AddOptionsAsync(db, s);
+        using var guest = await JoinAsync(host, s);
+        var (medium, large) = (size.Options[0].Id, size.Options[1].Id);
+        var pearls = toppings.Options[0].Id;
+        Guid[] chosen = [large, pearls];
+        var expected = 880L;
+        switch (scenario)
+        {
+            case "required":
+                chosen = [pearls];
+                expected = 780;
+                break;
+            case "two-sizes":
+                chosen = [medium, large];
+                break;
+            case "above-max":
+                chosen = [medium, .. toppings.Options.Select(x => x.Id)];
+                break;
+            case "unlinked-group":
+                var other = await new MenuOptionService(db).SaveGroupAsync(
+                    s.Guest.RestaurantId,
+                    null,
+                    new("辣度", null, null, 0, 1, [new(null, "微辣", null, null, 0, [])], [], true),
+                    default
+                );
+                chosen = [large, other.Options[0].Id];
+                break;
+            case "sold-out":
+                await new MenuOptionService(db).SetAvailabilityAsync(
+                    s.Guest.RestaurantId,
+                    pearls,
+                    false,
+                    default
+                );
+                break;
+            case "unknown":
+                chosen = [large, Guid.NewGuid()];
+                break;
+            default:
+                await db
+                    .MenuOptions.Where(x => x.Id == large)
+                    .ExecuteUpdateAsync(u => u.SetProperty(x => x.PriceDeltaCents, 150));
+                break;
+        }
+        var response = await SubmitAsync(
+            guest,
+            new(
+                s.Opened.Session.SessionId,
+                Guid.NewGuid(),
+                [new(s.Item.Id, 1, expected, null, chosen)]
+            )
+        );
+        await AssertErrorAsync(response, HttpStatusCode.Conflict, "MENU_CHANGED");
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var change = body.RootElement.GetProperty("changes").EnumerateArray().Single();
+        Assert.Equal(reason, change.GetProperty("reason").GetString());
+        Assert.Equal(s.Item.Id, change.GetProperty("menuItemId").GetGuid());
+        if (reason == "PRICE_CHANGED")
+            Assert.Equal(930, change.GetProperty("currentUnitPriceCents").GetInt64());
         Assert.False(await db.Orders.AnyAsync(o => o.DiningSessionId == s.Guest.SessionId));
         Assert.Equal(1, (await db.DiningSessions.FindAsync(s.Guest.SessionId))!.BillVersion);
     }
@@ -246,7 +414,10 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
         await db
             .MenuItems.Where(i => i.Id == s.Item.Id)
             .ExecuteUpdateAsync(u => u.SetProperty(i => i.PriceCents, InputRules.MaxSafeCents));
-        var input = s.Input(1) with { Items = [new(s.Item.Id, 2, InputRules.MaxSafeCents, null)] };
+        var input = s.Input(1) with
+        {
+            Items = [new(s.Item.Id, 2, InputRules.MaxSafeCents, null, [])],
+        };
         var service = new OrderService(db, host.Clock);
         Assert.Equal(
             "VALIDATION_FAILED",
@@ -260,8 +431,8 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
         {
             Items =
             [
-                new(s.Item.Id, 1, InputRules.MaxSafeCents, null),
-                new(s.Item.Id, 1, InputRules.MaxSafeCents, "other"),
+                new(s.Item.Id, 1, InputRules.MaxSafeCents, null, []),
+                new(s.Item.Id, 1, InputRules.MaxSafeCents, "other", []),
             ],
         };
         Assert.Equal(
@@ -464,6 +635,8 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
     [InlineData("sold-out", false)]
     [InlineData("delete", true)]
     [InlineData("delete", false)]
+    [InlineData("option", true)]
+    [InlineData("option", false)]
     [InlineData("disabled", true)]
     [InlineData("disabled", false)]
     [InlineData("paused", true)]
@@ -493,6 +666,23 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
                     s.Guest.RestaurantId,
                     s.Guest.SessionId,
                     new(1, 0, true),
+                    default
+                );
+            else if (kind == "option")
+                // A new required group: an order that comes after it lacks the required choice.
+                await new MenuOptionService(mutationDb).SaveGroupAsync(
+                    s.Guest.RestaurantId,
+                    null,
+                    new(
+                        "杯型",
+                        null,
+                        null,
+                        1,
+                        1,
+                        [new(null, "中杯", null, null, 0, [])],
+                        [s.Item.Id],
+                        true
+                    ),
                     default
                 );
             else if (kind == "disabled")
@@ -696,6 +886,53 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
             host.Clock
         ).OpenAsync(restaurant.Id, table.Id, default);
         return new(user, table, item, opened);
+    }
+
+    // A required size (+1 € for large) and up to two toppings, the second of which contains milk.
+    private static async Task<(
+        OptionGroupResponse Size,
+        OptionGroupResponse Toppings
+    )> AddOptionsAsync(ApplicationDbContext db, Setup s)
+    {
+        var service = new MenuOptionService(db);
+        var size = await service.SaveGroupAsync(
+            s.Guest.RestaurantId,
+            null,
+            new(
+                "杯型",
+                "Formato",
+                "Size",
+                1,
+                1,
+                [
+                    new(null, "中杯", "Media", "Regular", 0, []),
+                    new(null, "大杯", "Grande", "Large", 100, []),
+                ],
+                [s.Item.Id],
+                true
+            ),
+            default
+        );
+        var toppings = await service.SaveGroupAsync(
+            s.Guest.RestaurantId,
+            null,
+            new(
+                "小料",
+                "Topping",
+                "Toppings",
+                0,
+                2,
+                [
+                    new(null, "珍珠", "Perle", "Pearls", 80, []),
+                    new(null, "奶盖", "Schiuma", "Cheese foam", 120, ["MILK"]),
+                    new(null, "布丁", "Budino", "Pudding", 100, ["EGGS", "MILK"]),
+                ],
+                [s.Item.Id],
+                true
+            ),
+            default
+        );
+        return (size, toppings);
     }
 
     private static async Task<HttpClient> LoginAsync(AccountTestHost host, RestaurantUser user)

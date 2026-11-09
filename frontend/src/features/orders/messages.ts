@@ -31,6 +31,24 @@ const en = {
   changed: "The menu has changed. Review the latest prices and availability, then confirm again.",
   unavailable:
     "Some dishes are unavailable or awaiting allergen review. Remove or replace them before ordering.",
+  options:
+    "Some choices (size, toppings…) have changed or sold out. Remove those items and add them again.",
+  optionsChanged: "These choices have changed. Remove the item and add it again.",
+  rule: (min: number, max: number) =>
+    min > 0
+      ? max === 1
+        ? "Required · choose 1"
+        : min === max
+          ? `Required · choose ${max}`
+          : `Required · ${min}–${max}`
+      : max === 1
+        ? "Optional"
+        : `Optional · up to ${max}`,
+  chooseGroups: (names: string) => `Choose: ${names}`,
+  addFor: (price: string) => `Add to cart · ${price}`,
+  fromPrice: (price: string) => `from ${price}`,
+  extra: (price: string) => `+${price}`,
+  choices: "Choose options",
   limits: "Use up to 30 lines, 1–20 per line and 100 items total. Item notes: 200 characters.",
   amount: "The amount exceeds the supported range. Please ask the staff.",
   storage:
@@ -98,6 +116,23 @@ export const orderMessages: Record<Language, typeof en> = {
     unverified: "请先加入本轮用餐，再核对并提交订单。",
     changed: "菜单已变化，请重新核对最新价格和供应状态，再确认下单。",
     unavailable: "部分菜品已不可售或尚未完成过敏原审核，请移除或替换后再下单。",
+    options: "部分菜品的规格或加料已变更或售罄，请移除这些菜品后重新添加。",
+    optionsChanged: "这些选项已变更，请移除后重新添加。",
+    rule: (min, max) =>
+      min > 0
+        ? max === 1
+          ? "必选 · 单选"
+          : min === max
+            ? `必选 · 选 ${max} 项`
+            : `必选 · 选 ${min}–${max} 项`
+        : max === 1
+          ? "可选"
+          : `可选 · 最多 ${max} 项`,
+    chooseGroups: (names) => `请选择：${names}`,
+    addFor: (price) => `加入购物车 · ${price}`,
+    fromPrice: (price) => `${price} 起`,
+    extra: (price) => `+${price}`,
+    choices: "选择规格",
     limits: "每单最多 30 行，每行 1–20 份，总计最多 100 份；单行备注最多 200 字符。",
     amount: "金额超过支持范围，请联系工作人员。",
     storage: "浏览器无法安全保存本次订单。请启用标签页存储并刷新后下单；仍可浏览和编辑。",
@@ -163,6 +198,24 @@ export const orderMessages: Record<Language, typeof en> = {
       "Il menu è cambiato. Controlla prezzi e disponibilità aggiornati e conferma nuovamente.",
     unavailable:
       "Alcuni piatti non sono disponibili o attendono la verifica degli allergeni. Rimuovili o sostituiscili.",
+    options:
+      "Alcune scelte (formato, topping…) sono cambiate o esaurite. Rimuovi quei piatti e aggiungili di nuovo.",
+    optionsChanged: "Queste scelte sono cambiate. Rimuovi il piatto e aggiungilo di nuovo.",
+    rule: (min, max) =>
+      min > 0
+        ? max === 1
+          ? "Obbligatorio · 1 scelta"
+          : min === max
+            ? `Obbligatorio · ${max} scelte`
+            : `Obbligatorio · da ${min} a ${max}`
+        : max === 1
+          ? "Facoltativo"
+          : `Facoltativo · fino a ${max}`,
+    chooseGroups: (names) => `Scegli: ${names}`,
+    addFor: (price) => `Aggiungi · ${price}`,
+    fromPrice: (price) => `da ${price}`,
+    extra: (price) => `+${price}`,
+    choices: "Scegli le opzioni",
     limits:
       "Massimo 30 righe, 1–20 porzioni per riga e 100 in totale. Note: 200 caratteri per piatto.",
     amount: "L’importo supera il limite supportato. Rivolgiti al personale.",
@@ -202,7 +255,10 @@ export const orderMessages: Record<Language, typeof en> = {
     close: "Chiudi",
   },
 };
-export type OrderMessage = keyof typeof en;
+// The notices a cart can show: every plain-text message, not the formatting functions.
+export type OrderMessage = {
+  [K in keyof typeof en]: (typeof en)[K] extends string ? K : never;
+}[keyof typeof en];
 export const orderError = (code: string): OrderMessage =>
   (
     ({
