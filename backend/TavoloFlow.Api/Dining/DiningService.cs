@@ -25,6 +25,8 @@ public sealed class DiningService(ApplicationDbContext db, JoinCodes codes, Time
                 "SERVICE_SUSPENDED",
                 "The restaurant's service is suspended, so ordering can't be turned on."
             );
+        if (enabled && !restaurant.DineInEnabled)
+            throw DiningErrors.DineInNotOffered();
         await db
             .Restaurants.Where(r => r.Id == restaurantId)
             .ExecuteUpdateAsync(update => update.SetProperty(r => r.OrderingEnabled, enabled), ct);

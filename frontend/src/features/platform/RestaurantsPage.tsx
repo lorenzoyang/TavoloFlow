@@ -21,6 +21,7 @@ import { useManagement } from "./useManagement";
 import { randomUuid } from "@/lib/ids";
 import { createRestaurant, listRestaurants, RESTAURANTS_PAGE_SIZE } from "./api";
 import type { PlatformIdentity } from "./identity";
+import { isSlug, servicesValid, type RestaurantServices } from "./state";
 import { PeriodFields } from "@/features/subscriptions/PeriodFields";
 import { periodFromForm } from "@/features/subscriptions/state";
 import { SubscriptionStatus } from "@/features/subscriptions/SubscriptionViews";
@@ -46,6 +47,7 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
   const [annualInput, setAnnualInput] = useState("");
   const [includePeriod, setIncludePeriod] = useState(false);
   const [requireCode, setRequireCode] = useState(true);
+  const [services, setServices] = useState<RestaurantServices>({ dineIn: true, online: false });
   const [createError, setCreateError] = useState("");
   const live = useLiveView();
   const today = new Intl.DateTimeFormat("sv-SE", { timeZone: RESTAURANT_TIME_ZONE }).format(
@@ -86,6 +88,15 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
       )
     )
       return;
+    const slug = String(data.get("slug") ?? "").trim() || null;
+    if (slug !== null && !isSlug(slug)) {
+      setCreateError(m.slugInvalid);
+      return;
+    }
+    if (!servicesValid(services, slug)) {
+      setCreateError(m.servicesInvalid);
+      return;
+    }
     setCreateError("");
     const theme = data.get("theme");
     const input = {
@@ -100,6 +111,8 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
       initialPeriod,
       joinCodeRequired: requireCode,
       theme: isTheme(theme) ? theme : DEFAULT_THEME,
+      services,
+      slug,
     };
     const ok = await actions.run({ kind: "create", restaurantId: id }, (signal) =>
       createRestaurant(input, signal),
@@ -109,6 +122,7 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
       setAnnualInput("");
       setIncludePeriod(false);
       setRequireCode(true);
+      setServices({ dineIn: true, online: false });
     }
   };
   return (
@@ -159,6 +173,45 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
               </div>
               <div className="sm:col-span-2">
                 <ThemeChoices name="theme" defaultValue={DEFAULT_THEME} />
+              </div>
+              <fieldset className="space-y-1 sm:col-span-2">
+                <legend className="text-sm font-medium">{m.services}</legend>
+                {(
+                  [
+                    ["dineIn", m.serviceDineIn, m.serviceDineInHint],
+                    ["online", m.serviceOnline, m.serviceOnlineHint],
+                  ] as const
+                ).map(([key, label, hint]) => (
+                  <label key={key} className="flex min-h-11 items-center gap-3">
+                    <Checkbox
+                      checked={services[key]}
+                      onCheckedChange={(checked) =>
+                        setServices((current) => ({ ...current, [key]: checked }))
+                      }
+                    />
+                    <span>
+                      {label}
+                      <span className="block text-sm text-muted-foreground">{hint}</span>
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="create-slug">{m.slugField}</Label>
+                <Input
+                  id="create-slug"
+                  name="slug"
+                  required={services.online}
+                  maxLength={40}
+                  pattern="[a-z0-9][a-z0-9\-]{1,38}[a-z0-9]"
+                  autoCapitalize="none"
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-describedby="create-slug-hint"
+                />
+                <p id="create-slug-hint" className="text-sm text-muted-foreground">
+                  {m.slugHint}
+                </p>
               </div>
               <label className="flex min-h-11 items-center gap-3 sm:col-span-2">
                 <Checkbox

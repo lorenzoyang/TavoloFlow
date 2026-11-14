@@ -20,6 +20,14 @@ public static class InputRules
     public static bool IsRestaurantName(string? name) =>
         !string.IsNullOrWhiteSpace(name) && name.Trim().Length <= MaxRestaurantNameLength;
 
+    // The online ordering link /r/{slug}: 3-40 lowercase letters, digits and hyphens, no hyphen at
+    // either end. The ck_restaurant_slug check constraint repeats it; uq_restaurant_slug keeps it unique.
+    public const int MaxSlugLength = 40;
+    public const string SlugIndex = "uq_restaurant_slug";
+
+    public static bool IsSlug([NotNullWhen(true)] string? value) =>
+        value is not null && Regex.IsMatch(value, "^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$");
+
     // Optional text fields store blank input as NULL.
     public static string? TrimToNull(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

@@ -122,6 +122,12 @@ public sealed class RestaurantAdministration(
             );
         var mapsUrl = MapsUrl(input.GoogleMapsUrl);
         var theme = Theme(input.Theme);
+        var (dineIn, online) = Services(input.Services);
+        var slug = InputRules.TrimToNull(input.Slug);
+        if (slug is not null && !InputRules.IsSlug(slug))
+            throw AdministrationErrors.InvalidSlug();
+        if (online && slug is null)
+            throw AdministrationErrors.InvalidServices();
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         if (await db.Restaurants.AnyAsync(r => r.Id == input.Id, ct))
             throw new ApiException(
@@ -137,6 +143,9 @@ public sealed class RestaurantAdministration(
             GoogleMapsUrl = mapsUrl,
             JoinCodeRequired = input.JoinCodeRequired,
             Theme = theme,
+            DineInEnabled = dineIn,
+            OnlineEnabled = online,
+            Slug = slug,
         };
         var credentials = new List<TemporaryAccount>();
         foreach (
@@ -170,6 +179,10 @@ public sealed class RestaurantAdministration(
         try
         {
             await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException error) when (IsSlugConflict(error))
+        {
+            throw AdministrationErrors.SlugConflict();
         }
         catch (DbUpdateException error)
             when (error.InnerException
@@ -229,6 +242,90 @@ public sealed class RestaurantAdministration(
             status
         );
         return RestaurantSummary.From(restaurant);
+    }
+
+    // UPDATE waits for the restaurant SHARE locks taken by opening, joining and ordering, so no new visit
+    // can start between the open-work check and the switch.
+    public async Task<RestaurantSummary> SetServicesAsync(
+        Guid id,
+        ServicesInput input,
+        Guid actor,
+        CancellationToken ct
+    )
+    {
+        var (dineIn, online) = Services(input);
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var restaurant =
+            await RowLocks.RestaurantAsync(db, id, RowLock.Update, ct)
+            ?? throw AdministrationErrors.RestaurantNotFound();
+        if (online && restaurant.Slug is null)
+            throw AdministrationErrors.InvalidServices();
+        // Every session is a dine-in visit until online orders exist.
+        if (
+            restaurant.DineInEnabled
+            && !dineIn
+            && await db.DiningSessions.AnyAsync(
+                s => s.RestaurantId == id && s.Status == DiningSessionStatus.Active,
+                ct
+            )
+        )
+            throw AdministrationErrors.ServiceHasOpenWork();
+        await db
+            .Restaurants.Where(r => r.Id == id)
+            .ExecuteUpdateAsync(
+                update =>
+                    update
+                        .SetProperty(r => r.DineInEnabled, dineIn)
+                        .SetProperty(r => r.OnlineEnabled, online),
+                ct
+            );
+        await transaction.CommitAsync(ct);
+        restaurant.DineInEnabled = dineIn;
+        restaurant.OnlineEnabled = online;
+        logger.LogInformation(
+            "Platform {ActorId} set restaurant {RestaurantId} services dineIn={DineIn} online={Online}.",
+            actor,
+            id,
+            dineIn,
+            online
+        );
+        return RestaurantSummary.From(restaurant);
+    }
+
+    // Changing the link breaks the old one and any printed QR code for it; table QR codes stay valid.
+    // The slug is never cleared, so turning online ordering back on restores the same link.
+    public async Task<RestaurantSummary> SetSlugAsync(
+        Guid id,
+        string? slug,
+        Guid actor,
+        CancellationToken ct
+    )
+    {
+        var value = slug?.Trim();
+        if (!InputRules.IsSlug(value))
+            throw AdministrationErrors.InvalidSlug();
+        try
+        {
+            if (
+                await db
+                    .Restaurants.Where(r => r.Id == id)
+                    .ExecuteUpdateAsync(u => u.SetProperty(r => r.Slug, value), ct) == 0
+            )
+                throw AdministrationErrors.RestaurantNotFound();
+        }
+        catch (Exception error) when (IsSlugConflict(error))
+        {
+            throw AdministrationErrors.SlugConflict();
+        }
+        logger.LogInformation(
+            "Platform {ActorId} set restaurant {RestaurantId} online link to {Slug}.",
+            actor,
+            id,
+            value
+        );
+        return RestaurantSummary.From(
+            await db.Restaurants.AsNoTracking().SingleAsync(r => r.Id == id, ct)
+        );
     }
 
     // Only this column changes, so the write never races status or subscription updates of the same row.
@@ -438,6 +535,22 @@ public sealed class RestaurantAdministration(
             throw ApiException.Validation("Enter a Google Maps link starting with https://.");
         return value;
     }
+
+    private static (bool DineIn, bool Online) Services(ServicesInput? input)
+    {
+        if (input?.DineIn is not { } dineIn || input.Online is not { } online)
+            throw AdministrationErrors.InvalidServices();
+        if (!dineIn && !online)
+            throw AdministrationErrors.InvalidServices();
+        return (dineIn, online);
+    }
+
+    private static bool IsSlugConflict(Exception error) =>
+        (error as PostgresException ?? error.InnerException as PostgresException)
+            is {
+                SqlState: PostgresErrorCodes.UniqueViolation,
+                ConstraintName: InputRules.SlugIndex,
+            };
 
     private static RestaurantTheme Theme(string? input) =>
         ApiEnum.TryParse(input, out RestaurantTheme theme)

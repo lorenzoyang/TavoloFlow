@@ -3,9 +3,11 @@ import { test } from "node:test";
 import { isPrivateQuery, isPlatformQuery } from "../src/lib/query-scope.ts";
 import {
   credentialsChanged,
+  isSlug,
   managementKey,
   readPending,
   recoveryUrl,
+  servicesValid,
   type ManagedAccount,
 } from "../src/features/platform/state.ts";
 import { randomUuid } from "../src/lib/ids.ts";
@@ -39,7 +41,7 @@ test("pending management state stores only identifiers and a version, never temp
     }),
   )!;
   assert.deepEqual(pending, { kind: "reset", restaurantId, userId, expectedVersion: 3 });
-  for (const kind of ["maps", "joinCode", "theme", "delete"])
+  for (const kind of ["maps", "joinCode", "theme", "services", "slug", "delete"])
     assert.deepEqual(readPending(JSON.stringify({ kind, restaurantId })), {
       kind,
       restaurantId,
@@ -82,4 +84,19 @@ test("recovery compares target versions without treating another administrator's
   assert.equal(credentialsChanged(pending, { ...account, credentialVersion: 3 }), true);
   assert.throws(() => credentialsChanged(pending, { ...account, id: randomUuid() }));
   assert.throws(() => credentialsChanged(pending, undefined));
+});
+
+test("online links use the server's slug rule", () => {
+  for (const slug of ["abc", "ramen-da-mario", "a1-2b", "a--b", "a".repeat(40)])
+    assert.equal(isSlug(slug), true, slug);
+  for (const slug of ["ab", "-abc", "abc-", "Abc", "ab c", " abc", "caffè", "ab_c", "a".repeat(41)])
+    assert.equal(isSlug(slug), false, slug);
+});
+
+test("at least one service stays on and online ordering needs its link", () => {
+  assert.equal(servicesValid({ dineIn: true, online: false }, null), true);
+  assert.equal(servicesValid({ dineIn: false, online: true }, "ramen"), true);
+  assert.equal(servicesValid({ dineIn: true, online: true }, "ramen"), true);
+  assert.equal(servicesValid({ dineIn: false, online: false }, "ramen"), false);
+  assert.equal(servicesValid({ dineIn: true, online: true }, null), false);
 });

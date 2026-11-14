@@ -48,4 +48,7 @@ public static class DiningErrors
 
     public static ApiException SessionClosed() =>
         new(409, "SESSION_CLOSED", "This visit is already closed.");
+
+    public static ApiException DineInNotOffered() =>
+        new(409, "DINE_IN_NOT_OFFERED", "This restaurant doesn't offer QR dine-in ordering.");
 }

@@ -38,6 +38,19 @@ internal sealed class RestaurantConfiguration : IEntityTypeConfiguration<Restaur
                     "ck_restaurant_theme",
                     "theme IN ('TERRACOTTA', 'LACQUER', 'INDIGO', 'INK', 'TARO')"
                 );
+                table.HasCheckConstraint(
+                    "ck_restaurant_services",
+                    "dine_in_enabled OR online_enabled"
+                );
+                table.HasCheckConstraint(
+                    "ck_restaurant_online_slug",
+                    "NOT online_enabled OR slug IS NOT NULL"
+                );
+                // InputRules.IsSlug: 3-40 lowercase letters, digits and hyphens, no hyphen at either end.
+                table.HasCheckConstraint(
+                    "ck_restaurant_slug",
+                    "slug IS NULL OR slug ~ '^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$'"
+                );
             }
         );
 
@@ -99,6 +112,27 @@ internal sealed class RestaurantConfiguration : IEntityTypeConfiguration<Restaur
             .HasConversion<UppercaseEnumConverter<RestaurantTheme>>()
             .HasDefaultValue(RestaurantTheme.Terracotta)
             .ValueGeneratedNever();
+
+        builder
+            .Property(restaurant => restaurant.DineInEnabled)
+            .HasColumnName("dine_in_enabled")
+            .HasDefaultValue(true)
+            .ValueGeneratedNever();
+
+        builder
+            .Property(restaurant => restaurant.OnlineEnabled)
+            .HasColumnName("online_enabled")
+            .HasDefaultValue(false)
+            .ValueGeneratedNever();
+
+        builder
+            .Property(restaurant => restaurant.Slug)
+            .HasColumnName("slug")
+            .HasMaxLength(InputRules.MaxSlugLength);
+        builder
+            .HasIndex(restaurant => restaurant.Slug)
+            .IsUnique()
+            .HasDatabaseName(InputRules.SlugIndex);
 
         builder
             .Property(restaurant => restaurant.OwnerContact)

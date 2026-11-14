@@ -694,6 +694,11 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("character varying(2)")
                         .HasColumnName("default_language");
 
+                    b.Property<bool>("DineInEnabled")
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("dine_in_enabled");
+
                     b.Property<string>("GoogleMapsUrl")
                         .HasMaxLength(2048)
                         .HasColumnType("character varying(2048)")
@@ -709,6 +714,11 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)")
                         .HasColumnName("name");
+
+                    b.Property<bool>("OnlineEnabled")
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("online_enabled");
 
                     b.Property<bool>("OrderingEnabled")
                         .HasColumnType("boolean")
@@ -726,6 +736,11 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("character varying(16)")
                         .HasDefaultValue("SUSPENDED")
                         .HasColumnName("service_status");
+
+                    b.Property<string>("Slug")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("slug");
 
                     b.Property<int>("SubscriptionVersion")
                         .HasColumnType("integer")
@@ -748,6 +763,10 @@ namespace TavoloFlow.Api.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Slug")
+                        .IsUnique()
+                        .HasDatabaseName("uq_restaurant_slug");
+
                     b.ToTable("restaurants", null, t =>
                         {
                             t.HasCheckConstraint("ck_restaurant_annual_fee", "default_annual_fee_cents IS NULL OR default_annual_fee_cents BETWEEN 0 AND 9007199254740991");
@@ -758,7 +777,13 @@ namespace TavoloFlow.Api.Data.Migrations
 
                             t.HasCheckConstraint("ck_restaurant_google_maps_url", "google_maps_url IS NULL OR google_maps_url LIKE 'https://%'");
 
+                            t.HasCheckConstraint("ck_restaurant_online_slug", "NOT online_enabled OR slug IS NOT NULL");
+
                             t.HasCheckConstraint("ck_restaurant_service_status", "service_status IN ('ACTIVE', 'SUSPENDED')");
+
+                            t.HasCheckConstraint("ck_restaurant_services", "dine_in_enabled OR online_enabled");
+
+                            t.HasCheckConstraint("ck_restaurant_slug", "slug IS NULL OR slug ~ '^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$'");
 
                             t.HasCheckConstraint("ck_restaurant_subscription_version", "subscription_version > 0");
 

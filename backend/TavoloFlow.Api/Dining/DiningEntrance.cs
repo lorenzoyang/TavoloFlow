@@ -25,8 +25,9 @@ public static class DiningEntrance
         return (restaurant, table);
     }
 
-    // A suspended restaurant or disabled table stops new sessions, guest joins and guest code reads.
-    // OrderingEnabled gates future orders only, not seating or joining a session.
+    // A suspended restaurant, dine-in that the platform has not turned on, or a disabled table stops new
+    // sessions, guest joins, guest code reads and QR orders. OrderingEnabled gates future orders only,
+    // not seating or joining a session.
     public static void Require(Restaurant restaurant, RestaurantTable table)
     {
         if (restaurant.ServiceStatus != RestaurantServiceStatus.Active)
@@ -35,6 +36,8 @@ public static class DiningEntrance
                 "SERVICE_SUSPENDED",
                 "The restaurant's service is suspended."
             );
+        if (!restaurant.DineInEnabled)
+            throw DiningErrors.DineInNotOffered();
         if (!table.IsEnabled)
             throw new ApiException(409, "TABLE_DISABLED", "This table is disabled. Ask the staff.");
     }

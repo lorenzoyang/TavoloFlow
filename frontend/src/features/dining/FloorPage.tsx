@@ -13,6 +13,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
+import { ServiceNotOffered } from "@/features/accounts/ServiceNotOffered";
 import { ActiveBillPanel } from "@/features/billing/BillViews";
 import { staffMessages } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
@@ -196,13 +197,17 @@ function FloorContent({
 export function FloorPage(props: FloorProps) {
   return (
     <AuthBoundary mode="account">
-      {(account) => (
-        <FloorContent
-          key={`${account.restaurantId}:${account.userId}`}
-          account={account}
-          {...props}
-        />
-      )}
+      {(account) =>
+        account.services.dineIn ? (
+          <FloorContent
+            key={`${account.restaurantId}:${account.userId}`}
+            account={account}
+            {...props}
+          />
+        ) : (
+          <ServiceNotOffered messages={diningMessages} />
+        )
+      }
     </AuthBoundary>
   );
 }

@@ -14,6 +14,9 @@ public sealed record CreateRestaurantInput(
     [Required] string DefaultLanguage,
     [Required, StringLength(AccountInput.MaxUsernameLength)] string OwnerUsername,
     [Required, StringLength(AccountInput.MaxUsernameLength)] string StaffUsername,
+    [Required] ServicesInput Services,
+    // Required while online ordering is on; checked against InputRules.IsSlug.
+    [StringLength(InputRules.MaxSlugLength)] string? Slug = null,
     [StringLength(500)] string? OwnerContact = null,
     long? DefaultAnnualFeeCents = null,
     InitialSubscriptionPeriod? InitialPeriod = null,
@@ -35,6 +38,12 @@ public sealed record JoinCodeRequiredInput([Required] bool? JoinCodeRequired);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record ThemeInput([Required] string? Theme);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record ServicesInput([Required] bool? DineIn, [Required] bool? Online);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record SlugInput([Required, StringLength(InputRules.MaxSlugLength)] string? Slug);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record ResetAccountInput(
@@ -80,6 +89,8 @@ public sealed record RestaurantSummary(
     string? GoogleMapsUrl,
     bool JoinCodeRequired,
     string Theme,
+    RestaurantServices Services,
+    string? Slug,
     SubscriptionSummary? Subscription = null
 )
 {
@@ -95,7 +106,9 @@ public sealed record RestaurantSummary(
             restaurant.CreatedAt,
             restaurant.GoogleMapsUrl,
             restaurant.JoinCodeRequired,
-            ApiEnum.Text(restaurant.Theme)
+            ApiEnum.Text(restaurant.Theme),
+            RestaurantServices.From(restaurant),
+            restaurant.Slug
         );
 }
 
@@ -132,6 +145,30 @@ public static class AdministrationErrors
             404,
             "ACCOUNT_NOT_FOUND",
             "The account doesn't exist or doesn't belong to this restaurant."
+        );
+
+    public static ApiException ServiceHasOpenWork() =>
+        new(
+            409,
+            "SERVICE_HAS_OPEN_WORK",
+            "The service being turned off still has open work. Finish it first."
+        );
+
+    public static ApiException SlugConflict() =>
+        new(409, "SLUG_CONFLICT", "Another restaurant already uses this link.");
+
+    public static ApiException InvalidServices() =>
+        ApiException.Validation(
+            "Turn on at least one service; online ordering needs a link.",
+            "services",
+            "Invalid services."
+        );
+
+    public static ApiException InvalidSlug() =>
+        ApiException.Validation(
+            "Use 3-40 lowercase letters, digits and hyphens, not starting or ending with a hyphen.",
+            "slug",
+            "Invalid link."
         );
 
     public static ApiException InvalidTheme() =>

@@ -27,6 +27,14 @@ public sealed class Restaurant
     public bool OrderingEnabled { get; set; }
     public bool JoinCodeRequired { get; set; } = true;
     public RestaurantTheme Theme { get; set; } = RestaurantTheme.Terracotta;
+
+    // The platform turns each service on per restaurant; at least one stays on.
+    public bool DineInEnabled { get; set; } = true;
+    public bool OnlineEnabled { get; set; }
+
+    // The readable online ordering link /r/{slug}; required while online ordering is on.
+    public string? Slug { get; set; }
+
     public DateTime CreatedAt { get; set; }
     public string? GoogleMapsUrl { get; set; }
     public string? OwnerContact { get; set; }

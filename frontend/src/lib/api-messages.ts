@@ -37,6 +37,7 @@ const zhErrors = {
   CREATE_CONFLICT: "餐厅标识或登录名已被使用，请核对原结果或修改登录名。",
   CREDENTIALS_CHANGED: "账号凭据已变化，请重新登录。",
   CURRENT_PASSWORD_INCORRECT: "当前密码不正确。",
+  DINE_IN_NOT_OFFERED: "本餐厅未开通扫码堂食。",
   FORBIDDEN: "没有执行此操作的权限。",
   IMAGE_INVALID: "无法读取该图片，请上传 JPG、PNG 或 WebP 格式的照片。",
   IMAGE_TOO_LARGE: "图片太大，请上传不超过 15 MB、约 5000 万像素以内的照片。",
@@ -55,6 +56,7 @@ const zhErrors = {
   RESTAURANT_EXISTS: "此创建标识已存在，请核对原餐厅。",
   RESTAURANT_NOT_FOUND: "餐厅不存在。",
   RESTAURANT_NOT_SUSPENDED: "请先停用餐厅服务，再永久删除。",
+  SERVICE_HAS_OPEN_WORK: "要关闭的服务还有未完成的工作（例如未结账的用餐），请先处理完再关闭。",
   SERVICE_SUSPENDED: "餐厅服务已暂停。",
   SESSION_ALREADY_ACTIVE: "此桌已开桌，请重新读取当前用餐状态。",
   SESSION_CLOSED: "本次用餐已结束。",
@@ -62,6 +64,7 @@ const zhErrors = {
   SESSION_NOT_FOUND: "用餐记录不存在。",
   SESSION_NOT_PAYABLE: "零账单应按空桌或全部取消关闭，不记录为收款。",
   SESSION_NOT_VOIDABLE: "只有本轮已有订单且所有菜品均已取消时，才能按零账单关闭。",
+  SLUG_CONFLICT: "这个线上链接已被其他餐厅使用，请换一个。",
   SUBSCRIPTION_CHANGED: "年费资料已变化（可能是本次或其他操作已生效），请核对最新资料后再确认。",
   SUBSCRIPTION_PERIOD_EXISTS: "此收费周期编号已使用，请核对原记录。",
   SUBSCRIPTION_PERIOD_NOT_FOUND: "收费周期不存在或不属于此餐厅。",
@@ -89,6 +92,7 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
       "Identificativo del ristorante o nome utente già in uso: controlla il risultato originale o cambia il nome utente.",
     CREDENTIALS_CHANGED: "Le credenziali sono cambiate. Accedi di nuovo.",
     CURRENT_PASSWORD_INCORRECT: "La password attuale non è corretta.",
+    DINE_IN_NOT_OFFERED: "Questo ristorante non offre ordini al tavolo con QR.",
     FORBIDDEN: "Non hai i permessi per questa operazione.",
     IMAGE_INVALID: "Impossibile leggere l’immagine. Carica una foto JPG, PNG o WebP.",
     IMAGE_TOO_LARGE: "Immagine troppo grande: carica una foto fino a 15 MB (circa 50 megapixel).",
@@ -108,6 +112,8 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
       "Questo identificativo di creazione esiste già: controlla il ristorante originale.",
     RESTAURANT_NOT_FOUND: "Il ristorante non esiste.",
     RESTAURANT_NOT_SUSPENDED: "Sospendi prima il servizio del ristorante, poi eliminalo.",
+    SERVICE_HAS_OPEN_WORK:
+      "Il servizio da disattivare ha ancora lavoro in corso (per esempio visite non chiuse). Completalo prima.",
     SERVICE_SUSPENDED: "Il servizio del ristorante è sospeso.",
     SESSION_ALREADY_ACTIVE: "Il tavolo è già aperto. Ricarica lo stato attuale.",
     SESSION_CLOSED: "Questa visita è già chiusa.",
@@ -117,6 +123,7 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
       "Un conto a zero si chiude come tavolo vuoto o annullato, non come incassato.",
     SESSION_NOT_VOIDABLE:
       "Si chiude a zero solo se ci sono ordini e tutti i piatti sono annullati.",
+    SLUG_CONFLICT: "Questo link online è già usato da un altro ristorante. Scegline un altro.",
     SUBSCRIPTION_CHANGED:
       "I dati dell’abbonamento sono cambiati (forse per questa o un’altra operazione). Controlla i dati aggiornati e conferma di nuovo.",
     SUBSCRIPTION_PERIOD_EXISTS:
@@ -144,6 +151,7 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
       "Restaurant ID or username already in use: check the original result or change the username.",
     CREDENTIALS_CHANGED: "Your credentials have changed. Sign in again.",
     CURRENT_PASSWORD_INCORRECT: "The current password is wrong.",
+    DINE_IN_NOT_OFFERED: "This restaurant doesn’t offer QR dine-in ordering.",
     FORBIDDEN: "You don’t have permission for this.",
     IMAGE_INVALID: "Can’t read the image. Upload a JPG, PNG or WebP photo.",
     IMAGE_TOO_LARGE: "Image too large: upload a photo up to 15 MB (about 50 megapixels).",
@@ -162,6 +170,8 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
     RESTAURANT_EXISTS: "This creation ID already exists: check the original restaurant.",
     RESTAURANT_NOT_FOUND: "The restaurant doesn’t exist.",
     RESTAURANT_NOT_SUSPENDED: "Suspend the restaurant’s service first, then delete it.",
+    SERVICE_HAS_OPEN_WORK:
+      "The service you’re turning off still has open work (such as unsettled visits). Finish it first.",
     SERVICE_SUSPENDED: "The restaurant’s service is suspended.",
     SESSION_ALREADY_ACTIVE: "The table is already open. Reload the current state.",
     SESSION_CLOSED: "This visit is already closed.",
@@ -170,6 +180,7 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
     SESSION_NOT_PAYABLE: "A zero bill closes as an empty or voided table, not as paid.",
     SESSION_NOT_VOIDABLE:
       "A bill closes at zero only if it has orders and every dish is cancelled.",
+    SLUG_CONFLICT: "Another restaurant already uses this online link. Choose another one.",
     SUBSCRIPTION_CHANGED:
       "The subscription has changed (perhaps by this or another action). Check the latest data and confirm again.",
     SUBSCRIPTION_PERIOD_EXISTS: "This period ID is already used: check the original period.",

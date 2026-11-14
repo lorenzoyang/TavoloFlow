@@ -18,6 +18,8 @@ const zh = {
   disconnected: "连接已断开或页面暂停。",
   remark: (text: string) => `备注：${text}`,
   sourceCode: "源代码（AGPL-3.0）",
+  serviceNotOffered: "本餐厅未开通此服务",
+  serviceNotOfferedHint: "这项服务由平台按餐厅开通。如需使用，请联系平台管理员。",
 };
 
 export const staffMessages: Record<Language, typeof zh> = {
@@ -41,6 +43,9 @@ export const staffMessages: Record<Language, typeof zh> = {
     disconnected: "Connessione persa o pagina in pausa.",
     remark: (text) => `Nota: ${text}`,
     sourceCode: "Codice sorgente (AGPL-3.0)",
+    serviceNotOffered: "Servizio non attivo per questo ristorante",
+    serviceNotOfferedHint:
+      "La piattaforma attiva questo servizio per ogni ristorante. Per usarlo contatta l’amministratore della piattaforma.",
   },
   en: {
     table: (label) => `Table ${label}`,
@@ -60,5 +65,8 @@ export const staffMessages: Record<Language, typeof zh> = {
     disconnected: "Connection lost or page paused.",
     remark: (text) => `Note: ${text}`,
     sourceCode: "Source code (AGPL-3.0)",
+    serviceNotOffered: "This restaurant doesn’t offer this service",
+    serviceNotOfferedHint:
+      "The platform turns this service on per restaurant. To use it, contact the platform administrator.",
   },
 };

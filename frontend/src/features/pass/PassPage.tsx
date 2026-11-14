@@ -99,7 +99,7 @@ function PassContent({ account }: { account: CurrentAccount }) {
   const model = usePass(account);
   const wakeLock = useWakeLock();
   // Only pages outside the tabs link back: Pass is a STAFF tab but an OWNER Home entry.
-  const isTab = staffNavItems(account.role, language).some((item) => item.to === "/staff/pass");
+  const isTab = staffNavItems(account, language).some((item) => item.to === "/staff/pass");
   return (
     <div>
       <PageHeader

@@ -53,7 +53,8 @@ their next request. Logout only removes the current browser's cookie; there is n
 | `POST /api/platform/auth/logout`          | No business body                       | 204                              |
 
 Store identity contains `userId`, `username`, `role`, `restaurantId`, `restaurantName`,
-`restaurantTheme` and `mustChangePassword`. Platform identity contains `userId`, `username` and
+`restaurantTheme`, `services: { dineIn, online }` and `mustChangePassword`. `services` decides the store
+navigation; a platform change reaches open pages at their next identity refresh. Platform identity contains `userId`, `username` and
 `role: PLATFORM_ADMIN`. Neither contains hashes, tickets, guest codes or subscription/contact data.
 
 Errors share `{ code, message, requestId, errors? }`:
@@ -134,6 +135,8 @@ fields. Temporary passwords appear only in successful create/reset responses, ne
 | `PATCH /api/platform/restaurants/{id}/google-maps-url`              | `{ googleMapsUrl }`, blank clears → restaurant summary                                                                      |
 | `PATCH /api/platform/restaurants/{id}/join-code-required`           | `{ joinCodeRequired }` → restaurant summary                                                                                 |
 | `PATCH /api/platform/restaurants/{id}/theme`                        | `{ theme }` → restaurant summary                                                                                            |
+| `PATCH /api/platform/restaurants/{id}/services`                     | `{ dineIn, online }`, both required → restaurant summary                                                                    |
+| `PATCH /api/platform/restaurants/{id}/slug`                         | `{ slug }`, required, never cleared → restaurant summary                                                                    |
 | `PATCH /api/platform/restaurants/{id}/users/{userId}/active`        | `{ isActive, expectedCredentialVersion }` → managed account                                                                 |
 | `POST /api/platform/restaurants/{id}/users/{userId}/reset-password` | `{ expectedCredentialVersion }` → `{ account, temporaryPassword }`                                                          |
 | `DELETE /api/platform/restaurants/{id}`                             | SUSPENDED only → 204                                                                                                        |
@@ -145,10 +148,11 @@ substring. Subscription filters and expiry sorting are described in
 [subscriptions](restaurant-subscriptions.md). Default order is newest creation/ID first.
 
 Creation atomically saves the client-selected UUID, SUSPENDED restaurant, EUR/Europe/Rome defaults,
-ordering off and both accounts. Optional settings include `googleMapsUrl`, `joinCodeRequired` (true),
+ordering off and both accounts. It requires `services: { dineIn, online }` (at least one on) and takes
+`slug`, required when online ordering is on. Optional settings include `googleMapsUrl`, `joinCodeRequired` (true),
 `theme` (TERRACOTTA), `ownerContact`, `defaultAnnualFeeCents` and `initialPeriod`. Initial period/payment
 creation shares the transaction. Existing UUIDs return `RESTAURANT_EXISTS`; unique-key races can return
-`CREATE_CONFLICT`, with no partial restaurant.
+`CREATE_CONFLICT`, with no partial restaurant; a taken online link returns `SLUG_CONFLICT`.
 
 Suspending takes restaurant UPDATE and turns ordering off, coordinating with opening/joining/ordering.
 Restoring ACTIVE leaves ordering off. Suspension does not disable accounts or prevent existing kitchen
@@ -175,6 +179,29 @@ HTTPS Google Maps link (`maps.app.goo.gl`, `maps.google.*`, or `google.*/maps`),
 Store, guest and subscription responses do not expose it. Map/theme writes leave subscription version
 unchanged. The join-code switch is also a single-field target-value update, but uses inline confirmation
 and waits for guest joins' restaurant SHARE locks. It preserves existing guest grants.
+
+## Services and online link
+
+The platform turns QR dine-in and online ordering on per restaurant. The summary returns
+`services: { dineIn, online }` and `slug`. Defaults are dine-in on, online off and no link; the database
+keeps at least one service on (`ck_restaurant_services`) and a link whenever online is on
+(`ck_restaurant_online_slug`).
+
+| Rule             | Contract                                                                                                                                                                                |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Services write   | Both target values; takes restaurant UPDATE, so it waits for opening/joining/ordering SHARE locks. Turning a service on needs no check                                                  |
+| Open work        | Turning dine-in off while any ACTIVE session exists returns `SERVICE_HAS_OPEN_WORK` (409). Online open work (waiting requests, ACTIVE online orders) is checked once those tables exist |
+| Invalid services | Both off, a missing value or online without a link returns `VALIDATION_FAILED`                                                                                                          |
+| Link format      | 3–40 lowercase letters, digits and hyphens, no hyphen at either end (`InputRules.IsSlug`, `ck_restaurant_slug`); otherwise `VALIDATION_FAILED`                                          |
+| Link uniqueness  | Global (`uq_restaurant_slug`); a taken link returns `SLUG_CONFLICT` (409) on creation or change                                                                                         |
+| Link change      | Single-column update; the old `/r/{slug}` and its printed QR codes stop working at once, table QR codes stay valid. The link is never cleared, so turning online back on restores it    |
+| Accepting orders | `ordering_enabled` belongs to dine-in only; the services write leaves it untouched                                                                                                      |
+
+Both writes log the actor, use the usual management pending marker and sit behind the inline
+management confirmation, which spells out the consequences. Without dine-in, opening, guest joining,
+guest code reads and QR orders return `DINE_IN_NOT_OFFERED` (409), and so does turning accepting-orders
+on; see [dining and ordering](dining-ordering.md). Store navigation drops Floor and Tables, and those
+pages show a "service not offered" state for saved links.
 
 ## Frontend state and unknown results
 

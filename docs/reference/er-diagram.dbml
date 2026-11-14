@@ -43,11 +43,18 @@ Table restaurants {
   ordering_enabled boolean [not null, default: false]
   join_code_required boolean [not null, default: true, note: 'Platform-only switch; false lets guests join an open table without its join code']
   theme varchar(16) [not null, default: 'TERRACOTTA', note: 'Platform-chosen colour preset for guest and staff pages; colours only']
+  dine_in_enabled boolean [not null, default: true, note: 'Platform switch for QR dine-in; without it the floor and tables are gone and QR pages only browse']
+  online_enabled boolean [not null, default: false, note: 'Platform switch for online ordering through /r/{slug}']
+  slug varchar(40) [note: 'Readable online ordering link /r/{slug}; required while online ordering is on, never cleared']
   owner_contact varchar(500)
   default_annual_fee_cents bigint
   subscription_version int [not null, default: 1]
   created_at timestamptz [not null, default: `now()`]
   google_maps_url varchar(2048) [note: 'Platform-only HTTPS Google Maps link, reserved for a public restaurant list']
+
+  Indexes {
+    slug [unique, name: 'uq_restaurant_slug']
+  }
 
   Checks {
     `default_language IN ('zh', 'it', 'en')` [name: 'ck_restaurant_default_language']
@@ -57,6 +64,9 @@ Table restaurants {
     `default_annual_fee_cents IS NULL OR default_annual_fee_cents BETWEEN 0 AND 9007199254740991` [name: 'ck_restaurant_annual_fee']
     `google_maps_url IS NULL OR google_maps_url LIKE 'https://%'` [name: 'ck_restaurant_google_maps_url']
     `theme IN ('TERRACOTTA', 'LACQUER', 'INDIGO', 'INK', 'TARO')` [name: 'ck_restaurant_theme']
+    `dine_in_enabled OR online_enabled` [name: 'ck_restaurant_services']
+    `NOT online_enabled OR slug IS NOT NULL` [name: 'ck_restaurant_online_slug']
+    `slug IS NULL OR slug ~ '^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$'` [name: 'ck_restaurant_slug']
   }
 }
 

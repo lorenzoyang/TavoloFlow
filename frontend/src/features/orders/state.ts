@@ -318,6 +318,7 @@ export function submissionFailure(
     "MENU_CHANGED",
     "ORDERING_PAUSED",
     "SERVICE_SUSPENDED",
+    "DINE_IN_NOT_OFFERED",
     "TABLE_DISABLED",
     "BILL_LIMIT_REACHED",
     "CSRF_VALIDATION_FAILED",

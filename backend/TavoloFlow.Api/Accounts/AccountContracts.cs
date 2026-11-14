@@ -25,6 +25,7 @@ public sealed record CurrentAccountResponse(
     Guid RestaurantId,
     string RestaurantName,
     string RestaurantTheme,
+    RestaurantServices Services,
     bool MustChangePassword
 )
 {
@@ -36,8 +37,16 @@ public sealed record CurrentAccountResponse(
             user.RestaurantId,
             user.Restaurant.Name,
             ApiEnum.Text(user.Restaurant.Theme),
+            RestaurantServices.From(user.Restaurant),
             user.MustChangePassword
         );
+}
+
+// The services the platform turned on, which decide the store navigation and the guest entrances.
+public sealed record RestaurantServices(bool DineIn, bool Online)
+{
+    public static RestaurantServices From(Restaurant restaurant) =>
+        new(restaurant.DineInEnabled, restaurant.OnlineEnabled);
 }
 
 public static class AccountInput

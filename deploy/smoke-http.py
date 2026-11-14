@@ -128,7 +128,8 @@ if phase == "create":
     restaurant_id = str(uuid.uuid4())
     created = browser.write("POST", "/api/platform/restaurants", {
         "id": restaurant_id, "name": "Disposable deployment test", "defaultLanguage": "zh",
-        "ownerUsername": "smokeowner", "staffUsername": "smokestaff"
+        "ownerUsername": "smokeowner", "staffUsername": "smokestaff",
+        "services": {"dineIn": True, "online": False}
     }, "platform", 201)
     owner = next(x for x in created["credentials"] if x["account"]["role"] == "OWNER")
     browser.write("PATCH", f"/api/platform/restaurants/{restaurant_id}/service-status", {"status": "ACTIVE"}, "platform")

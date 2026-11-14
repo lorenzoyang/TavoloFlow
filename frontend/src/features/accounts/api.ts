@@ -8,6 +8,8 @@ export type CurrentAccount = {
   restaurantId: string;
   restaurantName: string;
   restaurantTheme: RestaurantTheme;
+  // The services the platform turned on; they decide the navigation and which pages work.
+  services: { dineIn: boolean; online: boolean };
   mustChangePassword: boolean;
 };
 

@@ -2,7 +2,13 @@ import { platformRequest, platformWrite, request, write } from "@/lib/api";
 import type { PlatformIdentity } from "./identity";
 import type { PeriodInput } from "@/features/subscriptions/state";
 import type { RestaurantTheme } from "@/lib/theme";
-import type { ManagedAccount, Restaurant, RestaurantDetail, TemporaryCredential } from "./state";
+import type {
+  ManagedAccount,
+  Restaurant,
+  RestaurantDetail,
+  RestaurantServices,
+  TemporaryCredential,
+} from "./state";
 
 // Platform administration uses the platform identity; the owner's staff maintenance uses the store identity.
 export const RESTAURANTS_PAGE_SIZE = 20;
@@ -25,6 +31,8 @@ type CreateRestaurantInput = {
   googleMapsUrl?: string | null;
   joinCodeRequired: boolean;
   theme: RestaurantTheme;
+  services: RestaurantServices;
+  slug: string | null;
 };
 
 export const platformLogin = (username: string, password: string, signal: AbortSignal) =>
@@ -103,6 +111,14 @@ export const setJoinCodeRequired = (id: string, joinCodeRequired: boolean, signa
 // Colours only; like the map link, the target value makes a repeated request harmless.
 export const setTheme = (id: string, theme: RestaurantTheme, signal: AbortSignal) =>
   platformWrite<Restaurant>(`/api/platform/restaurants/${id}/theme`, "PATCH", { theme }, signal);
+
+// Both target values; the server refuses to turn off a service that still has open work.
+export const setServices = (id: string, services: RestaurantServices, signal: AbortSignal) =>
+  platformWrite<Restaurant>(`/api/platform/restaurants/${id}/services`, "PATCH", services, signal);
+
+// A new link replaces the old one at once; the old link and its printed QR codes stop working.
+export const setSlug = (id: string, slug: string, signal: AbortSignal) =>
+  platformWrite<Restaurant>(`/api/platform/restaurants/${id}/slug`, "PATCH", { slug }, signal);
 
 // Account writes carry the credential version the administrator saw; a mismatch returns ACCOUNT_CHANGED.
 export const setAccountActive = (

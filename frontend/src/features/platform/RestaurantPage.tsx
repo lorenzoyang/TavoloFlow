@@ -20,6 +20,8 @@ import {
   setGoogleMapsUrl,
   setJoinCodeRequired,
   setServiceStatus,
+  setServices,
+  setSlug,
   setTheme,
 } from "./api";
 import { PlatformBoundary, PlatformNavigation } from "./PlatformAuth";
@@ -31,7 +33,8 @@ import {
   ThemeChoices,
 } from "./ManagementViews";
 import { useManagement } from "./useManagement";
-import type { ManagedAccount } from "./state";
+import { isSlug, servicesValid, type ManagedAccount, type RestaurantServices } from "./state";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { PlatformIdentity } from "./identity";
 import { PlatformSubscription } from "@/features/subscriptions/PlatformSubscription";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
@@ -41,14 +44,24 @@ type Confirmation =
   | { kind: "reset" | "active"; account: ManagedAccount }
   | { kind: "status"; status: "ACTIVE" | "SUSPENDED" }
   | { kind: "joinCode"; required: boolean }
+  | { kind: "services"; from: RestaurantServices; to: RestaurantServices }
+  | { kind: "slug"; from: string | null; to: string }
   | { kind: "delete" };
-// status and required are the values the administrator saw; confirming switches them.
+// status, required and from are the values the administrator saw; confirming switches them.
 function describe(
   c: Exclude<Confirmation, { kind: "delete" }>,
   m: (typeof platformMessages)["zh"],
 ) {
   if (c.kind === "status") return c.status === "ACTIVE" ? m.suspendHint : m.activateHint;
   if (c.kind === "joinCode") return c.required ? m.codeOffHint : m.codeOnHint;
+  if (c.kind === "services")
+    return [
+      c.from.dineIn !== c.to.dineIn && (c.to.dineIn ? m.dineInOnHint : m.dineInOffHint),
+      c.from.online !== c.to.online && (c.to.online ? m.onlineOnHint : m.onlineOffHint),
+    ]
+      .filter(Boolean)
+      .join(" ");
+  if (c.kind === "slug") return c.from ? m.slugChangeHint(c.from, c.to) : m.slugSetHint(c.to);
   return m.accountHint(
     c.account.role,
     c.account.username,
@@ -71,6 +84,10 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
   const [typedName, setTypedName] = useState("");
   const [editingMap, setEditingMap] = useState(false);
   const [editingTheme, setEditingTheme] = useState(false);
+  // The services the form proposes; null while the form is closed.
+  const [serviceDraft, setServiceDraft] = useState<RestaurantServices | null>(null);
+  const [editingSlug, setEditingSlug] = useState(false);
+  const [slugError, setSlugError] = useState("");
   const panel = useRef<HTMLElement>(null);
   const current =
     confirmation?.kind === "reset" || confirmation?.kind === "active"
@@ -81,9 +98,15 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
       ? query.data?.restaurant.serviceStatus !== confirmation.status
       : confirmation?.kind === "joinCode"
         ? query.data?.restaurant.joinCodeRequired !== confirmation.required
-        : confirmation?.kind === "delete"
-          ? query.data?.restaurant.serviceStatus !== "SUSPENDED"
-          : !!confirmation && current?.credentialVersion !== confirmation.account.credentialVersion;
+        : confirmation?.kind === "services"
+          ? query.data?.restaurant.services.dineIn !== confirmation.from.dineIn ||
+            query.data?.restaurant.services.online !== confirmation.from.online
+          : confirmation?.kind === "slug"
+            ? query.data?.restaurant.slug !== confirmation.from
+            : confirmation?.kind === "delete"
+              ? query.data?.restaurant.serviceStatus !== "SUSPENDED"
+              : !!confirmation &&
+                current?.credentialVersion !== confirmation.account.credentialVersion;
   const nameConfirmed = typedName.trim() === query.data?.restaurant.name;
   const locked =
     actions.busy ||
@@ -125,6 +148,12 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
       await actions.run({ kind: "joinCode", restaurantId: id }, (signal) =>
         setJoinCodeRequired(id, !c.required, signal),
       );
+    } else if (c.kind === "services") {
+      await actions.run({ kind: "services", restaurantId: id }, (signal) =>
+        setServices(id, c.to, signal),
+      );
+    } else if (c.kind === "slug") {
+      await actions.run({ kind: "slug", restaurantId: id }, (signal) => setSlug(id, c.to, signal));
     } else {
       const pending = {
         kind: c.kind,
@@ -148,6 +177,28 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
       setGoogleMapsUrl(id, value || null, signal),
     );
     if (saved) setEditingMap(false);
+  };
+  // Services and the link change what staff and customers can reach, so both go through the confirmation.
+  const proposeServices = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const restaurant = query.data?.restaurant;
+    if (locked || !restaurant || !serviceDraft) return;
+    setConfirmation({ kind: "services", from: restaurant.services, to: serviceDraft });
+    setServiceDraft(null);
+  };
+  const proposeSlug = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const restaurant = query.data?.restaurant;
+    const value = String(new FormData(event.currentTarget).get("slug") ?? "").trim();
+    if (locked || !restaurant) return;
+    if (!isSlug(value)) {
+      setSlugError(m.slugInvalid);
+      return;
+    }
+    setSlugError("");
+    setEditingSlug(false);
+    if (value !== restaurant.slug)
+      setConfirmation({ kind: "slug", from: restaurant.slug, to: value });
   };
   // Colours only, so no inline confirmation either; the next page load or poll applies it.
   const saveTheme = async (event: FormEvent<HTMLFormElement>) => {
@@ -260,6 +311,117 @@ function RestaurantView({ identity, id }: { identity: PlatformIdentity; id: stri
               </Button>
             </CardContent>
           </Card>
+          <Card>
+            <CardContent className="space-y-3">
+              <h2 className="font-semibold">{m.services}</h2>
+              <p className="text-sm">
+                {m.servicesSummary(restaurant.services.dineIn, restaurant.services.online)}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm break-all text-muted-foreground">
+                  {restaurant.slug ? m.onlineLink(restaurant.slug) : m.noSlug}
+                </span>
+                <Button
+                  variant="ghost"
+                  disabled={locked || !!confirmation || editingSlug}
+                  onClick={() => {
+                    setSlugError("");
+                    setEditingSlug(true);
+                  }}
+                >
+                  {restaurant.slug ? m.editSlug : m.setSlug}
+                </Button>
+              </div>
+              <Button
+                variant="outline"
+                disabled={locked || !!confirmation || !!serviceDraft}
+                onClick={() => setServiceDraft(restaurant.services)}
+              >
+                {m.editServices}
+              </Button>
+            </CardContent>
+          </Card>
+          {serviceDraft && (
+            <form
+              onSubmit={proposeServices}
+              className="space-y-4 rounded-2xl border bg-card p-4 shadow-xs"
+              aria-label={m.servicesForm}
+            >
+              {(
+                [
+                  ["dineIn", m.serviceDineIn, m.serviceDineInHint],
+                  ["online", m.serviceOnline, m.serviceOnlineHint],
+                ] as const
+              ).map(([key, label, hint]) => (
+                <label key={key} className="flex min-h-11 items-center gap-3">
+                  <Checkbox
+                    checked={serviceDraft[key]}
+                    onCheckedChange={(checked) =>
+                      setServiceDraft((current) => current && { ...current, [key]: checked })
+                    }
+                  />
+                  <span>
+                    {label}
+                    <span className="block text-sm text-muted-foreground">{hint}</span>
+                  </span>
+                </label>
+              ))}
+              {serviceDraft.online && !restaurant.slug && (
+                <Notice tone="warning">{m.servicesNeedSlug}</Notice>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="submit"
+                  disabled={
+                    locked ||
+                    !servicesValid(serviceDraft, restaurant.slug) ||
+                    (serviceDraft.dineIn === restaurant.services.dineIn &&
+                      serviceDraft.online === restaurant.services.online)
+                  }
+                >
+                  {m.saveServices}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setServiceDraft(null)}>
+                  {m.cancel}
+                </Button>
+              </div>
+            </form>
+          )}
+          {editingSlug && (
+            <form
+              onSubmit={proposeSlug}
+              className="space-y-4 rounded-2xl border bg-card p-4 shadow-xs"
+              aria-label={m.slugForm}
+              noValidate
+            >
+              <div className="space-y-2">
+                <Label htmlFor="restaurant-slug">{m.slugField}</Label>
+                <Input
+                  id="restaurant-slug"
+                  name="slug"
+                  maxLength={40}
+                  defaultValue={restaurant.slug ?? ""}
+                  autoCapitalize="none"
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-describedby="restaurant-slug-hint"
+                  aria-invalid={!!slugError}
+                />
+                <p id="restaurant-slug-hint" className="text-sm text-muted-foreground">
+                  {m.slugHint}
+                </p>
+              </div>
+              {slugError && <Notice tone="error">{slugError}</Notice>}
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" disabled={locked}>
+                  {m.saveSlug}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setEditingSlug(false)}>
+                  {m.cancel}
+                </Button>
+              </div>
+            </form>
+          )}
           {editingMap && (
             <form
               onSubmit={saveMap}

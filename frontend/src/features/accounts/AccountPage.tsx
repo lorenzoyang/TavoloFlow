@@ -95,6 +95,7 @@ function Home({ account, passwordChanged }: { account: CurrentAccount; passwordC
   const language = useStaffLanguage();
   const m = accountMessages[language];
   const role = account.role === "OWNER" ? m.owner : m.staff;
+  const management = staffManagementItems(account, language);
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       <PageHeader
@@ -108,23 +109,25 @@ function Home({ account, passwordChanged }: { account: CurrentAccount; passwordC
           {m.workspaces}
         </h2>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {staffNavItems(account.role, language)
+          {staffNavItems(account, language)
             .filter((item) => item.to !== "/staff")
             .map((item) => (
               <WorkspaceTile key={item.to} item={item} />
             ))}
         </div>
       </section>
-      <section aria-labelledby="home-management" className="space-y-3">
-        <h2 id="home-management" className="text-sm font-medium text-muted-foreground">
-          {m.management}
-        </h2>
-        <div className="divide-y rounded-2xl border bg-card shadow-xs">
-          {staffManagementItems(account.role, language).map((item) => (
-            <ManagementRow key={item.to} item={item} />
-          ))}
-        </div>
-      </section>
+      {management.length > 0 && (
+        <section aria-labelledby="home-management" className="space-y-3">
+          <h2 id="home-management" className="text-sm font-medium text-muted-foreground">
+            {m.management}
+          </h2>
+          <div className="divide-y rounded-2xl border bg-card shadow-xs">
+            {management.map((item) => (
+              <ManagementRow key={item.to} item={item} />
+            ))}
+          </div>
+        </section>
+      )}
       <section aria-labelledby="home-account" className="space-y-3">
         <h2 id="home-account" className="text-sm font-medium text-muted-foreground">
           {m.accountSection}

@@ -30,6 +30,7 @@ public sealed class PublicMenuService(ApplicationDbContext context)
                     x.Restaurant.CurrencyCode,
                     x.Restaurant.DefaultLanguage,
                     x.Restaurant.ServiceStatus,
+                    x.Restaurant.DineInEnabled,
                     x.Restaurant.OrderingEnabled,
                     x.Restaurant.JoinCodeRequired,
                     x.Restaurant.Theme,
@@ -54,6 +55,7 @@ public sealed class PublicMenuService(ApplicationDbContext context)
                 entrance.CurrencyCode,
                 entrance.DefaultLanguage,
                 ApiEnum.Text(entrance.ServiceStatus),
+                entrance.DineInEnabled,
                 entrance.OrderingEnabled,
                 entrance.JoinCodeRequired,
                 ApiEnum.Text(entrance.Theme)

@@ -22,6 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import { ServiceSuspendedNotice } from "@/features/dining/ServiceNotice";
 import type { CurrentAccount } from "@/features/accounts/api";
+import { ServiceNotOffered } from "@/features/accounts/ServiceNotOffered";
 import { isSameAccount, refreshAfterWrite } from "@/features/accounts/queries";
 import { ApiError, errorMessage, fieldErrors } from "@/lib/api";
 import { staffMessages } from "@/lib/staff-messages";
@@ -329,7 +330,13 @@ function TablesContent({ account }: { account: CurrentAccount }) {
 export function TablesPage() {
   return (
     <AuthBoundary mode="account">
-      {(account) => <TablesContent key={account.userId} account={account} />}
+      {(account) =>
+        account.services.dineIn ? (
+          <TablesContent key={account.userId} account={account} />
+        ) : (
+          <ServiceNotOffered messages={tableMessages} backToHome />
+        )
+      }
     </AuthBoundary>
   );
 }
