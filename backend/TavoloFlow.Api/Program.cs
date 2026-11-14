@@ -76,6 +76,16 @@ builder
 builder.Services.AddSingleton<IValidateOptions<PushOptions>, PushOptionsValidator>();
 builder.Services.AddSingleton<PushKeys>();
 builder.Services.AddScoped<PushSubscriptionService>();
+builder.Services.AddSingleton<PushQueue>();
+
+// Push services are external: never follow a redirect away from the registered endpoint.
+builder
+    .Services.AddHttpClient(
+        PushSender.HttpClientName,
+        client => client.Timeout = TimeSpan.FromSeconds(10)
+    )
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+builder.Services.AddHostedService<PushSender>();
 builder.Services.AddScoped<DemoSeeder>();
 
 var app = builder.Build();

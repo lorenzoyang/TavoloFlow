@@ -7,12 +7,17 @@ using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Data.Configurations;
 using TavoloFlow.Api.Entities;
 using TavoloFlow.Api.Ordering;
+using TavoloFlow.Api.Push;
 
 namespace TavoloFlow.Api.Online;
 
 // Online submissions. A submission only writes an online_requests row; staff acceptance creates the
 // session, order and order items later.
-public sealed class OnlineRequestService(ApplicationDbContext db, TimeProvider clock)
+public sealed class OnlineRequestService(
+    ApplicationDbContext db,
+    TimeProvider clock,
+    PushQueue push
+)
 {
     public static readonly TimeSpan WaitingTime = TimeSpan.FromMinutes(10);
 
@@ -122,6 +127,8 @@ public sealed class OnlineRequestService(ApplicationDbContext db, TimeProvider c
         // Read back PostgreSQL's timestamp precision, so a repeat returns exactly the same response.
         var saved = await StoredAsync(restaurantId, r => r.Id == request.Id, ct);
         await transaction.CommitAsync(ct);
+        // Only a committed first submission notifies staff devices; repeats and rejections never do.
+        push.Enqueue(new(restaurantId, number, request.ExpiresAt));
         return new(saved!, true);
     }
 

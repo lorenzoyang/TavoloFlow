@@ -36,6 +36,9 @@ with a maximum of 50 characters. PasswordHasher stores one-way hashes. Password 
 hash, first-change flag and credential version in one conditional statement, then issue a new cookie.
 Concurrent changes against one version have at most one winner. Other devices' old tickets fail on
 their next request. Logout only removes the current browser's cookie; there is no device-session table.
+Lock-screen push devices (`push_subscriptions`) record the credential version and sign-in expiry that
+registered them, so a password change, reset or deactivation stops their notifications without any
+credential write touching them; see [online ordering](online-ordering.md#lock-screen-push).
 
 ## Account APIs
 

@@ -15,6 +15,7 @@ using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Guests;
 using TavoloFlow.Api.Online;
 using TavoloFlow.Api.Platform;
+using TavoloFlow.Api.Push;
 
 namespace TavoloFlow.Api.Tests;
 
@@ -46,6 +47,9 @@ public sealed class AccountTestHost(
     public const string PushSubject = "mailto:push@example.test";
 
     public TestClock Clock { get; } = new();
+
+    // Every push request goes here instead of the network, whether or not push is configured.
+    public FakePushService PushService { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -98,6 +102,9 @@ public sealed class AccountTestHost(
             services.Configure<OnlineRateLimitOptions>(options =>
                 options.SubmissionsPerIpPerTenMinutes = lowLimits ? 3 : 1000
             );
+            services
+                .AddHttpClient(PushSender.HttpClientName)
+                .ConfigurePrimaryHttpMessageHandler(() => PushService);
             services.AddControllers().AddApplicationPart(typeof(AccountProbeController).Assembly);
         });
     }

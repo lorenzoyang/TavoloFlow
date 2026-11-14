@@ -832,7 +832,7 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
         var submitDb = submitFirst ? firstDb : secondDb;
         var servicesDb = submitFirst ? secondDb : firstDb;
         async Task<object> Submit() =>
-            await new OnlineRequestService(submitDb, host.Clock).SubmitAsync(
+            await new OnlineRequestService(submitDb, host.Clock, OnlineTestData.NoPush).SubmitAsync(
                 shop.Slug,
                 new OnlineRequestInput(
                     Guid.NewGuid(),

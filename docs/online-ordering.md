@@ -645,6 +645,12 @@
      复合外键指向 `restaurant_users (id, restaurant_id)`，删除账号或餐厅时级联删除。
    - 每家店最多 20 台仍有效的设备（软上限，并发登记可能同时通过）；失效规则只在 `Push/PushTargets` 一处。
    - 登录到期时间在 Cookie 校验时放进 `CurrentAccount.TicketExpiresAt`（固定 30 天，不续期）。
+   **第 2 部分（发送）已完成（2026-11-14）。** 与设计的差异：
+   - 只有第一次提交成功（提交事务 `CommitAsync` 之后）才入队；重复提交和被拒的提交不发。队列是进程内有界 `Channel`（100 项，满了丢最旧），
+     推送关闭时不入队；`PushSender` 是项目里唯一的 `BackgroundService`，一次处理一项，请求已超时就跳过。
+   - 载荷只有 `{ number, language }`，通知文字由 `sw.js` 按语言生成（第 3 部分）；TTL 为距 `expires_at` 的秒数，Urgency high。
+   - 不重试；推送服务返回 404/410 时删除该设备，其他失败只记状态码或异常类型，不记 endpoint、密钥和内容。
+   - 测试用假推送服务截下请求，按 RFC 8291 自己解密内容、验证 VAPID 签名，不依赖发送库。
 
 ## 13. 要同步修改的现有规则
 

@@ -429,6 +429,23 @@ change, OWNER or platform reset, deactivation), or the registering sign-in has e
 `TimeProvider`). Registering deletes those rows of the restaurant before counting the cap, so no
 credential write needs to know about push. Deleting the account or the restaurant cascades.
 
+### Sending
+
+Only a committed first submission notifies: `OnlineRequestService.SubmitAsync` enqueues the restaurant,
+the number and the request's expiry after `CommitAsync`; repeats (200) and rejected submissions never do.
+`PushQueue` is an in-process bounded channel (100 items, the oldest dropped when full) that accepts
+nothing while push is off. `PushSender`, the app's only `BackgroundService`, reads it one item at a time:
+it skips a request that has already expired, deletes the restaurant's lapsed devices through
+`PushTargets`, then sends to every remaining device in parallel through the `push` HttpClient (10-second
+timeout, no redirects) with `Lib.Net.Http.WebPush`: VAPID authentication (`Authorization: vapid t=…,
+k=…`), aes128gcm encryption for that device, `TTL` the seconds left until `expires_at` and
+`Urgency: high`. The encrypted payload is only `{ "number": 12, "language": "zh" }`: no name, phone,
+address or ID, because notifications pass through the browser vendors' push servers.
+
+Delivery is best effort: no retry, no outbox, and a restart loses queued items. A push service answering
+404 or 410 means the browser dropped the subscription, so that row is deleted; any other failure is only
+logged with its status code or exception type. Endpoints, keys and payloads are never logged.
+
 ## Phone
 
 `InputRules.NormalizePhone` removes whitespace and accepts an optional `+` and 6–15 digits, stored
@@ -484,6 +501,12 @@ discarded.
   startup with half the configuration, push off, device validation and the accepted push services,
   the endpoint upsert moving between accounts and restaurants, the 20-device cap counting only devices
   that still receive, scoped idempotent removal and the cascades.
+- `OnlinePushTests` (a fake push service captures every request): only first submissions notify, every
+  device of the restaurant and no other; the VAPID header verified against the public key, `TTL`,
+  `Urgency` and `aes128gcm`, with the payload decrypted per RFC 8291 independently of the library; OWNER
+  reset, own password change (and registering again), an inactive account, a pending password change
+  and an expired sign-in stopping devices and deleting their rows; 404/410 deleting only that device;
+  push off sending nothing.
 - `OnlineOrderingTests` also covers the 30-day contact cleanup (strictly older, own restaurant only,
   rolled back with a rejected submission) and the status link's 24-hour limit after expiry, rejection
   and closure, while an active order keeps its link.

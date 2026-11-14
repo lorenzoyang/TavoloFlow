@@ -41,17 +41,21 @@ public sealed class OnlineConcurrencyTests(PostgreSqlFixture database)
         var retryGate = new CommandGate("pg_advisory_xact_lock", hold: false);
         await using var originalDb = OnlineTestData.Intercepted(database, originalGate);
         await using var retryDb = OnlineTestData.Intercepted(database, retryGate);
-        var original = new OnlineRequestService(originalDb, clock).SubmitAsync(
-            shop.Slug,
-            body,
-            default
-        );
+        var original = new OnlineRequestService(
+            originalDb,
+            clock,
+            OnlineTestData.NoPush
+        ).SubmitAsync(shop.Slug, body, default);
         Task<OnlineSubmission>? retry = null;
         try
         {
             await originalGate.Acquired.Task.WaitAsync(TimeSpan.FromSeconds(10));
             clock.Set(BeforeMidnight.AddMinutes(1));
-            retry = new OnlineRequestService(retryDb, clock).SubmitAsync(shop.Slug, body, default);
+            retry = new OnlineRequestService(retryDb, clock, OnlineTestData.NoPush).SubmitAsync(
+                shop.Slug,
+                body,
+                default
+            );
             await retryGate.Attempted.Task.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.False(retry.IsCompleted);
             Assert.False(retryGate.Acquired.Task.IsCompleted);
@@ -125,7 +129,7 @@ public sealed class OnlineConcurrencyTests(PostgreSqlFixture database)
         var waiting = new CommandGate("pg_advisory_xact_lock", hold: false);
         await using var firstDb = OnlineTestData.Intercepted(database, gate);
         await using var nextDb = OnlineTestData.Intercepted(database, waiting);
-        var first = new OnlineRequestService(firstDb, clock).SubmitAsync(
+        var first = new OnlineRequestService(firstDb, clock, OnlineTestData.NoPush).SubmitAsync(
             shop.Slug,
             Submission(shop),
             default
@@ -135,7 +139,7 @@ public sealed class OnlineConcurrencyTests(PostgreSqlFixture database)
         {
             await gate.Acquired.Task.WaitAsync(TimeSpan.FromSeconds(10));
             clock.Set(BeforeMidnight.AddMinutes(1));
-            next = new OnlineRequestService(nextDb, clock).SubmitAsync(
+            next = new OnlineRequestService(nextDb, clock, OnlineTestData.NoPush).SubmitAsync(
                 shop.Slug,
                 Submission(shop),
                 default
@@ -146,7 +150,7 @@ public sealed class OnlineConcurrencyTests(PostgreSqlFixture database)
             await using var otherDb = database.CreateContext();
             Assert.True(
                 (
-                    await new OnlineRequestService(otherDb, clock)
+                    await new OnlineRequestService(otherDb, clock, OnlineTestData.NoPush)
                         .SubmitAsync(other.Slug, Submission(other), default)
                         .WaitAsync(TimeSpan.FromSeconds(10))
                 ).Created

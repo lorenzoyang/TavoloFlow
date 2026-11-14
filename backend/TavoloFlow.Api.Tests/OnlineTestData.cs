@@ -5,8 +5,10 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Options;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Entities;
+using TavoloFlow.Api.Push;
 using static TavoloFlow.Api.Tests.AccountTestHost;
 
 namespace TavoloFlow.Api.Tests;
@@ -15,6 +17,9 @@ namespace TavoloFlow.Api.Tests;
 // them before (or without) the submission and acceptance endpoints.
 internal static class OnlineTestData
 {
+    // For services constructed outside the host: push is off, so nothing is queued.
+    public static readonly PushQueue NoPush = new(new PushKeys(Options.Create(new PushOptions())));
+
     public static OrderLineSnapshot Line(
         Guid menuItemId,
         long unitPriceCents = 1200,
