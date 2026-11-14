@@ -144,7 +144,7 @@ if phase == "create":
     item = browser.write("POST", "/api/owner/menu/items", {
         "categoryId": category["id"], "itemCode": None, "nameZh": "冒烟菜品", "nameIt": None, "nameEn": None,
         "descriptionZh": None, "descriptionIt": None, "descriptionEn": None, "priceCents": 100,
-        "allergenCodes": [], "allergenReviewed": True
+        "allergenCodes": [], "allergenReviewed": True, "optionGroupIds": []
     }, status=201)
     image_id = browser.write("PUT", f"/api/owner/menu/items/{item['id']}/image", PHOTO)["imageId"]
     # Caddy's menu-image route must not add the no-store that every other /api response gets.
