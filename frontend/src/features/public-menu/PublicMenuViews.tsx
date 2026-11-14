@@ -21,12 +21,21 @@ import { usePhoto } from "@/features/menu/usePhoto";
 import { orderMessages } from "@/features/orders/messages";
 import { OptionPicker } from "@/features/orders/OptionPicker";
 import { hasExtraCost, itemGroups, optionsInStock } from "@/features/orders/options";
-import { totalCents } from "@/features/orders/state";
-import type { useCart } from "@/features/orders/useCart";
+import { totalCents, type CartLine } from "@/features/orders/state";
 import type { PublicMenu } from "./api";
 import { allergenNames, languageLabels, messages } from "./messages";
 
 const shortLabels: Record<Language, string> = { zh: "中文", it: "IT", en: "EN" };
+
+// What the menu reads from a cart; the QR cart (useCart) and the online cart (useOnlineCart) both have it.
+export type MenuCart = {
+  cart: { lines: CartLine[]; pending: unknown };
+  busy: boolean;
+  review: unknown;
+  add: (item: MenuItem, optionIds?: string[]) => void;
+};
+// The menu and the language its names fall back to: the QR and online bootstraps both carry them.
+type MenuData = { restaurant: { defaultLanguage: Language }; menu: PublicMenu["menu"] };
 
 export function LanguageToggle({
   language,
@@ -221,9 +230,9 @@ export function MenuList({
   categoryId,
   selectCategory,
 }: {
-  data: PublicMenu;
+  data: MenuData;
   language: Language;
-  cart: ReturnType<typeof useCart>;
+  cart: MenuCart;
   categoryId: string;
   selectCategory: (id: string) => void;
 }) {
@@ -317,7 +326,7 @@ export function CartBar({
   language,
   open,
 }: {
-  cart: ReturnType<typeof useCart>;
+  cart: Pick<MenuCart, "cart" | "review">;
   language: Language;
   open: () => void;
 }) {

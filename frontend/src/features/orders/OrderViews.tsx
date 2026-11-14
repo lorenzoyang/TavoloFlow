@@ -15,7 +15,7 @@ import { ApiError } from "@/lib/api";
 import { cn, uniqueBy } from "@/lib/utils";
 import { ordersKey, readOrders, type Order, type OrderItemStatus } from "./api";
 import { orderMessages, type OrderMessage } from "./messages";
-import { linePrice, totalCents } from "./state";
+import { linePrice, totalCents, type CartLine } from "./state";
 import { selectionIssue } from "./options";
 import { optionNames, optionSummary } from "@/lib/options";
 import type { useCart } from "./useCart";
@@ -190,103 +190,15 @@ export function CartPanel({
           <p className="py-6 text-center text-muted-foreground">{m.empty}</p>
         )
       ) : (
-        <ul className="divide-y">
-          {lines.map((line, index) => {
-            const name = displayName(line.item, data.restaurant.defaultLanguage, language);
-            const currentItem = data.menu.items.find((i) => i.id === line.item.id);
-            const available = currentItem?.isAvailable && currentItem.allergenReviewed;
-            // The choice was valid when added; the menu may have changed or sold out an option since.
-            const optionsValid =
-              !currentItem ||
-              selectionIssue(
-                currentItem,
-                data.menu.optionGroups,
-                line.options.map((option) => option.id),
-              ) === null;
-            const unit = linePrice(line);
-            return (
-              <li key={index} className="space-y-2.5 py-3.5">
-                <div className="flex items-start justify-between gap-3">
-                  <p lang={name.language} className="min-w-0 font-medium wrap-break-word">
-                    {model.review && `${line.quantity} × `}
-                    {name.text}
-                  </p>
-                  <p className="shrink-0 font-semibold tabular-nums">
-                    {formatMoney(unit * line.quantity, language)}
-                  </p>
-                </div>
-                {line.options.length > 0 && (
-                  <p className="text-sm text-muted-foreground wrap-break-word">
-                    {optionNames(line.options, data.restaurant.defaultLanguage, language)}
-                  </p>
-                )}
-                {!available && <p className="text-sm text-destructive">{m.unavailable}</p>}
-                {available && !optionsValid && (
-                  <p className="text-sm text-destructive">{m.optionsChanged}</p>
-                )}
-                {model.review ? (
-                  line.remark && (
-                    <p className="text-sm whitespace-pre-wrap text-muted-foreground wrap-break-word">
-                      {m.remark}: {line.remark}
-                    </p>
-                  )
-                ) : (
-                  <>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="rounded-full"
-                        aria-label={`${m.decrease}: ${name.text}`}
-                        disabled={frozen}
-                        onClick={() => model.line(index, { quantity: line.quantity - 1 })}
-                      >
-                        <Minus />
-                      </Button>
-                      <span
-                        className="min-w-8 text-center text-lg font-semibold tabular-nums"
-                        aria-label={m.quantity}
-                      >
-                        {line.quantity}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="rounded-full"
-                        aria-label={`${m.increase}: ${name.text}`}
-                        disabled={frozen || !available || !optionsValid || line.quantity >= 20}
-                        onClick={() => model.line(index, { quantity: line.quantity + 1 })}
-                      >
-                        <Plus />
-                      </Button>
-                      <span className="text-xs text-muted-foreground">
-                        {formatMoney(unit, language)} / {m.portions}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="ml-auto"
-                        disabled={frozen}
-                        onClick={() => model.line(index, { quantity: 0 })}
-                        aria-label={`${m.remove}: ${name.text}`}
-                      >
-                        {m.remove}
-                      </Button>
-                    </div>
-                    <Input
-                      maxLength={200}
-                      placeholder={m.remark}
-                      aria-label={`${m.remark} · ${name.text}`}
-                      value={line.remark}
-                      disabled={frozen}
-                      onChange={(event) => model.line(index, { remark: event.target.value })}
-                    />
-                  </>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+        <CartLines
+          lines={lines}
+          editable={!model.review}
+          frozen={frozen}
+          menu={data.menu}
+          defaultLanguage={data.restaurant.defaultLanguage}
+          language={language}
+          change={model.line}
+        />
       )}
       {lines.length > 0 && (
         <>
@@ -417,5 +329,126 @@ export function TableOrders({
         </Button>
       )}
     </section>
+  );
+}
+
+// The cart's lines: editable with quantity and note controls, or read-only while the order is
+// reviewed. Each line is checked against the current menu, which may have sold out a dish or choice.
+export function CartLines({
+  lines,
+  editable,
+  frozen,
+  menu,
+  defaultLanguage,
+  language,
+  change,
+}: {
+  lines: CartLine[];
+  editable: boolean;
+  frozen: boolean;
+  menu: PublicMenu["menu"];
+  defaultLanguage: Language;
+  language: Language;
+  change: (index: number, patch: Partial<Pick<CartLine, "quantity" | "remark">>) => void;
+}) {
+  const m = orderMessages[language];
+  return (
+    <ul className="divide-y">
+      {lines.map((line, index) => {
+        const name = displayName(line.item, defaultLanguage, language);
+        const currentItem = menu.items.find((i) => i.id === line.item.id);
+        const available = currentItem?.isAvailable && currentItem.allergenReviewed;
+        // The choice was valid when added; the menu may have changed or sold out an option since.
+        const optionsValid =
+          !currentItem ||
+          selectionIssue(
+            currentItem,
+            menu.optionGroups,
+            line.options.map((option) => option.id),
+          ) === null;
+        const unit = linePrice(line);
+        return (
+          <li key={index} className="space-y-2.5 py-3.5">
+            <div className="flex items-start justify-between gap-3">
+              <p lang={name.language} className="min-w-0 font-medium wrap-break-word">
+                {!editable && `${line.quantity} × `}
+                {name.text}
+              </p>
+              <p className="shrink-0 font-semibold tabular-nums">
+                {formatMoney(unit * line.quantity, language)}
+              </p>
+            </div>
+            {line.options.length > 0 && (
+              <p className="text-sm text-muted-foreground wrap-break-word">
+                {optionNames(line.options, defaultLanguage, language)}
+              </p>
+            )}
+            {!available && <p className="text-sm text-destructive">{m.unavailable}</p>}
+            {available && !optionsValid && (
+              <p className="text-sm text-destructive">{m.optionsChanged}</p>
+            )}
+            {!editable ? (
+              line.remark && (
+                <p className="text-sm whitespace-pre-wrap text-muted-foreground wrap-break-word">
+                  {m.remark}: {line.remark}
+                </p>
+              )
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="rounded-full"
+                    aria-label={`${m.decrease}: ${name.text}`}
+                    disabled={frozen}
+                    onClick={() => change(index, { quantity: line.quantity - 1 })}
+                  >
+                    <Minus />
+                  </Button>
+                  <span
+                    className="min-w-8 text-center text-lg font-semibold tabular-nums"
+                    aria-label={m.quantity}
+                  >
+                    {line.quantity}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="rounded-full"
+                    aria-label={`${m.increase}: ${name.text}`}
+                    disabled={frozen || !available || !optionsValid || line.quantity >= 20}
+                    onClick={() => change(index, { quantity: line.quantity + 1 })}
+                  >
+                    <Plus />
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    {formatMoney(unit, language)} / {m.portions}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-auto"
+                    disabled={frozen}
+                    onClick={() => change(index, { quantity: 0 })}
+                    aria-label={`${m.remove}: ${name.text}`}
+                  >
+                    {m.remove}
+                  </Button>
+                </div>
+                <Input
+                  maxLength={200}
+                  placeholder={m.remark}
+                  aria-label={`${m.remark} · ${name.text}`}
+                  value={line.remark}
+                  disabled={frozen}
+                  onChange={(event) => change(index, { remark: event.target.value })}
+                />
+              </>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }

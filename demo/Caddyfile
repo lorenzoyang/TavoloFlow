@@ -23,7 +23,7 @@
 		file_server
 	}
 	@page {
-		path / /staff /staff/* /platform /platform/* /q /q/*
+		path / /staff /staff/* /platform /platform/* /q /q/* /r /r/* /o /o/*
 		not path_regexp extension \.[^/]+$
 	}
 	handle @page {

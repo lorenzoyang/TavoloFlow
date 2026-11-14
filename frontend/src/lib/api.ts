@@ -140,6 +140,17 @@ export async function write<T>(
 }
 
 export async function guestWrite<T>(path: string, body: unknown, signal: AbortSignal): Promise<T> {
+  return publicScopeWrite<T>(path, body, signal);
+}
+
+// An anonymous write under /api/public (an online order). Unlike publicRequest it sends same-origin
+// credentials, because the antiforgery cookie must travel with the token; the endpoint ignores any
+// guest cookie, and store-auth failure handling never applies.
+export async function publicWrite<T>(path: string, body: unknown, signal: AbortSignal): Promise<T> {
+  return publicScopeWrite<T>(path, body, signal);
+}
+
+async function publicScopeWrite<T>(path: string, body: unknown, signal: AbortSignal): Promise<T> {
   const { token } = await guestRequest<{ token: string }>("/api/public/csrf", { signal });
   return guestRequest<T>(path, {
     method: "POST",

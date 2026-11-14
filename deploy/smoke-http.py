@@ -84,7 +84,7 @@ class Browser:
 
 
 browser = Browser()
-for path in ["/", "/staff", "/staff/kitchen", "/platform/login", "/q/smoke-qr"]:
+for path in ["/", "/staff", "/staff/kitchen", "/platform/login", "/q/smoke-qr", "/r/smoke-link", "/r/smoke-link/privacy", "/o/smoke-token"]:
     headers, body = browser.request("GET", path)
     assert "text/html" in headers["content-type"] and "no-cache" in headers["cache-control"]
     assert b'rel="manifest"' not in body

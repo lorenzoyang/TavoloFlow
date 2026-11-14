@@ -71,6 +71,7 @@ public sealed class OnlineOrderStatusService(ApplicationDbContext db, TimeProvid
         var restaurant = request.Restaurant;
         return new(
             new(
+                restaurant.Id,
                 restaurant.Name,
                 restaurant.Slug,
                 restaurant.CurrencyCode,

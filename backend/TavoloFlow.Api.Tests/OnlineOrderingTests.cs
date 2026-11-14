@@ -548,7 +548,10 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
             (1, "Marco Rossi", "PICKUP"),
             (waiting.Number, waiting.CustomerName, waiting.Fulfillment)
         );
-        Assert.Equal(shop.Slug, waiting.Restaurant.Slug);
+        Assert.Equal(
+            (shop.RestaurantId, shop.Slug),
+            (waiting.Restaurant.Id, waiting.Restaurant.Slug)
+        );
         Assert.Equal("+390212345678", waiting.Restaurant.PublicPhone);
         Assert.Null(waiting.SessionStatus);
         var line = Assert.Single(waiting.Items);

@@ -41,7 +41,9 @@ public sealed record OnlineSubmissionResponse(string StatusToken, int Number, Da
 
 public sealed record OnlineSubmission(OnlineSubmissionResponse Response, bool Created);
 
+// Id lets the page reuse the customer's language choice for this restaurant.
 public sealed record OnlineOrderRestaurantResponse(
+    Guid Id,
     string Name,
     string? Slug,
     string CurrencyCode,

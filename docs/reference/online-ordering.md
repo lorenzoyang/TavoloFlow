@@ -4,8 +4,8 @@ Online ordering lets customers order from a restaurant's own link, `/r/{slug}`, 
 It is being built in steps on `feature/online-ordering`; the design and its open steps are in
 [the design document](../online-ordering.md) (Chinese). This reference describes what exists today:
 the per-restaurant services and link, the restaurant's online settings, the data model of online
-requests and the customer APIs (menu, submission, recovery and status). Staff cannot accept or reject
-requests yet, so every request currently expires.
+requests, the customer APIs (menu, submission, recovery and status) and the customer pages. Staff
+cannot accept or reject requests yet, so every request currently expires.
 
 ## Services and link
 
@@ -169,6 +169,64 @@ the order items with their status and the total is the session's bill amount (`S
 never returns the customer's phone, an address or any request or session ID. The 24-hour limit after
 an order ends is not built yet.
 
+## Customer pages
+
+`features/online-order/` serves three anonymous routes outside the staff and platform layouts; none
+links a manifest, and Caddy's SPA fallback lists `/r` and `/o` beside `/q`.
+
+| Route               | Page                                                                     |
+| ------------------- | ------------------------------------------------------------------------ |
+| `/r/{slug}`         | Menu, cart and checkout (`OnlineMenuPage`)                               |
+| `/r/{slug}/privacy` | Privacy notice (`PrivacyPage`; the route file is `r.$slug_.privacy.tsx`) |
+| `/o/{token}`        | Order status (`OnlineOrderPage`)                                         |
+
+Query keys use the `public` prefix, so staff sign-in and sign-out never clear them:
+`["public", "online", slug]` for the bootstrap (reread every 30 seconds, shared by the menu and the
+privacy page) and `["public", "online-order", token]` for the status page (every 10 seconds while
+visible and online, stopping once the order has ended). Reads use `publicRequest`; the submission uses
+`publicWrite`, which fetches the public CSRF token and sends same-origin credentials for the
+antiforgery cookie. The language follows the QR menu's rule and storage key
+(`tavoloflow:menu-language:{restaurantId}`), so a customer's choice is shared by a restaurant's QR and
+online pages; the status response carries the restaurant `id` for this. Loaded pages apply the
+restaurant theme, and every page ends with the source link.
+
+The menu reuses the QR page's `MenuList`, option picker, `CartBar` and the cart's line list
+(`CartLines`); their props take any cart with `{ lines, pending }`, and the pure line rules in
+`orders/state.ts` (`addItem`, `editLine`, `refreshCart`, `validateCart`) are generic over it. The header
+shows the restaurant's phone as a `tel:` link. A status other than `OPEN` is explained with the phone
+and keeps the checkout closed; browsing and building a cart stay possible. A remembered order still in
+progress shows "you have an order in progress" with a link to its status page.
+
+The cart lives in `sessionStorage` under `tavoloflow:cart:{restaurantId}:online` (version 1, separate
+from every QR cart), with the QR cart's limits. Checkout is two steps: "Checkout" rereads the bootstrap,
+requires `OPEN` and refreshes the lines' prices and choices; the confirmation then shows the lines,
+total, name and phone fields (validated like the server), the as-soon-as-possible note and a one-line
+privacy notice linking to the privacy page. Placing the order builds the intent (request ID from
+`randomUuid`, trimmed name, normalized phone, lines with confirmed prices), writes it into the cart and
+reads it back before the POST; blocked storage allows editing but not sending. A saved intent must
+match its frozen lines exactly or the cart is reported damaged.
+
+On success the cart is cleared, the status token is remembered per restaurant in `localStorage`
+(`tavoloflow:online-order:{restaurantId}`, cleared once that order has ended or is unknown) and the page
+opens `/o/{token}`. An understood rejection of a first attempt frees the cart and says why, with the
+restaurant's phone. A lost or failed response keeps the intent pending: the page recovers by
+`GET .../requests/by-client-id/{id}` on mount and every 30 seconds while pending, never by POST, and
+offers "check the result", "retry the same order" (the identical saved request with a fresh CSRF token)
+and the phone. A rejection after an unknown result does not free the intent. Leaving the foreground or
+going offline cancels the request in flight.
+
+The status page shows the number, the customer's name, the submission and estimated times, the dishes
+(cancelled ones struck through and not charged) and the total. `state.ts` derives what it says from
+`phase`, `sessionStatus`, `closeReason` and the dish statuses (`orderView`, `statusCopy`): waiting,
+expired, rejected with or without a reason, preparing (with the estimated time), ready, all dishes
+cancelled, collected (`PAID`) and closed (`NO_SHOW` or `VOIDED`), with pickup and delivery wording.
+When the order did not go ahead (expired, rejected, all cancelled) the phone moves from the header to
+the most visible notice. Customers cannot cancel; the page says to call instead.
+
+The privacy page names the restaurant as controller and TavoloFlow as processor, and lists the data,
+purpose, legal basis (performance of the customer's own order), the 30-day retention, the customer's
+rights and the browser storage used. Its wording is a draft to be reviewed before release.
+
 ## Phone
 
 `InputRules.NormalizePhone` removes whitespace and accepts an optional `+` and 6–15 digits, stored
@@ -205,5 +263,12 @@ discarded.
 - `OnlineSettingsTests`: OWNER-only phone and hours, validation, whole-week replacement, both pauses
   lapsing with `TestClock.Set`, `ONLINE_CLOSED`, `ONLINE_NOT_OFFERED`, `SUSPENDED`, the database
   constraints and the cascade on restaurant deletion.
-- Frontend: `tests/online.test.ts` (phone, time inputs, week validation), `tests/navigation.test.ts`
-  and the `/r/{slug}` cases in `tests/public-menu.test.ts`.
+- Frontend: `tests/online.test.ts` (phone, time inputs, week validation), `tests/navigation.test.ts`,
+  the `/r/{slug}` cases in `tests/public-menu.test.ts`, and `tests/online-order.test.ts` (cart key,
+  checkout rules, intent and restore, failure disposition, remembered status link, every status-page
+  state).
+- Manual: at 360px in zh, it and en, browse, choose options, check the form errors, place an order
+  and follow it to the status page; open the privacy page; reopen the menu to see the order in
+  progress; simulate a lost response (recovered by GET, one POST), a request that never arrived
+  (manual retry resends it unchanged) and a reload during an unknown result; pause and check that the
+  checkout stays closed.
