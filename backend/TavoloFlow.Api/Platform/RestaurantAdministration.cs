@@ -7,6 +7,7 @@ using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Entities;
+using TavoloFlow.Api.Online;
 
 namespace TavoloFlow.Api.Platform;
 
@@ -14,7 +15,8 @@ public sealed class RestaurantAdministration(
     ApplicationDbContext db,
     IPasswordHasher<RestaurantUser> hasher,
     ILogger<RestaurantAdministration> logger,
-    SubscriptionService subscriptions
+    SubscriptionService subscriptions,
+    TimeProvider clock
 )
 {
     public async Task<RestaurantPage> ListAsync(
@@ -260,15 +262,9 @@ public sealed class RestaurantAdministration(
             ?? throw AdministrationErrors.RestaurantNotFound();
         if (online && restaurant.Slug is null)
             throw AdministrationErrors.InvalidServices();
-        // Every session is a dine-in visit until online orders exist.
-        if (
-            restaurant.DineInEnabled
-            && !dineIn
-            && await db.DiningSessions.AnyAsync(
-                s => s.RestaurantId == id && s.Status == DiningSessionStatus.Active,
-                ct
-            )
-        )
+        if (restaurant.DineInEnabled && !dineIn && await HasOpenDineInAsync(id, ct))
+            throw AdministrationErrors.ServiceHasOpenWork();
+        if (restaurant.OnlineEnabled && !online && await HasOpenOnlineAsync(id, ct))
             throw AdministrationErrors.ServiceHasOpenWork();
         await db
             .Restaurants.Where(r => r.Id == id)
@@ -291,6 +287,27 @@ public sealed class RestaurantAdministration(
         );
         return RestaurantSummary.From(restaurant);
     }
+
+    private Task<bool> HasOpenDineInAsync(Guid id, CancellationToken ct) =>
+        db.DiningSessions.AnyAsync(
+            s =>
+                s.RestaurantId == id
+                && s.Status == DiningSessionStatus.Active
+                && s.Channel == SessionChannel.DineIn,
+            ct
+        );
+
+    // A request still waiting for staff, or an accepted online order not yet closed. Expired requests
+    // never count, so they cannot keep online ordering on forever.
+    private async Task<bool> HasOpenOnlineAsync(Guid id, CancellationToken ct) =>
+        await db.OnlineRequests.Waiting(id, clock.GetUtcNow().UtcDateTime).AnyAsync(ct)
+        || await db.DiningSessions.AnyAsync(
+            s =>
+                s.RestaurantId == id
+                && s.Status == DiningSessionStatus.Active
+                && s.Channel != SessionChannel.DineIn,
+            ct
+        );
 
     // Changing the link breaks the old one and any printed QR code for it; table QR codes stay valid.
     // The slug is never cleared, so turning online ordering back on restores the same link.

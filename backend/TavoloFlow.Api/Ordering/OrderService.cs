@@ -10,7 +10,6 @@ namespace TavoloFlow.Api.Ordering;
 public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
 {
     private const long MaxCents = InputRules.MaxSafeCents;
-    private const int MaxOptionsPerLine = 50;
 
     public async Task<OrderCreation> CreateAsync(
         GuestIdentity guest,
@@ -52,49 +51,9 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
                 "ORDERING_PAUSED",
                 "The restaurant isn't accepting QR orders right now."
             );
-        var lines = Validate(input);
-        var ids = lines.Select(x => x.MenuItemId).Distinct().ToArray();
-        var menu = await db
-            .MenuItems.AsNoTracking()
-            .Where(x => x.RestaurantId == guest.RestaurantId && ids.Contains(x.Id))
-            .ToDictionaryAsync(x => x.Id, ct);
-        var groups = await GroupsAsync(guest.RestaurantId, ids, ct);
-        var changes = new List<MenuChange>();
-        var choices = new OrderOptions.Choice?[lines.Length];
-        foreach (var (line, index) in lines.Select((line, index) => (line, index)))
-        {
-            if (!menu.TryGetValue(line.MenuItemId, out var item))
-                changes.Add(new(line.MenuItemId, "MISSING", null, null));
-            else if (!item.IsAvailable || !item.AllergenReviewed)
-                changes.Add(new(item.Id, "UNAVAILABLE", item.PriceCents, false));
-            else if (
-                OrderOptions.Resolve(item, groups.GetValueOrDefault(item.Id, []), line.OptionIds!)
-                is not { } choice
-            )
-                changes.Add(new(item.Id, "OPTIONS_CHANGED", null, true));
-            else if (choice.UnitPriceCents != line.ExpectedUnitPriceCents)
-                changes.Add(new(item.Id, "PRICE_CHANGED", choice.UnitPriceCents, true));
-            else
-                choices[index] = choice;
-        }
-        if (changes.Count > 0)
-            throw OrderErrors.MenuChanged(changes.Distinct().ToArray());
-
-        long total = 0;
-        foreach (var (line, index) in lines.Select((line, index) => (line, index)))
-        {
-            var price = choices[index]!.UnitPriceCents;
-            if (
-                price <= 0
-                || price > MaxCents / line.Quantity
-                || total > MaxCents - price * line.Quantity
-            )
-                throw OrderErrors.Invalid(
-                    "items",
-                    "The order total exceeds the safe integer range."
-                );
-            total += price * line.Quantity;
-        }
+        var lines = OrderLines.Validate(input.Items);
+        var snapshots = await OrderLines.SnapshotAsync(db, guest.RestaurantId, lines, ct);
+        var total = OrderLines.Total(snapshots);
         var existingTotal = await db
             .Orders.Where(o =>
                 o.RestaurantId == guest.RestaurantId && o.DiningSessionId == guest.SessionId
@@ -119,28 +78,8 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
             DefaultLanguageSnapshot = restaurant.DefaultLanguage,
             CreatedAt = clock.GetUtcNow().UtcDateTime,
         };
-        foreach (var (line, index) in lines.Select((line, index) => (line, index)))
-        {
-            var item = menu[line.MenuItemId];
-            var choice = choices[index]!;
-            order.Items.Add(
-                new OrderItem
-                {
-                    Id = Guid.CreateVersion7(),
-                    RestaurantId = guest.RestaurantId,
-                    MenuItemId = item.Id,
-                    ItemCodeSnapshot = item.ItemCode,
-                    NameZhSnapshot = item.NameZh,
-                    NameItSnapshot = item.NameIt,
-                    NameEnSnapshot = item.NameEn,
-                    AllergenCodesSnapshot = choice.AllergenCodes,
-                    UnitPriceCents = choice.UnitPriceCents,
-                    Quantity = line.Quantity,
-                    Remark = InputRules.TrimToNull(line.Remark),
-                    OptionsSnapshot = choice.Snapshot,
-                }
-            );
-        }
+        foreach (var snapshot in snapshots)
+            order.Items.Add(snapshot.ToOrderItem(guest.RestaurantId, menuItemExists: true));
         db.Orders.Add(order);
         await db.SaveChangesAsync(ct);
         await db
@@ -219,38 +158,6 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
         return new(page.Select(OrderResponse.From).ToArray(), next, total);
     }
 
-    // Each ordered dish's option groups, in the restaurant-wide order. Covered by the restaurant SHARE lock,
-    // like the dishes themselves; a restaurant without options pays for a single empty query.
-    private async Task<Dictionary<Guid, MenuOptionGroup[]>> GroupsAsync(
-        Guid restaurantId,
-        Guid[] itemIds,
-        CancellationToken ct
-    )
-    {
-        var links = await db
-            .MenuItemOptionGroups.AsNoTracking()
-            .Where(x => x.RestaurantId == restaurantId && itemIds.Contains(x.MenuItemId))
-            .ToArrayAsync(ct);
-        if (links.Length == 0)
-            return [];
-        var groupIds = links.Select(x => x.GroupId).Distinct().ToArray();
-        var groups = await db
-            .MenuOptionGroups.AsNoTracking()
-            .Include(x => x.Options)
-            .Where(x => x.RestaurantId == restaurantId && groupIds.Contains(x.Id))
-            .OrderBy(x => x.Position)
-            .ThenBy(x => x.Id)
-            .ToArrayAsync(ct);
-        var rank = groups.Select((group, index) => (group.Id, index)).ToDictionary();
-        var byId = groups.ToDictionary(x => x.Id);
-        return links
-            .GroupBy(x => x.MenuItemId)
-            .ToDictionary(
-                x => x.Key,
-                x => x.Select(link => byId[link.GroupId]).OrderBy(g => rank[g.Id]).ToArray()
-            );
-    }
-
     private IQueryable<Order> Orders(GuestIdentity guest) =>
         db
             .Orders.AsNoTracking()
@@ -280,38 +187,6 @@ public sealed class OrderService(ApplicationDbContext db, TimeProvider clock)
     {
         if (guest.SessionId != target)
             throw GuestErrors.SessionMismatch();
-    }
-
-    private static OrderLineInput[] Validate(CreateOrderInput input)
-    {
-        if (
-            input.Items is null
-            || input.Items.Length is < 1 or > 30
-            || input.Items.Any(x => x is null)
-        )
-            throw OrderErrors.Invalid("items", "An order must have 1–30 lines.");
-        var lines = input.Items.Select(x => x!).ToArray();
-        foreach (var (line, index) in lines.Select((line, index) => (line, index)))
-        {
-            if (
-                line.MenuItemId == Guid.Empty
-                || line.Quantity is < 1 or > 20
-                || line.ExpectedUnitPriceCents < 1
-                || line.ExpectedUnitPriceCents > MaxCents
-                || line.Remark?.Length > 200
-                || line.OptionIds is null
-                || line.OptionIds.Length > MaxOptionsPerLine
-                || line.OptionIds.Contains(Guid.Empty)
-                || line.OptionIds.Distinct().Count() < line.OptionIds.Length
-            )
-                throw OrderErrors.Invalid(
-                    $"items[{index}]",
-                    "Each line needs a valid dish, 1–20 portions, a remark of at most 200 characters, a list of at most 50 distinct options (empty for none) and a confirmed price in positive whole euro cents."
-                );
-        }
-        if (lines.Sum(x => x.Quantity) > 100)
-            throw OrderErrors.Invalid("items", "An order can have at most 100 portions.");
-        return lines;
     }
 
     private sealed record OrderCursor(Guid SessionId, DateTime CreatedAt, Guid Id);

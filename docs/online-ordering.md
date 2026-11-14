@@ -251,7 +251,7 @@
 - 餐厅详情页可以修改服务和 slug，都经过 `管理操作确认`：
   - 关闭一项服务时，如果它还有未完成的工作，返回 409 `SERVICE_HAS_OPEN_WORK`。堂食指任何 ACTIVE 堂食单据；
     线上指等待接单的请求和 ACTIVE 线上单据。检查和更新都在餐厅 UPDATE 锁内完成。
-    第 1 步还没有渠道列，所有单据都是堂食，所以只检查 ACTIVE 单据；线上部分在第 3 步有了表以后加上。
+    第 1 步只检查 ACTIVE 单据；第 3 步加上渠道后，关堂食只看 ACTIVE 堂食单据，关线上看等待接单的请求和 ACTIVE 线上单据。
   - 修改 slug 会让旧链接和印出去的二维码失效，确认里要写明；桌台二维码不受影响。
   - 修改服务时前端发送两个目标值（`PATCH .../services`）；开通线上而没有 slug 时返回 `VALIDATION_FAILED`。
   - slug 只能修改，不能清空（`PATCH .../slug` 必须给出合法的 slug）：关闭线上点单后链接保留，重新开通时恢复同一个链接。
@@ -349,9 +349,10 @@
 数量、备注，以及选项（直接复用 `OrderItemOption`）。
 
 - 用一个 C# 类型定义，按 `order_items.options_snapshot` 的先例用 EF Core 的 `ComplexCollection(...).ToJson(...)` 映射；
-  嵌套的选项集合能否这样映射，实现第一步时先验证。
+  已验证（第 3 步）：嵌套的选项集合和过敏原数组都可以这样映射，经 PostgreSQL 往返不变。类型叫 `OrderLineSnapshot`（`Entities/`）。
 - 接单时由**一个**复制函数转成 `OrderItem`。再写一个测试，比较这个类型和 `OrderItem` 的快照字段，确认一一对应：
-  以后给订单菜品加快照字段却忘了复制，这个测试会失败。
+  以后给订单菜品加快照字段却忘了复制，这个测试会失败。已实现为 `OrderLineSnapshot.ToOrderItem` 和 `OrderLineSnapshotTests`；
+  扫码点单也改为先生成快照（`Ordering/OrderLines`，提交时复用）再经它建订单菜品，所以只有这一个复制函数。
 - `menuItemId` 不是外键。接单时在餐厅锁内查一下这些菜品是否还在，不在的就把订单菜品的 `menu_item_id` 留空，快照名称照样保留。
   因此 `CatalogDeletionService` 不用改。
 - 数量、备注长度等限制只在应用层校验，与 `order_items` 现在的做法相同。
@@ -467,7 +468,7 @@
 
 1. 服务开关：`dine_in_enabled`、`online_enabled`、`slug`；平台创建和修改；`/me` 返回服务；导航按服务变化；没开堂食时的拦截。
    **已完成（2026-11-14）。** 与设计的差异：
-   - 关闭线上服务前的“未完成工作”检查要等第 3 步有了 `online_requests` 和渠道列后再加；现在只检查 ACTIVE（堂食）单据。
+   - 关闭线上服务前的“未完成工作”检查要等第 3 步有了 `online_requests` 和渠道列后再加；当时只检查 ACTIVE（堂食）单据（第 3 步已补上）。
    - slug 不能清空；没开堂食时打开“接受点单”同样返回 `DINE_IN_NOT_OFFERED`，`ordering_enabled` 的值不动。
    - 导航规则放在纯模块 `features/accounts/state.ts`（node 测试），`navigation.ts` 只加文案和图标；
      没开通服务的页面显示 `ServiceNotOffered`；只开线上的 STAFF 首页暂时没有管理入口（第 2 步加线上设置）。
@@ -482,6 +483,18 @@
    - 留给第 4 步的问题：第 3.1 节 bootstrap 的状态里没有“待接单已满”，而 6.3 要求 bootstrap 和提交共用同一个判断，
      到时需要决定是加一个 `BUSY` 状态，还是只在提交时返回 `ONLINE_BUSY`。
 3. 数据模型：`dining_sessions` 的渠道、约束和 `NO_SHOW`；`online_counters`、`online_requests`；快照类型和对应测试。
+   **已完成（2026-11-14）。** 与设计的差异：
+   - `ApiEnum` 原来只把枚举名转大写（`DineIn` → `DINEIN`），现在多词名在词间加下划线（`DINE_IN`、`NO_SHOW`、`OUT_OF_RANGE`）；
+     现有枚举都是单词，存储的值不变。
+   - 第 7 节里与配送有关的列（单据的 `delivery_fee_cents`、请求的取餐方式、地址和门铃备注）这一步一起建好；
+     餐厅的配送开关和说明是设置，留到第 7 步。
+   - 约束名：`ck_session_dine_in`（取代 `ck_session_active_table`，ACTIVE 时要求入桌码也从 `ck_session_lifecycle` 移到这里）、
+     `ck_session_online`、`ck_session_delivery_fee`；请求的约束以 `ck_online_request_` 开头。PostgreSQL 的检查约束遇到 NULL 算通过，
+     所以每个可空列上的比较都写明 `IS NOT NULL`（测试发现了配送费和预计时间两处遗漏）。
+   - 请求与单据的唯一索引是 `(session_id, restaurant_id)`，复合外键用它。“等待接单”的唯一判断在 `Online/OnlineRequestState`
+     （查询用 `Waiting`，内存中用 `Phase`），平台关闭服务的检查已经用它。
+   - 服务器上来自单据的 `tableLabel`（厨房、传菜、账单）改为可空；前端类型还没改，因为第 5 步接单之前不会出现没有桌号的单据。
+     **第 5 步接单后厨房、传菜和账单会第一次遇到线上单据**，所以第 6 步的厨房、传菜和账单标签至少要先在第 5 步处理到不显示空桌号。
 4. 顾客端：线上菜单、购物车、结账表单、提交、结果未知、状态页、隐私说明页。
 5. 员工端：待接单轮询、横幅和铃声、线上订单页、接单和拒单。
 6. 接单以后：厨房和传菜的标签、账单页的全部单据列表和“未取”、历史标签、联系信息清理、状态页 24 小时有效期。

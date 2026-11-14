@@ -322,6 +322,72 @@ public sealed class RestaurantServicesTests(PostgreSqlFixture database)
     }
 
     [Fact]
+    public async Task SetServices_OnlineOpenWork_OnlyWaitingRequestsAndActiveOnlineSessionsBlock()
+    {
+        using var host = new AccountTestHost(database);
+        using var admin = await Admin(host);
+        var (user, _) = await SeedStoreAsync(RestaurantUserRole.Owner, slug: Slug());
+        var path = $"/api/platform/restaurants/{user.RestaurantId}/services";
+        async Task<HttpResponseMessage> Set(bool dineIn, bool online) =>
+            await WriteAsync(admin, path, new { dineIn, online }, HttpMethod.Patch);
+        await Summary(await Set(true, true));
+        var now = host.Clock.GetUtcNow().UtcDateTime;
+        await using (var db = database.CreateContext())
+        {
+            // Expired and rejected requests are finished: they never keep online ordering on.
+            var expired = OnlineTestData.Request(user.RestaurantId, now.AddMinutes(-10), 1);
+            var rejected = OnlineTestData.Request(user.RestaurantId, now, 2);
+            rejected.RejectedAt = now;
+            db.OnlineRequests.AddRange(expired, rejected);
+            await db.SaveChangesAsync();
+        }
+        Assert.Equal(
+            new RestaurantServices(true, false),
+            (await Summary(await Set(true, false))).Services
+        );
+        await Summary(await Set(true, true));
+
+        await using (var db = database.CreateContext())
+        {
+            db.OnlineRequests.Add(OnlineTestData.Request(user.RestaurantId, now, 3));
+            await db.SaveChangesAsync();
+        }
+        await AssertErrorAsync(
+            await Set(true, false),
+            HttpStatusCode.Conflict,
+            "SERVICE_HAS_OPEN_WORK"
+        );
+        // The request expires exactly ten minutes after submission and stops counting at that instant.
+        host.Clock.Advance(TimeSpan.FromMinutes(10));
+        await Summary(await Set(true, false));
+        await Summary(await Set(true, true));
+
+        // An accepted online order stays open work for online ordering until it closes, but not for dine-in.
+        await using (var db = database.CreateContext())
+        {
+            var accepted = OnlineTestData.Request(
+                user.RestaurantId,
+                host.Clock.GetUtcNow().UtcDateTime,
+                4
+            );
+            db.AddRange(
+                accepted,
+                OnlineTestData.Accept(accepted, accepted.SubmittedAt, menuItemExists: false)
+            );
+            await db.SaveChangesAsync();
+        }
+        await AssertErrorAsync(
+            await Set(true, false),
+            HttpStatusCode.Conflict,
+            "SERVICE_HAS_OPEN_WORK"
+        );
+        Assert.Equal(
+            new RestaurantServices(false, true),
+            (await Summary(await Set(false, true))).Services
+        );
+    }
+
+    [Fact]
     public async Task DineInOff_StoreAndGuestEntrances_RejectedWhileMenuAndIdentityStayReadable()
     {
         using var host = new AccountTestHost(database);
@@ -453,7 +519,8 @@ public sealed class RestaurantServicesTests(PostgreSqlFixture database)
                     servicesDb,
                     host.Clock,
                     NullLogger<SubscriptionService>.Instance
-                )
+                ),
+                host.Clock
             ).SetServicesAsync(user.RestaurantId, new(false, true), Guid.NewGuid(), default);
         var first = openFirst ? Open() : TurnOff();
         Task<object>? second = null;

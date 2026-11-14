@@ -7,7 +7,7 @@ namespace TavoloFlow.Api.Kitchen;
 public sealed record KitchenOrderResponse(
     Guid Id,
     Guid SessionId,
-    string TableLabel,
+    string? TableLabel,
     string Status,
     DateTime CreatedAt,
     DateTime? ProcessedAt,
@@ -46,7 +46,7 @@ public sealed record PassItemResponse(
     Guid Id,
     Guid OrderId,
     Guid SessionId,
-    string TableLabel,
+    string? TableLabel,
     string DefaultLanguage,
     string? ItemCode,
     string? NameZh,

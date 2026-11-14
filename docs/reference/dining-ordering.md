@@ -6,6 +6,13 @@ payment confirmation is OWNER-only. All closures are specified in [billing](bill
 
 ## Visit identity and entrance rules
 
+Every row of `dining_sessions` is a session; its `channel` says which kind. This document covers
+`DINE_IN` visits at a table. Accepted online orders are `PICKUP` or `DELIVERY` sessions without a
+table, table label or join code ([online ordering](online-ordering.md#data-model)); the table and
+join-code rules below never apply to them. Session-derived `tableLabel` fields (kitchen, pass, bills)
+are therefore nullable on the server, though only acceptance, still to be built, can create such a
+session.
+
 | Value        | Purpose                                                                     |
 | ------------ | --------------------------------------------------------------------------- |
 | QR token     | Stable public table entrance; no order-reading or submission permission     |

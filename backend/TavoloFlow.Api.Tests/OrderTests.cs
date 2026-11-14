@@ -699,7 +699,8 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
                         mutationDb,
                         host.Clock,
                         NullLogger<SubscriptionService>.Instance
-                    )
+                    ),
+                    host.Clock
                 ).SetStatusAsync(s.Guest.RestaurantId, "SUSPENDED", Guid.NewGuid(), default);
             else
             {

@@ -3,8 +3,8 @@
 Online ordering lets customers order from a restaurant's own link, `/r/{slug}`, and collect in store.
 It is being built in steps on `feature/online-ordering`; the design and its open steps are in
 [the design document](../online-ordering.md) (Chinese). This reference describes what exists today:
-the per-restaurant services and link, and the restaurant's online settings. Customers cannot submit
-online orders yet.
+the per-restaurant services and link, the restaurant's online settings and the data model of online
+requests. Customers cannot submit online orders yet.
 
 ## Services and link
 
@@ -70,7 +70,43 @@ settings page uses it today; the online menu and submissions will call the same 
 | `CLOSED_HOURS` | No slot contains the current local time               |
 | `OPEN`         | Otherwise                                             |
 
-The cap on requests waiting for acceptance joins this rule with the request table.
+The cap on requests waiting for acceptance joins this rule with the submission endpoint.
+
+## Data model
+
+A submission is one `online_requests` row. Acceptance, rejection and expiry are derived, never stored
+as a status:
+
+| Phase      | Rule                                                          |
+| ---------- | ------------------------------------------------------------- |
+| `ACCEPTED` | `accepted_at` is set (with `estimated_at` and `session_id`)   |
+| `REJECTED` | `rejected_at` is set (`reject_reason` optional)               |
+| `WAITING`  | neither, and now is before `expires_at` (submission + 10 min) |
+| `EXPIRED`  | neither, and now is at or after `expires_at`                  |
+
+`Online/OnlineRequestState` holds the only copy of this rule: `Waiting(restaurantId, now)` for queries
+(a time range of the partial index `ix_online_requests_waiting`, never a history scan) and `Phase` in
+memory. Now always comes from `TimeProvider` as a parameter, never SQL `now()`, so expired requests can
+neither fill the waiting cap nor block switching online ordering off. The platform services switch
+already uses it: turning online ordering off is refused while a request is waiting or an online session
+is ACTIVE; turning dine-in off looks only at ACTIVE dine-in sessions.
+
+`online_requests` keeps the daily number (`business_date`, `number`, unique per restaurant and day,
+shared by pickup and delivery), a random status token, the fulfillment (`PICKUP`/`DELIVERY`), the
+customer's contact (nullable so it can be cleared after 30 days; address and notes are delivery only),
+the default language and item total at submission, and `lines`: a jsonb array of `OrderLineSnapshot`,
+the same snapshot fields as an order item with options nested as in `options_snapshot`.
+`OrderLineSnapshot.ToOrderItem` is the only conversion to an order item, and QR orders already build
+their items through it; `OrderLineSnapshotTests` fails when an order item gains a snapshot field the
+line does not carry. `lines.menuItemId` is not a foreign key, so dish deletion never touches requests.
+Check constraints allow at most one decision, only before `expires_at`, with the three acceptance
+columns set together and `OUT_OF_RANGE` only for delivery.
+
+`online_counters` holds each restaurant-day's last number. Accepted online orders become
+`dining_sessions` rows with `channel` `PICKUP` or `DELIVERY` (dine-in visits are `DINE_IN`): no table,
+table label or join code, `delivery_fee_cents` required for delivery only, and `NO_SHOW` as their own
+closure reason while `EMPTY` stays dine-in only. Every new table cascades from the restaurant; the
+request's session link is a composite `(session_id, restaurant_id)` key.
 
 ## Phone
 
@@ -91,8 +127,12 @@ discarded.
 
 ## Verification entry points
 
-- `RestaurantServicesTests`: service and link validation, open work, the dine-in gate and the race with
-  opening a table.
+- `RestaurantServicesTests`: service and link validation, open work (including expired, rejected and
+  waiting requests and ACTIVE online sessions), the dine-in gate and the race with opening a table.
+- `ApplicationDbContextTests`: channel and request check constraints and the cascade of hours, counters
+  and requests (accepted ones with their sessions) on restaurant deletion; `OrderLineSnapshotTests`:
+  the snapshot field correspondence and the `lines` JSON round trip; `ApiEnumTests`: multi-word enum
+  text such as `DINE_IN`.
 - `OnlineScheduleTests`: slot boundaries, adjacent slots, `nextOpensAt`, DST gap and repeated hour,
   end of day and the availability order.
 - `OnlineSettingsTests`: OWNER-only phone and hours, validation, whole-week replacement, both pauses

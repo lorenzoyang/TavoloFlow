@@ -32,6 +32,8 @@ public sealed class ItemProcessingMigrationTests(PostgreSqlFixture database)
             TableLabel = "8",
             QrToken = Guid.NewGuid().ToString("N"),
         };
+        db.RestaurantTables.Add(table);
+        await db.SaveChangesAsync();
         var createdAt = new DateTime(2026, 10, 25, 12, 0, 0, DateTimeKind.Utc);
         var readyAt = createdAt.AddMinutes(5);
         var cancelledAt = createdAt.AddMinutes(10);
@@ -40,26 +42,27 @@ public sealed class ItemProcessingMigrationTests(PostgreSqlFixture database)
         foreach (var state in cases)
         {
             var cancelled = state.StartsWith("CANCELLED", StringComparison.Ordinal);
-            var session = new DiningSession
-            {
-                Restaurant = restaurant,
-                Table = table,
-                TableLabelSnapshot = "8",
-                OpenedAt = createdAt,
-                Status = state == "NEW" ? DiningSessionStatus.Active : DiningSessionStatus.Closed,
-                JoinCodeCiphertext = state == "NEW" ? "test-ciphertext" : null,
-                ClosedAt = state == "NEW" ? null : createdAt.AddMinutes(20),
-                CloseReason =
-                    state == "NEW" ? null
-                    : cancelled ? SessionCloseReason.Voided
-                    : SessionCloseReason.Paid,
-                ClosedTotalCents =
-                    state == "NEW" ? null
-                    : cancelled ? 0
-                    : 2100,
-            };
-            db.DiningSessions.Add(session);
-            await db.SaveChangesAsync();
+            // Sessions gained columns later too (the online channel), so they are also written in SQL.
+            var sessionId = Guid.NewGuid();
+            var active = state == "NEW";
+            DateTime? closedAt = active ? null : createdAt.AddMinutes(20);
+            string? closeReason =
+                active ? null
+                : cancelled ? "VOIDED"
+                : "PAID";
+            long? closedTotal =
+                active ? null
+                : cancelled ? 0
+                : 2100;
+            string? joinCode = active ? "test-ciphertext" : null;
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"""
+                INSERT INTO dining_sessions (id, restaurant_id, table_id, status, join_code_ciphertext,
+                    table_label_snapshot, opened_at, closed_at, close_reason, closed_total_cents)
+                VALUES ({sessionId}, {restaurant.Id}, {table.Id}, {(active ? "ACTIVE" : "CLOSED")},
+                    {joinCode}, '8', {createdAt}, {closedAt}, {closeReason}, {closedTotal})
+                """
+            );
             var orderId = Guid.NewGuid();
             var requestId = Guid.NewGuid();
             var oldStatus = cancelled ? "CANCELLED" : state;
@@ -70,7 +73,7 @@ public sealed class ItemProcessingMigrationTests(PostgreSqlFixture database)
                 $"""
                 INSERT INTO orders (id, restaurant_id, dining_session_id, client_request_id, status,
                     total_amount_cents, default_language_snapshot, created_at, ready_at, cancelled_at, cancel_reason)
-                VALUES ({orderId}, {restaurant.Id}, {session.Id}, {requestId}, {oldStatus},
+                VALUES ({orderId}, {restaurant.Id}, {sessionId}, {requestId}, {oldStatus},
                     2100, 'it', {createdAt}, {oldReady}, {oldCancelled}, {reason})
                 """
             );
@@ -84,7 +87,7 @@ public sealed class ItemProcessingMigrationTests(PostgreSqlFixture database)
                     """
                 );
             }
-            ids.Add((orderId, session.Id, state));
+            ids.Add((orderId, sessionId, state));
         }
 
         // Exercise an already upgraded database as well as the legacy-state backfill.

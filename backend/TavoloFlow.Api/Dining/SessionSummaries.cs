@@ -9,7 +9,7 @@ namespace TavoloFlow.Api.Dining;
 public sealed record BillSummaryResponse(
     Guid SessionId,
     Guid? TableId,
-    string TableLabel,
+    string? TableLabel,
     string Status,
     DateTime OpenedAt,
     DateTime? ClosedAt,
