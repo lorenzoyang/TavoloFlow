@@ -10,6 +10,7 @@ export type StaffRoute =
   | "/staff/orders"
   | "/staff/menu"
   | "/staff/tables"
+  | "/staff/online-settings"
   | "/staff/history"
   | "/staff/settings"
   | "/staff/subscription";
@@ -32,7 +33,10 @@ export function staffNavRoutes(account: NavAccount): StaffRoute[] {
 
 // Less frequent pages, listed on the home page only.
 export function staffManagementRoutes(account: NavAccount): StaffRoute[] {
-  const service: StaffRoute[] = account.services.dineIn ? ["/staff/tables"] : [];
+  const service: StaffRoute[] = [
+    ...(account.services.dineIn ? (["/staff/tables"] as const) : []),
+    ...(account.services.online ? (["/staff/online-settings"] as const) : []),
+  ];
   if (account.role !== "OWNER") return service;
   // STAFF have Pass as a tab; OWNER's fourth tab is Bill, so Pass stays here for them.
   return [...service, "/staff/pass", "/staff/history", "/staff/settings", "/staff/subscription"];

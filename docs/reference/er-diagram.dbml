@@ -1,7 +1,7 @@
 Project TavoloFlow_MVP_V1 {
   database_type: 'PostgreSQL'
   Note: '''
-    TavoloFlow: 14 tables, one menu per restaurant, offline service subscriptions.
+    TavoloFlow: 15 tables, one menu per restaurant, offline service subscriptions.
     Credential versions revoke account tickets; subscription_version guards
     service administration and bill_version guards session bill confirmation.
     No join-code/QR reset in V1; closing a session invalidates guest cookies.
@@ -46,6 +46,8 @@ Table restaurants {
   dine_in_enabled boolean [not null, default: true, note: 'Platform switch for QR dine-in; without it the floor and tables are gone and QR pages only browse']
   online_enabled boolean [not null, default: false, note: 'Platform switch for online ordering through /r/{slug}']
   slug varchar(40) [note: 'Readable online ordering link /r/{slug}; required while online ordering is on, never cleared']
+  public_phone varchar(16) [note: 'OWNER-set phone shown to online customers; online ordering stays closed without it']
+  online_paused_until timestamptz [note: 'STAFF/OWNER pause of online ordering; lapses on its own once the time passes']
   owner_contact varchar(500)
   default_annual_fee_cents bigint
   subscription_version int [not null, default: 1]
@@ -67,7 +69,26 @@ Table restaurants {
     `dine_in_enabled OR online_enabled` [name: 'ck_restaurant_services']
     `NOT online_enabled OR slug IS NOT NULL` [name: 'ck_restaurant_online_slug']
     `slug IS NULL OR slug ~ '^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$'` [name: 'ck_restaurant_slug']
+    `public_phone IS NULL OR public_phone ~ '^\+?[0-9]{6,15}$'` [name: 'ck_restaurant_public_phone']
   }
+}
+
+Table online_hours {
+  restaurant_id uuid [not null]
+  weekday int [not null, note: 'ISO weekday in the restaurant time zone: Monday 1, Sunday 7']
+  slot int [not null, note: '1 or 2, numbered by opening time within the weekday']
+  opens_minute int [not null]
+  closes_minute int [not null, note: 'Exclusive last moment to order; 1440 is midnight']
+
+  Indexes {
+    (restaurant_id, weekday, slot) [pk]
+  }
+  Checks {
+    `weekday BETWEEN 1 AND 7` [name: 'ck_online_hour_weekday']
+    `slot IN (1, 2)` [name: 'ck_online_hour_slot']
+    `opens_minute >= 0 AND opens_minute < closes_minute AND closes_minute <= 1440` [name: 'ck_online_hour_minutes']
+  }
+  Note: 'Weekly online ordering hours. OWNER saves the whole week under the restaurant UPDATE lock; slots never cross midnight and the second starts no earlier than the first ends.'
 }
 
 Table restaurant_users {
@@ -405,6 +426,7 @@ Table order_items {
 // Restaurant ownership: a permanent restaurant DELETE removes the entire tenant.
 Ref: restaurant_users.restaurant_id > restaurants.id [delete: cascade]
 Ref: restaurant_subscription_periods.restaurant_id > restaurants.id [delete: cascade]
+Ref: online_hours.restaurant_id > restaurants.id [delete: cascade]
 Ref: restaurant_tables.restaurant_id > restaurants.id [delete: cascade]
 Ref: menu_categories.restaurant_id > restaurants.id [delete: cascade]
 Ref: menu_items.restaurant_id > restaurants.id [delete: cascade]
@@ -430,6 +452,7 @@ TableGroup platform_and_accounts {
   restaurants
   restaurant_users
   restaurant_subscription_periods
+  online_hours
 }
 
 TableGroup tables_and_menu {

@@ -409,6 +409,40 @@ namespace TavoloFlow.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TavoloFlow.Api.Entities.OnlineHour", b =>
+                {
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("restaurant_id");
+
+                    b.Property<int>("Weekday")
+                        .HasColumnType("integer")
+                        .HasColumnName("weekday");
+
+                    b.Property<int>("Slot")
+                        .HasColumnType("integer")
+                        .HasColumnName("slot");
+
+                    b.Property<int>("ClosesMinute")
+                        .HasColumnType("integer")
+                        .HasColumnName("closes_minute");
+
+                    b.Property<int>("OpensMinute")
+                        .HasColumnType("integer")
+                        .HasColumnName("opens_minute");
+
+                    b.HasKey("RestaurantId", "Weekday", "Slot");
+
+                    b.ToTable("online_hours", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_online_hour_minutes", "opens_minute >= 0 AND opens_minute < closes_minute AND closes_minute <= 1440");
+
+                            t.HasCheckConstraint("ck_online_hour_slot", "slot IN (1, 2)");
+
+                            t.HasCheckConstraint("ck_online_hour_weekday", "weekday BETWEEN 1 AND 7");
+                        });
+                });
+
             modelBuilder.Entity("TavoloFlow.Api.Entities.Order", b =>
                 {
                     b.Property<Guid>("Id")
@@ -720,6 +754,10 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("online_enabled");
 
+                    b.Property<DateTime?>("OnlinePausedUntil")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("online_paused_until");
+
                     b.Property<bool>("OrderingEnabled")
                         .HasColumnType("boolean")
                         .HasDefaultValue(false)
@@ -729,6 +767,11 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
                         .HasColumnName("owner_contact");
+
+                    b.Property<string>("PublicPhone")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("public_phone");
 
                     b.Property<string>("ServiceStatus")
                         .IsRequired()
@@ -778,6 +821,8 @@ namespace TavoloFlow.Api.Data.Migrations
                             t.HasCheckConstraint("ck_restaurant_google_maps_url", "google_maps_url IS NULL OR google_maps_url LIKE 'https://%'");
 
                             t.HasCheckConstraint("ck_restaurant_online_slug", "NOT online_enabled OR slug IS NOT NULL");
+
+                            t.HasCheckConstraint("ck_restaurant_public_phone", "public_phone IS NULL OR public_phone ~ '^\\+?[0-9]{6,15}$'");
 
                             t.HasCheckConstraint("ck_restaurant_service_status", "service_status IN ('ACTIVE', 'SUSPENDED')");
 
@@ -1046,6 +1091,17 @@ namespace TavoloFlow.Api.Data.Migrations
                 });
 
             modelBuilder.Entity("TavoloFlow.Api.Entities.MenuOptionGroup", b =>
+                {
+                    b.HasOne("TavoloFlow.Api.Entities.Restaurant", "Restaurant")
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Restaurant");
+                });
+
+            modelBuilder.Entity("TavoloFlow.Api.Entities.OnlineHour", b =>
                 {
                     b.HasOne("TavoloFlow.Api.Entities.Restaurant", "Restaurant")
                         .WithMany()

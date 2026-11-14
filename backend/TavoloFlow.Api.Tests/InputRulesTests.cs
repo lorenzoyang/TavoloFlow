@@ -44,4 +44,22 @@ public sealed class InputRulesTests
     [InlineData(41, false)]
     public void IsSlug_Length_AllowsAtMostForty(int length, bool expected) =>
         Assert.Equal(expected, InputRules.IsSlug(new string('a', length)));
+
+    [Theory]
+    [InlineData("+39 333 123 4567", "+393331234567")]
+    [InlineData("0212345678", "0212345678")]
+    [InlineData(" 123456 ", "123456")]
+    [InlineData("+123456789012345", "+123456789012345")]
+    [InlineData("12345", null)]
+    [InlineData("+1234567890123456", null)]
+    [InlineData("+39-333-1234567", null)]
+    [InlineData("++39333123456", null)]
+    [InlineData("39+333123456", null)]
+    [InlineData("phone", null)]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    public void NormalizePhone_Value_KeepsOptionalPlusAndSixToFifteenDigits(
+        string? value,
+        string? expected
+    ) => Assert.Equal(expected, InputRules.NormalizePhone(value));
 }

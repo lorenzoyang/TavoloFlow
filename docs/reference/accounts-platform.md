@@ -197,7 +197,8 @@ keeps at least one service on (`ck_restaurant_services`) and a link whenever onl
 | Link change      | Single-column update; the old `/r/{slug}` and its printed QR codes stop working at once, table QR codes stay valid. The link is never cleared, so turning online back on restores it    |
 | Accepting orders | `ordering_enabled` belongs to dine-in only; the services write leaves it untouched                                                                                                      |
 
-Both writes log the actor, use the usual management pending marker and sit behind the inline
+The restaurant's own online settings (public phone, hours, pause) are in
+[online ordering](online-ordering.md). Both writes log the actor, use the usual management pending marker and sit behind the inline
 management confirmation, which spells out the consequences. Without dine-in, opening, guest joining,
 guest code reads and QR orders return `DINE_IN_NOT_OFFERED` (409), and so does turning accepting-orders
 on; see [dining and ordering](dining-ordering.md). Store navigation drops Floor and Tables, and those

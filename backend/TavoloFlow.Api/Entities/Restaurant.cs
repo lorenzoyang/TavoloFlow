@@ -35,6 +35,10 @@ public sealed class Restaurant
     // The readable online ordering link /r/{slug}; required while online ordering is on.
     public string? Slug { get; set; }
 
+    // Online ordering settings: the public phone (OWNER) and a pause that lapses on its own (STAFF, OWNER).
+    public string? PublicPhone { get; set; }
+    public DateTime? OnlinePausedUntil { get; set; }
+
     public DateTime CreatedAt { get; set; }
     public string? GoogleMapsUrl { get; set; }
     public string? OwnerContact { get; set; }

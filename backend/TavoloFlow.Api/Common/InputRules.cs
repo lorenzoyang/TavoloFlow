@@ -28,6 +28,18 @@ public static class InputRules
     public static bool IsSlug([NotNullWhen(true)] string? value) =>
         value is not null && Regex.IsMatch(value, "^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$");
 
+    // Restaurant and customer phones: an optional + and 6-15 digits once whitespace is removed, stored
+    // without it. Returns null when the value does not qualify. ck_restaurant_public_phone repeats it.
+    public const int MaxPhoneInputLength = 30;
+
+    public static string? NormalizePhone(string? value)
+    {
+        if (value is null)
+            return null;
+        var compact = string.Concat(value.Where(c => !char.IsWhiteSpace(c)));
+        return Regex.IsMatch(compact, @"^\+?[0-9]{6,15}$") ? compact : null;
+    }
+
     // Optional text fields store blank input as NULL.
     public static string? TrimToNull(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

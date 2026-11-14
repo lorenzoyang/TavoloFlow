@@ -24,6 +24,10 @@ public sealed class TestClock : TimeProvider
     public override DateTimeOffset GetUtcNow() => now;
 
     public void Advance(TimeSpan duration) => now += duration;
+
+    // Pins an absolute instant, e.g. a weekday and hour in the restaurant's time zone. Set it before
+    // signing in: tickets issued at the old time would otherwise look issued in the future or expired.
+    public void Set(DateTimeOffset instant) => now = instant;
 }
 
 public sealed class AccountTestHost(

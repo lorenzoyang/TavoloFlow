@@ -46,6 +46,11 @@ internal sealed class RestaurantConfiguration : IEntityTypeConfiguration<Restaur
                     "ck_restaurant_online_slug",
                     "NOT online_enabled OR slug IS NOT NULL"
                 );
+                // InputRules.NormalizePhone stores only an optional + and 6-15 digits.
+                table.HasCheckConstraint(
+                    "ck_restaurant_public_phone",
+                    "public_phone IS NULL OR public_phone ~ '^\\+?[0-9]{6,15}$'"
+                );
                 // InputRules.IsSlug: 3-40 lowercase letters, digits and hyphens, no hyphen at either end.
                 table.HasCheckConstraint(
                     "ck_restaurant_slug",
@@ -133,6 +138,15 @@ internal sealed class RestaurantConfiguration : IEntityTypeConfiguration<Restaur
             .HasIndex(restaurant => restaurant.Slug)
             .IsUnique()
             .HasDatabaseName(InputRules.SlugIndex);
+
+        builder
+            .Property(restaurant => restaurant.PublicPhone)
+            .HasColumnName("public_phone")
+            .HasMaxLength(16);
+        builder
+            .Property(restaurant => restaurant.OnlinePausedUntil)
+            .HasColumnName("online_paused_until")
+            .HasColumnType("timestamptz");
 
         builder
             .Property(restaurant => restaurant.OwnerContact)

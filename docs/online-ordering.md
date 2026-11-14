@@ -242,6 +242,8 @@
 - STAFF 和 OWNER：暂停或恢复线上接单（6.2）。
 - 只有 OWNER：餐厅公开电话、每周营业时间、配送开关和三种语言的配送说明。
 - 开通了线上点单但没填电话或没设营业时间时，页面提示“线上不会接单”及原因。
+- 已实现（第 2 步）：路由 `/staff/online-settings`（线上订单页在第 5 步用 `/staff/online`），页面可见时每 60 秒重读设置，
+  因为时段和暂停会随时间变化。写入发送目标值，不保存待确认标记，结果未知时重读设置、由人重新决定。
 
 ## 5. 平台
 
@@ -261,6 +263,7 @@
 ### 6.1 营业时间
 
 - 每周每天最多两段，当地时间一天中的分钟数，`opens < closes`，所以时段不跨午夜，最晚到 24:00。第 2 段不早于第 1 段结束。
+  `<input type="time">` 填不了 24:00，所以表单里结束时间填 00:00 表示到午夜（`parseTime`）。
 - 结束时间是**最后接单时间**，不是打烊时间，老板应按厨房最后接单的时间设置。
 - 按餐厅时区比较：`opens ≤ 当地现在 < closes` 时可以下单，时间来自注入的 `TimeProvider`。
 - OWNER 一次保存整周：在餐厅 UPDATE 锁内替换全部行。
@@ -271,12 +274,14 @@
 - `restaurants.online_paused_until`：暂停时写入一个结束时间，过了这个时间暂停自动失效，不需要后台任务；恢复时清空。
 - **两个暂停选项**：“暂停到本时段结束”（高峰期用，避免暂停后忘了恢复、之后整天收不到单）和“今天不再接单”
   （到当地今天结束，节假日临时休息用，不必午市、晚市各暂停一次）。多天休假由 OWNER 临时修改营业时间。
-- 不在营业时间内时，“暂停到本时段结束”不可用。
+- 不在营业时间内时，“暂停到本时段结束”不可用：页面上按钮变灰，服务器返回 409 `ONLINE_CLOSED`。“今天不再接单”任何时候都可用。
 
 ### 6.3 能否下单
 
 能否下单 = 餐厅 ACTIVE、已开通线上点单、已填电话、在营业时间内、没有暂停，并且等待接单的请求少于 20 个。
 这个判断只写一处，bootstrap 的状态和提交时的检查都调用它。
+已实现为 `Online/OnlineAvailability.Evaluate`，优先级 SUSPENDED → NOT_OFFERED → PAUSED → CLOSED_HOURS → OPEN；
+“等待接单少于 20 个”要有 `online_requests` 表，在第 4 步做提交时加进同一个函数。
 
 ## 7. 数据模型
 
@@ -420,6 +425,7 @@
 | `POST /api/public/r/{slug}/requests` | 匿名 + CSRF | 提交 |
 | `GET /api/public/r/{slug}/requests/by-client-id/{clientRequestId}` | 匿名 | 结果未知时恢复 |
 | `GET /api/public/online-orders/{token}` | 匿名 | 状态页 |
+| `GET /api/staff/online/settings` | STAFF、OWNER | 线上设置页：链接、电话、营业时间、暂停和状态（第 2 步补上，原表缺这一行） |
 | `GET /api/staff/online/pending` | STAFF、OWNER | 待接单列表 |
 | `GET /api/staff/online/active` | STAFF、OWNER | 进行中的线上单据 |
 | `POST /api/staff/online/requests/{id}/accept` | STAFF、OWNER | `{ estimatedMinutes, deliveryFeeCents? }` |
@@ -467,6 +473,14 @@
      没开通服务的页面显示 `ServiceNotOffered`；只开线上的 STAFF 首页暂时没有管理入口（第 2 步加线上设置）。
    - 顾客端不区分“餐厅被暂停”和“没开堂食”，用同一句说明。
 2. 线上设置：电话、营业时间、暂停；线上点单设置页（链接和二维码）。
+   **已完成（2026-11-14）。** 与设计的差异：
+   - 第 10 节补上 `GET /api/staff/online/settings`；`SLOT` 在营业时间外返回 `ONLINE_CLOSED`；写入返回最新设置，
+     其中有 `currentSlotEndsAt`（暂停按钮显示本时段几点结束）。
+   - 6.3 的判断先不含“等待接单少于 20 个”，第 4 步加。
+   - 营业时间表单里结束时间 00:00 表示 24:00。
+   - 首页“餐厅服务已暂停”的提示在只开线上时不再提开桌。
+   - 留给第 4 步的问题：第 3.1 节 bootstrap 的状态里没有“待接单已满”，而 6.3 要求 bootstrap 和提交共用同一个判断，
+     到时需要决定是加一个 `BUSY` 状态，还是只在提交时返回 `ONLINE_BUSY`。
 3. 数据模型：`dining_sessions` 的渠道、约束和 `NO_SHOW`；`online_counters`、`online_requests`；快照类型和对应测试。
 4. 顾客端：线上菜单、购物车、结账表单、提交、结果未知、状态页、隐私说明页。
 5. 员工端：待接单轮询、横幅和铃声、线上订单页、接单和拒单。

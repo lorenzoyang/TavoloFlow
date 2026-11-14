@@ -80,9 +80,27 @@ test("invalid QR origins and paths are rejected instead of silently generating a
     "/q/token?x=1",
     "/q/",
     `/q/${"x".repeat(129)}`,
+    "/r/",
+    "/r/ab",
+    "/r/Ramen",
+    "/r/-ramen",
+    "/r/ramen-",
+    "/r/ramen/extra",
+    `/r/${"a".repeat(41)}`,
   ]) {
     assert.throws(() => publicMenuUrl(path, "https://menu.example.com"));
   }
+});
+
+test("the online ordering link /r/{slug} uses the same origin rules as table QR codes", () => {
+  assert.equal(
+    publicMenuUrl("/r/ramen-da-mario", "http://localhost:5173", "https://app.example.com"),
+    "https://app.example.com/r/ramen-da-mario",
+  );
+  assert.equal(
+    publicMenuUrl(`/r/${"a".repeat(40)}`, "https://menu.example.com"),
+    `https://menu.example.com/r/${"a".repeat(40)}`,
+  );
 });
 
 test("local-only QR links can be distinguished from phone-reachable addresses", () => {

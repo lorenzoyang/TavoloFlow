@@ -42,6 +42,7 @@ separate from production.
 | [Billing and history](reference/billing-history.md)               | Bill confirmation, PAID/EMPTY/VOIDED closure and historical queries                                    |
 | [Restaurant subscriptions](reference/restaurant-subscriptions.md) | Service periods, offline fee collection, concurrency and reminders                                     |
 | [Staff PWA](reference/pwa.md)                                     | Installation, navigation-only worker, offline page and tablet setup                                    |
+| [Online ordering](reference/online-ordering.md)                   | Services and link, online hours, pause and availability (in development)                               |
 
 These describe the current interfaces and their important invariants. Read controllers and DTOs for
 exact wire types, services for transaction behavior, and tests for executable examples. Shared coding
