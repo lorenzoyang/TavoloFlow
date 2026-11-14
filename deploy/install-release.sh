@@ -34,6 +34,8 @@ if pathlib.Path(sys.argv[2]).read_text().strip() != 'https://'+values.get('DOMAI
     sys.exit('DOMAIN differs from the frontend origin baked into this release.')
 if '@' not in values.get('ACME_EMAIL','') or 'replace-me' in values.get('ACME_EMAIL',''):
     sys.exit('Set ACME_EMAIL to your real email address.')
+if not re.fullmatch(r'[0-9a-fA-F]{64}',values.get('VAPID_PRIVATE_KEY','')):
+    sys.exit('Set VAPID_PRIVATE_KEY to 64 hex characters generated with openssl rand -hex 32.')
 PY
 chmod 600 "$TF_ROOT/.env"
 docker load -i "$package/api-image.tar.gz"

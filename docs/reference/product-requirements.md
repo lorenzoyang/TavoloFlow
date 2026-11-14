@@ -35,7 +35,8 @@ Their language is a shared device preference; guests choose separately for each 
 The platform creates a suspended restaurant with ordering off and both store accounts atomically,
 choosing its services: QR dine-in, online ordering (in development) or both, with a readable online link
 when online ordering is on. Restaurants without dine-in have no floor or tables. Online ordering covers
-pickup and restaurant-run delivery, paid on collection or delivery; staff accept each order first
+pickup and restaurant-run delivery, paid on collection or delivery; staff accept each order first,
+and staff devices can turn on lock-screen notifications of new orders
 (see [online ordering](online-ordering.md)).
 Temporary passwords are shown only in the successful response.
 The owner changes the initial password, prepares menu/allergens and creates tables with fixed QR codes.
@@ -161,7 +162,8 @@ Permanent deletion requires a suspended restaurant and removes all its tenant da
 Online payments/refunds, fiscal receipts, order printers, stock, third-party delivery platforms,
 distance-based delivery fees, reservations,
 membership, all-you-can-eat rules, discounts, split bills and sales reports are outside this MVP.
-There is no shared cart, WebSocket delivery, push notification or offline business operation queue.
+There is no shared cart, WebSocket delivery or offline business operation queue; push notifications
+exist only as best-effort reminders of new online orders.
 There is no QR/code rotation, device-specific grant revocation, menu publishing workflow,
 manual menu ordering or complete audit-event history.
 The staff area is installable; guest and platform pages remain websites.

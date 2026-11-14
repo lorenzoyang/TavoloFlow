@@ -138,6 +138,9 @@ if phase == "create":
         "currentPassword": owner["temporaryPassword"], "newPassword": "Deployment-owner-123"
     })
     browser.request("GET", "/api/not-found", status=404)
+    # VAPID_PRIVATE_KEY reaches the API: it serves the derived public key (65-byte point, base64url).
+    public_key = browser.read("/api/staff/push/key")["publicKey"]
+    assert public_key and len(public_key) == 87 and public_key.startswith("B"), public_key
     category = browser.write("POST", "/api/owner/menu/categories", {
         "nameZh": "冒烟分类", "nameIt": None, "nameEn": None
     }, status=201)
