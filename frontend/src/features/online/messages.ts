@@ -7,7 +7,6 @@ const zh = {
   readError: "无法读取线上点单设置，请检查网络后重试。",
   unknownResult: "操作结果待确认，请重新读取设置并核对，再决定是否操作。",
   saved: "已保存。",
-  refreshFailed: "已保存，但设置刷新失败。请重新读取。",
   loading: "正在读取线上点单设置…",
   // Status
   statusTitle: "接单状态",
@@ -85,7 +84,6 @@ export const onlineMessages: Record<Language, typeof zh> = {
     readError: "Impossibile leggere le impostazioni degli ordini online. Controlla la connessione.",
     unknownResult: "Esito da verificare: ricarica le impostazioni e controlla prima di riprovare.",
     saved: "Salvato.",
-    refreshFailed: "Salvato, ma l’aggiornamento non è riuscito. Ricarica le impostazioni.",
     loading: "Caricamento delle impostazioni online…",
     statusTitle: "Stato degli ordini",
     open: "Aperti",
@@ -162,7 +160,6 @@ export const onlineMessages: Record<Language, typeof zh> = {
     readError: "Can’t read the online ordering settings. Check the connection and retry.",
     unknownResult: "Result unknown: reload the settings and check before trying again.",
     saved: "Saved.",
-    refreshFailed: "Saved, but the settings didn’t refresh. Reload them.",
     loading: "Loading online ordering settings…",
     statusTitle: "Order status",
     open: "Open",

@@ -36,13 +36,14 @@ export const onlineSettingsQuery = (account: AccountScope) =>
 export const onlinePath = (slug: string) => `/r/${slug}`;
 
 // Every write sends its target and returns the fresh settings; a repeated request leaves the same state.
-export const pauseOnline = (until: "SLOT" | "TODAY") =>
-  write<OnlineSettings>("/api/staff/online/pause", "PUT", { until });
-export const resumeOnline = () => write<OnlineSettings>("/api/staff/online/pause", "DELETE");
-export const saveOnlineHours = (slots: OnlineHour[]) =>
-  write<OnlineSettings>("/api/owner/online/hours", "PUT", { slots });
-export const savePublicPhone = (publicPhone: string | null) =>
-  write<OnlineSettings>("/api/owner/online/phone", "PATCH", { publicPhone });
+export const pauseOnline = (until: "SLOT" | "TODAY", signal?: AbortSignal) =>
+  write<OnlineSettings>("/api/staff/online/pause", "PUT", { until }, signal);
+export const resumeOnline = (signal?: AbortSignal) =>
+  write<OnlineSettings>("/api/staff/online/pause", "DELETE", undefined, signal);
+export const saveOnlineHours = (slots: OnlineHour[], signal?: AbortSignal) =>
+  write<OnlineSettings>("/api/owner/online/hours", "PUT", { slots }, signal);
+export const savePublicPhone = (publicPhone: string | null, signal?: AbortSignal) =>
+  write<OnlineSettings>("/api/owner/online/phone", "PATCH", { publicPhone }, signal);
 
 // Online requests waiting for staff, oldest first. Now is the server's clock when it answered, so the
 // page counts the ten minutes on the server's time rather than the device's.

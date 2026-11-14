@@ -135,8 +135,20 @@ export function DishCard({ group, controls }: { group: DishGroup; controls: Line
                 <p className="text-lg leading-7 font-semibold wrap-break-word">
                   {sessionTitle(order, language)} ×{line.quantity}
                 </p>
-                <p className="text-sm text-muted-foreground">
-                  {m.waited(waitedMinutes(controls.now, order))}
+                <p
+                  className={cn(
+                    "text-sm text-muted-foreground",
+                    order.online && "flex gap-1 text-xs",
+                  )}
+                >
+                  <span className={cn(order.online && "min-w-0 truncate")}>
+                    {m.waited(waitedMinutes(controls.now, order), !!order.online)}
+                  </span>
+                  {order.online && (
+                    <span className="shrink-0 tabular-nums">
+                      · {m.estimated(formatTime(order.online.estimatedAt, language))}
+                    </span>
+                  )}
                 </p>
                 {line.options.length > 0 && (
                   <p className="font-medium wrap-break-word">

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Download, ExternalLink, Plus, RefreshCw, X } from "lucide-react";
 import { LoadingState } from "@/components/loading-state";
 import { Notice } from "@/components/notice";
@@ -12,14 +12,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
-import { isSameAccount, refreshAfterWrite } from "@/features/accounts/queries";
+import { isSameAccount } from "@/features/accounts/queries";
 import { ServiceNotOffered } from "@/features/accounts/ServiceNotOffered";
 import { qrPng } from "@/features/tables/qr-image";
 import { isLocalOnlyUrl, publicMenuUrl } from "@/features/tables/qr-url";
-import { errorMessage } from "@/lib/api";
+import { errorMessage, withTimeout } from "@/lib/api";
 import { formatTime, formatWeekdayTime } from "@/lib/format";
 import type { Language } from "@/lib/language";
 import { staffMessages } from "@/lib/staff-messages";
+import { isLive, onLifecycleChange } from "@/lib/useLiveView";
+import { useOperations } from "@/lib/useOperations";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import {
@@ -35,6 +37,8 @@ import { onlineMessages } from "./messages";
 import { normalizePhone, sameHours, WEEKDAYS, weekDraft, weekHours, type WeekDraft } from "./state";
 
 type Messages = (typeof onlineMessages)[Language];
+type SettingsWrite = (signal: AbortSignal) => Promise<OnlineSettings>;
+type SendSettings = (request: SettingsWrite, done?: () => void) => void;
 
 function StatusCard({
   settings,
@@ -45,7 +49,7 @@ function StatusCard({
   settings: OnlineSettings;
   owner: boolean;
   busy: boolean;
-  send: (request: () => Promise<unknown>) => void;
+  send: SendSettings;
 }) {
   const language = useStaffLanguage();
   const m = onlineMessages[language];
@@ -104,7 +108,7 @@ function StatusCard({
                 variant="outline"
                 className="w-full"
                 disabled={busy || !settings.currentSlotEndsAt}
-                onClick={() => send(() => pauseOnline("SLOT"))}
+                onClick={() => send((signal) => pauseOnline("SLOT", signal))}
               >
                 {settings.currentSlotEndsAt
                   ? m.pauseSlot(formatTime(settings.currentSlotEndsAt, language))
@@ -117,7 +121,7 @@ function StatusCard({
                 variant="outline"
                 className="w-full"
                 disabled={busy}
-                onClick={() => send(() => pauseOnline("TODAY"))}
+                onClick={() => send((signal) => pauseOnline("TODAY", signal))}
               >
                 {m.pauseToday}
               </Button>
@@ -250,7 +254,7 @@ function PhoneCard({
 }: {
   settings: OnlineSettings;
   busy: boolean;
-  send: (request: () => Promise<unknown>, done?: () => void) => void;
+  send: SendSettings;
 }) {
   const m = onlineMessages[useStaffLanguage()];
   // The local edit survives background refreshes until it is saved or discarded.
@@ -259,6 +263,7 @@ function PhoneCard({
   const value = draft ?? settings.publicPhone ?? "";
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy) return;
     const blank = value.trim() === "";
     const phone = blank ? null : normalizePhone(value);
     if (!blank && phone === null) {
@@ -267,7 +272,7 @@ function PhoneCard({
     }
     setError("");
     send(
-      () => savePublicPhone(phone),
+      (signal) => savePublicPhone(phone, signal),
       () => setDraft(null),
     );
   }
@@ -288,6 +293,7 @@ function PhoneCard({
               autoComplete="tel"
               maxLength={30}
               value={value}
+              disabled={busy}
               aria-invalid={!!error}
               onChange={(event) => setDraft(event.target.value)}
             />
@@ -309,7 +315,7 @@ function HoursCard({
 }: {
   settings: OnlineSettings;
   busy: boolean;
-  send: (request: () => Promise<unknown>, done?: () => void) => void;
+  send: SendSettings;
 }) {
   const m = onlineMessages[useStaffLanguage()];
   const [draft, setDraft] = useState<WeekDraft | null>(null);
@@ -323,13 +329,14 @@ function HoursCard({
   };
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy) return;
     if (!parsed.ok) {
       setError(m.weekProblem(m.weekdays[parsed.weekday - 1], parsed.problem));
       return;
     }
     setError("");
     send(
-      () => saveOnlineHours(parsed.hours),
+      (signal) => saveOnlineHours(parsed.hours, signal),
       () => setDraft(null),
     );
   }
@@ -346,7 +353,7 @@ function HoursCard({
               const day = m.weekdays[weekday - 1];
               const slots = week[weekday];
               return (
-                <fieldset key={weekday} className="space-y-2 py-3">
+                <fieldset key={weekday} disabled={busy} className="space-y-2 py-3">
                   <div className="flex items-center justify-between gap-2">
                     <legend className="font-medium">{day}</legend>
                     {slots.length === 0 && (
@@ -437,6 +444,7 @@ function HoursCard({
               <Button
                 type="button"
                 variant="outline"
+                disabled={busy}
                 onClick={() => {
                   setDraft(null);
                   setError("");
@@ -461,21 +469,42 @@ function OnlineSettingsContent({ account }: { account: CurrentAccount }) {
   const query = useQuery(options);
   const owner = account.role === "OWNER";
   const [notice, setNotice] = useState("");
-  // Each write sends its target and returns the fresh settings; the page rereads them afterwards.
-  const mutation = useMutation({
-    mutationFn: ({ request }: { request: () => Promise<unknown>; done?: () => void }) => request(),
-    onMutate: () => setNotice(""),
-    onSuccess: async (_, { done }) => {
-      if (!isSameAccount(client, account)) return;
+  const [error, setError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+  const ops = useOperations();
+  useEffect(
+    () =>
+      onLifecycleChange(() => {
+        ops.cancelAll();
+        setBusy(false);
+      }),
+    [ops],
+  );
+
+  // Writes already return fresh settings. Keep the existing polling for later changes and unknown results.
+  async function send(request: SettingsWrite, done?: () => void) {
+    if (!isLive() || !isSameAccount(client, account)) return;
+    const op = ops.start("settings");
+    if (!op) return;
+    const current = () => op.isCurrent() && isSameAccount(client, account);
+    setBusy(true);
+    setNotice("");
+    setError(null);
+    try {
+      const settings = await request(withTimeout(op.signal));
+      if (!current()) return;
+      // A poll started before the save must not replace its response afterwards.
+      await client.cancelQueries({ queryKey: options.queryKey });
+      if (!current()) return;
+      client.setQueryData(options.queryKey, settings);
       done?.();
-      const result = await refreshAfterWrite(client, account, options);
-      if (result === "refreshed") setNotice(m.saved);
-      else if (result === "failed") setNotice(m.refreshFailed);
-    },
-  });
-  const send = (request: () => Promise<unknown>, done?: () => void) =>
-    mutation.mutate({ request, done });
-  const busy = mutation.isPending;
+      setNotice(m.saved);
+    } catch (e) {
+      if (current()) setError(e);
+    } finally {
+      if (op.finish()) setBusy(false);
+    }
+  }
   const settings = query.data;
   return (
     <div className="mx-auto max-w-2xl">
@@ -500,8 +529,8 @@ function OnlineSettingsContent({ account }: { account: CurrentAccount }) {
         {(query.isError || query.fetchStatus === "paused") && (
           <Notice tone="error">{m.readError}</Notice>
         )}
-        {mutation.isError && (
-          <Notice tone="error">{errorMessage(mutation.error, m.unknownResult, language)}</Notice>
+        {error !== null && (
+          <Notice tone="error">{errorMessage(error, m.unknownResult, language)}</Notice>
         )}
       </div>
       {!settings ? (

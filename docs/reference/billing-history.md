@@ -69,8 +69,8 @@ so an online session, which always has its order, never closes as EMPTY, and a z
 as VOIDED, not NO_SHOW (`SESSION_NOT_PAYABLE`). For online orders the page words PAID as "collected,
 check payment" and VOIDED as closing after telling the customer, and offers "customer didn't come"
 (NO_SHOW) beside checkout whenever checkout is possible. Like every closure, NO_SHOW stamps the remaining
-READY lines served, so the pass index keeps only open visits; the history filter lists NO_SHOW only
-for restaurants with online ordering.
+READY lines served, so the pass index keeps only open visits; the history filter keeps NO_SHOW
+available even after online ordering is turned off.
 The owner confirms money received outside the app; no payment provider verifies it.
 
 All reasons share `BillingService.CloseAsync`:
@@ -86,7 +86,10 @@ All reasons share `BillingService.CloseAsync`:
 4. Atomically store CLOSED, reason, final amount/time and null code ciphertext. Do not increment
    BillVersion or modify order snapshots.
 5. Stamp still-unserved READY lines served in the same transaction and commit. Existing serving times
-   are preserved. Closure does not require staff to tap every delivery first.
+   are preserved. This applies to every closure reason, including VOIDED and NO_SHOW; a closure-stamped
+   `served_at` does not prove actual delivery to the customer. VOIDED currently requires every line
+   cancelled, so it normally has no READY lines to stamp. Closure does not require staff to tap every
+   delivery first.
 
 Closing time is clamped to visit opening, the latest order `processedAt ?? createdAt`, and the latest
 already recorded `servedAt` in this restaurant and visit. These reads share the existing session lock;
@@ -139,7 +142,8 @@ DST transitions can therefore produce 23- or 25-hour days.
 Response: `{ items, nextCursor, totalCount, fromDate, toDate, timeZone }`. Order is `(closedAt, id)`
 descending, default 50/max 100. Cursors retain resolved date bounds across midnight and bind restaurant,
 historical table label and closure reason. Labels match trimmed, case-sensitive snapshots exactly.
-PAID, EMPTY and VOIDED are all queryable. Detail lookup by session ID is independent of list filters.
+PAID, EMPTY, VOIDED and NO_SHOW are all queryable regardless of currently enabled services. Detail
+lookup by session ID is independent of list filters.
 
 Catalog deletion detaches nullable references, preserving original labels/names/prices and final totals.
 There is no routine reopen/edit/delete-history business endpoint. Platform deletion of an entire

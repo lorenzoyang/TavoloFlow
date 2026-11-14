@@ -36,7 +36,11 @@ The read is one Repeatable Read snapshot. Every write owns a transaction, takes 
 (so a later submission holding restaurant SHARE sees the old or the new settings, never half), rejects
 a restaurant without online ordering with `ONLINE_NOT_OFFERED` (409) and returns the fresh settings.
 Inputs reject unknown fields. Writes send their target, persist no pending marker and have no
-automatic retry: after an unknown result the page rereads the settings and a person decides again.
+automatic retry. Editing and resetting are disabled during a save. Writes use `useOperations` and
+abort/ignore late results after lifecycle or identity changes. On a current success the page cancels
+older settings reads, caches the returned settings and clears that save's draft. Failure keeps the
+draft; existing 60-second polling and ordinary focus/reconnect reads reveal later changes. There is
+no extra post-write GET, pending marker or recovery loop.
 
 ## Hours
 
@@ -141,9 +145,11 @@ Pickup takes no address; delivery needs one (1–200, notes up to 100) but is re
 
 1. Validates the format (`VALIDATION_FAILED`) before any write.
 2. Finds the restaurant by slug and locks it SHARE, rechecking the slug.
-3. Takes the next number of the restaurant's local business date with
-   `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` on `online_counters`. The counter row serializes a
-   restaurant's submissions for that day.
+3. Acquires the restaurant's transaction advisory submission lock, keyed by `hashtextextended` of
+   `tavoloflow:online-submission:` plus the restaurant ID. Only then reads time and the local business
+   date and takes the next number with `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` on
+   `online_counters`. The submission lock serializes one restaurant across midnight too, making both
+   duplicate detection and the 20-request cap safe; other restaurants proceed independently.
 4. Returns the stored result of an existing `(restaurant, clientRequestId)` and rolls back, so a repeat
    skips every later gate and uses no number.
 5. Requires `OPEN`: `SERVICE_SUSPENDED`, `ONLINE_NOT_OFFERED`, `ONLINE_PAUSED`, `ONLINE_CLOSED` (with
@@ -224,7 +230,8 @@ offers "check the result", "retry the same order" (the identical saved request w
 and the phone. After an unknown result, a retry frees the intent only when it is rejected with a code
 the server returns after its duplicate check (`SERVICE_SUSPENDED`, `ONLINE_NOT_OFFERED`,
 `ONLINE_PAUSED`, `ONLINE_CLOSED`, `ONLINE_BUSY`, `DELIVERY_NOT_OFFERED`, `MENU_CHANGED`): that check
-runs inside the transaction holding the day's counter row, so such a rejection proves no request with
+runs inside the transaction holding the restaurant's cross-day submission lock and the day's counter
+row, so such a rejection proves no request with
 that ID was stored. Format, link, CSRF and rate-limit rejections come earlier and keep the intent
 (`submissionFailure` in `state.ts`). Leaving the foreground or going offline cancels the request in
 flight.
@@ -239,7 +246,14 @@ the most visible notice. Customers cannot cancel; the page says to call instead.
 
 The privacy page names the restaurant as controller and TavoloFlow as processor, and lists the data,
 purpose, legal basis (performance of the customer's own order), the 30-day retention, the customer's
-rights and the browser storage used. Its wording is a draft to be reviewed before release.
+rights and the browser storage used. Cleanup only runs in a new successful submission transaction;
+without one, contact data remains beyond 30 days. The maintainer accepts this temporary mismatch
+with the draft's fixed 30-day deletion promise, to be resolved in the pre-release privacy review.
+No scheduled cleanup is implemented.
+
+The global lock order is restaurant → table → session, restaurant → menu item, restaurant → online
+request, and restaurant → submission advisory lock → daily counter. Submission advisory locks are
+transaction-scoped and release on commit or rollback.
 
 ## Staff decisions
 
@@ -272,9 +286,11 @@ default language) and the items through `OrderLineSnapshot.ToOrderItem` (a delet
 minutes) and `session_id`. The order is created at acceptance, so the kitchen sorts it by then and the
 order watermark rises: the kitchen chimes as for any new order.
 
-Rejection is one conditional update of the request row, still waiting at the current time, with the
-optional reason; `OUT_OF_RANGE` on a pickup request is `VALIDATION_FAILED`. A request that is no longer
-waiting returns `ONLINE_REQUEST_CHANGED`; an unknown or foreign ID `ONLINE_REQUEST_NOT_FOUND` (404).
+Rejection owns a transaction and locks only the request row UPDATE. It then reads time from
+`TimeProvider`, checks `OnlineRequestState.Phase` and conditionally updates the still-waiting row with
+the optional reason; `OUT_OF_RANGE` on a pickup request is `VALIDATION_FAILED`. A request that is no longer
+waiting, including one that expired while waiting for the lock, returns `ONLINE_REQUEST_CHANGED`;
+an unknown or foreign ID `ONLINE_REQUEST_NOT_FOUND` (404).
 Neither write persists a browser pending marker: both apply only to a waiting request, so a repeat just
 gets `ONLINE_REQUEST_CHANGED`, and the pending list itself shows whether a lost write went through.
 
@@ -286,8 +302,9 @@ With online ordering on, `StaffLayout` mounts `OnlinePendingBanner` for signed-i
 wait, shows one sticky line above every staff page: "N online orders to accept · View", or a warning
 once the 20-request cap stops customers. It rings `onlineRing` (low-high pairs, unlike the kitchen's
 rising pair and the pass's three beeps) every 3 seconds while the newest list is under 30 seconds old,
-has someone waiting and the page is live (`shouldRing`), so a failed or paused poll stops it. There is
-no mute or device switch: `useAlertSound(null, …)` is always on, and the kitchen's sound switch does not
+has someone waiting and the shared `syncIsFresh` rule passes (no failed read, visible and online,
+and refreshed since resume). A failed, stale or paused view stops the ringing; cached counts remain
+visible without a separate unsynchronized state. There is no mute or device switch: `useAlertSound(null, …)` is always on, and the kitchen's sound switch does not
 touch it. The banner stays mounted at zero, so the first tap anywhere unlocks the browser's audio;
 until then it says "tap the page to turn on the ringing".
 
@@ -310,7 +327,10 @@ nullable `tableLabel`. Kitchen and pass add `online: { number, customerName, est
 phone or address); bill summaries add `online: { number, customerName, customerPhone, estimatedAt }`.
 `lib/session-label.ts` names every session in one place: "Table 5", or "Pickup #12" with the customer
 name and estimated time (`SessionName` puts them on a second, truncated line, and the cards holding it
-take `min-w-0` so a long name never widens a 360px grid). The bills page lists every ACTIVE session in
+take `min-w-0` so a long name never widens a 360px grid). The kitchen
+dish view keeps only the short title and adds the estimated time beside the existing wait, without
+a customer-name row. That second line stays on one line, keeping the estimated time whole and
+allowing the wait to truncate at 360px. The bills page lists every ACTIVE session in
 all channels from `GET /api/staff/sessions/active` (see [billing](billing-history.md)). Online orders
 close through the existing paths: PAID ("collected, check payment") and VOIDED (after telling the
 customer), plus `NO_SHOW` ("customer didn't come"), OWNER-only through
@@ -366,8 +386,12 @@ discarded.
 - `OnlineOrderingTests` also covers the 30-day contact cleanup (strictly older, own restaurant only,
   rolled back with a rejected submission) and the status link's 24-hour limit after expiry, rejection
   and closure, while an active order keeps its link.
-- Frontend: `tests/online.test.ts` (phone, time inputs, week validation, banner, ringing, countdown on
-  the server's clock, progress, session labels), `tests/navigation.test.ts`,
+- `OnlineConcurrencyTests`: cross-midnight retries after commit or rollback; the cap across midnight
+  and independent restaurant locks; rejection waiting past expiry; acceptance racing service disable
+  (including expiry while waiting) and suspension, with both lock acquisition orders.
+- Frontend: `tests/online.test.ts` (phone, time inputs, week validation, banner, countdown on
+  the server's clock, progress, session labels), `tests/kitchen.test.ts` (shared freshness for writes
+  and ringing), `tests/navigation.test.ts`,
   the `/r/{slug}` cases in `tests/public-menu.test.ts`, and `tests/online-order.test.ts` (cart key,
   checkout rules, intent and restore, failure disposition including retries after an unknown result,
   remembered status link, every status-page state).

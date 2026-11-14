@@ -113,13 +113,11 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
             className="w-full"
           >
             <NativeSelectOption value="">{m.all}</NativeSelectOption>
-            {Object.entries(m.close)
-              .filter(([value]) => value !== "NO_SHOW" || account.services.online)
-              .map(([value, text]) => (
-                <NativeSelectOption key={value} value={value}>
-                  {text}
-                </NativeSelectOption>
-              ))}
+            {Object.entries(m.close).map(([value, text]) => (
+              <NativeSelectOption key={value} value={value}>
+                {text}
+              </NativeSelectOption>
+            ))}
           </NativeSelect>
         </label>
         <div className="col-span-2 flex flex-wrap gap-2 lg:col-span-4">

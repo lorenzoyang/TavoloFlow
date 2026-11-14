@@ -121,8 +121,9 @@ export function restoreOnlineCart(raw: string | null, restaurantId: string): Onl
 
 type FailureDisposition = "editable" | "unknown";
 
-// The server returns these only after its duplicate check, inside the transaction that holds the day's
-// counter row: the request ID had no stored request at that moment, so even a retry may free the cart.
+// The server returns these only after its duplicate check, inside the transaction holding the restaurant's
+// cross-day submission lock and the day's counter row: no request with that ID was stored, so a retry
+// may free the cart too.
 const rejectedAfterDuplicateCheck = [
   "MENU_CHANGED",
   "ONLINE_PAUSED",

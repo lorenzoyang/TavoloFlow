@@ -120,8 +120,8 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
         return result;
     }
 
-    // Only the request row: one conditional update, still waiting at the current time. Rejection cannot be
-    // undone, so the page asks for confirmation first.
+    // Only the request row: read the time after acquiring UPDATE, just like acceptance. A decision that
+    // waited beyond expiry must not turn an expired request back into a rejected one.
     public async Task RejectAsync(
         Guid restaurantId,
         Guid id,
@@ -140,20 +140,24 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
                 );
             reason = parsed;
         }
-        var now = clock.GetUtcNow().UtcDateTime;
-        var target = db.OnlineRequests.Where(r => r.RestaurantId == restaurantId && r.Id == id);
-        var fulfillment = await target
-            .Select(r => (OnlineFulfillment?)r.Fulfillment)
-            .SingleOrDefaultAsync(ct);
-        if (fulfillment is null)
-            throw OnlineErrors.RequestMissing();
-        if (reason == OnlineRejectReason.OutOfRange && fulfillment != OnlineFulfillment.Delivery)
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var request =
+            await RowLocks.OnlineRequestAsync(db, restaurantId, id, RowLock.Update, ct)
+            ?? throw OnlineErrors.RequestMissing();
+        if (
+            reason == OnlineRejectReason.OutOfRange
+            && request.Fulfillment != OnlineFulfillment.Delivery
+        )
             throw ApiException.Validation(
                 "Out of range applies to delivery only.",
                 "reason",
                 "Delivery only."
             );
-        var rejected = await target
+        var now = clock.GetUtcNow().UtcDateTime;
+        if (OnlineRequestState.Phase(request, now) != OnlineRequestPhase.Waiting)
+            throw OnlineErrors.RequestChanged();
+        var rejected = await db
+            .OnlineRequests.Where(r => r.Id == id)
             .Waiting(restaurantId, now)
             .ExecuteUpdateAsync(
                 u => u.SetProperty(r => r.RejectedAt, now).SetProperty(r => r.RejectReason, reason),
@@ -161,6 +165,7 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
             );
         if (rejected != 1)
             throw OnlineErrors.RequestChanged();
+        await transaction.CommitAsync(ct);
     }
 
     private IQueryable<OnlineActiveOrderResponse> Active(

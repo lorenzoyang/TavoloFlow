@@ -5,12 +5,13 @@ import { BellRing } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { onlineRing } from "@/lib/alert-sound";
+import { syncIsFresh } from "@/lib/live-view";
 import { useAlertSound } from "@/lib/useAlertSound";
 import { useLiveView } from "@/lib/useLiveView";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { onlinePendingQuery } from "./api";
 import { onlineOrdersMessages } from "./messages";
-import { pendingBanner, shouldRing } from "./state";
+import { pendingBanner } from "./state";
 
 // Repeats the ring at this interval while someone is waiting.
 const RING_EVERY = 3_000;
@@ -29,7 +30,14 @@ export function OnlinePendingBanner({ account }: { account: CurrentAccount }) {
     refetchIntervalInBackground: false,
   });
   const count = pending.data?.items.length ?? 0;
-  const ringing = shouldRing(count, pending.data?.receivedAt ?? 0, view.now, view.active);
+  const fresh = syncIsFresh(
+    pending.data?.receivedAt ?? 0,
+    view.now,
+    view.resumeAfter,
+    view.active,
+    pending.isError,
+  );
+  const ringing = fresh && count > 0;
   const { play, soundBlocked, soundUnsupported } = useAlertSound(null, onlineRing);
   useEffect(() => {
     if (!ringing) return;

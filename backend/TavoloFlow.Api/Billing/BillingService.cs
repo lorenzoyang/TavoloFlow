@@ -270,7 +270,8 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
             );
         if (changed != 1)
             throw DiningErrors.SessionClosed();
-        // A settled bill means every ready dish reached the table, whether or not someone tapped it at the pass.
+        // Every closure removes remaining READY dishes from the pass, including VOIDED and NO_SHOW.
+        // A closure-stamped ServedAt is not evidence that a dish actually reached the customer.
         // Closing time includes processed and existing served times; the clamp also guards ck_order_item_served.
         await db
             .OrderItems.Where(i =>

@@ -105,12 +105,6 @@ export function pendingBanner(count: number) {
   return { full: count >= MAX_WAITING_REQUESTS, count };
 }
 
-// The banner rings while the newest list, younger than 30 seconds, has someone waiting on a live page.
-// A failed or old list stops it: ringing must never outlast what the page actually knows.
-export function shouldRing(count: number, receivedAt: number, now: number, active: boolean) {
-  return active && count > 0 && now - receivedAt < 30_000;
-}
-
 // Waited and remaining time of a request on the server's clock. The list carries the server's now,
 // received at receivedAt on this device; the device clock only measures time since then.
 export function requestTimes(

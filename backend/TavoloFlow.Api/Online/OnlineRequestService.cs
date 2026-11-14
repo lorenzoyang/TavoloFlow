@@ -16,12 +16,12 @@ public sealed class OnlineRequestService(ApplicationDbContext db, TimeProvider c
 {
     public static readonly TimeSpan WaitingTime = TimeSpan.FromMinutes(10);
 
-    // Customer contact data (name, phone, address, notes) is kept this long after submission.
+    // New successful submissions clear contact data submitted more than this long ago.
     public static readonly TimeSpan ContactRetention = TimeSpan.FromDays(30);
 
-    // Lock order: restaurant SHARE, then the day's counter row. Menu writers take restaurant UPDATE, so
-    // prices and snapshots stay stable; the counter row serializes one restaurant's submissions per day,
-    // so the duplicate check and the waiting cap below run one submission at a time.
+    // Lock order: restaurant SHARE, the restaurant's submission advisory lock, then the day's counter.
+    // Menu writers take restaurant UPDATE, so prices and snapshots stay stable. The submission lock
+    // serializes duplicate and cap checks across midnight too; a daily counter alone cannot do that.
     public async Task<OnlineSubmission> SubmitAsync(
         string slug,
         OnlineRequestInput input,
@@ -40,6 +40,12 @@ public sealed class OnlineRequestService(ApplicationDbContext db, TimeProvider c
         // The platform may have changed the link meanwhile.
         if (restaurant?.Slug != slug)
             throw OnlineErrors.LinkNotFound();
+        var submissionLock = $"tavoloflow:online-submission:{restaurantId:D}";
+        await db.Database.ExecuteSqlAsync(
+            $"SELECT pg_advisory_xact_lock(hashtextextended({submissionLock}, 0))",
+            ct
+        );
+        // Take the time after waiting, so the business date and gates describe this submission's turn.
         var now = clock.GetUtcNow();
         var zone = TimeZoneInfo.FindSystemTimeZoneById(restaurant.TimeZone);
         var businessDate = DateOnly.FromDateTime(OnlineSchedule.Local(zone, now));

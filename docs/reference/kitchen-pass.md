@@ -61,6 +61,9 @@ Kitchen order fields: `id`, `sessionId`, `channel`, `tableLabel`, `online`, `sta
 `DELIVERY`; dine-in orders have a `tableLabel` and a null `online`, accepted online orders a null
 `tableLabel` and `online: { number, customerName, estimatedAt }`, never the phone or address. Screens
 name both through `lib/session-label.ts` ("Table 5", "Pickup #12" with the name and estimated time);
+the dish view keeps a short session title and shows the estimated time beside the existing wait on
+one line, without a customer-name row. Estimated time stays whole and wait text may truncate at
+360px. Order tickets and pass cards retain the name and estimated time through `SessionName`;
 an online order is created when staff accept it, so it sorts, groups and chimes like any new order. Responses contain no cancellation reason,
 client request ID, code or credentials. All responses are `no-store`.
 
@@ -93,8 +96,8 @@ a warning color without changing order. The entry is on Home for OWNER and STAFF
 
 Pass items contain `id`, `orderId`, `sessionId`, `channel`, `tableLabel`, `online` (as in the kitchen),
 `defaultLanguage`, `itemCode`, three names, `quantity`, `remark`, the `options` snapshot, `readyAt` and
-nullable `servedAt`. They contain no prices or request IDs. For a pickup order, "served" means handed
-to the customer.
+nullable `servedAt`. They contain no prices or request IDs. The explicit pickup "served" action
+means handed to the customer, but closure can also write this field without a handover.
 The list uses ascending `(readyAt, id)` keyset paging with tenant-bound cursors. Rows, count and
 watermark come from one Repeatable Read snapshot. `latestReadyAt` is the restaurant-wide maximum ready
 time of waiting READY lines; closure stamping keeps closed work out of that partial waiting index.
@@ -107,7 +110,10 @@ There is no SERVED enum state, undo, confirmation dialog or served history.
 
 Closure does not require delivered dishes. In the same closure transaction, remaining unserved READY
 lines are stamped served at closing time, clamped to ready time; previously served timestamps remain.
-This also removes the visit's unserved work from the waiting index. See [billing](billing-history.md).
+This applies to every closure reason, including VOIDED and NO_SHOW, and removes the visit's
+unserved work from the waiting index. A closure-stamped `served_at` is not proof of actual customer
+handover; VOIDED normally has no READY lines because its conditions require every line cancelled.
+See [billing](billing-history.md).
 
 ## Synchronization, recovery and sound
 

@@ -8,7 +8,6 @@ import {
   normalizePhone,
   pendingBanner,
   requestTimes,
-  shouldRing,
   parseTime,
   sameHours,
   timeInputValue,
@@ -120,18 +119,8 @@ test("the banner counts waiting requests and warns once the cap stops new orders
   assert.equal(pendingBanner(0), null);
   assert.deepEqual(pendingBanner(3), { full: false, count: 3 });
   assert.deepEqual(pendingBanner(MAX_WAITING_REQUESTS), { full: true, count: 20 });
-  // A submission racing across midnight can exceed the cap; the banner still shows every request.
+  // The banner can still describe an oversized list, including requests made before the cross-day lock.
   assert.deepEqual(pendingBanner(21), { full: true, count: 21 });
-});
-
-test("the banner rings only while a live page holds a recent list with someone waiting", () => {
-  const now = 1_000_000;
-  assert.equal(shouldRing(2, now - 5_000, now, true), true);
-  assert.equal(shouldRing(0, now - 5_000, now, true), false);
-  assert.equal(shouldRing(2, now - 5_000, now, false), false);
-  // A failed or paused poll leaves an old list: the ringing stops instead of outlasting it.
-  assert.equal(shouldRing(2, now - 30_000, now, true), false);
-  assert.equal(shouldRing(2, 0, now, true), false);
 });
 
 test("waiting and remaining time follow the server's clock, not the device's", () => {
