@@ -271,6 +271,8 @@ Poi apri <http://localhost:5173/staff/login>, oppure `/platform/login`.
 
   Servono tutti e due: con uno solo l'API non parte. Le notifiche passano dal service worker, quindi anche qui serve la build (`npm run build && npm run preview`). In Chrome sul computer apri <http://localhost:4173/staff>, attiva le notifiche dalla Home, metti il browser in background e fai un ordine online da un'altra finestra: deve arrivare «Nuovo ordine online #N». I servizi di notifica sono veri (Google per Chrome), quindi il computer deve essere online.
 
+- **Verifica del recupero push.** Dopo aver attivato le notifiche, simula un errore alla PUT dell'iscrizione: la Home deve mostrare il fallimento, non «attive». Ripristina la rete e torna all'app: deve confermare la sincronizzazione senza un nuovo permesso. Se la cancellazione dell'iscrizione fallisce durante l'uscita, devi restare collegato e poter riprovare. Dopo un'uscita riuscita un nuovo ordine deve notificare gli altri dispositivi; accedendo di nuovo su questo dispositivo le notifiche riprendono. Quelle già inviate possono ancora arrivare.
+
 ## Parte 3: test e controlli
 
 ### Backend

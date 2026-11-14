@@ -36,15 +36,15 @@ test("iPhone and iPad Safari must install the app before push exists", () => {
 });
 
 test("the status follows support, then permission, then the browser subscription", () => {
-  assert.equal(pushStatus("unsupported", "granted", true), "unsupported");
-  assert.equal(pushStatus("install-first", null, null), "install-first");
-  assert.equal(pushStatus("supported", "denied", true), "denied");
-  assert.equal(pushStatus("supported", "granted", null), "checking");
-  assert.equal(pushStatus("supported", "granted", true), "on");
-  assert.equal(pushStatus("supported", "granted", false), "off");
+  assert.equal(pushStatus("unsupported", "granted", true, "confirmed"), "unsupported");
+  assert.equal(pushStatus("install-first", null, null, "confirmed"), "install-first");
+  assert.equal(pushStatus("supported", "denied", true, "confirmed"), "denied");
+  assert.equal(pushStatus("supported", "granted", null, "confirmed"), "checking");
+  assert.equal(pushStatus("supported", "granted", true, "confirmed"), "on");
+  assert.equal(pushStatus("supported", "granted", false, "confirmed"), "off");
   // A subscription without the permission no longer shows notifications.
-  assert.equal(pushStatus("supported", "default", true), "off");
-  assert.equal(pushStatus("supported", "default", false), "off");
+  assert.equal(pushStatus("supported", "default", true, "confirmed"), "off");
+  assert.equal(pushStatus("supported", "default", false, "confirmed"), "off");
 });
 
 // RFC 8291's example application server public key.

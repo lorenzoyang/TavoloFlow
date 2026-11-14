@@ -165,7 +165,7 @@ function Home({ account, passwordChanged }: { account: CurrentAccount; passwordC
           </CardContent>
         </Card>
       </section>
-      {account.services.online && <PushSection account={account} />}
+      {account.services.online && <PushSection />}
       <InstallSection />
       <SourceLink />
     </div>

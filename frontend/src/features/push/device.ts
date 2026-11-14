@@ -1,4 +1,3 @@
-import { removePushSubscription } from "./api";
 import { pushSupport, isOrderNotification, type PushSupport } from "./state";
 
 // This device's push state, read from the browser. Only production builds register the service
@@ -37,32 +36,9 @@ export async function currentSubscription() {
   return (await (await registration())?.pushManager.getSubscription()) ?? null;
 }
 
-// Lets the home page reread the device after another part of the app changed its subscription.
-const changes = new EventTarget();
-
-export function deviceChanged() {
-  changes.dispatchEvent(new Event("change"));
-}
-
-export function onDeviceChange(listener: () => void) {
-  changes.addEventListener("change", listener);
-  return () => changes.removeEventListener("change", listener);
-}
-
 // Opening the online orders page answers every notification shown on this device.
 export async function closeOrderNotifications() {
   const notifications = (await (await registration())?.getNotifications()) ?? [];
   for (const notification of notifications)
     if (isOrderNotification(notification.tag)) notification.close();
-}
-
-// Before signing out: the server stops notifying this device, while the browser keeps its
-// subscription so the next sign-in registers it again. A failure never blocks signing out.
-export async function unregisterBeforeSignOut() {
-  if (devicePushSupport() !== "supported") return;
-  const subscription = await currentSubscription().catch(() => null);
-  if (subscription)
-    await removePushSubscription(subscription.endpoint, AbortSignal.timeout(5_000)).catch(
-      () => undefined,
-    );
 }

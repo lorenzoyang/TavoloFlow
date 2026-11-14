@@ -12,11 +12,11 @@ reminders of new online orders; there are no offline business operations.
 | [Manifest](../../frontend/public/staff.webmanifest)                   | App identity, launch URL, scope and icons                             |
 | [Service worker](../../frontend/public/sw.js)                         | Navigation network fallback, offline page, push and notification taps |
 | [Push switch](../../frontend/src/features/push/PushSection.tsx)       | Home page lock-screen notification switch for this device             |
-| [Push sync](../../frontend/src/features/push/usePushSync.ts)          | Registers a kept browser subscription again at each sign-in           |
+| [Push sync](../../frontend/src/features/push/usePushSync.ts)          | Owns shared registration state and foreground reconciliation           |
 | [Install hook](../../frontend/src/features/accounts/useInstallApp.ts) | Manifest link, worker registration and Chromium install offer         |
 | [Home page](../../frontend/src/features/accounts/AccountPage.tsx)     | Install action or device-specific instructions                        |
 | [PWA tests](../../frontend/tests/pwa.test.ts)                         | Manifest, icons, offline page, push and notification-tap handlers     |
-| [Push tests](../../frontend/tests/push.test.ts)                       | Support detection, switch state, server key and registration body     |
+| [Push tests](../../frontend/tests/push.test.ts)                       | Support, confirmation, recovery, operation races and registration body     |
 
 StaffLayout inserts the manifest link when mounted and removes it on unmount. The shared `index.html`
 must not link a manifest: that would also advertise the staff app from a guest page. Staff sign-in is
@@ -59,18 +59,25 @@ and ringing are unchanged. Server contracts, the VAPID key and the sending rules
   development shows "not supported"), `PushManager` and `Notification`. iPhone and iPad (iOS 16.4+)
   expose push only to the app opened from the Home Screen, so Safari shows "add to the Home Screen
   first"; Android Chrome and desktop Chrome, Edge and Firefox work in the browser too.
-- **Turning on.** Home (首页) shows the switch while online ordering is on and the server has a key. The
-  tap requests the notification permission (Safari grants the prompt only to a gesture), subscribes with
-  `userVisibleOnly` and the server's public key, and PUTs the subscription with the interface language.
-  Any failure unsubscribes the browser again, so "on" always means registered. A blocked permission is
-  explained instead of a button.
-- **Sign-in and sign-out.** Signing out DELETEs this device's row before the logout request (best
-  effort, at most 5 seconds) but keeps the browser subscription. Whenever a store account is signed in
-  with online ordering, the permission granted and a subscription made with the current server key,
-  `StaffLayout` PUTs it again: after any sign-in on the device, after a language change, and after the
-  account's own password change. A subscription made with an older server key is unsubscribed and the
-  switch shows "off". Only "turn off for this device" removes the browser subscription, after a
-  best-effort DELETE.
+- **Turning on and confirmation.** Home (首页) shows the switch while online ordering is on and the
+  server has a key, including installation guidance on unsupported devices. A tap requests permission
+  immediately, subscribes with `userVisibleOnly` and PUTs the device with the interface language.
+  Only a successful PUT for the current account, endpoint, key and language shows "on". A failed
+  registration retains the browser subscription and shows a retry action; turning off remains available.
+- **One controller.** `StaffLayout` provides one push controller through React Context. Automatic
+  registration, the home controls, password changes and logout share its state and operation tracker.
+  It reconciles at startup, identity/language changes, the account's own password change, foreground
+  return, window focus and reconnect. Concurrent events share one operation; obsolete results are
+  discarded. There are no retry timers, durable markers or service-worker background registrations.
+  A rotated browser subscription is uploaded on the next foreground check; old endpoints retain the
+  server's 404/410 and sign-in-expiry cleanup. An older VAPID key is unsubscribed and requires a new tap.
+- **Sign-out.** The controller pauses automatic registration and lets an in-flight operation settle.
+  It reads the browser endpoint and passes it as `pushEndpoint` to `POST /api/auth/logout`. The server
+  removes that restaurant's row before clearing the cookie. A browser-read or revocation failure
+  leaves the user signed in with an error and manual retry/identity-check actions. A lost response uses
+  the existing GET identity check, never an automatic logout retry. The browser keeps its subscription
+  for registration at the next sign-in; only "turn off for this device" unsubscribes it, after a
+  best-effort DELETE. Already-dispatched notifications may still arrive after sign-out.
 - **Notifications.** `sw.js` turns `{ number, language }` into "新线上订单 #12", "Nuovo ordine online
   #12" or "New online order #12" with a short body, tag `online-order-{number}` (one notification and
   one system sound per order; `renotify` for a repeated number) and the app icon. A malformed payload

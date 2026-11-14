@@ -13,6 +13,7 @@ export type PushEnvironment = {
 };
 
 export type PushSupport = "supported" | "install-first" | "unsupported";
+export type RegistrationState = "unconfirmed" | "syncing" | "confirmed" | "failed";
 
 // iPhone and iPad offer push only to the web app opened from the Home Screen, so there the answer is
 // "install first" rather than "unsupported".
@@ -23,19 +24,30 @@ export function pushSupport(env: PushEnvironment): PushSupport {
   return "unsupported";
 }
 
-export type PushStatus = "checking" | "unsupported" | "install-first" | "denied" | "off" | "on";
+export type PushStatus =
+  | "checking"
+  | "unsupported"
+  | "install-first"
+  | "denied"
+  | "off"
+  | "on"
+  | "syncing"
+  | "sync-failed";
 
-// What the home page shows for this device. The browser's own subscription is the device's state:
-// signing in registers it with the server again, so it never needs a server read.
+// A browser subscription alone does not mean the server knows about it. Only a successful PUT for
+// the current identity, language and key confirms that this device is registered.
 export function pushStatus(
   support: PushSupport,
   permission: NotificationPermission | null,
   subscribed: boolean | null,
+  registration: RegistrationState,
 ): PushStatus {
   if (support !== "supported") return support;
   if (permission === "denied") return "denied";
+  if (registration === "failed") return "sync-failed";
   if (subscribed === null) return "checking";
-  return subscribed && permission === "granted" ? "on" : "off";
+  if (!subscribed || permission !== "granted") return "off";
+  return registration === "confirmed" ? "on" : "syncing";
 }
 
 // The server's VAPID public key, base64url, as the bytes PushManager.subscribe expects.

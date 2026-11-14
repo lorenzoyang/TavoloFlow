@@ -1,10 +1,14 @@
 using System.Buffers.Text;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Ordering;
 using static TavoloFlow.Api.Tests.AccountTestHost;
@@ -19,6 +23,130 @@ public sealed class OnlinePushTests(PostgreSqlFixture database) : IClassFixture<
 
     // Monday 16 November 2026, 12:00 in Rome: inside the seeded 11:00-15:00 slot.
     private static readonly DateTimeOffset MondayNoon = new(2026, 11, 16, 11, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public async Task Submit_AfterDeviceLogout_NotifiesOnlyRemainingDevices()
+    {
+        using var host = new AccountTestHost(database, push: true);
+        host.Clock.Set(MondayNoon);
+        var shop = await SeedShopAsync(database);
+        using var first = new TestDevice();
+        using var second = new TestDevice();
+        using var browser = await LoginAsync(host, shop.Staff);
+        await RegisterAsync(browser, first);
+        await RegisterAsync(host, shop.Owner, second);
+        Assert.Equal(
+            HttpStatusCode.NoContent,
+            (
+                await PostAsync(browser, "/api/auth/logout", new { pushEndpoint = first.Endpoint })
+            ).StatusCode
+        );
+        using var customer = host.Browser();
+        Assert.Equal(
+            HttpStatusCode.Created,
+            (await SubmitAsync(customer, shop, Guid.NewGuid())).StatusCode
+        );
+        Assert.Equal(
+            second.Endpoint,
+            Assert.Single(await host.PushService.WaitForAsync(1)).Endpoint.ToString()
+        );
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Created)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    public async Task Send_DefaultHttpLogging_DoesNotExposeEndpointKeysOrPayload(
+        HttpStatusCode result
+    )
+    {
+        using var baseHost = new AccountTestHost(database, push: true);
+        baseHost.Clock.Set(MondayNoon);
+        using var logs = new CapturedLogs();
+        using var host = baseHost.WithWebHostBuilder(builder =>
+            builder.ConfigureLogging(logging =>
+                logging.ClearProviders().AddProvider(logs).SetMinimumLevel(LogLevel.Trace)
+            )
+        );
+        baseHost.PushService.Respond = _ => result;
+        var shop = await SeedShopAsync(database);
+        using var device = new TestDevice();
+        using var browser = host.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                BaseAddress = new Uri("https://localhost"),
+                AllowAutoRedirect = false,
+            }
+        );
+        await PostAsync(browser, "/api/auth/login", new { shop.Staff.Username, Password });
+        await RegisterAsync(browser, device);
+        using var customer = host.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                BaseAddress = new Uri("https://localhost"),
+                AllowAutoRedirect = false,
+            }
+        );
+        Assert.Equal(
+            HttpStatusCode.Created,
+            (await SubmitAsync(customer, shop, Guid.NewGuid())).StatusCode
+        );
+        await baseHost.PushService.WaitForAsync(1);
+        // The sender processes orders in sequence; the next send proves the first has completed.
+        Assert.Equal(
+            HttpStatusCode.Created,
+            (await SubmitAsync(customer, shop, Guid.NewGuid())).StatusCode
+        );
+        await baseHost.PushService.WaitForAsync(2);
+        Assert.DoesNotContain(
+            logs.Entries,
+            entry =>
+                entry.Category.StartsWith(
+                    "System.Net.Http.HttpClient.push.",
+                    StringComparison.Ordinal
+                )
+        );
+        var body = JsonSerializer.SerializeToElement(device.Body());
+        foreach (
+            var secret in new[]
+            {
+                device.Endpoint,
+                body.GetProperty("p256dh").GetString()!,
+                body.GetProperty("auth").GetString()!,
+                PushPrivateKey,
+                "\"number\":",
+            }
+        )
+            Assert.DoesNotContain(
+                logs.Entries,
+                entry => entry.Message.Contains(secret, StringComparison.Ordinal)
+            );
+    }
+
+    private sealed class CapturedLogs : ILoggerProvider
+    {
+        public ConcurrentQueue<(string Category, string Message)> Entries { get; } = new();
+
+        public ILogger CreateLogger(string categoryName) => new Capture(categoryName, Entries);
+
+        public void Dispose() { }
+
+        private sealed class Capture(string category, ConcurrentQueue<(string, string)> entries)
+            : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state)
+                where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(
+                LogLevel logLevel,
+                EventId eventId,
+                TState state,
+                Exception? exception,
+                Func<TState, Exception?, string> formatter
+            ) => entries.Enqueue((category, formatter(state, exception)));
+        }
+    }
 
     [Fact]
     public async Task Submit_FirstSubmission_PushesEncryptedNumberToEveryDevice()

@@ -4,7 +4,7 @@ import { BrandMark } from "@/components/brand";
 import { SourceLink } from "@/components/source-link";
 import { Card, CardContent } from "@/components/ui/card";
 import { OnlinePendingBanner } from "@/features/online/OnlinePendingBanner";
-import { usePushSync } from "@/features/push/usePushSync";
+import { PushProvider } from "@/features/push/PushProvider";
 import { OwnerSubscriptionReminder } from "@/features/subscriptions/SubscriptionReminders";
 import { useDocumentTheme } from "@/lib/useDocumentTheme";
 import { htmlLang } from "@/lib/staff-language";
@@ -28,7 +28,6 @@ export function StaffLayout({ children }: { children: ReactNode }) {
   const signedIn = !!account && !account.mustChangePassword;
   const language = useStaffLanguage();
   useInstallableStaffApp();
-  usePushSync(account);
   useDocumentTheme(signedIn ? account.restaurantTheme : null);
   useEffect(() => {
     const root = document.documentElement;
@@ -37,31 +36,36 @@ export function StaffLayout({ children }: { children: ReactNode }) {
       root.lang = "zh-CN";
     };
   }, [language]);
+  const pushScope = account ? `${account.restaurantId}:${account.userId}` : "anonymous";
   if (!signedIn)
     return (
-      <div className="flex min-h-dvh flex-col items-center px-4 pt-[max(3rem,env(safe-area-inset-top))] pb-10">
-        <BrandMark caption={accountMessages[language].brandCaption} className="mb-5" />
-        <LanguageSwitch className="mb-6" />
-        <main className="w-full">{children}</main>
-        <SourceLink className="mt-6" />
-      </div>
+      <PushProvider key={pushScope} account={account}>
+        <div className="flex min-h-dvh flex-col items-center px-4 pt-[max(3rem,env(safe-area-inset-top))] pb-10">
+          <BrandMark caption={accountMessages[language].brandCaption} className="mb-5" />
+          <LanguageSwitch className="mb-6" />
+          <main className="w-full">{children}</main>
+          <SourceLink className="mt-6" />
+        </div>
+      </PushProvider>
     );
   return (
-    <div className="min-h-dvh md:flex">
-      <StaffNav account={account} />
-      <main className="min-w-0 flex-1 px-4 pt-[max(1.25rem,env(safe-area-inset-top))] pb-28 sm:px-6 md:pt-8 md:pb-12 lg:px-8">
-        {account.services.online && (
-          <OnlinePendingBanner
-            key={`${account.restaurantId}:${account.userId}`}
-            account={account}
-          />
-        )}
-        <div className="mx-auto w-full max-w-6xl">
-          <OwnerSubscriptionReminder />
-          {children}
-        </div>
-      </main>
-    </div>
+    <PushProvider key={pushScope} account={account}>
+      <div className="min-h-dvh md:flex">
+        <StaffNav account={account} />
+        <main className="min-w-0 flex-1 px-4 pt-[max(1.25rem,env(safe-area-inset-top))] pb-28 sm:px-6 md:pt-8 md:pb-12 lg:px-8">
+          {account.services.online && (
+            <OnlinePendingBanner
+              key={`${account.restaurantId}:${account.userId}`}
+              account={account}
+            />
+          )}
+          <div className="mx-auto w-full max-w-6xl">
+            <OwnerSubscriptionReminder />
+            {children}
+          </div>
+        </main>
+      </div>
+    </PushProvider>
   );
 }
 

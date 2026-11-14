@@ -262,6 +262,7 @@ Then open <http://localhost:5173/staff/login>, or `/platform/login`.
 
 - **Starting over.** `docker compose down -v` deletes the development database volume, and only that one: the demo has its own Compose project. Then start again from `docker compose up -d db` and step 3.
 - **The PWA.** With `npm run dev` the service worker is not registered, so it doesn't interfere with hot reloading. To try the installation and the offline page you need a build: `npm run build && npm run preview`, on <http://localhost:4173>, with the API running (details in [`pwa.md`](../reference/pwa.md)).
+- **Push recovery checks.** With push configured and enabled in a production/preview build, simulate a failed subscription PUT: Home must show failure, not “on”. Restore the network and return to the app: registration must recover without another permission prompt. A failed device deletion during logout must leave you signed in with retry available. After successful logout, a new order must notify only the remaining devices; signing in again restores this device. Already-sent notifications may still arrive.
 
 ## Part 3: tests and checks
 

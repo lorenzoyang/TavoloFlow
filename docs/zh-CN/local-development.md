@@ -262,6 +262,7 @@ npm run dev
 
 - **从头开始。** `docker compose down -v` 会删除开发数据库的卷，而且只删除它：演示有自己的 Compose 项目。然后从 `docker compose up -d db` 和第 3 步重新开始。
 - **PWA。** 使用 `npm run dev` 时不会注册 service worker，以免干扰热更新。要试安装和离线页面，需要先构建：`npm run build && npm run preview`，地址 <http://localhost:4173>，同时 API 要在运行（详情见 [`pwa.md`](../reference/pwa.md)，英文）。
+- **推送恢复检查。** 配置推送并在生产或 preview 构建中开启后，模拟订阅 PUT 失败：首页必须显示同步失败，不能显示已开启。恢复网络并回到应用后，应重新同步且不再次弹出权限请求。退出时模拟设备删除失败，应保留登录并允许重试。成功退出后，新订单只通知其他设备；重新登录本设备后恢复通知。已经发出的通知仍可能到达。
 
 ## 第 3 部分：测试与检查
 

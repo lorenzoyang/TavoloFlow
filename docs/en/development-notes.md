@@ -562,7 +562,16 @@ The check is done by `CsrfValidationFilter`, registered globally because `AddCon
 - a switch keeps the screen on (Screen Wake Lock API), useful for the kitchen tablet;
 - on iOS the installed app has no browser Back button, so pages outside the tabs have a link to go back (`PageHeader`).
 
-I postponed push notifications (Web Push): they would require VAPID keys and device subscriptions stored on the backend, and for now polling is enough.
+**Lock-screen notifications, only for online orders.** Foreground polling pauses while the phone is locked. A new online order waits up to ten minutes for acceptance, so Web Push supplies an extra system notification to devices that have enabled it.
+
+- **Minimal content.** Only the order number and the device language, encrypted for that device; no customer name, phone or address. The service worker writes the notification in Chinese, Italian or English.
+- **One key.** The server derives the public VAPID key from `VAPID_PRIVATE_KEY`, a separate 64-character hexadecimal secret kept across releases.
+- **One subscription per device.** Home asks permission from a tap. The server records the account, credential version and sign-in expiry; `PushTargets` removes devices with expired or invalid credentials.
+- **Sign-out and sign-in.** The device endpoint travels with logout. The server deletes its subscription before clearing the cookie. A browser-read or deletion failure leaves you signed in with a retry action; a lost response is checked with a GET identity read. The browser keeps its subscription for the next sign-in. Already-sent notifications can still arrive. Only turning notifications off also unsubscribes the browser.
+- **Confirmation and recovery.** One controller in `StaffLayout` coordinates Home, logout and automatic registration. “On” requires server confirmation; a failed sync retains the browser subscription and offers retry. Checks run on sign-in, language/password changes, foreground return, focus and reconnect. A changed browser endpoint is registered at the next check. Operations do not overlap and obsolete identity results are discarded. There are no retry timers or service-worker background registrations.
+- **Reminders.** Only a committed first order enters the in-memory queue. Sending has no retries, and restart loses queued reminders. The page banner and ringing remain the primary mechanism.
+- **Known services and safe logs.** Endpoints are restricted to the browser vendors' HTTPS push services, with no redirects. The HTTP client's default loggers are disabled because paths contain device tokens; failures log only status or exception type.
+- **iPhone.** Push requires the Home Screen app on iOS 16.4 or later. A notification uses the system sound once; it does not ring continuously.
 
 ### Other trade-offs
 

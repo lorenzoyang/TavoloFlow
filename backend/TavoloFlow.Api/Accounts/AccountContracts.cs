@@ -1,8 +1,15 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Entities;
+using TavoloFlow.Api.Push;
 
 namespace TavoloFlow.Api.Accounts;
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record LogoutRequest(
+    [MaxLength(PushEndpoints.MaxLength)] string? PushEndpoint = null
+);
 
 public sealed record LoginRequest(
     [Required, StringLength(AccountInput.MaxUsernameLength)] string Username,

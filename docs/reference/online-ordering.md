@@ -436,10 +436,17 @@ credential write needs to know about push. Deleting the account or the restauran
 
 ### Devices in the browser
 
-Home (首页) offers the switch for this device while online ordering is on and the server has a key; the
-service worker shows the notifications and opens the online orders page on a tap. Signing out removes
-the server row but keeps the browser subscription, and `StaffLayout` registers a kept subscription again
-for whoever signs in on the device. The browser side is described in [the staff PWA](pwa.md#lock-screen-push).
+Home (首页) offers the switch while online ordering is on and the server has a key. One shared
+controller confirms registration through a successful PUT, and reconciles on sign-in, language/password
+changes, foreground return, focus and reconnect. A failed PUT keeps the browser subscription but shows
+an unconfirmed state with retry and turn-off actions. A rotated endpoint is uploaded at the next check;
+there is no service-worker background resubscription or retry timer.
+
+Signing out pauses registration and waits for in-flight work, then sends the current browser endpoint
+as `pushEndpoint` to `POST /api/auth/logout`. The server revokes that restaurant's row before clearing
+the cookie; revocation failure leaves the user signed in. The browser subscription remains for the next
+sign-in. Already-dispatched notifications may still arrive. Browser details are in
+[the staff PWA](pwa.md#lock-screen-push).
 
 ### Sending
 
@@ -456,7 +463,8 @@ address or ID, because notifications pass through the browser vendors' push serv
 
 Delivery is best effort: no retry, no outbox, and a restart loses queued items. A push service answering
 404 or 410 means the browser dropped the subscription, so that row is deleted; any other failure is only
-logged with its status code or exception type. Endpoints, keys and payloads are never logged.
+logged with its status code or exception type. The named `push` HttpClient disables its default loggers
+because their URI paths contain endpoint secrets. Endpoints, keys and payloads are never logged.
 
 ## Phone
 
@@ -518,7 +526,10 @@ discarded.
   `Urgency` and `aes128gcm`, with the payload decrypted per RFC 8291 independently of the library; OWNER
   reset, own password change (and registering again), an inactive account, a pending password change
   and an expired sign-in stopping devices and deleting their rows; 404/410 deleting only that device;
-  push off sending nothing.
+  push off sending nothing; logout preventing later sends to that device; and logging at Trace
+  exposing no endpoint, keys or payload. `PushLogoutTests` covers scoped and repeated removal,
+  compatibility, validation, first-password/online-off access and a database deletion failure that
+  preserves the cookie for manual retry.
 - `OnlineOrderingTests` also covers the 30-day contact cleanup (strictly older, own restaurant only,
   rolled back with a rejected submission) and the status link's 24-hour limit after expiry, rejection
   and closure, while an active order keeps its link.

@@ -84,6 +84,8 @@ builder
         PushSender.HttpClientName,
         client => client.Timeout = TimeSpan.FromSeconds(10)
     )
+    // Default HttpClient logs include the endpoint's secret path, even with URI query redaction.
+    .RemoveAllLoggers()
     .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
 builder.Services.AddHostedService<PushSender>();
 builder.Services.AddScoped<DemoSeeder>();

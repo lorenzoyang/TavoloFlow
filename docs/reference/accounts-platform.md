@@ -35,10 +35,19 @@ not trimmed; a new password must differ from the current one. Usernames are trim
 with a maximum of 50 characters. PasswordHasher stores one-way hashes. Password changes update the
 hash, first-change flag and credential version in one conditional statement, then issue a new cookie.
 Concurrent changes against one version have at most one winner. Other devices' old tickets fail on
-their next request. Logout only removes the current browser's cookie; there is no device-session table.
+their next request. Logout removes the current browser's cookie after revoking its supplied push
+endpoint; there is no device-session table.
 Lock-screen push devices (`push_subscriptions`) record the credential version and sign-in expiry that
 registered them, so a password change, reset or deactivation stops their notifications without any
 credential write touching them; see [online ordering](online-ordering.md#lock-screen-push).
+
+Store logout accepts an optional nullable `pushEndpoint` of at most 2048 characters; `{}` remains
+compatible. Unknown fields are rejected. The endpoint is removed only inside the current restaurant,
+before the cookie is cleared, even before the first password change or with online ordering/push off.
+Missing rows are harmless. A deletion failure returns an error and leaves the cookie in place.
+The current client treats a browser subscription read failure as a failed logout, not a missing device.
+Notifications already handed to a push service may still arrive. Legacy clients sending `{}` have only
+the original cookie logout behavior and should reload to use the coordinated device revocation.
 
 ## Account APIs
 
@@ -48,7 +57,7 @@ credential write touching them; see [online ordering](online-ordering.md#lock-sc
 | `POST /api/auth/login`                    | `{ username, password }`               | Store identity and cookie        |
 | `GET /api/auth/me`                        | Store cookie                           | Store identity                   |
 | `POST /api/auth/change-password`          | `{ currentPassword, newPassword }`     | Store identity and new cookie    |
-| `POST /api/auth/logout`                   | No business body                       | 204                              |
+| `POST /api/auth/logout`                   | `{ pushEndpoint? }`                       | 204                              |
 | `GET /api/platform/auth/csrf`             | Anonymous or current Platform identity | `{ token }`                      |
 | `POST /api/platform/auth/login`           | `{ username, password }`               | Platform identity and cookie     |
 | `GET /api/platform/auth/me`               | Platform cookie                        | Platform identity                |
