@@ -119,6 +119,9 @@ public sealed class CurrentAccount
 {
     public RestaurantUser? User { get; internal set; }
 
+    // When this browser's sign-in expires: the fixed ticket lifetime, never renewed.
+    public DateTime? TicketExpiresAt { get; internal set; }
+
     public RestaurantUser RequireUser() =>
         User
         ?? throw new InvalidOperationException("An authenticated restaurant account is required.");

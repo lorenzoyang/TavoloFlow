@@ -625,6 +625,26 @@
 **第三阶段：锁屏推送**
 
 8. 第 11 节的全部内容。
+   分四部分实现。实现前维护者确认的决定（2026-11-14，文档原来没写）：
+   - 发送库用 `Lib.Net.Http.WebPush`（net6+ 只用 .NET 自带加密，没有 BouncyCastle）。
+   - VAPID 只配一个私钥：`.env` 的 `VAPID_PRIVATE_KEY` 用 `openssl rand -hex 32` 生成，API 推出公钥，subject 用 `https://${DOMAIN}`；
+     生产必填，安装脚本检查格式；没配置的开发、测试、演示和 CI 里推送关闭。
+   - 凭据变化不改各条改密码、重置、停用的代码：订阅行记下订阅时的凭据版本，发送和新订阅时用同一条规则删除失效的行
+     （账号停用、需要改密码、版本不一致、登录到期）。
+   - 订阅行另存这次登录的到期时间。退出登录时服务器删除本设备的行，浏览器保留本地订阅；之后在这台设备上登录（包括本机改密码后），
+     只要通知权限还在就自动重新登记，不用再点。只有“在本设备关闭”才取消浏览器订阅。
+   - 每单一条通知（tag 按单号）；打开线上订单页时清掉本机已显示的线上订单通知。
+   - endpoint 只接受已知推送服务的 HTTPS 地址（FCM、Apple、Mozilla、Windows），发送时不跟随重定向。
+   - 后端集成测试截下发送请求并解密；E2E 替换 PushManager；真实送达由维护者在真机上验证。
+   - README 和指南的功能介绍以后单独更新；这一步只列出自托管指南里部署必须改的地方。
+   **第 1 部分（设备登记）已完成（2026-11-14）。** 与设计的差异：
+   - 接口（建议）：`GET /api/staff/push/key`（推送关闭时 `publicKey` 为 null）、`PUT /api/staff/push/subscription`
+     `{ endpoint, p256dh, auth, language }`（按 endpoint upsert）、`DELETE` 同路径 `{ endpoint }`（只删本店的行，幂等）；
+     STAFF 和 OWNER，已改过初始密码。新错误码 `PUSH_NOT_CONFIGURED`、`PUSH_DEVICE_LIMIT`（409）；没开线上返回 `ONLINE_NOT_OFFERED`。
+   - 表 `push_subscriptions`：endpoint 全局唯一，同一台设备换账号或换店登录时行跟着移过去；记账号、凭据版本、通知语言和登录到期时间；
+     复合外键指向 `restaurant_users (id, restaurant_id)`，删除账号或餐厅时级联删除。
+   - 每家店最多 20 台仍有效的设备（软上限，并发登记可能同时通过）；失效规则只在 `Push/PushTargets` 一处。
+   - 登录到期时间在 Cookie 校验时放进 `CurrentAccount.TicketExpiresAt`（固定 30 天，不续期）。
 
 ## 13. 要同步修改的现有规则
 

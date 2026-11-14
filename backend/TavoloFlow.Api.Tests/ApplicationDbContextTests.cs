@@ -41,6 +41,7 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database)
                 "order_items",
                 "orders",
                 "platform_users",
+                "push_subscriptions",
                 "restaurant_subscription_periods",
                 "restaurant_tables",
                 "restaurant_users",

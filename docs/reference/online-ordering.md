@@ -385,6 +385,50 @@ order, so EMPTY returns `SESSION_HAS_ORDERS`. Closed online
 orders appear in history as "Pickup #12" or "Delivery #12", with `NO_SHOW` worded by channel; the
 table filter does not match them.
 
+## Lock-screen push
+
+Staff devices can receive a system notification for every new online request, so a locked phone or
+a backgrounded app still hears about it; the page's own polling and ringing stay unchanged. Push is a
+reminder only: a lost notification is acceptable and nothing depends on delivery.
+
+### Server configuration
+
+`WebPush:PrivateKey` is the VAPID P-256 private key as 64 hex characters (`openssl rand -hex 32`); the
+public key browsers subscribe with is derived from it (`Push/PushKeys`). `WebPush:Subject` is the
+`https:` or `mailto:` contact push services may use. Both empty turns push off (development, tests, the
+demo and CI); only one set, a malformed key or a key outside the curve fails startup
+(`PushOptionsValidator`, `ValidateOnStart`). Changing the key invalidates every device's subscription.
+
+### Device registration
+
+| Method and path                       | Role        | Input → result                                               |
+| ------------------------------------- | ----------- | ------------------------------------------------------------ |
+| `GET /api/staff/push/key`             | STAFF/OWNER | `{ publicKey }`, null while push is off                      |
+| `PUT /api/staff/push/subscription`    | STAFF/OWNER | `{ endpoint, p256dh, auth, language }` → 204                 |
+| `DELETE /api/staff/push/subscription` | STAFF/OWNER | `{ endpoint }` → 204; only this restaurant's row, idempotent |
+
+Both writes need the store CSRF token and an account that has changed its first password. The PUT
+validates the device first (`VALIDATION_FAILED` with field errors): the endpoint must be an HTTPS URL
+on the default port without credentials whose host is a known browser push service
+(`fcm.googleapis.com`, `*.push.apple.com`, `*.push.services.mozilla.com`, `*.notify.windows.com`;
+`Push/PushEndpoints`), at most 2048 characters, because the server POSTs to it; `p256dh` must be a
+base64url P-256 point and `auth` a 16-byte secret; `language` is `zh`, `it` or `en`. It then returns
+`PUSH_NOT_CONFIGURED` (409) while push is off and `ONLINE_NOT_OFFERED` without online ordering.
+
+The endpoint identifies the device, so the PUT is an upsert on `uq_push_subscription_endpoint`: saving
+again updates the keys and language, and signing in on the device with another account, even of another
+restaurant, moves the row there. The row records the account, its current `credential_version` and the
+expiry of the store sign-in that registered it (the fixed 30-day ticket, read during cookie validation).
+A restaurant keeps at most 20 devices that still receive (`PUSH_DEVICE_LIMIT`, 409); concurrent
+registrations may pass this soft cap together. Neither write needs a browser pending marker: both are
+idempotent.
+
+`PushTargets.RemoveLapsedAsync` is the only rule for devices that no longer receive: the account is
+inactive or must change its password, its credential version differs from the row's (own password
+change, OWNER or platform reset, deactivation), or the registering sign-in has expired (time from
+`TimeProvider`). Registering deletes those rows of the restaurant before counting the cap, so no
+credential write needs to know about push. Deleting the account or the restaurant cascades.
+
 ## Phone
 
 `InputRules.NormalizePhone` removes whitespace and accepts an optional `+` and 6–15 digits, stored
@@ -436,6 +480,10 @@ discarded.
   and the delivery bill (fee in PAID and NO_SHOW totals and history, a fully cancelled delivery voided
   at zero) and the OWNER fee correction (version, `SESSION_NOT_DELIVERY`, unchanged fee, overflow,
   a frozen checkout after a change, closed sessions).
+- `PushSubscriptionTests`: key derivation against RFC 8291's example key and invalid configuration,
+  startup with half the configuration, push off, device validation and the accepted push services,
+  the endpoint upsert moving between accounts and restaurants, the 20-device cap counting only devices
+  that still receive, scoped idempotent removal and the cascades.
 - `OnlineOrderingTests` also covers the 30-day contact cleanup (strictly older, own restaurant only,
   rolled back with a rejected submission) and the status link's 24-hour limit after expiry, rejection
   and closure, while an active order keeps its link.

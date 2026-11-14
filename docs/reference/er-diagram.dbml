@@ -188,6 +188,37 @@ Table restaurant_users {
   Note: 'At most one OWNER and STAFF account per restaurant. Create both in the restaurant bootstrap transaction.'
 }
 
+// Staff devices that receive lock-screen notifications of new online orders.
+Table push_subscriptions {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  user_id uuid [not null]
+  endpoint varchar(2048) [not null, unique, note: 'Browser push service URL; only known services are accepted']
+  p256dh varchar(128) [not null, note: 'Device P-256 public key, base64url']
+  auth varchar(128) [not null, note: 'Device 16-byte auth secret, base64url']
+  credential_version int [not null, note: 'The account version when the device registered']
+  language varchar(2) [not null, note: 'Notification language: zh, it or en']
+  expires_at timestamptz [not null, note: 'Expiry of the sign-in that registered the device']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  Indexes {
+    endpoint [unique, name: 'uq_push_subscription_endpoint']
+    restaurant_id [name: 'ix_push_subscriptions_restaurant']
+  }
+
+  Checks {
+    `credential_version > 0` [name: 'ck_push_subscription_credential_version']
+    `language IN ('zh', 'it', 'en')` [name: 'ck_push_subscription_language']
+  }
+
+  Note: '''
+    One row per device, upserted on endpoint, so signing in on the device moves it to that account.
+    A row stops receiving, and is deleted before sending or registering, once its account is inactive,
+    must change its password or has another credential version, or once expires_at has passed.
+  '''
+}
+
 // Service periods; service state is independent of payment.
 Table restaurant_subscription_periods {
   id uuid [pk]
@@ -510,6 +541,7 @@ Ref: restaurant_subscription_periods.restaurant_id > restaurants.id [delete: cas
 Ref: online_hours.restaurant_id > restaurants.id [delete: cascade]
 Ref: online_counters.restaurant_id > restaurants.id [delete: cascade]
 Ref: online_requests.restaurant_id > restaurants.id [delete: cascade]
+Ref: push_subscriptions.restaurant_id > restaurants.id [delete: cascade]
 Ref: restaurant_tables.restaurant_id > restaurants.id [delete: cascade]
 Ref: menu_categories.restaurant_id > restaurants.id [delete: cascade]
 Ref: menu_items.restaurant_id > restaurants.id [delete: cascade]
@@ -528,6 +560,7 @@ Ref: menu_item_option_groups.(group_id, restaurant_id) > menu_option_groups.(id,
 Ref: dining_sessions.(table_id, restaurant_id) > restaurant_tables.(id, restaurant_id) [delete: no action]
 Ref: orders.(dining_session_id, restaurant_id) > dining_sessions.(id, restaurant_id) [delete: cascade]
 Ref: online_requests.(session_id, restaurant_id) - dining_sessions.(id, restaurant_id) [delete: no action]
+Ref: push_subscriptions.(user_id, restaurant_id) > restaurant_users.(id, restaurant_id) [delete: cascade]
 Ref: order_items.(order_id, restaurant_id) > orders.(id, restaurant_id) [delete: cascade]
 Ref: order_items.(menu_item_id, restaurant_id) > menu_items.(id, restaurant_id) [delete: no action]
 
@@ -558,4 +591,5 @@ TableGroup dining_and_orders {
 TableGroup online_ordering {
   online_counters
   online_requests
+  push_subscriptions
 }

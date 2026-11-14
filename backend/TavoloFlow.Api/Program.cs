@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.Extensions.Options;
 using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Billing;
 using TavoloFlow.Api.Common;
@@ -12,6 +13,7 @@ using TavoloFlow.Api.Online;
 using TavoloFlow.Api.Operations;
 using TavoloFlow.Api.Ordering;
 using TavoloFlow.Api.Platform;
+using TavoloFlow.Api.Push;
 using TavoloFlow.Api.Tables;
 
 var command = MaintenanceCommands.Parse(args, out var hostArgs);
@@ -65,6 +67,15 @@ builder
     .ValidateDataAnnotations()
     .ValidateOnStart();
 builder.Services.AddSingleton<OnlineRateLimiter>();
+
+// Lock-screen push: off unless the VAPID key is configured.
+builder
+    .Services.AddOptions<PushOptions>()
+    .Bind(builder.Configuration.GetSection(PushOptions.Section))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<PushOptions>, PushOptionsValidator>();
+builder.Services.AddSingleton<PushKeys>();
+builder.Services.AddScoped<PushSubscriptionService>();
 builder.Services.AddScoped<DemoSeeder>();
 
 var app = builder.Build();
