@@ -46,6 +46,51 @@ public static class OnlineErrors
     public static ApiException NotOffered() =>
         new(409, "ONLINE_NOT_OFFERED", "This restaurant doesn't offer online ordering.");
 
-    public static ApiException Closed() =>
-        new(409, "ONLINE_CLOSED", "Online ordering is outside its hours right now.");
+    // NextOpensAt (UTC), when the week has another slot, lets the customer page say when to come back.
+    public static ApiException Closed(DateTime? nextOpensAt = null) =>
+        new(409, "ONLINE_CLOSED", "Online ordering is outside its hours right now.")
+        {
+            Extensions = nextOpensAt is { } next ? new() { ["nextOpensAt"] = next } : null,
+        };
+
+    public static ApiException Paused() =>
+        new(409, "ONLINE_PAUSED", "The restaurant has paused online ordering.");
+
+    public static ApiException Busy() =>
+        new(
+            409,
+            "ONLINE_BUSY",
+            "The restaurant has too many orders waiting. Try again shortly or call the restaurant."
+        );
+
+    public static ApiException DeliveryNotOffered() =>
+        new(409, "DELIVERY_NOT_OFFERED", "This restaurant doesn't deliver online orders.");
+
+    public static ApiException Suspended() =>
+        new(409, "SERVICE_SUSPENDED", "The restaurant's service is suspended.");
+
+    public static ApiException LinkNotFound() =>
+        new(404, "ONLINE_LINK_NOT_FOUND", "This online ordering link doesn't exist.");
+
+    public static ApiException RequestNotFound() =>
+        new(
+            404,
+            "ONLINE_REQUEST_NOT_FOUND",
+            "This submission hasn't been found yet. Keep checking, or retry with the original request."
+        );
+
+    public static ApiException OrderNotFound() =>
+        new(404, "ONLINE_ORDER_NOT_FOUND", "This online order doesn't exist or has ended.");
+
+    // Maps every status but OPEN to the error a submission returns.
+    public static ApiException NotOpen(OnlineAvailabilityResult availability) =>
+        availability.Status switch
+        {
+            OnlineStatus.Suspended => Suspended(),
+            OnlineStatus.NotOffered => NotOffered(),
+            OnlineStatus.Paused => Paused(),
+            OnlineStatus.ClosedHours => Closed(availability.NextOpensAt),
+            OnlineStatus.Busy => Busy(),
+            _ => throw new InvalidOperationException($"{availability.Status} accepts orders."),
+        };
 }

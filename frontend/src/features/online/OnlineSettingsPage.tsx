@@ -52,6 +52,7 @@ function StatusCard({
   const open = settings.status === "OPEN";
   const label = {
     OPEN: m.open,
+    BUSY: m.busy,
     PAUSED: m.paused,
     CLOSED_HOURS: m.closedHours,
     NOT_OFFERED: m.notOffered,
@@ -68,13 +69,15 @@ function StatusCard({
     ? null
     : settings.status === "OPEN" && settings.currentSlotEndsAt
       ? m.openHint(formatTime(settings.currentSlotEndsAt, language))
-      : settings.status === "PAUSED" && settings.pausedUntil
-        ? m.pausedHint(formatWeekdayTime(settings.pausedUntil, language))
-        : settings.status === "CLOSED_HOURS" && settings.nextOpensAt
-          ? m.closedHint(formatWeekdayTime(settings.nextOpensAt, language))
-          : settings.status === "NOT_OFFERED"
-            ? m.notOfferedHint
-            : m.suspendedHint;
+      : settings.status === "BUSY"
+        ? m.busyHint
+        : settings.status === "PAUSED" && settings.pausedUntil
+          ? m.pausedHint(formatWeekdayTime(settings.pausedUntil, language))
+          : settings.status === "CLOSED_HOURS" && settings.nextOpensAt
+            ? m.closedHint(formatWeekdayTime(settings.nextOpensAt, language))
+            : settings.status === "NOT_OFFERED"
+              ? m.notOfferedHint
+              : m.suspendedHint;
   return (
     <Card>
       <CardContent className="space-y-4">

@@ -13,6 +13,7 @@ using Microsoft.Net.Http.Headers;
 using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Guests;
+using TavoloFlow.Api.Online;
 using TavoloFlow.Api.Platform;
 
 namespace TavoloFlow.Api.Tests;
@@ -81,6 +82,9 @@ public sealed class AccountTestHost(
                 options.LoginPerUsernamePerFiveMinutes = lowLimits ? 2 : 1000;
                 options.PasswordChangesPerMinute = lowLimits ? 1 : 1000;
             });
+            services.Configure<OnlineRateLimitOptions>(options =>
+                options.SubmissionsPerIpPerTenMinutes = lowLimits ? 3 : 1000
+            );
             services.AddControllers().AddApplicationPart(typeof(AccountProbeController).Assembly);
         });
     }

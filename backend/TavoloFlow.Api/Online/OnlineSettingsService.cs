@@ -21,9 +21,9 @@ public sealed class OnlineSettingsService(ApplicationDbContext db, TimeProvider 
         var restaurant =
             await db.Restaurants.AsNoTracking().SingleOrDefaultAsync(r => r.Id == restaurantId, ct)
             ?? throw DiningErrors.RestaurantNotFound();
-        var hours = await HoursAsync(restaurantId, ct);
+        var response = await ResponseAsync(restaurant, ct);
         await transaction.CommitAsync(ct);
-        return Response(restaurant, hours);
+        return response;
     }
 
     public async Task<OnlineSettingsResponse> SetHoursAsync(
@@ -55,8 +55,9 @@ public sealed class OnlineSettingsService(ApplicationDbContext db, TimeProvider 
                 )
         );
         await db.SaveChangesAsync(ct);
+        var response = await ResponseAsync(restaurant, ct);
         await transaction.CommitAsync(ct);
-        return Response(restaurant, slots);
+        return response;
     }
 
     public async Task<OnlineSettingsResponse> SetPhoneAsync(
@@ -79,10 +80,10 @@ public sealed class OnlineSettingsService(ApplicationDbContext db, TimeProvider 
         await db
             .Restaurants.Where(r => r.Id == restaurantId)
             .ExecuteUpdateAsync(u => u.SetProperty(r => r.PublicPhone, value), ct);
-        var hours = await HoursAsync(restaurantId, ct);
-        await transaction.CommitAsync(ct);
         restaurant.PublicPhone = value;
-        return Response(restaurant, hours);
+        var response = await ResponseAsync(restaurant, ct);
+        await transaction.CommitAsync(ct);
+        return response;
     }
 
     // The pause lasts until a computed moment and then lapses by itself, so nobody has to remember to resume.
@@ -94,7 +95,7 @@ public sealed class OnlineSettingsService(ApplicationDbContext db, TimeProvider 
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var restaurant = await LockOfferedAsync(restaurantId, ct);
-        var hours = await HoursAsync(restaurantId, ct);
+        var hours = await OnlineAvailability.HoursAsync(db, restaurantId, ct);
         var now = clock.GetUtcNow();
         var zone = TimeZoneInfo.FindSystemTimeZoneById(restaurant.TimeZone);
         var local = OnlineSchedule.Local(zone, now);
@@ -108,9 +109,10 @@ public sealed class OnlineSettingsService(ApplicationDbContext db, TimeProvider 
         await db
             .Restaurants.Where(r => r.Id == restaurantId)
             .ExecuteUpdateAsync(u => u.SetProperty(r => r.OnlinePausedUntil, pausedUntil), ct);
-        await transaction.CommitAsync(ct);
         restaurant.OnlinePausedUntil = pausedUntil;
-        return Response(restaurant, hours);
+        var response = await ResponseAsync(restaurant, ct);
+        await transaction.CommitAsync(ct);
+        return response;
     }
 
     public async Task<OnlineSettingsResponse> ResumeAsync(Guid restaurantId, CancellationToken ct)
@@ -120,10 +122,10 @@ public sealed class OnlineSettingsService(ApplicationDbContext db, TimeProvider 
         await db
             .Restaurants.Where(r => r.Id == restaurantId)
             .ExecuteUpdateAsync(u => u.SetProperty(r => r.OnlinePausedUntil, (DateTime?)null), ct);
-        var hours = await HoursAsync(restaurantId, ct);
-        await transaction.CommitAsync(ct);
         restaurant.OnlinePausedUntil = null;
-        return Response(restaurant, hours);
+        var response = await ResponseAsync(restaurant, ct);
+        await transaction.CommitAsync(ct);
+        return response;
     }
 
     private async Task<Restaurant> LockOfferedAsync(Guid restaurantId, CancellationToken ct)
@@ -134,19 +136,14 @@ public sealed class OnlineSettingsService(ApplicationDbContext db, TimeProvider 
         return restaurant.OnlineEnabled ? restaurant : throw OnlineErrors.NotOffered();
     }
 
-    private async Task<OnlineSlot[]> HoursAsync(Guid restaurantId, CancellationToken ct) =>
-        await db
-            .OnlineHours.AsNoTracking()
-            .Where(h => h.RestaurantId == restaurantId)
-            .OrderBy(h => h.Weekday)
-            .ThenBy(h => h.OpensMinute)
-            .Select(h => new OnlineSlot(h.Weekday, h.OpensMinute, h.ClosesMinute))
-            .ToArrayAsync(ct);
-
-    private OnlineSettingsResponse Response(Restaurant restaurant, OnlineSlot[] hours)
+    // Reads the hours and waiting requests in the caller's transaction, after its write.
+    private async Task<OnlineSettingsResponse> ResponseAsync(
+        Restaurant restaurant,
+        CancellationToken ct
+    )
     {
         var now = clock.GetUtcNow();
-        var availability = OnlineAvailability.Evaluate(restaurant, hours, now);
+        var (hours, availability) = await OnlineAvailability.ReadAsync(db, restaurant, now, ct);
         var zone = TimeZoneInfo.FindSystemTimeZoneById(restaurant.TimeZone);
         var local = OnlineSchedule.Local(zone, now);
         var current = OnlineSchedule.Current(hours, local);

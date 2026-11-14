@@ -14,7 +14,8 @@ public enum RowLock
 
 // PostgreSQL row locks, held until the caller's transaction ends; call them only inside a transaction you own.
 // Every operation locks in one global order so that no two transactions can deadlock:
-//   restaurant -> table -> dining session, and restaurant -> menu item.
+//   restaurant -> table -> dining session, restaurant -> menu item, and restaurant -> the day's online
+//   counter row (taken by the upsert in OnlineRequestService, not by a method here).
 // Each method returns a no-tracking snapshot of the locked row, or null when the tenant has no such row.
 public static class RowLocks
 {

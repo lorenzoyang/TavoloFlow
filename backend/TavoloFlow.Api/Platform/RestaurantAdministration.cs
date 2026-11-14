@@ -246,8 +246,8 @@ public sealed class RestaurantAdministration(
         return RestaurantSummary.From(restaurant);
     }
 
-    // UPDATE waits for the restaurant SHARE locks taken by opening, joining and ordering, so no new visit
-    // can start between the open-work check and the switch.
+    // UPDATE waits for the restaurant SHARE locks taken by opening, joining, ordering and online
+    // submissions, so no new visit or request can start between the open-work check and the switch.
     public async Task<RestaurantSummary> SetServicesAsync(
         Guid id,
         ServicesInput input,

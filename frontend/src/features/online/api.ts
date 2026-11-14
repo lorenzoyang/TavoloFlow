@@ -5,7 +5,8 @@ import { storeKey } from "@/lib/store-views";
 import type { OnlineHour } from "./state";
 
 // The server's single "can customers order online now" rule (OnlineAvailability).
-export type OnlineStatus = "OPEN" | "PAUSED" | "CLOSED_HOURS" | "NOT_OFFERED" | "SUSPENDED";
+export type OnlineStatus =
+  "OPEN" | "BUSY" | "PAUSED" | "CLOSED_HOURS" | "NOT_OFFERED" | "SUSPENDED";
 
 export type OnlineSettings = {
   slug: string | null;

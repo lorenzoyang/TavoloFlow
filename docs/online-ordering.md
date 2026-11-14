@@ -78,6 +78,7 @@
   | `OPEN` | 可以下单 |
   | `PAUSED` | 员工暂停了线上接单 |
   | `CLOSED_HOURS` | 营业时间外，附 `nextOpensAt` |
+  | `BUSY` | 已有 20 个等待接单的请求，暂时不能下单（第 4 步加，见 6.3） |
   | `NOT_OFFERED` | 没开通线上点单，或者还没填餐厅电话；只显示菜单 |
   | `SUSPENDED` | 餐厅被平台暂停 |
 
@@ -280,8 +281,9 @@
 
 能否下单 = 餐厅 ACTIVE、已开通线上点单、已填电话、在营业时间内、没有暂停，并且等待接单的请求少于 20 个。
 这个判断只写一处，bootstrap 的状态和提交时的检查都调用它。
-已实现为 `Online/OnlineAvailability.Evaluate`，优先级 SUSPENDED → NOT_OFFERED → PAUSED → CLOSED_HOURS → OPEN；
-“等待接单少于 20 个”要有 `online_requests` 表，在第 4 步做提交时加进同一个函数。
+已实现为 `Online/OnlineAvailability.Evaluate`，优先级 SUSPENDED → NOT_OFFERED → PAUSED → CLOSED_HOURS → BUSY → OPEN。
+第 4 步决定：“等待接单少于 20 个”作为 `BUSY` 状态加进同一个函数，所以 bootstrap、提交和员工设置页都看得到它；
+排在最后，营业时间外或暂停时先显示那些原因。`OnlineAvailability.ReadAsync` 在调用方的事务里读营业时间并数等待接单的请求。
 
 ## 7. 数据模型
 
@@ -496,6 +498,14 @@
    - 服务器上来自单据的 `tableLabel`（厨房、传菜、账单）改为可空；前端类型还没改，因为第 5 步接单之前不会出现没有桌号的单据。
      **第 5 步接单后厨房、传菜和账单会第一次遇到线上单据**，所以第 6 步的厨房、传菜和账单标签至少要先在第 5 步处理到不显示空桌号。
 4. 顾客端：线上菜单、购物车、结账表单、提交、结果未知、状态页、隐私说明页。
+   **后端已完成（2026-11-14）。** 与设计的差异：
+   - 第 3.1、6.3 节的“待接单已满”做成 `BUSY` 状态（见 6.3）。
+   - 按第 12 节的分工，30 天联系信息清理（3.4 第 8 步）和状态页 24 小时有效期留到第 6 步。
+   - 还没有配送设置，提交 `DELIVERY` 一律返回 `DELIVERY_NOT_OFFERED`；格式校验已经按配送的规则做（地址必填）。
+   - 恢复查询时 slug 不存在返回 `ONLINE_LINK_NOT_FOUND`，与“暂时没查到”的 `ONLINE_REQUEST_NOT_FOUND` 区分开。
+   - 状态页接口返回服务器推导的 `phase`（WAITING/EXPIRED/REJECTED/ACCEPTED）、接单后的 `sessionStatus`、`closeReason`
+     和每道菜的 `status`，3.6 表里的文案由前端按这些字段推导；餐厅信息多了 `slug`（返回菜单的链接）和币种。
+   - 限流的配置项是 `OnlineRateLimits:SubmissionsPerIpPerTenMinutes`（默认 10）。
 5. 员工端：待接单轮询、横幅和铃声、线上订单页、接单和拒单。
 6. 接单以后：厨房和传菜的标签、账单页的全部单据列表和“未取”、历史标签、联系信息清理、状态页 24 小时有效期。
 

@@ -133,46 +133,59 @@ public sealed class OnlineScheduleTests
             };
         Assert.Equal(
             new OnlineAvailabilityResult(OnlineStatus.Open, null),
-            OnlineAvailability.Evaluate(Restaurant(), Week, mondayNoon)
+            OnlineAvailability.Evaluate(Restaurant(), Week, 0, mondayNoon)
         );
         var suspended = Restaurant();
         suspended.ServiceStatus = RestaurantServiceStatus.Suspended;
         suspended.PublicPhone = null;
         Assert.Equal(
             OnlineStatus.Suspended,
-            OnlineAvailability.Evaluate(suspended, Week, mondayNoon).Status
+            OnlineAvailability.Evaluate(suspended, Week, 0, mondayNoon).Status
         );
         var noPhone = Restaurant();
         noPhone.PublicPhone = null;
         Assert.Equal(
             OnlineStatus.NotOffered,
-            OnlineAvailability.Evaluate(noPhone, Week, mondayNoon).Status
+            OnlineAvailability.Evaluate(noPhone, Week, 0, mondayNoon).Status
         );
         var off = Restaurant();
         off.OnlineEnabled = false;
         Assert.Equal(
             OnlineStatus.NotOffered,
-            OnlineAvailability.Evaluate(off, Week, mondayNoon).Status
+            OnlineAvailability.Evaluate(off, Week, 0, mondayNoon).Status
         );
         var paused = Restaurant();
         paused.OnlinePausedUntil = mondayNoon.UtcDateTime.AddMinutes(1);
         Assert.Equal(
             new OnlineAvailabilityResult(OnlineStatus.Paused, null),
-            OnlineAvailability.Evaluate(paused, [], mondayNoon)
+            OnlineAvailability.Evaluate(paused, [], 0, mondayNoon)
         );
         // A pause that has passed no longer counts.
         paused.OnlinePausedUntil = mondayNoon.UtcDateTime;
         Assert.Equal(
             OnlineStatus.Open,
-            OnlineAvailability.Evaluate(paused, Week, mondayNoon).Status
+            OnlineAvailability.Evaluate(paused, Week, 0, mondayNoon).Status
         );
         Assert.Equal(
             new OnlineAvailabilityResult(OnlineStatus.ClosedHours, Utc(2026, 11, 16, 17)),
-            OnlineAvailability.Evaluate(Restaurant(), Week, mondayNoon.AddHours(4))
+            OnlineAvailability.Evaluate(Restaurant(), Week, 0, mondayNoon.AddHours(4))
         );
         Assert.Equal(
             new OnlineAvailabilityResult(OnlineStatus.ClosedHours, null),
-            OnlineAvailability.Evaluate(Restaurant(), [], mondayNoon)
+            OnlineAvailability.Evaluate(Restaurant(), [], 0, mondayNoon)
+        );
+        // The waiting cap comes last: closed hours and pauses explain more than "too busy".
+        Assert.Equal(
+            OnlineStatus.Open,
+            OnlineAvailability.Evaluate(Restaurant(), Week, 19, mondayNoon).Status
+        );
+        Assert.Equal(
+            new OnlineAvailabilityResult(OnlineStatus.Busy, null),
+            OnlineAvailability.Evaluate(Restaurant(), Week, 20, mondayNoon)
+        );
+        Assert.Equal(
+            OnlineStatus.ClosedHours,
+            OnlineAvailability.Evaluate(Restaurant(), Week, 20, mondayNoon.AddHours(4)).Status
         );
     }
 }

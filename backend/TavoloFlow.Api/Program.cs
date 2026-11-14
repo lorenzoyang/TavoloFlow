@@ -55,6 +55,15 @@ builder.Services.AddScoped<BillingService>();
 builder.Services.AddScoped<RestaurantAdministration>();
 builder.Services.AddScoped<SubscriptionService>();
 builder.Services.AddScoped<OnlineSettingsService>();
+builder.Services.AddScoped<OnlineMenuService>();
+builder.Services.AddScoped<OnlineRequestService>();
+builder.Services.AddScoped<OnlineOrderStatusService>();
+builder
+    .Services.AddOptions<OnlineRateLimitOptions>()
+    .Bind(builder.Configuration.GetSection("OnlineRateLimits"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddSingleton<OnlineRateLimiter>();
 builder.Services.AddScoped<DemoSeeder>();
 
 var app = builder.Build();

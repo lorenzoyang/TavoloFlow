@@ -3,8 +3,9 @@
 Online ordering lets customers order from a restaurant's own link, `/r/{slug}`, and collect in store.
 It is being built in steps on `feature/online-ordering`; the design and its open steps are in
 [the design document](../online-ordering.md) (Chinese). This reference describes what exists today:
-the per-restaurant services and link, the restaurant's online settings and the data model of online
-requests. Customers cannot submit online orders yet.
+the per-restaurant services and link, the restaurant's online settings, the data model of online
+requests and the customer APIs (menu, submission, recovery and status). Staff cannot accept or reject
+requests yet, so every request currently expires.
 
 ## Services and link
 
@@ -60,7 +61,8 @@ time, for an unexpected day off; several days off are an hours change. Resuming 
 ## Availability
 
 `OnlineAvailability.Evaluate` is the only rule for whether customers can order online now. The
-settings page uses it today; the online menu and submissions will call the same function. In order:
+settings page, the online menu and submissions all call it (through `OnlineAvailability.ReadAsync`,
+which loads the hours and counts waiting requests in the caller's transaction). In order:
 
 | Status         | When                                                  |
 | -------------- | ----------------------------------------------------- |
@@ -68,9 +70,11 @@ settings page uses it today; the online menu and submissions will call the same 
 | `NOT_OFFERED`  | Online ordering is off or the public phone is missing |
 | `PAUSED`       | `online_paused_until` is in the future                |
 | `CLOSED_HOURS` | No slot contains the current local time               |
+| `BUSY`         | 20 requests are waiting for acceptance                |
 | `OPEN`         | Otherwise                                             |
 
-The cap on requests waiting for acceptance joins this rule with the submission endpoint.
+`BUSY` comes last, so closed hours or a pause explain themselves first. Only waiting requests count
+(`OnlineRequestState.Waiting`); expired ones never fill the cap.
 
 ## Data model
 
@@ -108,11 +112,68 @@ table label or join code, `delivery_fee_cents` required for delivery only, and `
 closure reason while `EMPTY` stays dine-in only. Every new table cascades from the restaurant; the
 request's session link is a composite `(session_id, restaurant_id)` key.
 
+## Customer APIs
+
+All are anonymous under `/api/public` (Guest scheme, no cookie needed). The submission is a write, so
+it carries a CSRF token from `GET /api/public/csrf`; the browser must send the antiforgery cookie
+(`credentials: same-origin`).
+
+| Method and path                                                    | Result                                        |
+| ------------------------------------------------------------------ | --------------------------------------------- |
+| `GET /api/public/r/{slug}/bootstrap`                               | Restaurant, status, `nextOpensAt`, menu       |
+| `POST /api/public/r/{slug}/requests`                               | 201 first time, 200 repeat: submission result |
+| `GET /api/public/r/{slug}/requests/by-client-id/{clientRequestId}` | Submission result, or 404 "not found yet"     |
+| `GET /api/public/online-orders/{token}`                            | Status page                                   |
+
+The bootstrap reads restaurant, hours, waiting count and `MenuReader` in one Repeatable Read
+transaction. It returns `restaurant { id, name, currencyCode, defaultLanguage, theme, publicPhone }`,
+`status`, `nextOpensAt` and the same `menu` as the QR bootstrap; the menu is shown in every status.
+An invalid or unknown slug is `ONLINE_LINK_NOT_FOUND` (404).
+
+The submission body is `{ clientRequestId, fulfillment, customerName, customerPhone, deliveryAddress?,
+deliveryNotes?, items }`, unknown fields rejected; `items` uses the QR order line format and the shared
+`OrderLines` checks (1–30 lines, 1–20 portions each, 100 in all, 200-character remarks, `optionIds`
+required). The name is trimmed to 1–30 characters and the phone follows `InputRules.NormalizePhone`.
+Pickup takes no address; delivery needs one (1–200, notes up to 100) but is refused with
+`DELIVERY_NOT_OFFERED` until delivery settings exist. The server then:
+
+1. Validates the format (`VALIDATION_FAILED`) before any write.
+2. Finds the restaurant by slug and locks it SHARE, rechecking the slug.
+3. Takes the next number of the restaurant's local business date with
+   `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` on `online_counters`. The counter row serializes a
+   restaurant's submissions for that day.
+4. Returns the stored result of an existing `(restaurant, clientRequestId)` and rolls back, so a repeat
+   skips every later gate and uses no number.
+5. Requires `OPEN`: `SERVICE_SUSPENDED`, `ONLINE_NOT_OFFERED`, `ONLINE_PAUSED`, `ONLINE_CLOSED` (with
+   `nextOpensAt` when the week has a slot) or `ONLINE_BUSY` (all 409).
+6. Checks dishes, options, availability and prices like QR orders (`MENU_CHANGED` with `changes`) and
+   builds the line snapshots.
+7. Inserts the request with a random 32-byte Base64URL status token and `expires_at` ten minutes after
+   submission, and returns `{ statusToken, number, expiresAt }`.
+
+A rejected submission rolls back and uses no number. Submissions are limited to 10 per IP address per
+ten minutes (`OnlineRateLimits:SubmissionsPerIpPerTenMinutes`, `RATE_LIMITED` with `Retry-After`). The
+30-day contact cleanup is not built yet.
+
+Recovery takes the random `clientRequestId` as its credential: only the submitting device knows it. It
+returns the same `{ statusToken, number, expiresAt }`; `ONLINE_REQUEST_NOT_FOUND` (404) only means the
+request has not been found yet, and a slug that no longer exists is `ONLINE_LINK_NOT_FOUND`.
+
+The status page reads one Repeatable Read snapshot by token (`ONLINE_ORDER_NOT_FOUND`, 404, for an
+unknown token). It returns `restaurant { name, slug, currencyCode, defaultLanguage, theme, publicPhone
+}`, `number`, `customerName`, `fulfillment`, `submittedAt`, `expiresAt`, `phase` (`WAITING`, `EXPIRED`,
+`REJECTED` or `ACCEPTED`, from `OnlineRequestState`), `rejectReason`, `estimatedAt`, `sessionStatus` and
+`closeReason` once accepted, `items` and `totalAmountCents`. Before acceptance the items are the
+submitted snapshot (`status` null) and the total is the submitted item total; after acceptance they are
+the order items with their status and the total is the session's bill amount (`SessionSummaries`). It
+never returns the customer's phone, an address or any request or session ID. The 24-hour limit after
+an order ends is not built yet.
+
 ## Phone
 
 `InputRules.NormalizePhone` removes whitespace and accepts an optional `+` and 6–15 digits, stored
-without spaces (`ck_restaurant_public_phone`). The same rule will validate customer phones; the
-frontend repeats it in `features/online/state.ts`.
+without spaces (`ck_restaurant_public_phone`, `ck_online_request_phone`). It validates restaurant and
+customer phones; the frontend repeats it in `features/online/state.ts`.
 
 ## Settings page
 
@@ -134,7 +195,13 @@ discarded.
   the snapshot field correspondence and the `lines` JSON round trip; `ApiEnumTests`: multi-word enum
   text such as `DINE_IN`.
 - `OnlineScheduleTests`: slot boundaries, adjacent slots, `nextOpensAt`, DST gap and repeated hour,
-  end of day and the availability order.
+  end of day and the availability order, including `BUSY` last.
+- `OnlineOrderingTests`: bootstrap statuses and unknown links; numbers per local business date without
+  gaps; repeats (also concurrent) returning the stored result; hour boundaries, summer time, a lapsing
+  pause and every gate code; input validation and CSRF; `MENU_CHANGED` and option snapshots; the cap
+  counting only waiting requests (twenty expired ones never block); the rate limit; recovery scoped to
+  the restaurant; every status-page phase without private fields; and the race between a submission
+  and switching online ordering off (`LockGate`).
 - `OnlineSettingsTests`: OWNER-only phone and hours, validation, whole-week replacement, both pauses
   lapsing with `TestClock.Set`, `ONLINE_CLOSED`, `ONLINE_NOT_OFFERED`, `SUSPENDED`, the database
   constraints and the cascade on restaurant deletion.

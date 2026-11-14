@@ -34,8 +34,11 @@ public sealed record OrderLineOptionResponse(
 )
 {
     public static OrderLineOptionResponse[] ForLine(OrderItem item) =>
-        item
-            .OptionsSnapshot.Select(x => new OrderLineOptionResponse(
+        ForOptions(item.OptionsSnapshot);
+
+    public static OrderLineOptionResponse[] ForOptions(IEnumerable<OrderItemOption> options) =>
+        options
+            .Select(x => new OrderLineOptionResponse(
                 x.GroupNameZh,
                 x.GroupNameIt,
                 x.GroupNameEn,
