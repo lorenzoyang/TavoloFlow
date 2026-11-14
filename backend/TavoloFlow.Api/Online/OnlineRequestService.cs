@@ -78,8 +78,8 @@ public sealed class OnlineRequestService(ApplicationDbContext db, TimeProvider c
         var (_, availability) = await OnlineAvailability.ReadAsync(db, restaurant, now, ct);
         if (!availability.IsOpen)
             throw OnlineErrors.NotOpen(availability);
-        // Delivery has no switch yet, so no restaurant offers it.
-        if (form.Fulfillment == OnlineFulfillment.Delivery)
+        // Delivery is the OWNER's switch; it never closes pickup.
+        if (form.Fulfillment == OnlineFulfillment.Delivery && !restaurant.DeliveryEnabled)
             throw OnlineErrors.DeliveryNotOffered();
         var lines = await OrderLines.SnapshotAsync(db, restaurantId, form.Lines, ct);
         var submittedAt = now.UtcDateTime;

@@ -99,7 +99,7 @@ function MenuContent({
       <OnlineHeader
         name={data.restaurant.name}
         phone={phone}
-        subtitle={m.pickupOnly}
+        subtitle={data.restaurant.deliveryEnabled ? m.pickupOrDelivery : m.pickupOnly}
         language={language}
         selectLanguage={selectLanguage}
         action={

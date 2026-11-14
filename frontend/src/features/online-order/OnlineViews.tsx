@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { formatMoney } from "@/lib/format";
 import type { Language } from "@/lib/language";
 import { cn } from "@/lib/utils";
@@ -18,9 +19,14 @@ import { onlineOrderMessages, type OnlineOrderMessage } from "./messages";
 import {
   checkoutProblems,
   clearOrderToken,
+  deliveryNote,
+  MAX_ADDRESS_LENGTH,
+  MAX_DELIVERY_NOTES_LENGTH,
   MAX_NAME_LENGTH,
   orderEnded,
   readOrderToken,
+  type CheckoutProblem,
+  type Fulfillment,
 } from "./state";
 import type { useOnlineCart } from "./useOnlineCart";
 import { deviceStorage } from "./useRestaurantLanguage";
@@ -150,16 +156,26 @@ export function OnlineCartPanel({
   const [tried, setTried] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
+  const addressRef = useRef<HTMLInputElement>(null);
+  const notesRef = useRef<HTMLInputElement>(null);
   const pending = model.cart.pending;
   const lines = model.review?.lines ?? model.cart.lines;
   const frozen = model.busy || !!pending || !!model.review;
-  const problems = checkoutProblems(model.form);
+  const form = model.form;
+  const problems = checkoutProblems(form);
+  const shown = (problem: CheckoutProblem) => tried && problems.includes(problem);
   const phone = data.restaurant.publicPhone;
   const callAction = phone ? <PhoneLink phone={phone} language={language} /> : undefined;
+  // A choice of delivery stays visible if delivery is turned off meanwhile; the server then refuses it.
+  const offersDelivery = data.restaurant.deliveryEnabled || form.fulfillment === "DELIVERY";
+  const delivery = form.fulfillment === "DELIVERY";
+  const note = delivery ? deliveryNote(data.restaurant, language) : null;
   function place() {
     setTried(true);
     if (problems.length) {
-      (problems[0] === "name" ? nameRef : phoneRef).current?.focus();
+      ({ name: nameRef, phone: phoneRef, address: addressRef, notes: notesRef })[
+        problems[0]
+      ].current?.focus();
       return;
     }
     void model.confirm();
@@ -172,7 +188,11 @@ export function OnlineCartPanel({
             {model.review ? m.checkoutTitle : m.cart}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {model.review ? m.pickupOnly : m.cartHint}
+            {model.review
+              ? data.restaurant.deliveryEnabled
+                ? m.pickupOrDelivery
+                : m.pickupOnly
+              : m.cartHint}
           </p>
         </div>
         {headerAction}
@@ -226,7 +246,7 @@ export function OnlineCartPanel({
       )}
       {lines.length > 0 && (
         <p className="flex items-baseline justify-between gap-3 border-t pt-4 text-lg font-semibold">
-          <span>{m.total}</span>
+          <span>{model.review && delivery ? m.itemsTotal : m.total}</span>
           <span className="text-xl tabular-nums">{formatMoney(totalCents(lines), language)}</span>
         </p>
       )}
@@ -239,6 +259,32 @@ export function OnlineCartPanel({
             place();
           }}
         >
+          {offersDelivery && (
+            <div className="space-y-2">
+              <p id="online-fulfillment" className="text-sm font-medium">
+                {m.fulfillment}
+              </p>
+              <RadioGroup
+                aria-labelledby="online-fulfillment"
+                value={form.fulfillment}
+                disabled={model.busy}
+                onValueChange={(value) =>
+                  model.setForm({ ...form, fulfillment: value as Fulfillment })
+                }
+                className="grid-cols-2"
+              >
+                {(["PICKUP", "DELIVERY"] as const).map((value) => (
+                  <label
+                    key={value}
+                    className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm font-medium transition-colors has-data-checked:border-primary/40 has-data-checked:bg-accent"
+                  >
+                    <RadioGroupItem value={value} />
+                    {value === "PICKUP" ? m.pickup : m.delivery}
+                  </label>
+                ))}
+              </RadioGroup>
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="online-name">{m.name}</Label>
             <Input
@@ -246,15 +292,13 @@ export function OnlineCartPanel({
               ref={nameRef}
               autoComplete="name"
               maxLength={MAX_NAME_LENGTH}
-              value={model.form.name}
+              value={form.name}
               disabled={model.busy}
-              aria-invalid={tried && problems.includes("name")}
-              aria-describedby={
-                tried && problems.includes("name") ? "online-name-problem" : undefined
-              }
-              onChange={(event) => model.setForm({ ...model.form, name: event.target.value })}
+              aria-invalid={shown("name")}
+              aria-describedby={shown("name") ? "online-name-problem" : undefined}
+              onChange={(event) => model.setForm({ ...form, name: event.target.value })}
             />
-            {tried && problems.includes("name") && (
+            {shown("name") && (
               <p id="online-name-problem" className="text-sm text-destructive">
                 {m.nameProblem}
               </p>
@@ -269,15 +313,13 @@ export function OnlineCartPanel({
               inputMode="tel"
               autoComplete="tel"
               maxLength={30}
-              value={model.form.phone}
+              value={form.phone}
               disabled={model.busy}
-              aria-invalid={tried && problems.includes("phone")}
-              aria-describedby={
-                tried && problems.includes("phone") ? "online-phone-problem" : "online-phone-hint"
-              }
-              onChange={(event) => model.setForm({ ...model.form, phone: event.target.value })}
+              aria-invalid={shown("phone")}
+              aria-describedby={shown("phone") ? "online-phone-problem" : "online-phone-hint"}
+              onChange={(event) => model.setForm({ ...form, phone: event.target.value })}
             />
-            {tried && problems.includes("phone") ? (
+            {shown("phone") ? (
               <p id="online-phone-problem" className="text-sm text-destructive">
                 {m.phoneProblem}
               </p>
@@ -287,7 +329,61 @@ export function OnlineCartPanel({
               </p>
             )}
           </div>
-          <p className="rounded-xl bg-secondary p-3 text-sm leading-6">{m.asap}</p>
+          {delivery && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="online-address">{m.address}</Label>
+                <Input
+                  id="online-address"
+                  ref={addressRef}
+                  autoComplete="street-address"
+                  maxLength={MAX_ADDRESS_LENGTH}
+                  value={form.address}
+                  disabled={model.busy}
+                  aria-invalid={shown("address")}
+                  aria-describedby={shown("address") ? "online-address-problem" : undefined}
+                  onChange={(event) => model.setForm({ ...form, address: event.target.value })}
+                />
+                {shown("address") && (
+                  <p id="online-address-problem" className="text-sm text-destructive">
+                    {m.addressProblem}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="online-notes">{m.deliveryNotes}</Label>
+                <Input
+                  id="online-notes"
+                  ref={notesRef}
+                  maxLength={MAX_DELIVERY_NOTES_LENGTH}
+                  value={form.notes}
+                  disabled={model.busy}
+                  aria-invalid={shown("notes")}
+                  aria-describedby={shown("notes") ? "online-notes-problem" : undefined}
+                  onChange={(event) => model.setForm({ ...form, notes: event.target.value })}
+                />
+                {shown("notes") && (
+                  <p id="online-notes-problem" className="text-sm text-destructive">
+                    {m.deliveryNotesProblem}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1 rounded-xl border p-3 text-sm leading-6">
+                {note && (
+                  <>
+                    <p className="font-medium">{m.deliveryNoteTitle}</p>
+                    <p lang={note.language} className="whitespace-pre-wrap wrap-break-word">
+                      {note.text}
+                    </p>
+                  </>
+                )}
+                <p className="text-muted-foreground">{m.feeConfirmed}</p>
+              </div>
+            </>
+          )}
+          <p className="rounded-xl bg-secondary p-3 text-sm leading-6">
+            {delivery ? m.asapDelivery : m.asap}
+          </p>
           <div className="grid gap-2">
             <Button type="submit" size="lg" disabled={model.busy || !!model.blocked}>
               {model.busy ? m.working : m.placeOrder}
@@ -303,7 +399,7 @@ export function OnlineCartPanel({
             </Button>
           </div>
           <p className="text-xs leading-5 text-muted-foreground">
-            {m.privacyLine(data.restaurant.name)}{" "}
+            {(delivery ? m.privacyLineDelivery : m.privacyLine)(data.restaurant.name)}{" "}
             <Link to="/r/$slug/privacy" params={{ slug }} className="underline">
               {m.privacy}
             </Link>

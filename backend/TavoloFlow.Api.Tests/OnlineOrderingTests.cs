@@ -98,6 +98,80 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
     }
 
     [Fact]
+    public async Task Submit_Delivery_OnlyWhileOffered_AndARepeatSurvivesTurningItOff()
+    {
+        using var host = new AccountTestHost(database);
+        host.Clock.Set(MondayNoon);
+        var shop = await SeedAsync();
+        using var client = host.Browser();
+
+        var off = await MenuAsync(client, shop.Slug);
+        Assert.False(off.Restaurant.DeliveryEnabled);
+        Assert.Null(off.Restaurant.DeliveryNoteIt);
+        await AssertErrorAsync(
+            await SubmitAsync(
+                client,
+                shop,
+                Body(Guid.NewGuid(), shop.Dish, fulfillment: "DELIVERY", address: "Via Roma 1")
+            ),
+            HttpStatusCode.Conflict,
+            "DELIVERY_NOT_OFFERED"
+        );
+
+        await UpdateRestaurantAsync(
+            shop,
+            u =>
+                u.SetProperty(r => r.DeliveryEnabled, true)
+                    .SetProperty(r => r.DeliveryNoteIt, "Entro 5 km gratis sopra 20 €.")
+        );
+        var on = await MenuAsync(client, shop.Slug);
+        Assert.True(on.Restaurant.DeliveryEnabled);
+        Assert.Equal("Entro 5 km gratis sopra 20 €.", on.Restaurant.DeliveryNoteIt);
+        Assert.Null(on.Restaurant.DeliveryNoteZh);
+
+        var id = Guid.NewGuid();
+        var body = Body(
+            id,
+            shop.Dish,
+            fulfillment: "DELIVERY",
+            address: "  Via Roma 1, Milano ",
+            notes: " Citofono 3 "
+        );
+        var created = await SubmitAsync(client, shop, body);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var first = await created.Content.ReadFromJsonAsync<OnlineSubmissionResponse>();
+        await using (var db = database.CreateContext())
+        {
+            var stored = await db.OnlineRequests.SingleAsync(r =>
+                r.RestaurantId == shop.RestaurantId && r.ClientRequestId == id
+            );
+            Assert.Equal(OnlineFulfillment.Delivery, stored.Fulfillment);
+            Assert.Equal("Via Roma 1, Milano", stored.DeliveryAddress);
+            Assert.Equal("Citofono 3", stored.DeliveryNotes);
+        }
+
+        // Turning delivery off stops new delivery submissions only: a repeat still finds the stored one,
+        // and pickup stays open.
+        await UpdateRestaurantAsync(shop, u => u.SetProperty(r => r.DeliveryEnabled, false));
+        var repeat = await SubmitAsync(client, shop, body);
+        Assert.Equal(HttpStatusCode.OK, repeat.StatusCode);
+        Assert.Equal(first, await repeat.Content.ReadFromJsonAsync<OnlineSubmissionResponse>());
+        await AssertErrorAsync(
+            await SubmitAsync(
+                client,
+                shop,
+                Body(Guid.NewGuid(), shop.Dish, fulfillment: "DELIVERY", address: "Via Roma 1")
+            ),
+            HttpStatusCode.Conflict,
+            "DELIVERY_NOT_OFFERED"
+        );
+        Assert.Equal(
+            HttpStatusCode.Created,
+            (await SubmitAsync(client, shop, Body(Guid.NewGuid(), shop.Dish))).StatusCode
+        );
+    }
+
+    [Fact]
     public async Task Submit_FirstAndRepeat_NumbersPerLocalDayWithoutGaps()
     {
         using var host = new AccountTestHost(database);
@@ -815,8 +889,9 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
         long? price = null,
         Guid[]? optionIds = null,
         string fulfillment = "PICKUP",
-        string? address = null
-    ) => Body(id, dish.Id, price ?? dish.PriceCents, optionIds, fulfillment, address);
+        string? address = null,
+        string? notes = null
+    ) => Body(id, dish.Id, price ?? dish.PriceCents, optionIds, fulfillment, address, notes);
 
     private static object Body(
         Guid id,
@@ -824,7 +899,8 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
         long price,
         Guid[]? optionIds = null,
         string fulfillment = "PICKUP",
-        string? address = null
+        string? address = null,
+        string? notes = null
     ) =>
         new
         {
@@ -833,6 +909,7 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
             customerName = "  Marco Rossi ",
             customerPhone = "+39 333 123 4567",
             deliveryAddress = address,
+            deliveryNotes = notes,
             items = new[] { new OrderLineInput(dishId, 2, price, " Poco brodo ", optionIds ?? []) },
         };
 

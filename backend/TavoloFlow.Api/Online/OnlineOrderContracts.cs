@@ -7,14 +7,19 @@ using TavoloFlow.Api.Ordering;
 namespace TavoloFlow.Api.Online;
 
 // The anonymous online menu at /r/{slug}. PublicPhone is shown whenever it is set; Status comes from
-// OnlineAvailability and NextOpensAt only accompanies CLOSED_HOURS.
+// OnlineAvailability and NextOpensAt only accompanies CLOSED_HOURS. With delivery on, checkout offers it
+// and shows the optional note in the customer's language.
 public sealed record OnlineMenuRestaurantResponse(
     Guid Id,
     string Name,
     string CurrencyCode,
     string DefaultLanguage,
     string Theme,
-    string? PublicPhone
+    string? PublicPhone,
+    bool DeliveryEnabled,
+    string? DeliveryNoteZh,
+    string? DeliveryNoteIt,
+    string? DeliveryNoteEn
 );
 
 public sealed record OnlineMenuResponse(

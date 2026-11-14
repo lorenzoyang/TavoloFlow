@@ -35,7 +35,11 @@ public sealed class OnlineMenuService(ApplicationDbContext db, TimeProvider cloc
                 restaurant.CurrencyCode,
                 restaurant.DefaultLanguage,
                 ApiEnum.Text(restaurant.Theme),
-                restaurant.PublicPhone
+                restaurant.PublicPhone,
+                restaurant.DeliveryEnabled,
+                restaurant.DeliveryNoteZh,
+                restaurant.DeliveryNoteIt,
+                restaurant.DeliveryNoteEn
             ),
             availability.Status,
             availability.NextOpensAt,

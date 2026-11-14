@@ -12,7 +12,8 @@ const zh = {
   call: "致电餐厅",
   callNumber: (phone: string) => `致电 ${phone}`,
   pickupOnly: "到店自取",
-  open: "订单尽快制作，不能预约时间；餐厅确认后会显示预计取餐时间。",
+  pickupOrDelivery: "到店自取或配送",
+  open: "订单尽快制作，不能预约时间；餐厅确认后会显示预计时间。",
   busy: "餐厅现在待处理的订单太多，暂时无法线上下单。请稍后再试，或致电餐厅。",
   paused: "餐厅暂停了线上接单。可以先看菜单，稍后再来，或致电餐厅。",
   closedHours: (when: string) => `现在不在线上接单时间内，${when} 开始接单。可以先看菜单。`,
@@ -37,9 +38,22 @@ const zh = {
   phoneHint: "餐厅可能会打电话确认订单。",
   nameProblem: "请填写姓名（最多 30 个字符）。",
   phoneProblem: "请填写电话：可选的 + 和 6–15 位数字。",
+  fulfillment: "取餐方式",
+  pickup: "到店自取",
+  delivery: "配送",
+  address: "配送地址",
+  addressProblem: "请填写配送地址（最多 200 个字符）。",
+  deliveryNotes: "门铃、楼层（选填）",
+  deliveryNotesProblem: "门铃、楼层备注最多 100 个字符。",
+  deliveryNoteTitle: "配送说明",
+  feeConfirmed: "配送费以餐厅确认为准，接单后显示在订单页。",
+  itemsTotal: "菜品合计",
   asap: "订单尽快制作，不能预约时间。餐厅确认后，订单页会显示预计取餐时间。",
+  asapDelivery: "订单尽快制作和配送，不能预约时间。餐厅确认后，订单页会显示配送费和预计送达时间。",
   privacyLine: (restaurant: string) =>
     `你的姓名和电话只交给 ${restaurant} 处理这一单，30 天后删除。`,
+  privacyLineDelivery: (restaurant: string) =>
+    `你的姓名、电话和地址只交给 ${restaurant} 处理这一单，30 天后删除。`,
   unknown: "订单结果待确认。在查到原来的结果之前，购物车已锁定，不会重复下单。",
   lookup: "查询订单结果",
   retryOriginal: "重试原来的订单",
@@ -47,7 +61,8 @@ const zh = {
   changed: "菜单有变化，请检查最新的价格和供应情况，再提交。",
   closed: "现在不在线上接单时间内，订单没有提交。",
   linkGone: "这个线上点单链接已失效，订单没有提交。",
-  invalid: "请检查姓名、电话和菜品数量。",
+  invalid: "请检查姓名、电话、地址和菜品数量。",
+  deliveryOff: "餐厅现在不提供配送，可以改为到店自取。",
   csrf: "页面验证已过期，请再提交一次。",
   rateLimited: "提交次数太多，请稍后再试。",
   notFound: "还没有查到结果。这不表示订单失败，可以稍后再查，或重试原来的订单。",
@@ -63,6 +78,8 @@ const zh = {
   orderTitle: "订单状态",
   orderNumber: (number: number) => `#${number}`,
   pickupFor: (name: string) => `到店自取 · ${name}`,
+  deliveryFor: (name: string) => `配送 · ${name}`,
+  feePending: "配送费待餐厅确认",
   submitted: "提交时间",
   estimated: "预计时间",
   items: "菜品",
@@ -139,7 +156,8 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     call: "Chiama il ristorante",
     callNumber: (phone) => `Chiama ${phone}`,
     pickupOnly: "Ritiro al ristorante",
-    open: "Prepariamo l’ordine appena possibile, senza orari su prenotazione; dopo la conferma vedrai l’orario previsto per il ritiro.",
+    pickupOrDelivery: "Ritiro o consegna a domicilio",
+    open: "Prepariamo l’ordine appena possibile, senza orari su prenotazione; dopo la conferma vedrai l’orario previsto.",
     busy: "Il ristorante ha troppi ordini in attesa: per ora non si può ordinare online. Riprova tra poco o chiama il ristorante.",
     paused:
       "Il ristorante ha messo in pausa gli ordini online. Puoi guardare il menu, tornare più tardi o chiamare.",
@@ -166,9 +184,24 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     phoneHint: "Il ristorante potrebbe chiamarti per confermare l’ordine.",
     nameProblem: "Inserisci il nome (al massimo 30 caratteri).",
     phoneProblem: "Inserisci il telefono: un + facoltativo e 6–15 cifre.",
+    fulfillment: "Come lo ricevi",
+    pickup: "Ritiro",
+    delivery: "Consegna",
+    address: "Indirizzo di consegna",
+    addressProblem: "Inserisci l’indirizzo di consegna (al massimo 200 caratteri).",
+    deliveryNotes: "Citofono, piano (facoltativo)",
+    deliveryNotesProblem: "Citofono e piano: al massimo 100 caratteri.",
+    deliveryNoteTitle: "Consegna",
+    feeConfirmed:
+      "Il costo di consegna lo conferma il ristorante: lo vedrai nella pagina dell’ordine dopo l’accettazione.",
+    itemsTotal: "Totale piatti",
     asap: "Prepariamo l’ordine appena possibile, senza orari su prenotazione. Dopo la conferma, la pagina dell’ordine mostra l’orario previsto per il ritiro.",
+    asapDelivery:
+      "Prepariamo e consegniamo l’ordine appena possibile, senza orari su prenotazione. Dopo la conferma, la pagina dell’ordine mostra il costo di consegna e l’orario previsto.",
     privacyLine: (restaurant) =>
       `Nome e telefono vanno solo a ${restaurant} per questo ordine e si cancellano dopo 30 giorni.`,
+    privacyLineDelivery: (restaurant) =>
+      `Nome, telefono e indirizzo vanno solo a ${restaurant} per questo ordine e si cancellano dopo 30 giorni.`,
     unknown:
       "L’esito dell’ordine va verificato. Il carrello resta bloccato finché non si conosce l’esito dell’invio originale, così non parte un doppione.",
     lookup: "Verifica l’esito",
@@ -176,7 +209,8 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     changed: "Il menu è cambiato: controlla prezzi e disponibilità aggiornati, poi invia di nuovo.",
     closed: "Ora siamo fuori dall’orario degli ordini online: l’ordine non è stato inviato.",
     linkGone: "Questo link per ordinare online non vale più: l’ordine non è stato inviato.",
-    invalid: "Controlla nome, telefono e quantità.",
+    invalid: "Controlla nome, telefono, indirizzo e quantità.",
+    deliveryOff: "Ora il ristorante non fa consegne: puoi scegliere il ritiro.",
     csrf: "La verifica della pagina è scaduta: invia di nuovo.",
     rateLimited: "Troppi invii: riprova tra poco.",
     notFound:
@@ -198,6 +232,8 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     orderTitle: "Stato dell’ordine",
     orderNumber: (number) => `N. ${number}`,
     pickupFor: (name) => `Ritiro · ${name}`,
+    deliveryFor: (name) => `Consegna · ${name}`,
+    feePending: "Costo di consegna da confermare",
     submitted: "Inviato alle",
     estimated: "Orario previsto",
     items: "Piatti",
@@ -271,7 +307,8 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     call: "Call the restaurant",
     callNumber: (phone) => `Call ${phone}`,
     pickupOnly: "Pickup at the restaurant",
-    open: "Orders are made as soon as possible; you can’t book a time. Once the restaurant confirms, you’ll see when to collect.",
+    pickupOrDelivery: "Pickup or delivery",
+    open: "Orders are made as soon as possible; you can’t book a time. Once the restaurant confirms, you’ll see the expected time.",
     busy: "The restaurant has too many orders waiting, so online ordering is closed for now. Try again shortly or call the restaurant.",
     paused:
       "The restaurant has paused online orders. You can browse the menu, come back later or call.",
@@ -297,9 +334,24 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     phoneHint: "The restaurant may call you to confirm the order.",
     nameProblem: "Enter your name (up to 30 characters).",
     phoneProblem: "Enter your phone: an optional + and 6–15 digits.",
+    fulfillment: "How you get it",
+    pickup: "Pickup",
+    delivery: "Delivery",
+    address: "Delivery address",
+    addressProblem: "Enter the delivery address (up to 200 characters).",
+    deliveryNotes: "Doorbell, floor (optional)",
+    deliveryNotesProblem: "Doorbell and floor: up to 100 characters.",
+    deliveryNoteTitle: "Delivery",
+    feeConfirmed:
+      "The restaurant confirms the delivery fee; you’ll see it on the order page once accepted.",
+    itemsTotal: "Items total",
     asap: "Orders are made as soon as possible; you can’t book a time. Once the restaurant confirms, the order page shows when to collect.",
+    asapDelivery:
+      "Orders are made and delivered as soon as possible; you can’t book a time. Once the restaurant confirms, the order page shows the delivery fee and expected time.",
     privacyLine: (restaurant) =>
       `Your name and phone go only to ${restaurant} for this order and are deleted after 30 days.`,
+    privacyLineDelivery: (restaurant) =>
+      `Your name, phone and address go only to ${restaurant} for this order and are deleted after 30 days.`,
     unknown:
       "The order result needs checking. The cart stays locked until the original result is known, so nothing is sent twice.",
     lookup: "Check the result",
@@ -307,7 +359,8 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     changed: "The menu has changed. Check the latest prices and availability, then send again.",
     closed: "Online ordering is outside its hours right now; the order wasn’t sent.",
     linkGone: "This online ordering link no longer works; the order wasn’t sent.",
-    invalid: "Check the name, phone and quantities.",
+    invalid: "Check the name, phone, address and quantities.",
+    deliveryOff: "The restaurant isn’t delivering right now; you can choose pickup.",
     csrf: "The page check expired. Please send again.",
     rateLimited: "Too many attempts. Try again shortly.",
     notFound:
@@ -327,6 +380,8 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     orderTitle: "Order status",
     orderNumber: (number) => `No. ${number}`,
     pickupFor: (name) => `Pickup · ${name}`,
+    deliveryFor: (name) => `Delivery · ${name}`,
+    feePending: "Delivery fee to be confirmed",
     submitted: "Sent at",
     estimated: "Estimated time",
     items: "Dishes",
@@ -400,6 +455,7 @@ export type OnlineOrderMessage =
   | "paused"
   | "closed"
   | "notOffered"
+  | "deliveryOff"
   | "suspended"
   | "linkGone"
   | "invalid"
@@ -424,7 +480,7 @@ export const onlineOrderError = (code: string): OnlineOrderMessage =>
       ONLINE_PAUSED: "paused",
       ONLINE_CLOSED: "closed",
       ONLINE_NOT_OFFERED: "notOffered",
-      DELIVERY_NOT_OFFERED: "notOffered",
+      DELIVERY_NOT_OFFERED: "deliveryOff",
       SERVICE_SUSPENDED: "suspended",
       ONLINE_LINK_NOT_FOUND: "linkGone",
       VALIDATION_FAILED: "invalid",

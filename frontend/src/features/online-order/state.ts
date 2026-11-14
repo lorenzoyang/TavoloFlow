@@ -1,6 +1,7 @@
 // Pure online ordering rules for customers, node-tested: the tab's cart and its pending submission,
 // the checkout form, the remembered status link and what the status page says.
-import type { OnlineOrder } from "./api.ts";
+import type { OnlineMenu, OnlineOrder } from "./api.ts";
+import type { Language } from "../../lib/language.ts";
 import { isUuid } from "../../lib/ids.ts";
 import { normalizePhone } from "../online/state.ts";
 import {
@@ -13,12 +14,17 @@ import {
   type OrderLineInput,
 } from "../orders/state.ts";
 
+export type Fulfillment = "PICKUP" | "DELIVERY";
+
 // What the tab sends; saved and read back before the POST, so a lost result is recovered by GET.
+// The address and notes are delivery only and null for pickup.
 export type OnlineIntent = {
   clientRequestId: string;
-  fulfillment: "PICKUP";
+  fulfillment: Fulfillment;
   customerName: string;
   customerPhone: string;
+  deliveryAddress: string | null;
+  deliveryNotes: string | null;
   items: OrderLineInput[];
 };
 
@@ -41,17 +47,64 @@ export const emptyOnlineCart = (restaurantId: string): OnlineCart => ({
 });
 
 export const MAX_NAME_LENGTH = 30;
+export const MAX_ADDRESS_LENGTH = 200;
+export const MAX_DELIVERY_NOTES_LENGTH = 100;
 
-export type CheckoutForm = { name: string; phone: string };
-export type CheckoutProblem = "name" | "phone";
+export type CheckoutForm = {
+  fulfillment: Fulfillment;
+  name: string;
+  phone: string;
+  address: string;
+  notes: string;
+};
+export type CheckoutProblem = "name" | "phone" | "address" | "notes";
 
-// The server's rules: a trimmed name of 1-30 characters and the shared phone rule.
+export const emptyCheckoutForm: CheckoutForm = {
+  fulfillment: "PICKUP",
+  name: "",
+  phone: "",
+  address: "",
+  notes: "",
+};
+
+// The server's rules: a trimmed name of 1-30 characters and the shared phone rule; delivery also needs
+// an address of 1-200 characters and takes optional notes of up to 100. Pickup ignores both.
 export function checkoutProblems(form: CheckoutForm): CheckoutProblem[] {
   const name = form.name.trim();
+  const address = form.address.trim();
+  const delivery = form.fulfillment === "DELIVERY";
   return [
     ...(name.length < 1 || name.length > MAX_NAME_LENGTH ? (["name"] as const) : []),
     ...(normalizePhone(form.phone) === null ? (["phone"] as const) : []),
+    ...(delivery && (address.length < 1 || address.length > MAX_ADDRESS_LENGTH)
+      ? (["address"] as const)
+      : []),
+    ...(delivery && form.notes.trim().length > MAX_DELIVERY_NOTES_LENGTH
+      ? (["notes"] as const)
+      : []),
   ];
+}
+
+// The restaurant's delivery note in the customer's language, falling back like dish descriptions:
+// the restaurant's default language, then Italian, Chinese and English.
+export function deliveryNote(
+  restaurant: Pick<
+    OnlineMenu["restaurant"],
+    "defaultLanguage" | "deliveryNoteZh" | "deliveryNoteIt" | "deliveryNoteEn"
+  >,
+  language: Language,
+): { text: string; language: Language } | null {
+  const notes = {
+    zh: restaurant.deliveryNoteZh,
+    it: restaurant.deliveryNoteIt,
+    en: restaurant.deliveryNoteEn,
+  };
+  const order = new Set<Language>([language, restaurant.defaultLanguage, "it", "zh", "en"]);
+  for (const key of order) {
+    const text = notes[key]?.trim();
+    if (text) return { text, language: key };
+  }
+  return null;
 }
 
 export function createOnlineIntent(
@@ -63,12 +116,17 @@ export function createOnlineIntent(
   const phone = normalizePhone(form.phone);
   if (!cart.lines.length || cart.pending || !isUuid(requestId) || !phone)
     throw new CartError("limits");
+  if (form.fulfillment !== "PICKUP" && form.fulfillment !== "DELIVERY")
+    throw new CartError("limits");
   if (checkoutProblems(form).length) throw new CartError("limits");
+  const delivery = form.fulfillment === "DELIVERY";
   return {
     clientRequestId: requestId,
-    fulfillment: "PICKUP",
+    fulfillment: form.fulfillment,
     customerName: form.name.trim(),
     customerPhone: phone,
+    deliveryAddress: delivery ? form.address.trim() : null,
+    deliveryNotes: delivery ? form.notes.trim() || null : null,
     items: intentItems(cart.lines),
   };
 }
@@ -91,7 +149,13 @@ export function restoreOnlineCart(raw: string | null, restaurantId: string): Onl
       if (!p || !isUuid(p.clientRequestId)) throw new Error();
       const expected = createOnlineIntent(
         cart,
-        { name: p.customerName ?? "", phone: p.customerPhone ?? "" },
+        {
+          fulfillment: p.fulfillment,
+          name: p.customerName ?? "",
+          phone: p.customerPhone ?? "",
+          address: p.deliveryAddress ?? "",
+          notes: p.deliveryNotes ?? "",
+        },
         p.clientRequestId,
       );
       if (
@@ -101,6 +165,8 @@ export function restoreOnlineCart(raw: string | null, restaurantId: string): Onl
           fulfillment: p.fulfillment,
           customerName: p.customerName,
           customerPhone: p.customerPhone,
+          deliveryAddress: p.deliveryAddress,
+          deliveryNotes: p.deliveryNotes,
           items: p.items?.map((l) => ({
             menuItemId: l.menuItemId,
             quantity: l.quantity,

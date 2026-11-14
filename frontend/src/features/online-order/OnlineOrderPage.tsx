@@ -56,6 +56,9 @@ function OrderContent({
   // When the order did not go ahead, calling the restaurant is the customer's next step.
   const callFirst = view === "expired" || view === "rejected" || view === "allCancelled";
   const success = view === "ready" || view === "collected";
+  // Before acceptance a delivery order has no fee yet: the restaurant confirms it when accepting.
+  const itemsOnly = order.fulfillment === "DELIVERY" && order.phase !== "ACCEPTED";
+  const feePending = itemsOnly && order.phase === "WAITING";
   return (
     <div lang={language} className="min-h-dvh">
       <OnlineHeader
@@ -97,7 +100,9 @@ function OrderContent({
             </p>
             {order.customerName && (
               <p className="text-muted-foreground wrap-break-word">
-                {m.pickupFor(order.customerName)}
+                {(order.fulfillment === "DELIVERY" ? m.deliveryFor : m.pickupFor)(
+                  order.customerName,
+                )}
               </p>
             )}
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
@@ -176,9 +181,10 @@ function OrderContent({
             })}
           </ul>
           <p className="flex items-baseline justify-between gap-3 text-lg font-semibold">
-            <span>{m.total}</span>
+            <span>{itemsOnly ? m.itemsTotal : m.total}</span>
             <span className="tabular-nums">{formatMoney(order.totalAmountCents, language)}</span>
           </p>
+          {feePending && <p className="text-sm text-muted-foreground">{m.feePending}</p>}
         </section>
         {!ended && <p className="text-sm text-muted-foreground">{m.cannotCancel}</p>}
         {order.restaurant.slug && (

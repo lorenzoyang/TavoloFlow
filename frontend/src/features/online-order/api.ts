@@ -20,6 +20,11 @@ export type OnlineMenu = {
     defaultLanguage: Language;
     theme: RestaurantTheme;
     publicPhone: string | null;
+    // With delivery on, checkout offers it and shows the note in the customer's language.
+    deliveryEnabled: boolean;
+    deliveryNoteZh: string | null;
+    deliveryNoteIt: string | null;
+    deliveryNoteEn: string | null;
   };
   status: OnlineStatus;
   // Only with CLOSED_HOURS, and null when the week has no slots.

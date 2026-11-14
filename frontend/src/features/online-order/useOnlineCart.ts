@@ -27,6 +27,7 @@ import { onlineOrderError, type OnlineOrderMessage } from "./messages";
 import { deviceStorage } from "./useRestaurantLanguage";
 import {
   createOnlineIntent,
+  emptyCheckoutForm,
   emptyOnlineCart,
   onlineCartKey,
   restoreOnlineCart,
@@ -46,7 +47,7 @@ const closedMessages: Record<Exclude<OnlineStatus, "OPEN">, OnlineOrderMessage> 
 };
 
 // The customer's online cart in this tab and the request it becomes. The full intent (request ID,
-// name, phone and lines) is saved and read back before the POST, so a lost result is recovered by GET
+// fulfillment, name, phone, address and lines) is saved and read back before the POST, so a lost result is recovered by GET
 // with that request ID, and only an explicit retry resends the same request. One request at a time.
 export function useOnlineCart(slug: string, data: OnlineMenu) {
   const client = useQueryClient();
@@ -68,7 +69,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
   const [message, setMessage] = useState<OnlineOrderMessage | null>(initial.problem);
   // The lines refreshed against the latest menu, shown with the checkout form until sent.
   const [review, setReview] = useState<OnlineCart | null>(null);
-  const [form, setForm] = useState<CheckoutForm>({ name: "", phone: "" });
+  const [form, setForm] = useState<CheckoutForm>(emptyCheckoutForm);
   const [busy, setBusy] = useState(false);
   const current = useRef(cart);
   const live = useRef(data);
@@ -194,6 +195,11 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
       const next = refreshCart(current.current, latest.menu.items, latest.menu.optionGroups);
       remember(next);
       setReview(next);
+      // Delivery was turned off since the customer chose it: back to pickup, and say why.
+      if (form.fulfillment === "DELIVERY" && !latest.restaurant.deliveryEnabled) {
+        setForm({ ...form, fulfillment: "PICKUP" });
+        setMessage("deliveryOff");
+      }
     } catch (e) {
       if (work.active())
         setMessage(
@@ -250,7 +256,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
               ? onlineOrderError(e.code)
               : "offline",
       );
-      if (e instanceof ApiError && e.code === "MENU_CHANGED")
+      if (e instanceof ApiError && (e.code === "MENU_CHANGED" || e.code === "DELIVERY_NOT_OFFERED"))
         void client.invalidateQueries({ queryKey: onlineMenuKey(slug) });
     } finally {
       work.finish();

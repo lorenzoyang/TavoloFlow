@@ -1,6 +1,7 @@
 # Online ordering
 
-Online ordering lets customers order from a restaurant's own link, `/r/{slug}`, and collect in store.
+Online ordering lets customers order from a restaurant's own link, `/r/{slug}`, and collect in store
+or, where the restaurant delivers, have it delivered.
 It is being built in steps on `feature/online-ordering`; the design and its open steps are in
 [the design document](../online-ordering.md) (Chinese). This reference describes what exists today:
 the per-restaurant services and link, the restaurant's online settings, the data model of online
@@ -147,16 +148,17 @@ it carries a CSRF token from `GET /api/public/csrf`; the browser must send the a
 | `GET /api/public/online-orders/{token}`                            | Status page                                   |
 
 The bootstrap reads restaurant, hours, waiting count and `MenuReader` in one Repeatable Read
-transaction. It returns `restaurant { id, name, currencyCode, defaultLanguage, theme, publicPhone }`,
-`status`, `nextOpensAt` and the same `menu` as the QR bootstrap; the menu is shown in every status.
+transaction. It returns `restaurant { id, name, currencyCode, defaultLanguage, theme, publicPhone,
+deliveryEnabled, deliveryNoteZh, deliveryNoteIt, deliveryNoteEn }`, `status`, `nextOpensAt` and the
+same `menu` as the QR bootstrap; the menu is shown in every status.
 An invalid or unknown slug is `ONLINE_LINK_NOT_FOUND` (404).
 
 The submission body is `{ clientRequestId, fulfillment, customerName, customerPhone, deliveryAddress?,
 deliveryNotes?, items }`, unknown fields rejected; `items` uses the QR order line format and the shared
 `OrderLines` checks (1–30 lines, 1–20 portions each, 100 in all, 200-character remarks, `optionIds`
 required). The name is trimmed to 1–30 characters and the phone follows `InputRules.NormalizePhone`.
-Pickup takes no address; delivery needs one (1–200, notes up to 100) but is refused with
-`DELIVERY_NOT_OFFERED` until delivery settings exist. The server then:
+Pickup takes no address; delivery needs a trimmed address of 1–200 characters and takes optional
+notes (doorbell, floor) of up to 100. The server then:
 
 1. Validates the format (`VALIDATION_FAILED`) before any write.
 2. Finds the restaurant by slug and locks it SHARE, rechecking the slug.
@@ -168,7 +170,8 @@ Pickup takes no address; delivery needs one (1–200, notes up to 100) but is re
 4. Returns the stored result of an existing `(restaurant, clientRequestId)` and rolls back, so a repeat
    skips every later gate and uses no number.
 5. Requires `OPEN`: `SERVICE_SUSPENDED`, `ONLINE_NOT_OFFERED`, `ONLINE_PAUSED`, `ONLINE_CLOSED` (with
-   `nextOpensAt` when the week has a slot) or `ONLINE_BUSY` (all 409).
+   `nextOpensAt` when the week has a slot) or `ONLINE_BUSY` (all 409). A delivery request also needs
+   the restaurant's delivery switch, otherwise `DELIVERY_NOT_OFFERED` (409); pickup never depends on it.
 6. Checks dishes, options, availability and prices like QR orders (`MENU_CHANGED` with `changes`) and
    builds the line snapshots.
 7. Inserts the request with a random 32-byte Base64URL status token and `expires_at` ten minutes after
@@ -231,10 +234,18 @@ The cart lives in `sessionStorage` under `tavoloflow:cart:{restaurantId}:online`
 from every QR cart), with the QR cart's limits. Checkout is two steps: "Checkout" rereads the bootstrap,
 requires `OPEN` and refreshes the lines' prices and choices; the confirmation then shows the lines,
 total, name and phone fields (validated like the server), the as-soon-as-possible note and a one-line
-privacy notice linking to the privacy page. Placing the order builds the intent (request ID from
-`randomUuid`, trimmed name, normalized phone, lines with confirmed prices), writes it into the cart and
-reads it back before the POST; blocked storage allows editing but not sending. A saved intent must
-match its frozen lines exactly or the cart is reported damaged.
+privacy notice linking to the privacy page. With delivery on, the header says "pickup or delivery" and
+the confirmation starts with a pickup/delivery choice; delivery adds the address and the optional
+doorbell/floor notes, the restaurant's note in the customer's language (falling back to the default
+language, then Italian, Chinese and English; `deliveryNote` in `state.ts`) and a line saying the
+restaurant confirms the fee, which the status page shows after acceptance. The total is then labelled
+as the items total, and the privacy line also names the address. If "Checkout" finds delivery turned
+off since the customer chose it, the form goes back to pickup and says so; a `DELIVERY_NOT_OFFERED`
+refusal says the restaurant isn't delivering and pickup is possible. Placing the order builds the
+intent (request ID from `randomUuid`, fulfillment, trimmed name, normalized phone, trimmed address and
+notes for delivery and null for pickup, lines with confirmed prices), writes it into the cart and reads
+it back before the POST; blocked storage allows editing but not sending. A saved intent must match its
+frozen lines and fields exactly or the cart is reported damaged.
 
 On success the cart is cleared, the status token is remembered per restaurant in `localStorage`
 (`tavoloflow:online-order:{restaurantId}`, cleared once that order has ended or is unknown) and the page
@@ -256,7 +267,8 @@ The status page shows the number, the customer's name, the submission and estima
 `phase`, `sessionStatus`, `closeReason` and the dish statuses (`orderView`, `statusCopy`): waiting,
 expired, rejected with or without a reason, preparing (with the estimated time), ready, all dishes
 cancelled, collected (`PAID`) and closed (`NO_SHOW` or `VOIDED`), with pickup and delivery wording.
-When the order did not go ahead (expired, rejected, all cancelled) the phone moves from the header to
+A delivery order names itself "Delivery · name"; while waiting its total is labelled as the items
+total with "delivery fee to be confirmed" below it. When the order did not go ahead (expired, rejected, all cancelled) the phone moves from the header to
 the most visible notice. Customers cannot cancel; the page says to call instead.
 
 The privacy page names the restaurant as controller and TavoloFlow as processor, and lists the data,
@@ -384,7 +396,8 @@ discarded.
   end of day and the availability order, including `BUSY` last.
 - `OnlineOrderingTests`: bootstrap statuses and unknown links; numbers per local business date without
   gaps; repeats (also concurrent) returning the stored result; hour boundaries, summer time, a lapsing
-  pause and every gate code; input validation and CSRF; `MENU_CHANGED` and option snapshots; the cap
+  pause and every gate code; delivery only while its switch is on (address and notes stored, a repeat
+  still answered after turning it off, pickup unaffected); input validation and CSRF; `MENU_CHANGED` and option snapshots; the cap
   counting only waiting requests (twenty expired ones never block); the rate limit; recovery scoped to
   the restaurant; every status-page phase without private fields; and the race between a submission
   and switching online ordering off (`LockGate`).

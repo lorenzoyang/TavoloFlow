@@ -4,6 +4,7 @@ import {
   checkoutProblems,
   clearOrderToken,
   createOnlineIntent,
+  deliveryNote,
   emptyOnlineCart,
   onlineCartKey,
   orderEnded,
@@ -38,7 +39,19 @@ const item = {
   imageId: null,
   optionGroupIds: [] as string[],
 };
-const form = { name: "  Marco Rossi ", phone: "+39 333 123 4567" };
+const form = {
+  fulfillment: "PICKUP" as const,
+  name: "  Marco Rossi ",
+  phone: "+39 333 123 4567",
+  address: "",
+  notes: "",
+};
+const delivery = {
+  ...form,
+  fulfillment: "DELIVERY" as const,
+  address: "  Via Roma 1, Milano ",
+  notes: " Citofono 3 ",
+};
 const filled = (): OnlineCart =>
   editLine(addItem(addItem(emptyOnlineCart(restaurant), item), item), 0, {
     remark: " Poco brodo ",
@@ -53,11 +66,24 @@ test("the online cart has its own key beside the QR carts", () => {
 
 test("checkout requires a trimmed name of 1-30 characters and the shared phone rule", () => {
   assert.deepEqual(checkoutProblems(form), []);
-  assert.deepEqual(checkoutProblems({ name: "   ", phone: "12345" }), ["name", "phone"]);
-  assert.deepEqual(checkoutProblems({ name: "M".repeat(31), phone: "3331234567" }), ["name"]);
-  assert.deepEqual(checkoutProblems({ name: ` ${"M".repeat(30)} `, phone: "3331234567" }), []);
-  assert.deepEqual(checkoutProblems({ name: "Marco", phone: "+39-333-1234567" }), ["phone"]);
-  assert.deepEqual(checkoutProblems({ name: "Marco", phone: "+1234567890123456" }), ["phone"]);
+  const contact = (name: string, phone: string) => ({ ...form, name, phone });
+  assert.deepEqual(checkoutProblems(contact("   ", "12345")), ["name", "phone"]);
+  assert.deepEqual(checkoutProblems(contact("M".repeat(31), "3331234567")), ["name"]);
+  assert.deepEqual(checkoutProblems(contact(` ${"M".repeat(30)} `, "3331234567")), []);
+  assert.deepEqual(checkoutProblems(contact("Marco", "+39-333-1234567")), ["phone"]);
+  assert.deepEqual(checkoutProblems(contact("Marco", "+1234567890123456")), ["phone"]);
+  // Pickup ignores whatever the delivery fields hold.
+  assert.deepEqual(checkoutProblems({ ...form, address: "", notes: "x".repeat(200) }), []);
+});
+
+test("delivery also needs an address of 1-200 characters and takes notes of up to 100", () => {
+  assert.deepEqual(checkoutProblems(delivery), []);
+  assert.deepEqual(checkoutProblems({ ...delivery, address: "   ", notes: "" }), ["address"]);
+  assert.deepEqual(checkoutProblems({ ...delivery, address: ` ${"a".repeat(200)} ` }), []);
+  assert.deepEqual(checkoutProblems({ ...delivery, address: "a".repeat(201) }), ["address"]);
+  assert.deepEqual(checkoutProblems({ ...delivery, notes: ` ${"n".repeat(100)} ` }), []);
+  assert.deepEqual(checkoutProblems({ ...delivery, notes: "n".repeat(101) }), ["notes"]);
+  assert.deepEqual(checkoutProblems({ ...delivery, name: "", address: "" }), ["name", "address"]);
 });
 
 test("the intent sends trimmed contact details and the confirmed lines", () => {
@@ -67,6 +93,8 @@ test("the intent sends trimmed contact details and the confirmed lines", () => {
     fulfillment: "PICKUP",
     customerName: "Marco Rossi",
     customerPhone: "+393331234567",
+    deliveryAddress: null,
+    deliveryNotes: null,
     items: [
       {
         menuItemId: item.id,
@@ -84,6 +112,76 @@ test("the intent sends trimmed contact details and the confirmed lines", () => {
     () => createOnlineIntent({ ...filled(), pending: intent }, form, requestId),
     "limits",
   );
+  // Pickup never sends an address, even if the form still holds one from switching back.
+  assert.equal(
+    createOnlineIntent(filled(), { ...form, address: "Via Roma 1" }, requestId).deliveryAddress,
+    null,
+  );
+});
+
+test("a delivery intent sends the trimmed address and notes, and blank notes as null", () => {
+  const intent = createOnlineIntent(filled(), delivery, requestId);
+  assert.equal(intent.fulfillment, "DELIVERY");
+  assert.equal(intent.deliveryAddress, "Via Roma 1, Milano");
+  assert.equal(intent.deliveryNotes, "Citofono 3");
+  assert.equal(
+    createOnlineIntent(filled(), { ...delivery, notes: "   " }, requestId).deliveryNotes,
+    null,
+  );
+  throwsIssue(
+    () => createOnlineIntent(filled(), { ...delivery, address: "" }, requestId),
+    "limits",
+  );
+  throwsIssue(
+    () =>
+      createOnlineIntent(
+        filled(),
+        { ...form, fulfillment: "COURIER" as unknown as "PICKUP" },
+        requestId,
+      ),
+    "limits",
+  );
+
+  // A saved delivery intent restores only with its exact address and notes.
+  const cart = filled();
+  const saved = { ...cart, pending: intent };
+  assert.deepEqual(restoreOnlineCart(JSON.stringify(saved), restaurant), saved);
+  for (const pending of [
+    { ...intent, deliveryAddress: "Via Milano 2 " },
+    { ...intent, deliveryAddress: null },
+    { ...intent, fulfillment: "PICKUP" },
+    { ...intent, deliveryNotes: undefined },
+  ])
+    throwsIssue(
+      () => restoreOnlineCart(JSON.stringify({ ...cart, pending }), restaurant),
+      "damaged",
+    );
+  // A pickup intent carrying an address was not written by this page.
+  const pickup = createOnlineIntent(cart, form, requestId);
+  throwsIssue(
+    () =>
+      restoreOnlineCart(
+        JSON.stringify({ ...cart, pending: { ...pickup, deliveryAddress: "Via Roma 1" } }),
+        restaurant,
+      ),
+    "damaged",
+  );
+});
+
+test("the delivery note follows the customer's language, then the restaurant's fallback", () => {
+  const notes = {
+    defaultLanguage: "zh" as const,
+    deliveryNoteZh: "5 公里内免费",
+    deliveryNoteIt: " Entro 5 km gratis ",
+    deliveryNoteEn: null,
+  };
+  assert.deepEqual(deliveryNote(notes, "it"), { text: "Entro 5 km gratis", language: "it" });
+  assert.deepEqual(deliveryNote(notes, "en"), { text: "5 公里内免费", language: "zh" });
+  assert.deepEqual(deliveryNote({ ...notes, deliveryNoteZh: "  " }, "en"), {
+    text: "Entro 5 km gratis",
+    language: "it",
+  });
+  assert.equal(deliveryNote({ ...notes, deliveryNoteZh: null, deliveryNoteIt: null }, "zh"), null);
 });
 
 test("a saved cart restores only for its restaurant, with a pending intent matching its lines", () => {
