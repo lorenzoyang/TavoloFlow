@@ -36,6 +36,10 @@ if '@' not in values.get('ACME_EMAIL','') or 'replace-me' in values.get('ACME_EM
     sys.exit('Set ACME_EMAIL to your real email address.')
 if not re.fullmatch(r'[0-9a-fA-F]{64}',values.get('VAPID_PRIVATE_KEY','')):
     sys.exit('Set VAPID_PRIVATE_KEY to 64 hex characters generated with openssl rand -hex 32.')
+# P-256 private scalars must be in [1, n-1], matching the API's key import validation.
+curve_order=int('FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551',16)
+if not 0 < int(values['VAPID_PRIVATE_KEY'],16) < curve_order:
+    sys.exit('VAPID_PRIVATE_KEY is not a valid P-256 private key; generate another with openssl rand -hex 32.')
 PY
 chmod 600 "$TF_ROOT/.env"
 docker load -i "$package/api-image.tar.gz"

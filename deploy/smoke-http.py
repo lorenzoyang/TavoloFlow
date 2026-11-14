@@ -83,6 +83,14 @@ class Browser:
         return json.loads(data) if data else None
 
 
+def push_key(browser):
+    key = browser.read("/api/staff/push/key")["publicKey"]
+    assert isinstance(key, str) and len(key) == 87, "VAPID public key missing or malformed"
+    point = base64.urlsafe_b64decode(key + "=")
+    assert len(point) == 65 and point[0] == 4, "VAPID key is not an uncompressed P-256 point"
+    return key
+
+
 browser = Browser()
 for path in ["/", "/staff", "/staff/kitchen", "/platform/login", "/q/smoke-qr", "/r/smoke-link", "/r/smoke-link/privacy", "/o/smoke-token"]:
     headers, body = browser.request("GET", path)
@@ -139,8 +147,7 @@ if phase == "create":
     })
     browser.request("GET", "/api/not-found", status=404)
     # VAPID_PRIVATE_KEY reaches the API: it serves the derived public key (65-byte point, base64url).
-    public_key = browser.read("/api/staff/push/key")["publicKey"]
-    assert public_key and len(public_key) == 87 and public_key.startswith("B"), public_key
+    public_key = push_key(browser)
     category = browser.write("POST", "/api/owner/menu/categories", {
         "nameZh": "冒烟分类", "nameIt": None, "nameEn": None
     }, status=201)
@@ -163,7 +170,8 @@ if phase == "create":
         "sessionId": session_id, "joinCode": opened["joinCode"]
     }, "guest")
     (root / "browser.json").write_text(json.dumps({
-        "cookies": browser.cookies, "session": session_id, "code": opened["joinCode"], "restaurant": restaurant_id
+        "cookies": browser.cookies, "session": session_id, "code": opened["joinCode"],
+        "restaurant": restaurant_id, "vapidPublicKey": public_key
     }))
     print("HTTPS routes, cache headers, three identities, CSRF, restaurant creation, dish photo and encrypted join code: passed")
 else:
@@ -171,6 +179,7 @@ else:
     browser = Browser(saved["cookies"])
     browser.read("/api/platform/auth/me")
     browser.read("/api/auth/me")
+    assert push_key(browser) == saved["vapidPublicKey"], "VAPID public key changed; existing push subscriptions would stop working"
     browser.read(f"/api/public/sessions/{saved['session']}/access")
     assert browser.read(f"/api/staff/sessions/{saved['session']}/join-code")["joinCode"] == saved["code"]
-    print("Old static resource, persisted database, all login cookies and join-code decryption: passed")
+    print("Old static resource, persisted database, all login cookies, join-code decryption and unchanged VAPID key: passed")

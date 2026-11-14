@@ -151,6 +151,48 @@ printf '%s\n' "$second" > "$work/second/release.txt"
 rm "$work/second/frontend/assets/retained-smoke.js"
 printf '\n<!-- deployment smoke second release -->\n' >> "$work/second/frontend/index.html"
 rehash "$work/second"
+# An invalid key must fail before loading the new image, stopping the old API or changing its state.
+# Restore .env after every attempt, including unexpected errors, so cleanup always has valid config.
+python3 - "$TAVOLOFLOW_ROOT" "$work/second" <<'PY'
+import json,pathlib,subprocess
+import sys
+root,package=map(pathlib.Path,sys.argv[1:])
+env=root/'.env'
+original=env.read_bytes()
+current=(root/'state/current').read_bytes()
+api=subprocess.check_output(['bash',str(root/'tf.sh'),'ps','-q','api'],text=True).strip()
+def api_state():
+    info=json.loads(subprocess.check_output(['docker','inspect',api],text=True))[0]
+    state=info['State']
+    return info['Id'],state['StartedAt'],state['Running'],state['Health']['Status']
+before=api_state()
+assert before[2:] == (True,'healthy')
+cases={
+    'missing':None,
+    'empty':'',
+    'template placeholder':'REPLACE_WITH_64_HEX_CHARACTERS',
+    'non-hex':'g'*64,
+    'wrong length':'1'*63,
+    'zero scalar':'0'*64,
+    'curve order':'FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551',
+    'out-of-range scalar':'f'*64,
+}
+for name,key in cases.items():
+    lines=[line for line in original.decode().splitlines() if not line.startswith('VAPID_PRIVATE_KEY=')]
+    if key is not None:
+        lines.append('VAPID_PRIVATE_KEY='+key)
+    try:
+        env.write_text('\n'.join(lines)+'\n')
+        result=subprocess.run(['bash',str(package/'ops/install-release.sh'),str(package),str(root)],capture_output=True,text=True)
+    finally:
+        env.write_bytes(original)
+    assert result.returncode != 0, f'Installer accepted {name}'
+    assert 'VAPID_PRIVATE_KEY' in result.stderr, f'Installer did not reject {name} at key validation'
+    assert (root/'state/current').read_bytes() == current, f'Installed release changed for {name}'
+    assert api_state() == before, f'Running API changed for {name}'
+    print(f'Invalid VAPID key rejected without stopping the installed API: {name}')
+PY
+python3 "$repo/deploy/smoke-http.py" verify "$work" 18443
 # Reproduce the previous deployment bug, including the parent directory and .env.
 # The upgrade must repair it before running the old backup, and keep old assets.
 chown -hR 10001:10001 "$work/second" "$TAVOLOFLOW_ROOT"
@@ -183,12 +225,22 @@ docker exec -i "$COMPOSE_PROJECT_NAME-restore" pg_restore -U postgres -d postgre
 tar -tzf "$work/restore/keys.tar.gz" | grep -q 'key-'
 # Restore the key archive through the documented non-root helper, then force a fresh process.
 tf stop api
+# Model a replacement server's freshly generated key without starting an API with it, then restore
+# the actual saved configuration. The HTTP check below must still see the original public key.
+python3 - "$TAVOLOFLOW_ROOT/.env" <<'PY'
+import pathlib,secrets,sys
+env=pathlib.Path(sys.argv[1])
+lines=env.read_text().splitlines()
+env.write_text('\n'.join('VAPID_PRIVATE_KEY='+secrets.token_hex(32) if line.startswith('VAPID_PRIVATE_KEY=') else line for line in lines)+'\n')
+PY
+install -o root -g root -m 600 "$work/restore/production.env" "$TAVOLOFLOW_ROOT/.env"
 tf run --rm -T --no-deps --entrypoint sh api -ec \
   'find /var/tavoloflow/keys -maxdepth 1 -type f -delete; tar -xzf - -C /var/tavoloflow/keys --no-same-owner' \
   < "$work/restore/keys.tar.gz"
 tf up -d --no-deps --force-recreate --wait --wait-timeout 120 api
+assert_permissions
 python3 "$repo/deploy/smoke-http.py" verify "$work" 18443
 bash "$TAVOLOFLOW_ROOT/rollback.sh" --schema-compatible "$first"
 assert_permissions
 python3 "$repo/deploy/smoke-http.py" verify "$work" 18443
-printf '\nDeployment smoke test passed: root ownership and write protection, migrations, HTTPS, cookies/CSRF, two releases, restart, backup restore and application rollback.\n'
+printf '\nDeployment smoke test passed: root ownership and write protection, VAPID preflight before downtime, migrations, HTTPS, cookies/CSRF, two releases, restart, backup restore and rollback with the same VAPID key.\n'

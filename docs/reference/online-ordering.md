@@ -400,9 +400,11 @@ public key browsers subscribe with is derived from it (`Push/PushKeys`). `WebPus
 demo and CI); only one set, a malformed key or a key outside the curve fails startup
 (`PushOptionsValidator`, `ValidateOnStart`). Changing the key invalidates every device's subscription.
 Production requires it: `deploy/compose.yaml` maps `VAPID_PRIVATE_KEY` from the server's `.env` (64 hex
-characters, also checked by `install-release.sh` before the running API stops) and sets the subject to
-`https://{DOMAIN}`; backups include `.env`, and so the key. The smoke test generates a key and checks
-that the API serves the public key.
+characters and a valid P-256 private scalar, both checked by `install-release.sh` before the running
+API stops) and sets the subject to `https://{DOMAIN}`; backups include `.env`, and so the key. The smoke
+test rejects missing and invalid keys without stopping the old API, then checks that the public key is
+identical across upgrade, restart, saved-configuration restore and rollback. Real push delivery remains
+a manual device check.
 
 ### Device registration
 
