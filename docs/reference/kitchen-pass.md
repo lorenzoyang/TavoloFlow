@@ -96,8 +96,9 @@ a warning color without changing order. The entry is on Home for OWNER and STAFF
 
 Pass items contain `id`, `orderId`, `sessionId`, `channel`, `tableLabel`, `online` (as in the kitchen),
 `defaultLanguage`, `itemCode`, three names, `quantity`, `remark`, the `options` snapshot, `readyAt` and
-nullable `servedAt`. They contain no prices or request IDs. The explicit pickup "served" action
-means handed to the customer, but closure can also write this field without a handover.
+nullable `servedAt`. They contain no prices or request IDs. The explicit "served" action means
+handed to the guest or pickup customer, and for a delivery order handed to the rider; the button keeps
+its wording in every channel. Closure can also write this field without a handover.
 The list uses ascending `(readyAt, id)` keyset paging with tenant-bound cursors. Rows, count and
 watermark come from one Repeatable Read snapshot. `latestReadyAt` is the restaurant-wide maximum ready
 time of waiting READY lines; closure stamping keeps closed work out of that partial waiting index.

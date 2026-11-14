@@ -1,5 +1,6 @@
 // Pure online ordering rules, node-tested. They repeat the server's rules so forms can explain a
 // mistake before sending; the server stays the authority.
+import { parsePrice } from "../../lib/format.ts";
 
 export const MINUTES_PER_DAY = 1440;
 
@@ -149,12 +150,27 @@ export const deliveryWithoutNote = (input: DeliveryInput) =>
 // The submission cap (OnlineAvailability): with this many requests waiting, customers cannot order.
 export const MAX_WAITING_REQUESTS = 20;
 
-// The estimated-time choices for accepting a pickup order, in minutes.
+// The estimated-time choices for accepting an order, in minutes: ready to collect, or delivered.
 export const PICKUP_MINUTES = [10, 20, 30, 45] as const;
+export const DELIVERY_MINUTES = [30, 45, 60, 90] as const;
 
 // Optional reasons staff give for rejecting; OUT_OF_RANGE is for delivery only.
 export type RejectReason = "SOLD_OUT" | "BUSY" | "CLOSING" | "OUT_OF_RANGE";
-export const PICKUP_REJECT_REASONS = ["SOLD_OUT", "BUSY", "CLOSING"] as const;
+export const rejectReasons = (fulfillment: "PICKUP" | "DELIVERY"): RejectReason[] =>
+  fulfillment === "DELIVERY"
+    ? ["SOLD_OUT", "BUSY", "CLOSING", "OUT_OF_RANGE"]
+    : ["SOLD_OUT", "BUSY", "CLOSING"];
+
+// The delivery fee typed when accepting, in cents: a decimal amount, 0 when free, and with the items
+// still a safe integer like every bill. Null while it is not a valid fee.
+export function acceptFee(value: string, itemsTotalCents: number): number | null {
+  const fee = parsePrice(value, true);
+  return fee !== null && fee <= Number.MAX_SAFE_INTEGER - itemsTotalCents ? fee : null;
+}
+
+// A plain Google Maps search link for a delivery address; nothing is sent until someone opens it.
+export const mapsUrl = (address: string) =>
+  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 
 // The banner above every staff page: nothing at zero, the count while customers can still order, and
 // a warning once the cap stops new orders.

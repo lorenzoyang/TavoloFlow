@@ -193,9 +193,10 @@ The status page reads one Repeatable Read snapshot by token (`ONLINE_ORDER_NOT_F
 unknown token). It returns `restaurant { name, slug, currencyCode, defaultLanguage, theme, publicPhone
 }`, `number`, `customerName`, `fulfillment`, `submittedAt`, `expiresAt`, `phase` (`WAITING`, `EXPIRED`,
 `REJECTED` or `ACCEPTED`, from `OnlineRequestState`), `rejectReason`, `estimatedAt`, `sessionStatus` and
-`closeReason` once accepted, `items` and `totalAmountCents`. Before acceptance the items are the
-submitted snapshot (`status` null) and the total is the submitted item total; after acceptance they are
-the order items with their status and the total is the session's bill amount (`SessionSummaries`). It
+`closeReason` once accepted, `items`, `deliveryFeeCents` (once a delivery is accepted) and
+`totalAmountCents`. Before acceptance the items are the submitted snapshot (`status` null) and the
+total is the submitted item total; after acceptance they are the order items with their status and the
+total is the session's bill amount (`SessionSummaries`, with the fee while any dish counts). It
 never returns the customer's phone, an address or any request or session ID. From 24 hours after the
 order ended (`OnlineOrderStatusService.LinkLifetime`) the link returns `ONLINE_ORDER_NOT_FOUND`: the
 end is the expiry, the rejection or the accepted order's session closure (`OnlineRequestState.EndedAt`),
@@ -268,7 +269,8 @@ The status page shows the number, the customer's name, the submission and estima
 expired, rejected with or without a reason, preparing (with the estimated time), ready, all dishes
 cancelled, collected (`PAID`) and closed (`NO_SHOW` or `VOIDED`), with pickup and delivery wording.
 A delivery order names itself "Delivery · name"; while waiting its total is labelled as the items
-total with "delivery fee to be confirmed" below it. When the order did not go ahead (expired, rejected, all cancelled) the phone moves from the header to
+total with "delivery fee to be confirmed" below it, and once accepted the fee appears above the total
+(struck through and not charged when every dish is cancelled). When the order did not go ahead (expired, rejected, all cancelled) the phone moves from the header to
 the most visible notice. Customers cannot cancel; the page says to call instead.
 
 The privacy page names the restaurant as controller and TavoloFlow as processor, and lists the data,
@@ -288,7 +290,7 @@ transaction-scoped and release on commit or rollback.
 | --------------------------------------------- | ----------- | --------------------------------------------------------------------------------- |
 | `GET /api/staff/online/pending`               | STAFF/OWNER | `{ items, now }`: every waiting request, oldest first, with contact and lines     |
 | `GET /api/staff/online/active`                | STAFF/OWNER | `{ items }`: accepted orders whose session is ACTIVE, oldest acceptance first     |
-| `POST /api/staff/online/requests/{id}/accept` | STAFF/OWNER | `{ estimatedMinutes }` (pickup: 10, 20, 30 or 45) → the active order              |
+| `POST /api/staff/online/requests/{id}/accept` | STAFF/OWNER | `{ estimatedMinutes, deliveryFeeCents }` → the active order (see below)          |
 | `POST /api/staff/online/requests/{id}/reject` | STAFF/OWNER | `{ reason }`: null, `SOLD_OUT`, `BUSY`, `CLOSING` (`OUT_OF_RANGE` delivery) → 204 |
 
 The pending list reads `OnlineRequestState.Waiting` with the time from `TimeProvider`; the cap and the
@@ -296,18 +298,22 @@ ten-minute window keep it small, so it has no paging and no limit, and `now` is 
 the page's countdown. Each pending item carries the number, fulfillment, name, phone, delivery address
 and notes, submission and expiry times, the default language, the submitted lines (the status page's
 line shape) and the item total. Active orders come from `dining_sessions` through the partial index
-`ix_dining_sessions_active` (`restaurant_id, opened_at` where ACTIVE), never a history scan, and carry
-the number, channel, contact, acceptance and estimated times and line counts (`itemCount`,
-`newItemCount`, `readyItemCount`).
+`ix_dining_sessions_active` (`restaurant_id, opened_at` where ACTIVE), never a history scan. They are
+built from the sessions' bill summaries (`SessionSummaries.Project`), so their amount is the bill's
+own, and carry the number, channel, contact and address, acceptance (the session's opening) and
+estimated times, line counts (`itemCount`, `newItemCount`, `readyItemCount`), `deliveryFeeCents`
+(delivery only) and `totalAmountCents`, the amount to collect.
 
 Acceptance locks restaurant SHARE, then the request row UPDATE (`RowLocks.OnlineRequestAsync`; global
 order restaurant → online request), and requires the request to be still waiting at the current time,
 otherwise `ONLINE_REQUEST_CHANGED` (409). A suspended restaurant returns `SERVICE_SUSPENDED`, like
-opening a table; pause, hours and sold-out switches are not checked, and prices stay the submitted
-snapshot. Delivery requests return `DELIVERY_NOT_OFFERED` until delivery acceptance (with its fee)
-exists. Inside the same transaction it checks which dishes still exist (menu writers and dish deletion
-hold restaurant UPDATE, so this cannot interleave), creates the ACTIVE `PICKUP` session (opened now,
-bill version 1), its single order (`created_at` now, the request's client request ID, total and
+opening a table; pause, hours, sold-out and delivery switches are not checked, and prices stay the
+submitted snapshot. `estimatedMinutes` is 10, 20, 30 or 45 for pickup and 30, 45, 60 or 90 for
+delivery. A delivery request requires `deliveryFeeCents`, entered by whoever accepts from the address
+and the restaurant's note: whole cents, 0 for free delivery, and no larger than keeps items plus fee a
+safe integer; pickup takes none. Otherwise `VALIDATION_FAILED`. Inside the same transaction it checks which dishes still exist (menu writers and dish deletion
+hold restaurant UPDATE, so this cannot interleave), creates the ACTIVE `PICKUP` or `DELIVERY` session (the request's
+fulfillment, opened now, bill version 1, with the delivery fee on delivery), its single order (`created_at` now, the request's client request ID, total and
 default language) and the items through `OrderLineSnapshot.ToOrderItem` (a deleted dish leaves
 `menu_item_id` null with the snapshot kept), then sets `accepted_at`, `estimated_at` (now plus the
 minutes) and `session_id`. The order is created at acceptance, so the kitchen sorts it by then and the
@@ -337,21 +343,28 @@ until then it says "tap the page to turn on the ringing".
 
 ### Online orders page
 
-`/staff/online` (from 首页, with a back link) lists the pending requests, each with its number, pickup
-badge, name, a `tel:` call button, waited and remaining time on the server's clock (`requestTimes`,
-red under three minutes), the lines with options and remarks, and the subtotal. One tap on 10, 20, 30
-or 45 minutes accepts; Reject opens `ConfirmDialog` with an optional reason. Writes are blocked while
+`/staff/online` (from 首页, with a back link) lists the pending requests, each with its number,
+fulfillment badge, name, a `tel:` call button, for delivery the address as a plain Google Maps search
+link (`mapsUrl`) with the doorbell notes, waited and remaining time on the server's clock
+(`requestTimes`, red under three minutes), the lines with options and remarks, and the subtotal. One
+tap on 10, 20, 30 or 45 minutes accepts a pickup. A delivery first takes the fee (a decimal amount, 0
+when free; `acceptFee`), shows "subtotal + delivery fee = total", and only then enables 30, 45, 60 and
+90 minutes. Reject opens `ConfirmDialog` with an optional reason; "outside the delivery area" is
+offered for delivery only (`rejectReasons`). Writes are blocked while
 the list is failed, stale or not refreshed since resume (`syncIsFresh`); every outcome rereads the
 pending, active, kitchen, pass and bills views, and an unknown result says to check the refreshed list.
-Below, the read-only In progress list shows each accepted order's number, name, call button, estimated
-time and progress (cooking, ready or all cancelled): the only place STAFF see an accepted customer's
-phone, since the kitchen and pass never show it.
+Below, the read-only In progress list shows each accepted order's number, name, estimated time, the
+amount to collect (with the delivery fee it includes, while it counts), call button, delivery address
+link and progress (cooking, ready or all cancelled): the only place STAFF see an accepted customer's
+phone and address, and what a rider collects, since the kitchen and pass never show them and STAFF have
+no bills page.
 
 ### Kitchen, pass, bills and history
 
 Kitchen orders, pass items and bill summaries carry `channel` (`DINE_IN`, `PICKUP`, `DELIVERY`) and a
 nullable `tableLabel`. Kitchen and pass add `online: { number, customerName, estimatedAt }` (never the
-phone or address); bill summaries add `online: { number, customerName, customerPhone, estimatedAt }`.
+phone or address); bill summaries add `online: { number, customerName, customerPhone, estimatedAt,
+deliveryAddress, deliveryNotes }` and `deliveryFeeCents`.
 `lib/session-label.ts` names every session in one place: "Table 5", or "Pickup #12" with the customer
 name and estimated time (`SessionName` puts them on a second, truncated line, and the cards holding it
 take `min-w-0` so a long name never widens a 360px grid). The kitchen
@@ -408,11 +421,14 @@ discarded.
 - `OnlineStaffTests`: the pending list (only waiting requests, oldest first, expiry at `expires_at`,
   other restaurants hidden, server time), acceptance creating the session, order and items at the
   acceptance time with options and allergens, the kitchen ticket and watermark, the expiry boundary,
-  invalid minutes, `SERVICE_SUSPENDED`, `DELIVERY_NOT_OFFERED`, pause/hours/sold-out ignored, repeats
+  invalid minutes, `SERVICE_SUSPENDED`, pause/hours/sold-out ignored, repeats
   and foreign IDs, rejection reasons, accept/reject races (exactly one wins), acceptance racing dish
   deletion (`LockGate`), and an accepted order through ready, pass, checkout, VOIDED, the EMPTY refusal,
   the active sessions list and history; `NO_SHOW` (OWNER only, online only, PAID's conditions,
-  repeat, closure stamping, status page and history filter).
+  repeat, closure stamping, status page and history filter); delivery acceptance (fee required, 0
+  allowed, overflow, delivery times, pickup without a fee, the delivery switch ignored, `OUT_OF_RANGE`)
+  and the delivery bill (fee in PAID and NO_SHOW totals and history, a fully cancelled delivery voided
+  at zero).
 - `OnlineOrderingTests` also covers the 30-day contact cleanup (strictly older, own restaurant only,
   rolled back with a rejected submission) and the status link's 24-hour limit after expiry, rejection
   and closure, while an active order keeps its link.

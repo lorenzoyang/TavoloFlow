@@ -12,8 +12,9 @@ namespace TavoloFlow.Api.Online;
 // waiting, so a repeat only gets ONLINE_REQUEST_CHANGED and the pending list shows what happened.
 public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clock)
 {
-    // The fixed estimated-time choices for pickup; delivery adds its own with the delivery settings.
+    // The fixed estimated-time choices: ready to collect, or delivered.
     public static readonly int[] PickupMinutes = [10, 20, 30, 45];
+    public static readonly int[] DeliveryMinutes = [30, 45, 60, 90];
 
     // Oldest first. The waiting cap and the ten-minute window keep this small, so it has no paging and no
     // limit: a limit could hide a request until it expires unseen.
@@ -32,13 +33,13 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
     // Accepted online orders until their session closes, oldest acceptance first. Reads only ACTIVE sessions
     // (ix_dining_sessions_active), so it never scans history.
     public async Task<OnlineActivePage> ActiveAsync(Guid restaurantId, CancellationToken ct) =>
-        new(await Active(restaurantId).ToArrayAsync(ct));
+        new(await ActiveOrdersAsync(restaurantId, null, ct));
 
     // Lock order: restaurant SHARE, then the request row UPDATE. Menu writers and dish deletion take
     // restaurant UPDATE, so the "dish still exists" check below cannot interleave with them, and the
     // platform's services switch waits for this to commit before it counts open work.
-    // Pause, hours and sold-out switches are not checked: the request was valid when submitted, and the
-    // lines keep their submitted snapshot and prices.
+    // Pause, hours, sold-out and delivery switches are not checked: the request was valid when submitted,
+    // and the lines keep their submitted snapshot and prices. Delivery adds the fee whoever accepts enters.
     public async Task<OnlineActiveOrderResponse> AcceptAsync(
         Guid restaurantId,
         Guid id,
@@ -59,15 +60,15 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
         // Like opening a table: a suspended restaurant starts no new work.
         if (restaurant.ServiceStatus != RestaurantServiceStatus.Active)
             throw OnlineErrors.Suspended();
-        // Delivery acceptance needs the delivery fee, which comes with the delivery settings.
-        if (request.Fulfillment == OnlineFulfillment.Delivery)
-            throw OnlineErrors.DeliveryNotOffered();
-        if (input.EstimatedMinutes is not { } minutes || !PickupMinutes.Contains(minutes))
+        var delivery = request.Fulfillment == OnlineFulfillment.Delivery;
+        var choices = delivery ? DeliveryMinutes : PickupMinutes;
+        if (input.EstimatedMinutes is not { } minutes || !choices.Contains(minutes))
             throw ApiException.Validation(
-                "Choose 10, 20, 30 or 45 minutes.",
+                $"Choose {string.Join(", ", choices)} minutes.",
                 "estimatedMinutes",
                 "Invalid time."
             );
+        var fee = DeliveryFee(request, input.DeliveryFeeCents);
 
         var dishIds = request.Lines.Select(line => line.MenuItemId).Distinct().ToArray();
         var existing = (
@@ -80,7 +81,8 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
         {
             Id = Guid.CreateVersion7(),
             RestaurantId = restaurantId,
-            Channel = SessionChannel.Pickup,
+            Channel = delivery ? SessionChannel.Delivery : SessionChannel.Pickup,
+            DeliveryFeeCents = fee,
             OpenedAt = now,
         };
         // Created now, not at submission: the kitchen sorts, groups and chimes by when work arrives.
@@ -115,9 +117,33 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
             );
         if (accepted != 1)
             throw OnlineErrors.RequestChanged();
-        var result = await Active(restaurantId, session.Id).SingleAsync(ct);
+        var result = (await ActiveOrdersAsync(restaurantId, session.Id, ct)).Single();
         await transaction.CommitAsync(ct);
         return result;
+    }
+
+    // Delivery requires an explicit fee, 0 for free; the bill (items plus fee) stays a safe integer.
+    private static long? DeliveryFee(OnlineRequest request, long? fee)
+    {
+        if (request.Fulfillment != OnlineFulfillment.Delivery)
+            return fee is null
+                ? null
+                : throw ApiException.Validation(
+                    "Pickup orders take no delivery fee.",
+                    "deliveryFeeCents",
+                    "Pickup only."
+                );
+        if (
+            fee is not { } cents
+            || cents < 0
+            || cents > InputRules.MaxSafeCents - request.ItemsTotalCents
+        )
+            throw ApiException.Validation(
+                "Enter the delivery fee in whole cents, 0 for free delivery.",
+                "deliveryFeeCents",
+                "Invalid fee."
+            );
+        return cents;
     }
 
     // Only the request row: read the time after acquiring UPDATE, just like acceptance. A decision that
@@ -168,33 +194,28 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
         await transaction.CommitAsync(ct);
     }
 
-    private IQueryable<OnlineActiveOrderResponse> Active(
+    // Through the bill summaries, so the amount to collect is the bill's own.
+    private async Task<OnlineActiveOrderResponse[]> ActiveOrdersAsync(
         Guid restaurantId,
-        Guid? sessionId = null
+        Guid? sessionId,
+        CancellationToken ct
     ) =>
-        db
-            .DiningSessions.AsNoTracking()
-            .Where(s =>
-                s.RestaurantId == restaurantId
-                && s.Status == DiningSessionStatus.Active
-                && s.Channel != SessionChannel.DineIn
-                && s.OnlineRequest != null
-                && (sessionId == null || s.Id == sessionId)
-            )
-            .OrderBy(s => s.OpenedAt)
-            .ThenBy(s => s.Id)
-            .Select(s => new OnlineActiveOrderResponse(
-                s.Id,
-                s.OnlineRequest!.Number,
-                ApiEnum.Text(s.Channel),
-                s.OnlineRequest.CustomerName,
-                s.OnlineRequest.CustomerPhone,
-                s.OnlineRequest.DeliveryAddress,
-                s.OnlineRequest.DeliveryNotes,
-                s.OnlineRequest.AcceptedAt!.Value,
-                s.OnlineRequest.EstimatedAt!.Value,
-                s.Orders.SelectMany(o => o.Items).Count(),
-                s.Orders.SelectMany(o => o.Items).Count(i => i.Status == OrderItemStatus.New),
-                s.Orders.SelectMany(o => o.Items).Count(i => i.Status == OrderItemStatus.Ready)
-            ));
+        (
+            await SessionSummaries
+                .Project(
+                    db.DiningSessions.AsNoTracking()
+                        .Where(s =>
+                            s.RestaurantId == restaurantId
+                            && s.Status == DiningSessionStatus.Active
+                            && s.Channel != SessionChannel.DineIn
+                            && s.OnlineRequest != null
+                            && (sessionId == null || s.Id == sessionId)
+                        )
+                        .OrderBy(s => s.OpenedAt)
+                        .ThenBy(s => s.Id)
+                )
+                .ToArrayAsync(ct)
+        )
+            .Select(OnlineActiveOrderResponse.From)
+            .ToArray();
 }

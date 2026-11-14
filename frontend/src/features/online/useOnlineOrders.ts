@@ -119,10 +119,13 @@ export function useOnlineOrders(account: CurrentAccount) {
     busy,
     notice,
     refresh,
-    accept: (request: OnlinePendingRequest, minutes: number) =>
+    accept: (request: OnlinePendingRequest, minutes: number, fee: number | null) =>
       decide(request, async (signal) => {
-        const order = await acceptOnlineRequest(request.id, minutes, signal);
-        return m.accepted(order.number, formatTime(order.estimatedAt, language));
+        const order = await acceptOnlineRequest(request.id, minutes, fee, signal);
+        const time = formatTime(order.estimatedAt, language);
+        return order.channel === "DELIVERY"
+          ? m.acceptedDelivery(order.number, time)
+          : m.accepted(order.number, time);
       }),
     reject: (request: OnlinePendingRequest, reason: RejectReason | null) =>
       decide(request, async (signal) => {

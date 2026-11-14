@@ -1,15 +1,20 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  acceptFee,
   activeProgress,
+  DELIVERY_MINUTES,
   deliveryDraft,
   deliveryInput,
   deliveryWithoutNote,
   formatCountdown,
   formatMinute,
+  mapsUrl,
   MAX_WAITING_REQUESTS,
   normalizePhone,
   pendingBanner,
+  PICKUP_MINUTES,
+  rejectReasons,
   requestTimes,
   parseTime,
   sameDelivery,
@@ -207,4 +212,30 @@ test("delivery settings trim notes, store blanks as null and reject notes over 5
   assert.ok(bare.ok && deliveryWithoutNote(bare.input));
   const off = deliveryInput({ enabled: false, notes: { zh: "", it: "", en: "" } });
   assert.ok(off.ok && !deliveryWithoutNote(off.input));
+});
+
+test("delivery acceptance takes an explicit decimal fee, 0 when free, within the safe total", () => {
+  assert.equal(acceptFee("2", 2400), 200);
+  assert.equal(acceptFee(" 2,5 ", 2400), 250);
+  assert.equal(acceptFee("0", 2400), 0);
+  assert.equal(acceptFee("0.00", 2400), 0);
+  for (const invalid of ["", " ", "-1", "2.555", "abc", "2 €"])
+    assert.equal(acceptFee(invalid, 2400), null, invalid);
+  const max = Number.MAX_SAFE_INTEGER;
+  assert.equal(acceptFee("0.01", max - 1), 1);
+  assert.equal(acceptFee("0.02", max - 1), null);
+});
+
+test("delivery has its own times and the out-of-range reason", () => {
+  assert.deepEqual([...PICKUP_MINUTES], [10, 20, 30, 45]);
+  assert.deepEqual([...DELIVERY_MINUTES], [30, 45, 60, 90]);
+  assert.deepEqual(rejectReasons("PICKUP"), ["SOLD_OUT", "BUSY", "CLOSING"]);
+  assert.deepEqual(rejectReasons("DELIVERY"), ["SOLD_OUT", "BUSY", "CLOSING", "OUT_OF_RANGE"]);
+});
+
+test("a delivery address opens a plain maps search with the address encoded", () => {
+  assert.equal(
+    mapsUrl("Via Roma 1, Milano & co"),
+    "https://www.google.com/maps/search/?api=1&query=Via%20Roma%201%2C%20Milano%20%26%20co",
+  );
 });

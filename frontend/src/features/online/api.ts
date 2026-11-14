@@ -80,6 +80,9 @@ export type OnlineActiveOrder = {
   itemCount: number;
   newItemCount: number;
   readyItemCount: number;
+  // Delivery only. The total is the bill's amount to collect, with the fee while it counts.
+  deliveryFeeCents: number | null;
+  totalAmountCents: number;
 };
 
 export const onlinePendingKey = (account: AccountScope) => storeKey("online-pending", account);
@@ -104,11 +107,17 @@ export const onlineActiveQuery = (account: AccountScope) =>
   });
 
 // Both apply only to a request still waiting; a repeat or a lost race returns ONLINE_REQUEST_CHANGED.
-export const acceptOnlineRequest = (id: string, estimatedMinutes: number, signal: AbortSignal) =>
+// Delivery sends the fee in cents (0 when free); pickup sends null.
+export const acceptOnlineRequest = (
+  id: string,
+  estimatedMinutes: number,
+  deliveryFeeCents: number | null,
+  signal: AbortSignal,
+) =>
   write<OnlineActiveOrder>(
     `/api/staff/online/requests/${id}/accept`,
     "POST",
-    { estimatedMinutes },
+    { estimatedMinutes, deliveryFeeCents },
     signal,
   );
 export const rejectOnlineRequest = (id: string, reason: RejectReason | null, signal: AbortSignal) =>

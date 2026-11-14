@@ -181,13 +181,10 @@ public sealed class OnlineStaffTests(PostgreSqlFixture database) : IClassFixture
             Noon.AddMinutes(-10).AddSeconds(1),
             3
         );
-        var delivery = OnlineTestData.Request(shop.RestaurantId, Noon, 4);
-        delivery.Fulfillment = OnlineFulfillment.Delivery;
-        delivery.DeliveryAddress = "Via Roma 1";
         var foreign = OnlineTestData.Request(other.RestaurantId, Noon, 1);
         await using (var db = database.CreateContext())
         {
-            db.AddRange(waiting, expiring, lastMoment, delivery, foreign);
+            db.AddRange(waiting, expiring, lastMoment, foreign);
             await db.SaveChangesAsync();
             // Paused, outside the hours and sold out: none of these stops a decision on a valid request.
             await db
@@ -216,11 +213,6 @@ public sealed class OnlineStaffTests(PostgreSqlFixture database) : IClassFixture
             "ONLINE_REQUEST_CHANGED"
         );
         Assert.Equal(HttpStatusCode.OK, (await AcceptAsync(staff, lastMoment.Id, 10)).StatusCode);
-        await AssertErrorAsync(
-            await AcceptAsync(staff, delivery.Id, 30),
-            HttpStatusCode.Conflict,
-            "DELIVERY_NOT_OFFERED"
-        );
         foreach (var missing in new[] { foreign.Id, Guid.NewGuid() })
             await AssertErrorAsync(
                 await AcceptAsync(staff, missing, 10),
@@ -460,8 +452,12 @@ public sealed class OnlineStaffTests(PostgreSqlFixture database) : IClassFixture
         Assert.Equal(new[] { 7, 8 }, active.Items.Select(s => s.Online!.Number));
         var bill = active.Items[0];
         Assert.Equal(("PICKUP", null, null), (bill.Channel, bill.TableId, bill.TableLabel));
-        Assert.Equal(new OnlineBillResponse(7, "Marco", "+393331234567", estimated), bill.Online);
+        Assert.Equal(
+            new OnlineBillResponse(7, "Marco", "+393331234567", estimated, null, null),
+            bill.Online
+        );
         Assert.Equal((2400L, 1, 1), (bill.TotalAmountCents, bill.OrderCount, bill.NewItemCount));
+        Assert.Null(bill.DeliveryFeeCents);
 
         var order = (
             await owner.GetFromJsonAsync<BillPage>($"/api/staff/sessions/{bill.SessionId}/bill")
@@ -560,6 +556,213 @@ public sealed class OnlineStaffTests(PostgreSqlFixture database) : IClassFixture
             )
         )!;
         Assert.Equal(("CLOSED", "PAID"), (status.SessionStatus, status.CloseReason));
+    }
+
+    [Fact]
+    public async Task Accept_Delivery_TakesTheFeeAndDeliveryTimes_WhateverTheSwitch()
+    {
+        using var host = new AccountTestHost(database);
+        host.Clock.Set(MondayNoon);
+        var shop = await OnlineTestData.SeedShopAsync(database);
+        var delivery = Delivery(shop, Noon, 1);
+        var free = Delivery(shop, Noon, 2);
+        var far = Delivery(shop, Noon, 3);
+        var pickup = OnlineTestData.Request(shop.RestaurantId, Noon, 4, shop.Dish.Id);
+        await using (var db = database.CreateContext())
+        {
+            db.AddRange(delivery, free, far, pickup);
+            await db.SaveChangesAsync();
+        }
+        // The seeded shop has delivery off: the switch only stops new submissions, not decisions.
+        using var staff = await OnlineTestData.LoginAsync(host, shop.Staff);
+
+        foreach (
+            var (id, minutes, fee) in new (Guid, int, long?)[]
+            {
+                (delivery.Id, 20, 250), // a pickup time
+                (delivery.Id, 120, 250),
+                (delivery.Id, 60, null), // the fee is required, 0 when free
+                (delivery.Id, 60, -1),
+                (delivery.Id, 60, InputRules.MaxSafeCents - 2400 + 1),
+                (pickup.Id, 20, 0), // pickup takes no fee
+                (pickup.Id, 60, null),
+            }
+        )
+            await AssertErrorAsync(
+                await AcceptAsync(staff, id, minutes, fee),
+                HttpStatusCode.BadRequest,
+                "VALIDATION_FAILED"
+            );
+
+        var response = await AcceptAsync(staff, delivery.Id, 60, 250);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var accepted = (await response.Content.ReadFromJsonAsync<OnlineActiveOrderResponse>())!;
+        Assert.Equal(
+            ("DELIVERY", 250L, 2650L),
+            (accepted.Channel, accepted.DeliveryFeeCents, accepted.TotalAmountCents)
+        );
+        Assert.Equal(
+            ("Via Roma 1, Milano", "Citofono 3"),
+            (accepted.DeliveryAddress, accepted.DeliveryNotes)
+        );
+        Assert.Equal((Noon, Noon.AddMinutes(60)), (accepted.AcceptedAt, accepted.EstimatedAt));
+        Assert.Equal(accepted, Assert.Single((await ActiveAsync(staff)).Items));
+        await using (var db = database.CreateContext())
+        {
+            var session = await db.DiningSessions.SingleAsync(s => s.Id == accepted.SessionId);
+            Assert.Equal(
+                (SessionChannel.Delivery, 250L),
+                (session.Channel, session.DeliveryFeeCents)
+            );
+        }
+        using var customer = host.Browser();
+        var status = (
+            await customer.GetFromJsonAsync<OnlineOrderStatusResponse>(
+                $"/api/public/online-orders/{delivery.StatusToken}"
+            )
+        )!;
+        Assert.Equal(
+            ("DELIVERY", 250L, 2650L),
+            (status.Fulfillment, status.DeliveryFeeCents, status.TotalAmountCents)
+        );
+        var waitingStatus = (
+            await customer.GetFromJsonAsync<OnlineOrderStatusResponse>(
+                $"/api/public/online-orders/{far.StatusToken}"
+            )
+        )!;
+        Assert.Equal(
+            (null, 2400L),
+            (waitingStatus.DeliveryFeeCents, waitingStatus.TotalAmountCents)
+        );
+
+        var freeOrder = (
+            await (
+                await AcceptAsync(staff, free.Id, 90, 0)
+            ).Content.ReadFromJsonAsync<OnlineActiveOrderResponse>()
+        )!;
+        Assert.Equal((0L, 2400L), (freeOrder.DeliveryFeeCents, freeOrder.TotalAmountCents));
+        Assert.Equal(Noon.AddMinutes(90), freeOrder.EstimatedAt);
+        Assert.Equal(
+            HttpStatusCode.NoContent,
+            (await RejectAsync(staff, far.Id, "OUT_OF_RANGE")).StatusCode
+        );
+        Assert.Equal(HttpStatusCode.OK, (await AcceptAsync(staff, pickup.Id, 20)).StatusCode);
+    }
+
+    // The fee counts in the bill while any dish does: PAID and NO_SHOW record it, a fully cancelled
+    // delivery still closes as VOIDED at zero.
+    [Fact]
+    public async Task DeliveryBill_CountsTheFeeUntilEveryDishIsCancelled()
+    {
+        using var host = new AccountTestHost(database);
+        host.Clock.Set(MondayNoon);
+        var shop = await OnlineTestData.SeedShopAsync(database);
+        var paid = Delivery(shop, Noon, 1);
+        var cancelled = Delivery(shop, Noon, 2);
+        var missed = Delivery(shop, Noon, 3);
+        await using (var db = database.CreateContext())
+        {
+            db.AddRange(paid, cancelled, missed);
+            await db.SaveChangesAsync();
+        }
+        using var owner = await OnlineTestData.LoginAsync(host, shop.Owner);
+        foreach (var request in new[] { paid, cancelled, missed })
+            Assert.Equal(
+                HttpStatusCode.OK,
+                (await AcceptAsync(owner, request.Id, 30, 300)).StatusCode
+            );
+        var active = (
+            await owner.GetFromJsonAsync<ActiveSessionsPage>("/api/staff/sessions/active")
+        )!;
+        Assert.All(
+            active.Items,
+            bill => Assert.Equal((300L, 2700L), (bill.DeliveryFeeCents, bill.TotalAmountCents))
+        );
+        Assert.Equal(
+            ("Via Roma 1, Milano", "Citofono 3"),
+            (active.Items[0].Online!.DeliveryAddress, active.Items[0].Online!.DeliveryNotes)
+        );
+        Assert.Equal("DELIVERY", active.Items[0].Channel);
+        var sessions = active.Items.ToDictionary(b => b.Online!.Number, b => b.SessionId);
+
+        async Task<(Guid Order, Guid Item)> LineAsync(Guid session)
+        {
+            var order = (
+                await owner.GetFromJsonAsync<BillPage>($"/api/staff/sessions/{session}/bill")
+            )!.Orders.Single();
+            Assert.Equal(2400L, order.PayableAmountCents);
+            return (order.Id, order.Items.Single().Id);
+        }
+        async Task ItemAsync(Guid session, string action)
+        {
+            var (order, item) = await LineAsync(session);
+            Assert.Equal(
+                HttpStatusCode.OK,
+                (
+                    await PostAsync(
+                        owner,
+                        $"/api/staff/orders/{order}/items/{item}/{action}",
+                        new { }
+                    )
+                ).StatusCode
+            );
+        }
+
+        await ItemAsync(sessions[1], "ready");
+        var closed = await PostAsync(
+            owner,
+            $"/api/owner/sessions/{sessions[1]}/checkout",
+            new { expectedBillVersion = 1, confirmedTotalCents = 2700 }
+        );
+        Assert.Equal(HttpStatusCode.OK, closed.StatusCode);
+        Assert.Equal(
+            2700L,
+            (await closed.Content.ReadFromJsonAsync<BillSummaryResponse>())!.TotalAmountCents
+        );
+
+        await ItemAsync(sessions[2], "cancel");
+        var zero = (
+            await owner.GetFromJsonAsync<BillSummaryResponse>($"/api/staff/sessions/{sessions[2]}")
+        )!;
+        Assert.Equal(
+            (300L, 0L, 2),
+            (zero.DeliveryFeeCents, zero.TotalAmountCents, zero.BillVersion)
+        );
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (
+                await PostAsync(
+                    owner,
+                    $"/api/staff/sessions/{sessions[2]}/close-void",
+                    new
+                    {
+                        expectedBillVersion = 2,
+                        confirmedTotalCents = 0,
+                        guestsLeftConfirmed = true,
+                    }
+                )
+            ).StatusCode
+        );
+
+        await ItemAsync(sessions[3], "ready");
+        var noShow = await PostAsync(
+            owner,
+            $"/api/owner/sessions/{sessions[3]}/close-no-show",
+            new
+            {
+                expectedBillVersion = 1,
+                confirmedTotalCents = 2700,
+                noShowConfirmed = true,
+            }
+        );
+        Assert.Equal(HttpStatusCode.OK, noShow.StatusCode);
+
+        var history = (await owner.GetFromJsonAsync<HistoryPage>("/api/owner/history"))!;
+        Assert.Equal(
+            new[] { ("NO_SHOW", 2700L), ("VOIDED", 0L), ("PAID", 2700L) },
+            history.Items.Select(s => (s.CloseReason!, s.TotalAmountCents))
+        );
+        Assert.All(history.Items, s => Assert.Equal(300L, s.DeliveryFeeCents));
     }
 
     // NO_SHOW: online orders only, OWNER only, like PAID a positive receivable with no NEW dishes.
@@ -691,12 +894,27 @@ public sealed class OnlineStaffTests(PostgreSqlFixture database) : IClassFixture
     private static async Task<OnlineActivePage> ActiveAsync(HttpClient client) =>
         (await client.GetFromJsonAsync<OnlineActivePage>("/api/staff/online/active"))!;
 
-    private static Task<HttpResponseMessage> AcceptAsync(HttpClient client, Guid id, int minutes) =>
+    private static Task<HttpResponseMessage> AcceptAsync(
+        HttpClient client,
+        Guid id,
+        int minutes,
+        long? fee = null
+    ) =>
         PostAsync(
             client,
             $"/api/staff/online/requests/{id}/accept",
-            new { estimatedMinutes = minutes }
+            new { estimatedMinutes = minutes, deliveryFeeCents = fee }
         );
+
+    // A delivery request of two ramen at 12 € (24 € of items) submitted at submittedAt.
+    private static OnlineRequest Delivery(OnlineShop shop, DateTime submittedAt, int number)
+    {
+        var request = OnlineTestData.Request(shop.RestaurantId, submittedAt, number, shop.Dish.Id);
+        request.Fulfillment = OnlineFulfillment.Delivery;
+        request.DeliveryAddress = "Via Roma 1, Milano";
+        request.DeliveryNotes = "Citofono 3";
+        return request;
+    }
 
     private static Task<HttpResponseMessage> RejectAsync(
         HttpClient client,

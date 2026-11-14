@@ -89,8 +89,9 @@ public sealed record OnlineOrderLineResponse(
 }
 
 // The customer's status page. Phase is WAITING, EXPIRED, REJECTED or ACCEPTED (OnlineRequestState);
-// SessionStatus and CloseReason exist once accepted. TotalAmountCents is the submitted item total before
-// acceptance, then the session's bill amount. It never contains the phone, the address or request IDs.
+// SessionStatus and CloseReason exist once accepted, and DeliveryFeeCents once a delivery is accepted.
+// TotalAmountCents is the submitted item total before acceptance, then the session's bill amount (with
+// the fee while it counts). It never contains the phone, the address or request IDs.
 public sealed record OnlineOrderStatusResponse(
     OnlineOrderRestaurantResponse Restaurant,
     int Number,
@@ -104,5 +105,6 @@ public sealed record OnlineOrderStatusResponse(
     string? SessionStatus,
     string? CloseReason,
     OnlineOrderLineResponse[] Items,
+    long? DeliveryFeeCents,
     long TotalAmountCents
 );

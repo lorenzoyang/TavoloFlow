@@ -6,11 +6,19 @@ export type CloseKind = "PAID" | "EMPTY" | "VOIDED" | "NO_SHOW";
 export type BillSummary = SessionNaming & {
   sessionId: string;
   tableId: string | null;
-  online: (OnlineTicket & { customerPhone: string | null }) | null;
+  online:
+    | (OnlineTicket & {
+        customerPhone: string | null;
+        deliveryAddress: string | null;
+        deliveryNotes: string | null;
+      })
+    | null;
   status: "ACTIVE" | "CLOSED";
   openedAt: string;
   closedAt: string | null;
   closeReason: CloseKind | null;
+  // Delivery only; the total includes it while any dish is not cancelled.
+  deliveryFeeCents: number | null;
   billVersion: number;
   orderCount: number;
   itemCount: number;

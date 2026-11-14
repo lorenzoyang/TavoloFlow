@@ -87,6 +87,7 @@ public sealed class OnlineOrderStatusService(ApplicationDbContext db, TimeProvid
             bill?.Status,
             bill?.CloseReason,
             items,
+            bill?.DeliveryFeeCents,
             bill?.TotalAmountCents ?? request.ItemsTotalCents
         );
     }

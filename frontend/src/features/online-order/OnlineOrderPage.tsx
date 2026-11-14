@@ -180,6 +180,23 @@ function OrderContent({
               );
             })}
           </ul>
+          {order.deliveryFeeCents !== null && (
+            <div className="flex items-baseline justify-between gap-3">
+              <span>{m.deliveryFee}</span>
+              {/* With every dish cancelled the fee is not charged either. */}
+              <span
+                className={cn(
+                  "tabular-nums",
+                  view === "allCancelled" && "text-muted-foreground line-through",
+                )}
+              >
+                {formatMoney(order.deliveryFeeCents, language)}
+              </span>
+            </div>
+          )}
+          {order.deliveryFeeCents !== null && view === "allCancelled" && (
+            <Badge variant="outline">{m.notCharged}</Badge>
+          )}
           <p className="flex items-baseline justify-between gap-3 text-lg font-semibold">
             <span>{itemsOnly ? m.itemsTotal : m.total}</span>
             <span className="tabular-nums">{formatMoney(order.totalAmountCents, language)}</span>

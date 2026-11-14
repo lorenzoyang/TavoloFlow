@@ -68,6 +68,8 @@ export type OnlineOrder = {
     options: OptionSnapshot[];
     status: OrderItemStatus | null;
   })[];
+  // Set once a delivery is accepted; the total then includes it while any dish counts.
+  deliveryFeeCents: number | null;
   totalAmountCents: number;
 };
 

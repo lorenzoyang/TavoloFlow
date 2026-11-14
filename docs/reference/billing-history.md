@@ -32,16 +32,21 @@ A bill is `{ summary, orders, nextCursor }`. The shared summary has:
 
 ```text
 sessionId, channel, tableId, tableLabel, online, status, openedAt, closedAt, closeReason,
-billVersion, orderCount, itemCount, newItemCount, cancelledItemCount, totalAmountCents
+deliveryFeeCents, billVersion, orderCount, itemCount, newItemCount, cancelledItemCount,
+totalAmountCents
 ```
 
 `tableId`, `closedAt` and `closeReason` may be null as appropriate. `channel` is `DINE_IN`, `PICKUP` or
 `DELIVERY`. Dine-in visits have `tableLabel` and a null `online`; accepted online orders have no table
-and `online: { number, customerName, customerPhone, estimatedAt }` (name and phone become null once
-contact data is cleared). The active list reads only open sessions through the partial index
+and `online: { number, customerName, customerPhone, estimatedAt, deliveryAddress, deliveryNotes }`
+(contact and address become null once contact data is cleared). `deliveryFeeCents` is set on delivery
+sessions only: the fee whoever accepted the order entered. The active list reads only open sessions through the partial index
 `ix_dining_sessions_active`, in one statement, ordered by opening time (for online orders, acceptance). Item counts count lines, not
-portions. Active totals sum uncancelled unit-price × quantity across the entire visit; closed totals
-come from stored `closed_total_cents`. Neither is a page subtotal.
+portions. Active totals sum uncancelled unit-price × quantity across the entire visit, plus the
+delivery fee while any line is not cancelled (a fully cancelled delivery is a zero bill that closes as
+VOIDED); `SessionSummaries.Project` is the only place that computes a bill amount. Closed totals come
+from stored `closed_total_cents`, so PAID and NO_SHOW record the fee. Neither is a page subtotal; an
+order's own amounts never include the fee, which belongs to the session.
 
 Orders reuse the [kitchen DTO](kitchen-pass.md#kitchen-apis-and-transactions): original amount,
 remaining payable amount, status and immutable line snapshots with READY/cancellation timestamps.
