@@ -215,7 +215,7 @@ internal sealed class OnlineRequestConfiguration : IEntityTypeConfiguration<Onli
             .OnDelete(DeleteBehavior.Cascade);
         builder
             .HasOne(request => request.Session)
-            .WithOne()
+            .WithOne(session => session.OnlineRequest)
             .HasForeignKey<OnlineRequest>(request => new
             {
                 request.SessionId,

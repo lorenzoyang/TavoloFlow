@@ -55,9 +55,13 @@ remain unfiltered.
 | `POST /api/staff/orders/{id}/items/{itemId}/ready`  | No business fields                                                         | Complete order after NEW → READY                                   |
 | `POST /api/staff/orders/{id}/items/{itemId}/cancel` | No business fields                                                         | Complete order after NEW → CANCELLED                               |
 
-Kitchen order fields: `id`, `sessionId`, `tableLabel`, `status`, `createdAt`, `processedAt`,
-`defaultLanguage`, `totalAmountCents`, `payableAmountCents` and the shared
-[order line DTO](dining-ordering.md#order-apis-and-snapshots). Responses contain no cancellation reason,
+Kitchen order fields: `id`, `sessionId`, `channel`, `tableLabel`, `online`, `status`, `createdAt`,
+`processedAt`, `defaultLanguage`, `totalAmountCents`, `payableAmountCents` and the shared
+[order line DTO](dining-ordering.md#order-apis-and-snapshots). `channel` is `DINE_IN`, `PICKUP` or
+`DELIVERY`; dine-in orders have a `tableLabel` and a null `online`, accepted online orders a null
+`tableLabel` and `online: { number, customerName, estimatedAt }`, never the phone or address. Screens
+name both through `lib/session-label.ts` ("Table 5", "Pickup #12" with the name and estimated time);
+an online order is created when staff accept it, so it sorts, groups and chimes like any new order. Responses contain no cancellation reason,
 client request ID, code or credentials. All responses are `no-store`.
 
 Lists contain only ACTIVE visits. Rows/counts come from one Repeatable Read snapshot. `totalCount`
@@ -87,9 +91,10 @@ a warning color without changing order. The entry is on Home for OWNER and STAFF
 | `GET /api/staff/pass`                               | cursor, limit 50/max 100 (UI uses 100) | `{ items, nextCursor, totalCount, latestReadyAt }` |
 | `POST /api/staff/orders/{id}/items/{itemId}/served` | No business fields                     | The updated pass item                              |
 
-Pass items contain `id`, `orderId`, `sessionId`, `tableLabel`, `defaultLanguage`, `itemCode`, three names,
-`quantity`, `remark`, the `options` snapshot, `readyAt` and nullable `servedAt`. They contain no prices
-or request IDs.
+Pass items contain `id`, `orderId`, `sessionId`, `channel`, `tableLabel`, `online` (as in the kitchen),
+`defaultLanguage`, `itemCode`, three names, `quantity`, `remark`, the `options` snapshot, `readyAt` and
+nullable `servedAt`. They contain no prices or request IDs. For a pickup order, "served" means handed
+to the customer.
 The list uses ascending `(readyAt, id)` keyset paging with tenant-bound cursors. Rows, count and
 watermark come from one Repeatable Read snapshot. `latestReadyAt` is the restaurant-wide maximum ready
 time of waiting READY lines; closure stamping keeps closed work out of that partial waiting index.
@@ -125,7 +130,9 @@ are cancelled/discarded after hiding, disconnecting or changing identity; kitche
 Sound is enabled by default, but playback depends on browser permissions and AudioContext state.
 Page taps try to unlock audio; the UI requests a tap when necessary. Kitchen plays two rising tones;
 pass plays three short high tones through shared `useAlertSound`/`AlertAudio`. Sound and wake-lock
-settings are device preferences, not business state.
+settings are device preferences, not business state. The online order ringing (low-high pairs from
+the banner on every staff page, see [online ordering](online-ordering.md#banner-and-ringing)) is
+separate: the kitchen and pass sound switches never mute it.
 
 First load, foreground resume and reconnect establish silent baselines. Kitchen views share a
 restaurant-wide order watermark. Category-filtered screens compare their visible NEW line IDs only

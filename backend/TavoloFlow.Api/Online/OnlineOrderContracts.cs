@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
+using TavoloFlow.Api.Entities;
 using TavoloFlow.Api.Menus;
 using TavoloFlow.Api.Ordering;
 
@@ -63,7 +64,24 @@ public sealed record OnlineOrderLineResponse(
     string? Remark,
     OrderLineOptionResponse[] Options,
     string? Status
-);
+)
+{
+    // The submitted lines, before acceptance.
+    public static OnlineOrderLineResponse[] ForSnapshot(IEnumerable<OrderLineSnapshot> lines) =>
+        lines
+            .Select(line => new OnlineOrderLineResponse(
+                line.ItemCode,
+                line.NameZh,
+                line.NameIt,
+                line.NameEn,
+                line.UnitPriceCents,
+                line.Quantity,
+                line.Remark,
+                OrderLineOptionResponse.ForOptions(line.Options),
+                null
+            ))
+            .ToArray();
+}
 
 // The customer's status page. Phase is WAITING, EXPIRED, REJECTED or ACCEPTED (OnlineRequestState);
 // SessionStatus and CloseReason exist once accepted. TotalAmountCents is the submitted item total before

@@ -49,5 +49,8 @@ public sealed class DiningSession
 
     public Restaurant Restaurant { get; set; } = null!;
     public RestaurantTable? Table { get; set; }
+
+    // The accepted online request behind a pickup or delivery session; null for dine-in.
+    public OnlineRequest? OnlineRequest { get; set; }
     public ICollection<Order> Orders { get; } = new List<Order>();
 }

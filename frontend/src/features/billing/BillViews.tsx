@@ -12,8 +12,15 @@ import type { CurrentAccount } from "@/features/accounts/api";
 import type { KitchenOrder } from "@/features/kitchen/api";
 import { displayName } from "@/lib/language";
 import { optionSummary } from "@/lib/options";
-import { formatDateTime, formatMoney, RESTAURANT_TIME_ZONE, shortId } from "@/lib/format";
+import {
+  formatDateTime,
+  formatMoney,
+  formatTime,
+  RESTAURANT_TIME_ZONE,
+  shortId,
+} from "@/lib/format";
 import { errorMessage } from "@/lib/api";
+import { sessionTitle } from "@/lib/session-label";
 import { staffMessages } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
@@ -117,14 +124,17 @@ function BillOrder({ order, timeZone }: { order: KitchenOrder; timeZone: string 
 function BillTotal({ bill, timeZone }: { bill: BillSummary; timeZone: string }) {
   const language = useStaffLanguage();
   const m = billingMessages[language];
+  const online = bill.online;
+  const opened = formatDateTime(bill.openedAt, language, timeZone);
+  const closed = bill.closedAt && formatDateTime(bill.closedAt, language, timeZone);
   return (
     <div className="space-y-2 rounded-2xl bg-secondary p-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          {bill.status === "CLOSED" ? m.closedAmount : m.totalDue}
+          {bill.status === "CLOSED" ? m.closedAmount : online ? m.online.totalDue : m.totalDue}
         </p>
         <Badge variant={bill.closeReason ? closeBadges[bill.closeReason] : "secondary"}>
-          {bill.closeReason ? m.close[bill.closeReason] : m.dining}
+          {bill.closeReason ? m.close[bill.closeReason] : online ? m.online.active : m.dining}
         </Badge>
       </div>
       <p className="text-3xl font-semibold tabular-nums">
@@ -133,11 +143,28 @@ function BillTotal({ bill, timeZone }: { bill: BillSummary; timeZone: string }) 
       <p className="text-sm text-muted-foreground">
         {m.counts(bill.orderCount, bill.itemCount, bill.newItemCount, bill.cancelledItemCount)}
       </p>
+      {online && (
+        <div className="space-y-2 border-t pt-2">
+          {online.customerName && (
+            <p className="font-medium wrap-break-word">{online.customerName}</p>
+          )}
+          {bill.status === "ACTIVE" && (
+            <p className="text-sm">
+              {m.online.estimated(formatTime(online.estimatedAt, language, timeZone))}
+            </p>
+          )}
+          {online.customerPhone && (
+            <a
+              href={`tel:${online.customerPhone}`}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              {m.online.call(online.customerPhone)}
+            </a>
+          )}
+        </div>
+      )}
       <p className="text-sm text-muted-foreground">
-        {m.times(
-          formatDateTime(bill.openedAt, language, timeZone),
-          bill.closedAt && formatDateTime(bill.closedAt, language, timeZone),
-        )}
+        {online ? m.online.times(opened, closed) : m.times(opened, closed)}
       </p>
       <p className="text-xs break-all text-muted-foreground">{m.sessionId(bill.sessionId)}</p>
     </div>
@@ -195,7 +222,6 @@ export function ActiveBillPanel({
 }) {
   const language = useStaffLanguage();
   const m = billingMessages[language];
-  const c = staffMessages[language];
   const model = useBill(account, sessionId);
   const closure = useClosure(account);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
@@ -204,6 +230,27 @@ export function ActiveBillPanel({
   const bill = model.head?.summary;
   const kind = bill ? closureKind(bill, account.role) : null;
   const changed = !!confirmation && (!bill || confirmationChanged(confirmation, bill));
+  // Online orders are worded for a customer who collects, or who was told nothing will come.
+  const paid = confirmation?.kind === "PAID";
+  const online = !!confirmation?.bill.online;
+  const copy = {
+    title: paid && online ? m.online.paidTitle : m.confirmTitle[confirmation?.kind ?? "VOIDED"],
+    description: paid
+      ? online
+        ? m.online.confirmPaid
+        : m.confirmPaid
+      : online
+        ? m.online.confirmZero
+        : m.confirmZero,
+    label: paid ? (online ? m.online.confirmPaidLabel : m.confirmPaidLabel) : m.confirmZeroLabel,
+    checked: paid
+      ? online
+        ? m.online.checkedPaid
+        : m.checkedPaid
+      : online
+        ? m.online.checkedZero
+        : m.checkedZero,
+  };
   const busy = closure.busy.includes(sessionId);
   const locked = busy || closure.pending.some((p) => p.sessionId === sessionId);
   useEffect(() => {
@@ -284,7 +331,7 @@ export function ActiveBillPanel({
       {model.closed && model.session.data ? (
         <div className="space-y-3 rounded-2xl border bg-secondary p-4">
           <h3 className="text-lg font-semibold">
-            {m.closedTitle(c.table(model.session.data.tableLabel))}
+            {m.closedTitle(sessionTitle(model.session.data, language))}
           </h3>
           <p>
             {m.closedSummary(
@@ -292,7 +339,9 @@ export function ActiveBillPanel({
               formatMoney(model.session.data.totalAmountCents, language),
             )}
           </p>
-          <p className="text-sm text-muted-foreground">{m.closedHint}</p>
+          <p className="text-sm text-muted-foreground">
+            {model.session.data.online ? m.online.closedHint : m.closedHint}
+          </p>
           {account.role === "OWNER" && (
             <Link
               to="/staff/history"
@@ -320,7 +369,7 @@ export function ActiveBillPanel({
                 setConfirmation({ kind, bill: { ...bill! } });
               }}
             >
-              {m.closeButton[kind]}
+              {kind === "PAID" && bill?.online ? m.online.paidButton : m.closeButton[kind]}
             </Button>
           )}
           {bill &&
@@ -333,9 +382,11 @@ export function ActiveBillPanel({
           <BillDetails model={model} />
           <ConfirmDialog
             open={!!confirmation}
-            title={`${m.confirmTitle[confirmation?.kind ?? "VOIDED"]} · ${c.table(confirmation?.bill.tableLabel ?? "")}`}
-            description={confirmation?.kind === "PAID" ? m.confirmPaid : m.confirmZero}
-            confirmLabel={confirmation?.kind === "PAID" ? m.confirmPaidLabel : m.confirmZeroLabel}
+            title={
+              confirmation ? `${copy.title} · ${sessionTitle(confirmation.bill, language)}` : ""
+            }
+            description={copy.description}
+            confirmLabel={copy.label}
             cancelLabel={m.backToBill}
             busy={busy}
             confirmDisabled={!checked || changed || locked || !model.fresh}
@@ -356,7 +407,7 @@ export function ActiveBillPanel({
                     disabled={locked || changed}
                     onCheckedChange={setChecked}
                   />
-                  {confirmation.kind === "PAID" ? m.checkedPaid : m.checkedZero}
+                  {copy.checked}
                 </label>
               </div>
             )}

@@ -11,6 +11,7 @@ import {
   LayoutGrid,
   QrCode,
   Receipt,
+  ShoppingBag,
   UserCog,
 } from "lucide-react";
 import { staffManagementRoutes, staffNavRoutes, type NavAccount, type StaffRoute } from "./state";
@@ -51,6 +52,8 @@ function destination(to: StaffRoute, account: NavAccount, language: Language): S
         description: owner ? nav.tables.ownerDescription : nav.tables.staffDescription,
         icon: QrCode,
       };
+    case "/staff/online":
+      return { to, ...nav.onlineOrders, icon: ShoppingBag };
     case "/staff/online-settings":
       return { to, ...nav.online, icon: Globe };
     case "/staff/history":

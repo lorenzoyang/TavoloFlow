@@ -3,20 +3,21 @@ import { request, write } from "@/lib/api";
 import { storeKey } from "@/lib/store-views";
 import type { Language, Names } from "@/lib/language";
 import type { OptionSnapshot } from "@/lib/options";
+import type { SessionNaming } from "@/lib/session-label";
 
-export type PassItem = Names & {
-  id: string;
-  orderId: string;
-  sessionId: string;
-  tableLabel: string;
-  defaultLanguage: Language;
-  itemCode: string | null;
-  quantity: number;
-  remark: string | null;
-  options: OptionSnapshot[];
-  readyAt: string;
-  servedAt: string | null;
-};
+export type PassItem = Names &
+  SessionNaming & {
+    id: string;
+    orderId: string;
+    sessionId: string;
+    defaultLanguage: Language;
+    itemCode: string | null;
+    quantity: number;
+    remark: string | null;
+    options: OptionSnapshot[];
+    readyAt: string;
+    servedAt: string | null;
+  };
 export type PassPage = {
   items: PassItem[];
   nextCursor: string | null;

@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { BrandMark } from "@/components/brand";
 import { SourceLink } from "@/components/source-link";
 import { Card, CardContent } from "@/components/ui/card";
+import { OnlinePendingBanner } from "@/features/online/OnlinePendingBanner";
 import { OwnerSubscriptionReminder } from "@/features/subscriptions/SubscriptionReminders";
 import { useDocumentTheme } from "@/lib/useDocumentTheme";
 import { htmlLang } from "@/lib/staff-language";
@@ -19,7 +20,7 @@ import { useInstallableStaffApp } from "./useInstallApp";
 // Every staff page, sign-in included, makes the staff app installable. Only signed-in pages take the
 // restaurant's theme; sign-in and the first password change keep the default palette.
 // Before signing in, the language switch sits under the brand, so a new employee can change it
-// before reading anything else.
+// before reading anything else. With online ordering, every signed-in page carries the pending banner.
 export function StaffLayout({ children }: { children: ReactNode }) {
   const account = useQuery(accountQuery).data;
   const signedIn = !!account && !account.mustChangePassword;
@@ -46,6 +47,12 @@ export function StaffLayout({ children }: { children: ReactNode }) {
     <div className="min-h-dvh md:flex">
       <StaffNav account={account} />
       <main className="min-w-0 flex-1 px-4 pt-[max(1.25rem,env(safe-area-inset-top))] pb-28 sm:px-6 md:pt-8 md:pb-12 lg:px-8">
+        {account.services.online && (
+          <OnlinePendingBanner
+            key={`${account.restaurantId}:${account.userId}`}
+            account={account}
+          />
+        )}
         <div className="mx-auto w-full max-w-6xl">
           <OwnerSubscriptionReminder />
           {children}

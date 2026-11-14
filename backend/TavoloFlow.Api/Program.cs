@@ -58,6 +58,7 @@ builder.Services.AddScoped<OnlineSettingsService>();
 builder.Services.AddScoped<OnlineMenuService>();
 builder.Services.AddScoped<OnlineRequestService>();
 builder.Services.AddScoped<OnlineOrderStatusService>();
+builder.Services.AddScoped<OnlineStaffService>();
 builder
     .Services.AddOptions<OnlineRateLimitOptions>()
     .Bind(builder.Configuration.GetSection("OnlineRateLimits"))

@@ -125,6 +125,19 @@ internal sealed class DiningSessionConfiguration : IEntityTypeConfiguration<Dini
 
         builder.HasIndex(session => new { session.TableId, session.Status });
 
+        // Kept explicitly: the partial index below starts with restaurant_id, but closed sessions (history,
+        // cascade deletion) still need the full one.
+        builder
+            .HasIndex(session => session.RestaurantId)
+            .HasDatabaseName("IX_dining_sessions_restaurant_id");
+
+        // Every ACTIVE session of a restaurant, all channels (the bills page and the online orders page):
+        // polled reads stay bounded by the open visits and never scan history.
+        builder
+            .HasIndex(session => new { session.RestaurantId, session.OpenedAt })
+            .HasFilter("status = 'ACTIVE'")
+            .HasDatabaseName("ix_dining_sessions_active");
+
         builder
             .HasIndex(session => session.TableId)
             .IsUnique()

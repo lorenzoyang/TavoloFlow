@@ -1,6 +1,13 @@
+using System.Data.Common;
+using System.Net;
 using System.Security.Cryptography;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Entities;
+using static TavoloFlow.Api.Tests.AccountTestHost;
 
 namespace TavoloFlow.Api.Tests;
 
@@ -94,5 +101,213 @@ internal static class OnlineTestData
         request.EstimatedAt = acceptedAt.AddMinutes(20);
         request.Session = session;
         return session;
+    }
+
+    public const string Password = "Online-ordering-password-123";
+
+    // An ACTIVE restaurant with online ordering, a phone and hours: every day 11:00-15:00, plus 18:00-22:00
+    // on Monday and 00:00-02:00 on Tuesday. Two dishes: ramen, and spicy ramen with a required spice level.
+    public static async Task<OnlineShop> SeedShopAsync(PostgreSqlFixture database)
+    {
+        await using var db = database.CreateContext();
+        var restaurant = new Restaurant
+        {
+            Id = Guid.NewGuid(),
+            Name = "Online",
+            DefaultLanguage = "it",
+            ServiceStatus = RestaurantServiceStatus.Active,
+            OnlineEnabled = true,
+            Slug = $"online-{Guid.NewGuid():N}"[..30],
+            PublicPhone = "+390212345678",
+        };
+        var staff = new RestaurantUser
+        {
+            Restaurant = restaurant,
+            Username = "online." + Guid.NewGuid().ToString("N"),
+            PasswordHash = "",
+            Role = RestaurantUserRole.Staff,
+            MustChangePassword = false,
+        };
+        staff.PasswordHash = new PasswordHasher<RestaurantUser>().HashPassword(staff, Password);
+        var owner = new RestaurantUser
+        {
+            Restaurant = restaurant,
+            Username = "online.owner." + Guid.NewGuid().ToString("N"),
+            PasswordHash = "",
+            Role = RestaurantUserRole.Owner,
+            MustChangePassword = false,
+        };
+        owner.PasswordHash = new PasswordHasher<RestaurantUser>().HashPassword(owner, Password);
+        var category = new MenuCategory { Restaurant = restaurant, NameIt = "Ramen" };
+        var dish = new MenuItem
+        {
+            Restaurant = restaurant,
+            Category = category,
+            NameIt = "Ramen",
+            PriceCents = 1200,
+            AllergenCodes = ["GLUTEN"],
+            AllergenReviewed = true,
+        };
+        var spicy = new MenuItem
+        {
+            Restaurant = restaurant,
+            Category = category,
+            NameIt = "Ramen piccante",
+            PriceCents = 1300,
+            AllergenCodes = ["GLUTEN"],
+            AllergenReviewed = true,
+        };
+        var group = new MenuOptionGroup
+        {
+            Restaurant = restaurant,
+            NameIt = "Piccantezza",
+            MinSelect = 1,
+            MaxSelect = 1,
+        };
+        var hot = new MenuOption
+        {
+            RestaurantId = restaurant.Id,
+            Group = group,
+            NameIt = "Piccante",
+            PriceDeltaCents = 150,
+            AllergenCodes = ["SESAME"],
+        };
+        group.Options.Add(hot);
+        group.Options.Add(
+            new MenuOption
+            {
+                RestaurantId = restaurant.Id,
+                Group = group,
+                NameIt = "Delicato",
+                Position = 1,
+            }
+        );
+        db.AddRange(staff, owner, dish, spicy, group);
+        await db.SaveChangesAsync();
+        db.MenuItemOptionGroups.Add(
+            new MenuItemOptionGroup
+            {
+                RestaurantId = restaurant.Id,
+                MenuItemId = spicy.Id,
+                GroupId = group.Id,
+            }
+        );
+        foreach (var weekday in Enumerable.Range(1, 7))
+            db.OnlineHours.Add(
+                new OnlineHour
+                {
+                    RestaurantId = restaurant.Id,
+                    Weekday = weekday,
+                    Slot = weekday == 2 ? 2 : 1,
+                    OpensMinute = 660,
+                    ClosesMinute = 900,
+                }
+            );
+        db.OnlineHours.Add(
+            new OnlineHour
+            {
+                RestaurantId = restaurant.Id,
+                Weekday = 1,
+                Slot = 2,
+                OpensMinute = 1080,
+                ClosesMinute = 1320,
+            }
+        );
+        db.OnlineHours.Add(
+            new OnlineHour
+            {
+                RestaurantId = restaurant.Id,
+                Weekday = 2,
+                Slot = 1,
+                OpensMinute = 0,
+                ClosesMinute = 120,
+            }
+        );
+        await db.SaveChangesAsync();
+        return new OnlineShop(
+            restaurant.Id,
+            restaurant.Slug,
+            staff,
+            dish,
+            spicy,
+            group.Id,
+            hot.Id,
+            owner
+        );
+    }
+
+    public static ApplicationDbContext Intercepted(
+        PostgreSqlFixture database,
+        DbCommandInterceptor interceptor
+    ) =>
+        new(
+            new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseNpgsql(database.ConnectionString)
+                .AddInterceptors(interceptor)
+                .Options
+        );
+
+    public static async Task<HttpClient> LoginAsync(AccountTestHost host, RestaurantUser user)
+    {
+        var client = host.Browser();
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await PostAsync(client, "/api/auth/login", new { user.Username, Password })).StatusCode
+        );
+        return client;
+    }
+}
+
+internal sealed record OnlineShop(
+    Guid RestaurantId,
+    string Slug,
+    RestaurantUser Staff,
+    MenuItem Dish,
+    MenuItem Spicy,
+    Guid GroupId,
+    Guid HotOptionId,
+    RestaurantUser Owner
+);
+
+// Matches the restaurant row lock with the given strength.
+internal sealed class OnlineLockGate(string locking, bool hold) : DbCommandInterceptor
+{
+    public TaskCompletionSource Attempted { get; } =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource Acquired { get; } =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource Release { get; } =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    private bool Matches(DbCommand command) =>
+        command.CommandText.Contains("FROM restaurants ", StringComparison.Ordinal)
+        && command.CommandText.Contains(locking, StringComparison.Ordinal);
+
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<DbDataReader> result,
+        CancellationToken ct = default
+    )
+    {
+        if (Matches(command))
+            Attempted.TrySetResult();
+        return ValueTask.FromResult(result);
+    }
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(
+        DbCommand command,
+        CommandExecutedEventData eventData,
+        DbDataReader result,
+        CancellationToken ct = default
+    )
+    {
+        if (Matches(command))
+        {
+            Acquired.TrySetResult();
+            if (hold)
+                await Release.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+        }
+        return result;
     }
 }

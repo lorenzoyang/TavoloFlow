@@ -16,11 +16,12 @@ using static TavoloFlow.Api.Tests.AccountTestHost;
 
 namespace TavoloFlow.Api.Tests;
 
+using LockGate = OnlineLockGate;
+using Shop = OnlineShop;
+
 public sealed class OnlineOrderingTests(PostgreSqlFixture database)
     : IClassFixture<PostgreSqlFixture>
 {
-    private const string Password = "Online-ordering-password-123";
-
     // Monday 16 November 2026, 12:00 in Rome (CET, UTC+1).
     private static readonly DateTimeOffset MondayNoon = new(2026, 11, 16, 11, 0, 0, TimeSpan.Zero);
 
@@ -779,187 +780,11 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
         await db.SaveChangesAsync();
     }
 
-    // An ACTIVE restaurant with online ordering, a phone and hours: every day 11:00-15:00, plus 18:00-22:00
-    // on Monday and 00:00-02:00 on Tuesday. Two dishes: ramen, and spicy ramen with a required spice level.
-    private async Task<Shop> SeedAsync()
-    {
-        await using var db = database.CreateContext();
-        var restaurant = new Restaurant
-        {
-            Id = Guid.NewGuid(),
-            Name = "Online",
-            DefaultLanguage = "it",
-            ServiceStatus = RestaurantServiceStatus.Active,
-            OnlineEnabled = true,
-            Slug = $"online-{Guid.NewGuid():N}"[..30],
-            PublicPhone = "+390212345678",
-        };
-        var staff = new RestaurantUser
-        {
-            Restaurant = restaurant,
-            Username = "online." + Guid.NewGuid().ToString("N"),
-            PasswordHash = "",
-            Role = RestaurantUserRole.Staff,
-            MustChangePassword = false,
-        };
-        staff.PasswordHash = new PasswordHasher<RestaurantUser>().HashPassword(staff, Password);
-        var category = new MenuCategory { Restaurant = restaurant, NameIt = "Ramen" };
-        var dish = new MenuItem
-        {
-            Restaurant = restaurant,
-            Category = category,
-            NameIt = "Ramen",
-            PriceCents = 1200,
-            AllergenCodes = ["GLUTEN"],
-            AllergenReviewed = true,
-        };
-        var spicy = new MenuItem
-        {
-            Restaurant = restaurant,
-            Category = category,
-            NameIt = "Ramen piccante",
-            PriceCents = 1300,
-            AllergenCodes = ["GLUTEN"],
-            AllergenReviewed = true,
-        };
-        var group = new MenuOptionGroup
-        {
-            Restaurant = restaurant,
-            NameIt = "Piccantezza",
-            MinSelect = 1,
-            MaxSelect = 1,
-        };
-        var hot = new MenuOption
-        {
-            RestaurantId = restaurant.Id,
-            Group = group,
-            NameIt = "Piccante",
-            PriceDeltaCents = 150,
-            AllergenCodes = ["SESAME"],
-        };
-        group.Options.Add(hot);
-        group.Options.Add(
-            new MenuOption
-            {
-                RestaurantId = restaurant.Id,
-                Group = group,
-                NameIt = "Delicato",
-                Position = 1,
-            }
-        );
-        db.AddRange(staff, dish, spicy, group);
-        await db.SaveChangesAsync();
-        db.MenuItemOptionGroups.Add(
-            new MenuItemOptionGroup
-            {
-                RestaurantId = restaurant.Id,
-                MenuItemId = spicy.Id,
-                GroupId = group.Id,
-            }
-        );
-        foreach (var weekday in Enumerable.Range(1, 7))
-            db.OnlineHours.Add(
-                new OnlineHour
-                {
-                    RestaurantId = restaurant.Id,
-                    Weekday = weekday,
-                    Slot = weekday == 2 ? 2 : 1,
-                    OpensMinute = 660,
-                    ClosesMinute = 900,
-                }
-            );
-        db.OnlineHours.Add(
-            new OnlineHour
-            {
-                RestaurantId = restaurant.Id,
-                Weekday = 1,
-                Slot = 2,
-                OpensMinute = 1080,
-                ClosesMinute = 1320,
-            }
-        );
-        db.OnlineHours.Add(
-            new OnlineHour
-            {
-                RestaurantId = restaurant.Id,
-                Weekday = 2,
-                Slot = 1,
-                OpensMinute = 0,
-                ClosesMinute = 120,
-            }
-        );
-        await db.SaveChangesAsync();
-        return new Shop(restaurant.Id, restaurant.Slug, staff, dish, spicy, group.Id, hot.Id);
-    }
+    private Task<Shop> SeedAsync() => OnlineTestData.SeedShopAsync(database);
 
-    private static async Task<HttpClient> LoginAsync(AccountTestHost host, RestaurantUser user)
-    {
-        var client = host.Browser();
-        Assert.Equal(
-            HttpStatusCode.OK,
-            (await PostAsync(client, "/api/auth/login", new { user.Username, Password })).StatusCode
-        );
-        return client;
-    }
+    private static Task<HttpClient> LoginAsync(AccountTestHost host, RestaurantUser user) =>
+        OnlineTestData.LoginAsync(host, user);
 
     private ApplicationDbContext Intercepted(DbCommandInterceptor interceptor) =>
-        new(
-            new DbContextOptionsBuilder<ApplicationDbContext>()
-                .UseNpgsql(database.ConnectionString)
-                .AddInterceptors(interceptor)
-                .Options
-        );
-
-    private sealed record Shop(
-        Guid RestaurantId,
-        string Slug,
-        RestaurantUser Staff,
-        MenuItem Dish,
-        MenuItem Spicy,
-        Guid GroupId,
-        Guid HotOptionId
-    );
-
-    // Matches the restaurant row lock with the given strength.
-    private sealed class LockGate(string locking, bool hold) : DbCommandInterceptor
-    {
-        public TaskCompletionSource Attempted { get; } =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource Acquired { get; } =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource Release { get; } =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        private bool Matches(DbCommand command) =>
-            command.CommandText.Contains("FROM restaurants ", StringComparison.Ordinal)
-            && command.CommandText.Contains(locking, StringComparison.Ordinal);
-
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
-            DbCommand command,
-            CommandEventData eventData,
-            InterceptionResult<DbDataReader> result,
-            CancellationToken ct = default
-        )
-        {
-            if (Matches(command))
-                Attempted.TrySetResult();
-            return ValueTask.FromResult(result);
-        }
-
-        public override async ValueTask<DbDataReader> ReaderExecutedAsync(
-            DbCommand command,
-            CommandExecutedEventData eventData,
-            DbDataReader result,
-            CancellationToken ct = default
-        )
-        {
-            if (Matches(command))
-            {
-                Acquired.TrySetResult();
-                if (hold)
-                    await Release.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
-            }
-            return result;
-        }
-    }
+        OnlineTestData.Intercepted(database, interceptor);
 }

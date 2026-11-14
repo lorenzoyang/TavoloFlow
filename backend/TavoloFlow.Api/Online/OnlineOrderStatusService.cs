@@ -54,19 +54,7 @@ public sealed class OnlineOrderStatusService(ApplicationDbContext db, TimeProvid
                 .ToArray();
         }
         else
-            items = request
-                .Lines.Select(line => new OnlineOrderLineResponse(
-                    line.ItemCode,
-                    line.NameZh,
-                    line.NameIt,
-                    line.NameEn,
-                    line.UnitPriceCents,
-                    line.Quantity,
-                    line.Remark,
-                    OrderLineOptionResponse.ForOptions(line.Options),
-                    null
-                ))
-                .ToArray();
+            items = OnlineOrderLineResponse.ForSnapshot(request.Lines);
         await transaction.CommitAsync(ct);
         var restaurant = request.Restaurant;
         return new(

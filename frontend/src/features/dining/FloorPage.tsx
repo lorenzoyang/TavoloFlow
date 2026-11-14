@@ -15,7 +15,7 @@ import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { ServiceNotOffered } from "@/features/accounts/ServiceNotOffered";
 import { ActiveBillPanel } from "@/features/billing/BillViews";
-import { staffMessages } from "@/lib/staff-messages";
+import { sessionTitle } from "@/lib/session-label";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import type { FloorTable } from "./api";
@@ -32,7 +32,6 @@ function FloorContent({
 }: FloorProps & { account: CurrentAccount }) {
   const language = useStaffLanguage();
   const m = diningMessages[language];
-  const c = staffMessages[language];
   const model = useFloor(account, selected, select);
   const { floor, session, busy, pending } = model;
 
@@ -107,7 +106,7 @@ function FloorContent({
       </div>
       <MasterDetail
         open={!!selected}
-        title={session.data ? c.table(session.data.tableLabel) : m.visit}
+        title={session.data ? sessionTitle(session.data, language) : m.visit}
         onClose={() => select("")}
         detail={
           selected && (

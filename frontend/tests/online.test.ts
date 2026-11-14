@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  activeProgress,
+  formatCountdown,
   formatMinute,
+  MAX_WAITING_REQUESTS,
   normalizePhone,
+  pendingBanner,
+  requestTimes,
+  shouldRing,
   parseTime,
   sameHours,
   timeInputValue,
@@ -10,6 +16,13 @@ import {
   weekHours,
   type WeekDraft,
 } from "../src/features/online/state.ts";
+import {
+  namesSession,
+  sessionDetail,
+  sessionText,
+  sessionTitle,
+  type SessionNaming,
+} from "../src/lib/session-label.ts";
 
 test("phones keep an optional plus and 6-15 digits, like the server", () => {
   assert.equal(normalizePhone(" +39 333 123 4567 "), "+393331234567");
@@ -101,4 +114,68 @@ test("invalid days name the weekday and the problem", () => {
     ),
     false,
   );
+});
+
+test("the banner counts waiting requests and warns once the cap stops new orders", () => {
+  assert.equal(pendingBanner(0), null);
+  assert.deepEqual(pendingBanner(3), { full: false, count: 3 });
+  assert.deepEqual(pendingBanner(MAX_WAITING_REQUESTS), { full: true, count: 20 });
+  // A submission racing across midnight can exceed the cap; the banner still shows every request.
+  assert.deepEqual(pendingBanner(21), { full: true, count: 21 });
+});
+
+test("the banner rings only while a live page holds a recent list with someone waiting", () => {
+  const now = 1_000_000;
+  assert.equal(shouldRing(2, now - 5_000, now, true), true);
+  assert.equal(shouldRing(0, now - 5_000, now, true), false);
+  assert.equal(shouldRing(2, now - 5_000, now, false), false);
+  // A failed or paused poll leaves an old list: the ringing stops instead of outlasting it.
+  assert.equal(shouldRing(2, now - 30_000, now, true), false);
+  assert.equal(shouldRing(2, 0, now, true), false);
+});
+
+test("waiting and remaining time follow the server's clock, not the device's", () => {
+  const request = { submittedAt: "2026-11-16T11:00:00Z", expiresAt: "2026-11-16T11:10:00Z" };
+  // The device clock runs an hour behind; only the time since the list arrived comes from it.
+  const receivedAt = Date.parse("2026-11-16T10:03:00Z");
+  assert.deepEqual(requestTimes(request, "2026-11-16T11:03:00Z", receivedAt, receivedAt + 30_500), {
+    waitedMinutes: 3,
+    remainingSeconds: 390,
+  });
+  assert.deepEqual(requestTimes(request, "2026-11-16T11:12:00Z", receivedAt, receivedAt), {
+    waitedMinutes: 12,
+    remainingSeconds: 0,
+  });
+  assert.equal(formatCountdown(390), "6:30");
+  assert.equal(formatCountdown(65), "1:05");
+  assert.equal(formatCountdown(0), "0:00");
+});
+
+test("an accepted order is cooking, ready or entirely cancelled", () => {
+  assert.equal(activeProgress({ newItemCount: 1, readyItemCount: 2 }), "preparing");
+  assert.equal(activeProgress({ newItemCount: 0, readyItemCount: 1 }), "ready");
+  assert.equal(activeProgress({ newItemCount: 0, readyItemCount: 0 }), "cancelled");
+});
+
+test("sessions are named by their table or their online ticket in every language", () => {
+  const table: SessionNaming = { channel: "DINE_IN", tableLabel: "5", online: null };
+  const pickup: SessionNaming = {
+    channel: "PICKUP",
+    tableLabel: null,
+    online: { number: 12, customerName: "Marco", estimatedAt: "2026-11-16T17:25:00Z" },
+  };
+  assert.equal(sessionTitle(table, "zh"), "5 桌");
+  assert.equal(sessionDetail(table, "it"), null);
+  assert.equal(sessionText(table, "en"), "Table 5");
+  assert.equal(sessionTitle(pickup, "zh"), "自取 #12");
+  assert.equal(sessionTitle(pickup, "it"), "Ritiro #12");
+  assert.equal(sessionText(pickup, "en"), "Pickup #12 · Marco · 18:25");
+  assert.equal(sessionTitle({ ...pickup, channel: "DELIVERY" }, "it"), "Consegna #12");
+  // Contact data cleared after 30 days leaves the number and time.
+  const cleared = { ...pickup, online: { ...pickup.online!, customerName: null } };
+  assert.equal(sessionText(cleared, "zh"), "自取 #12 · 18:25");
+  assert.equal(namesSession(table), true);
+  assert.equal(namesSession(pickup), true);
+  assert.equal(namesSession({ ...table, tableLabel: null }), false);
+  assert.equal(namesSession({ ...pickup, online: null }), false);
 });

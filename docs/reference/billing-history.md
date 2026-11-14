@@ -1,7 +1,8 @@
 # Billing and closed history
 
-OWNER confirms offline collection in `/staff/orders` or the selected Floor visit. STAFF can read an
-active bill on Floor and close qualifying EMPTY/VOIDED visits. Closed history at `/staff/history` is
+OWNER confirms offline collection in `/staff/orders` or the selected Floor visit. The bills page lists
+every ACTIVE session: dine-in visits and accepted online orders. STAFF can read an active bill on Floor
+and close qualifying EMPTY/VOIDED visits. Closed history at `/staff/history` is
 OWNER-only. The system records confirmation of offline payment, not a payment transaction.
 
 ## APIs and permissions
@@ -11,6 +12,7 @@ Store endpoints use trusted restaurant identity, require the first password chan
 
 | Method and path                             | Role        | Input / success                                                 |
 | ------------------------------------------- | ----------- | --------------------------------------------------------------- |
+| `GET /api/staff/sessions/active`            | STAFF/OWNER | `{ items }`: every ACTIVE session's summary, oldest first       |
 | `GET /api/staff/sessions/{id}/bill`         | STAFF/OWNER | Active bill; cursor, limit default 50/max 100                   |
 | `POST /api/owner/sessions/{id}/checkout`    | OWNER       | `{ expectedBillVersion, confirmedTotalCents }` → closed summary |
 | `POST /api/staff/sessions/{id}/close-empty` | STAFF/OWNER | Zero-bill input → closed summary                                |
@@ -28,11 +30,15 @@ IDs. Platform identity cannot perform these operations.
 A bill is `{ summary, orders, nextCursor }`. The shared summary has:
 
 ```text
-sessionId, tableId, tableLabel, status, openedAt, closedAt, closeReason,
+sessionId, channel, tableId, tableLabel, online, status, openedAt, closedAt, closeReason,
 billVersion, orderCount, itemCount, newItemCount, cancelledItemCount, totalAmountCents
 ```
 
-`tableId`, `closedAt` and `closeReason` may be null as appropriate. Item counts count lines, not
+`tableId`, `closedAt` and `closeReason` may be null as appropriate. `channel` is `DINE_IN`, `PICKUP` or
+`DELIVERY`. Dine-in visits have `tableLabel` and a null `online`; accepted online orders have no table
+and `online: { number, customerName, customerPhone, estimatedAt }` (name and phone become null once
+contact data is cleared). The active list reads only open sessions through the partial index
+`ix_dining_sessions_active`, in one statement, ordered by opening time (for online orders, acceptance). Item counts count lines, not
 portions. Active totals sum uncancelled unit-price × quantity across the entire visit; closed totals
 come from stored `closed_total_cents`. Neither is a page subtotal.
 
@@ -56,7 +62,9 @@ reading totals/counts/orders, but multiple page requests are not one frozen data
 | EMPTY  | No orders of any status, zero amount, matching version and guests-left confirmation                     | STAFF/OWNER |
 | VOIDED | At least one order and every line CANCELLED, zero amount, matching version and guests-left confirmation | STAFF/OWNER |
 
-A zero amount alone is insufficient for VOIDED. A visit that ever received an order cannot use EMPTY.
+A zero amount alone is insufficient for VOIDED. A visit that ever received an order cannot use EMPTY,
+so an online session, which always has its order, never closes as EMPTY. For online orders the page
+words PAID as "collected, check payment" and VOIDED as closing after telling the customer.
 The owner confirms money received outside the app; no payment provider verifies it.
 
 All reasons share `BillingService.CloseAsync`:

@@ -2,7 +2,9 @@ import { queryOptions } from "@tanstack/react-query";
 import type { AccountScope } from "@/features/accounts/api";
 import { request, write } from "@/lib/api";
 import { storeKey } from "@/lib/store-views";
-import type { OnlineHour } from "./state";
+import type { OnlineOrder } from "@/features/online-order/api";
+import type { Language } from "@/lib/language";
+import type { OnlineHour, RejectReason } from "./state";
 
 // The server's single "can customers order online now" rule (OnlineAvailability).
 export type OnlineStatus =
@@ -41,3 +43,70 @@ export const saveOnlineHours = (slots: OnlineHour[]) =>
   write<OnlineSettings>("/api/owner/online/hours", "PUT", { slots });
 export const savePublicPhone = (publicPhone: string | null) =>
   write<OnlineSettings>("/api/owner/online/phone", "PATCH", { publicPhone });
+
+// Online requests waiting for staff, oldest first. Now is the server's clock when it answered, so the
+// page counts the ten minutes on the server's time rather than the device's.
+export type OnlinePendingRequest = {
+  id: string;
+  number: number;
+  fulfillment: "PICKUP" | "DELIVERY";
+  customerName: string | null;
+  customerPhone: string | null;
+  deliveryAddress: string | null;
+  deliveryNotes: string | null;
+  submittedAt: string;
+  expiresAt: string;
+  defaultLanguage: Language;
+  // The submitted snapshot (status null), the same lines as the customer's status page.
+  items: OnlineOrder["items"];
+  itemsTotalCents: number;
+};
+export type OnlinePendingPage = { items: OnlinePendingRequest[]; now: string; receivedAt: number };
+
+// An accepted online order until its session closes; counts are lines, not portions.
+export type OnlineActiveOrder = {
+  sessionId: string;
+  number: number;
+  channel: "PICKUP" | "DELIVERY";
+  customerName: string | null;
+  customerPhone: string | null;
+  deliveryAddress: string | null;
+  deliveryNotes: string | null;
+  acceptedAt: string;
+  estimatedAt: string;
+  itemCount: number;
+  newItemCount: number;
+  readyItemCount: number;
+};
+
+export const onlinePendingKey = (account: AccountScope) => storeKey("online-pending", account);
+export const onlineActiveKey = (account: AccountScope) => storeKey("online-active", account);
+
+// Shared by the banner on every staff page and the online orders page, so they poll once.
+export const onlinePendingQuery = (account: AccountScope) =>
+  queryOptions({
+    queryKey: onlinePendingKey(account),
+    queryFn: async ({ signal }): Promise<OnlinePendingPage> => ({
+      ...(await request<Omit<OnlinePendingPage, "receivedAt">>("/api/staff/online/pending", {
+        signal,
+      })),
+      receivedAt: Date.now(),
+    }),
+  });
+export const onlineActiveQuery = (account: AccountScope) =>
+  queryOptions({
+    queryKey: onlineActiveKey(account),
+    queryFn: ({ signal }) =>
+      request<{ items: OnlineActiveOrder[] }>("/api/staff/online/active", { signal }),
+  });
+
+// Both apply only to a request still waiting; a repeat or a lost race returns ONLINE_REQUEST_CHANGED.
+export const acceptOnlineRequest = (id: string, estimatedMinutes: number, signal: AbortSignal) =>
+  write<OnlineActiveOrder>(
+    `/api/staff/online/requests/${id}/accept`,
+    "POST",
+    { estimatedMinutes },
+    signal,
+  );
+export const rejectOnlineRequest = (id: string, reason: RejectReason | null, signal: AbortSignal) =>
+  write<void>(`/api/staff/online/requests/${id}/reject`, "POST", { reason }, signal);

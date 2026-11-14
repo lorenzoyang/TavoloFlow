@@ -3,6 +3,8 @@ import type { Language } from "./language";
 // Copy shared by several store pages. Each feature keeps the rest in its own messages.ts.
 const zh = {
   table: (label: string) => `${label} 桌`,
+  pickup: (number: number) => `自取 #${number}`,
+  delivery: (number: number) => `配送 #${number}`,
   home: "首页",
   close: "关闭",
   cancel: "取消",
@@ -26,6 +28,8 @@ export const staffMessages: Record<Language, typeof zh> = {
   zh,
   it: {
     table: (label) => `Tavolo ${label}`,
+    pickup: (number) => `Ritiro #${number}`,
+    delivery: (number) => `Consegna #${number}`,
     home: "Home",
     close: "Chiudi",
     cancel: "Annulla",
@@ -49,6 +53,8 @@ export const staffMessages: Record<Language, typeof zh> = {
   },
   en: {
     table: (label) => `Table ${label}`,
+    pickup: (number) => `Pickup #${number}`,
+    delivery: (number) => `Delivery #${number}`,
     home: "Home",
     close: "Close",
     cancel: "Cancel",

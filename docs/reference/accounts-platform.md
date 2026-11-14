@@ -187,15 +187,15 @@ The platform turns QR dine-in and online ordering on per restaurant. The summary
 keeps at least one service on (`ck_restaurant_services`) and a link whenever online is on
 (`ck_restaurant_online_slug`).
 
-| Rule             | Contract                                                                                                                                                                                |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Services write   | Both target values; takes restaurant UPDATE, so it waits for opening/joining/ordering SHARE locks. Turning a service on needs no check                                                  |
-| Open work        | Turning dine-in off while any ACTIVE session exists returns `SERVICE_HAS_OPEN_WORK` (409). Online open work (waiting requests, ACTIVE online orders) is checked once those tables exist |
-| Invalid services | Both off, a missing value or online without a link returns `VALIDATION_FAILED`                                                                                                          |
-| Link format      | 3–40 lowercase letters, digits and hyphens, no hyphen at either end (`InputRules.IsSlug`, `ck_restaurant_slug`); otherwise `VALIDATION_FAILED`                                          |
-| Link uniqueness  | Global (`uq_restaurant_slug`); a taken link returns `SLUG_CONFLICT` (409) on creation or change                                                                                         |
-| Link change      | Single-column update; the old `/r/{slug}` and its printed QR codes stop working at once, table QR codes stay valid. The link is never cleared, so turning online back on restores it    |
-| Accepting orders | `ordering_enabled` belongs to dine-in only; the services write leaves it untouched                                                                                                      |
+| Rule             | Contract                                                                                                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Services write   | Both target values; takes restaurant UPDATE, so it waits for opening/joining/ordering SHARE locks. Turning a service on needs no check                                               |
+| Open work        | Turning dine-in off while an ACTIVE dine-in session exists, or online off while a request is waiting or an online session is ACTIVE, returns `SERVICE_HAS_OPEN_WORK` (409)           |
+| Invalid services | Both off, a missing value or online without a link returns `VALIDATION_FAILED`                                                                                                       |
+| Link format      | 3–40 lowercase letters, digits and hyphens, no hyphen at either end (`InputRules.IsSlug`, `ck_restaurant_slug`); otherwise `VALIDATION_FAILED`                                       |
+| Link uniqueness  | Global (`uq_restaurant_slug`); a taken link returns `SLUG_CONFLICT` (409) on creation or change                                                                                      |
+| Link change      | Single-column update; the old `/r/{slug}` and its printed QR codes stop working at once, table QR codes stay valid. The link is never cleared, so turning online back on restores it |
+| Accepting orders | `ordering_enabled` belongs to dine-in only; the services write leaves it untouched                                                                                                   |
 
 The restaurant's own online settings (public phone, hours, pause) are in
 [online ordering](online-ordering.md). Both writes log the actor, use the usual management pending marker and sit behind the inline

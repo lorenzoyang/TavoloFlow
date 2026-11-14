@@ -87,3 +87,53 @@ export function sameHours(a: OnlineHour[], b: OnlineHour[]): boolean {
     )
   );
 }
+
+// The submission cap (OnlineAvailability): with this many requests waiting, customers cannot order.
+export const MAX_WAITING_REQUESTS = 20;
+
+// The estimated-time choices for accepting a pickup order, in minutes.
+export const PICKUP_MINUTES = [10, 20, 30, 45] as const;
+
+// Optional reasons staff give for rejecting; OUT_OF_RANGE is for delivery only.
+export type RejectReason = "SOLD_OUT" | "BUSY" | "CLOSING" | "OUT_OF_RANGE";
+export const PICKUP_REJECT_REASONS = ["SOLD_OUT", "BUSY", "CLOSING"] as const;
+
+// The banner above every staff page: nothing at zero, the count while customers can still order, and
+// a warning once the cap stops new orders.
+export function pendingBanner(count: number) {
+  if (count <= 0) return null;
+  return { full: count >= MAX_WAITING_REQUESTS, count };
+}
+
+// The banner rings while the newest list, younger than 30 seconds, has someone waiting on a live page.
+// A failed or old list stops it: ringing must never outlast what the page actually knows.
+export function shouldRing(count: number, receivedAt: number, now: number, active: boolean) {
+  return active && count > 0 && now - receivedAt < 30_000;
+}
+
+// Waited and remaining time of a request on the server's clock. The list carries the server's now,
+// received at receivedAt on this device; the device clock only measures time since then.
+export function requestTimes(
+  request: { submittedAt: string; expiresAt: string },
+  serverNow: string,
+  receivedAt: number,
+  now: number,
+) {
+  const at = Date.parse(serverNow) + Math.max(0, now - receivedAt);
+  return {
+    waitedMinutes: Math.max(0, Math.floor((at - Date.parse(request.submittedAt)) / 60_000)),
+    remainingSeconds: Math.max(0, Math.ceil((Date.parse(request.expiresAt) - at) / 1000)),
+  };
+}
+
+// "7:05": minutes and seconds left before a request expires.
+export function formatCountdown(seconds: number) {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+// An accepted order's progress: still cooking, ready (nothing waiting and something ready), or every
+// dish cancelled.
+export function activeProgress(order: { newItemCount: number; readyItemCount: number }) {
+  if (order.newItemCount > 0) return "preparing" as const;
+  return order.readyItemCount > 0 ? ("ready" as const) : ("cancelled" as const);
+}

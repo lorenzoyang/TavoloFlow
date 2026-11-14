@@ -79,6 +79,18 @@ public static class OnlineErrors
             "This submission hasn't been found yet. Keep checking, or retry with the original request."
         );
 
+    // Staff: the request is no longer waiting (accepted or rejected by someone else, or expired).
+    public static ApiException RequestChanged() =>
+        new(
+            409,
+            "ONLINE_REQUEST_CHANGED",
+            "This online request is no longer waiting. Reload the list."
+        );
+
+    // Staff: no such request in this restaurant.
+    public static ApiException RequestMissing() =>
+        new(404, "ONLINE_REQUEST_NOT_FOUND", "This online request doesn't exist.");
+
     public static ApiException OrderNotFound() =>
         new(404, "ONLINE_ORDER_NOT_FOUND", "This online order doesn't exist or has ended.");
 

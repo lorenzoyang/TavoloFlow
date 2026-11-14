@@ -94,11 +94,16 @@ namespace TavoloFlow.Api.Data.Migrations
                     b.HasAlternateKey("Id", "RestaurantId")
                         .HasName("uq_sessions_id_tenant");
 
-                    b.HasIndex("RestaurantId");
+                    b.HasIndex("RestaurantId")
+                        .HasDatabaseName("IX_dining_sessions_restaurant_id");
 
                     b.HasIndex("TableId")
                         .IsUnique()
                         .HasDatabaseName("uq_active_session_per_table")
+                        .HasFilter("status = 'ACTIVE'");
+
+                    b.HasIndex("RestaurantId", "OpenedAt")
+                        .HasDatabaseName("ix_dining_sessions_active")
                         .HasFilter("status = 'ACTIVE'");
 
                     b.HasIndex("TableId", "RestaurantId");
@@ -1384,7 +1389,7 @@ namespace TavoloFlow.Api.Data.Migrations
                         .IsRequired();
 
                     b.HasOne("TavoloFlow.Api.Entities.DiningSession", "Session")
-                        .WithOne()
+                        .WithOne("OnlineRequest")
                         .HasForeignKey("TavoloFlow.Api.Entities.OnlineRequest", "SessionId", "RestaurantId")
                         .HasPrincipalKey("TavoloFlow.Api.Entities.DiningSession", "Id", "RestaurantId")
                         .OnDelete(DeleteBehavior.ClientNoAction);
@@ -1477,6 +1482,8 @@ namespace TavoloFlow.Api.Data.Migrations
 
             modelBuilder.Entity("TavoloFlow.Api.Entities.DiningSession", b =>
                 {
+                    b.Navigation("OnlineRequest");
+
                     b.Navigation("Orders");
                 });
 

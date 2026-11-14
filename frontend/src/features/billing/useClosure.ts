@@ -5,7 +5,7 @@ import { isSameAccount } from "@/features/accounts/queries";
 import { sessionKey } from "@/features/dining/api";
 import { ApiError, errorMessage, request, withTimeout, write } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
-import { staffMessages } from "@/lib/staff-messages";
+import { sessionTitle } from "@/lib/session-label";
 import { invalidateStoreViews } from "@/lib/store-views";
 import { isLive, onLifecycleChange } from "@/lib/useLiveView";
 import { useOperations } from "@/lib/useOperations";
@@ -31,7 +31,6 @@ export function useClosure(account: CurrentAccount) {
   const client = useQueryClient();
   const language = useStaffLanguage();
   const m = billingMessages[language];
-  const c = staffMessages[language];
   const scope = useMemo(() => billingKey(account), [account]);
   const sameIdentity = useCallback(() => isSameAccount(client, account), [account, client]);
 
@@ -58,6 +57,8 @@ export function useClosure(account: CurrentAccount) {
       "dining",
       "tables",
       "kitchen",
+      "pass",
+      "online-active",
     ]);
   }
 
@@ -100,7 +101,7 @@ export function useClosure(account: CurrentAccount) {
       markers.remove(action.sessionId);
       setError("");
       setConflict(null);
-      const table = c.table(data.tableLabel);
+      const table = sessionTitle(data, language);
       setNotice(
         data.status === "CLOSED"
           ? m.recoveredClosed(
@@ -146,7 +147,7 @@ export function useClosure(account: CurrentAccount) {
       markers.remove(id);
       setNotice(
         m.closedNotice(
-          c.table(summary.tableLabel),
+          sessionTitle(summary, language),
           m.close[confirmation.kind],
           formatMoney(summary.totalAmountCents, language),
         ),

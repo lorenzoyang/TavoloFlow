@@ -10,6 +10,7 @@ export type StaffRoute =
   | "/staff/orders"
   | "/staff/menu"
   | "/staff/tables"
+  | "/staff/online"
   | "/staff/online-settings"
   | "/staff/history"
   | "/staff/settings"
@@ -35,7 +36,7 @@ export function staffNavRoutes(account: NavAccount): StaffRoute[] {
 export function staffManagementRoutes(account: NavAccount): StaffRoute[] {
   const service: StaffRoute[] = [
     ...(account.services.dineIn ? (["/staff/tables"] as const) : []),
-    ...(account.services.online ? (["/staff/online-settings"] as const) : []),
+    ...(account.services.online ? (["/staff/online", "/staff/online-settings"] as const) : []),
   ];
   if (account.role !== "OWNER") return service;
   // STAFF have Pass as a tab; OWNER's fourth tab is Bill, so Pass stays here for them.

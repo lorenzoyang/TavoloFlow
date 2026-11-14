@@ -45,6 +45,7 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
             .Orders.AsNoTracking()
             .Include(o => o.Items)
             .Include(o => o.DiningSession)
+                .ThenInclude(s => s.OnlineRequest)
             .Where(o => o.RestaurantId == restaurantId && o.DiningSessionId == sessionId);
         if (after is not null)
             query = query.Where(o =>
@@ -73,6 +74,22 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         await tx.CommitAsync(ct);
         return new(summary, page.Select(KitchenOrderResponse.From).ToArray(), next);
     }
+
+    // Every ACTIVE session in all channels, oldest first: the bills page. Reads only open visits
+    // (ix_dining_sessions_active) in one statement, so the summaries come from one snapshot.
+    public async Task<ActiveSessionsPage> ActiveAsync(Guid restaurantId, CancellationToken ct) =>
+        new(
+            await SessionSummaries
+                .Project(
+                    db.DiningSessions.AsNoTracking()
+                        .Where(s =>
+                            s.RestaurantId == restaurantId && s.Status == DiningSessionStatus.Active
+                        )
+                        .OrderBy(s => s.OpenedAt)
+                        .ThenBy(s => s.Id)
+                )
+                .ToArrayAsync(ct)
+        );
 
     public Task<BillSummaryResponse> CheckoutAsync(
         Guid restaurantId,

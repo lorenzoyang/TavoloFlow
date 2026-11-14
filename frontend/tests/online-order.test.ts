@@ -116,7 +116,7 @@ test("a saved cart restores only for its restaurant, with a pending intent match
   );
 });
 
-test("only an understood rejection of a first attempt frees the cart", () => {
+test("an understood rejection frees the cart; after an unknown result only one that proves nothing was stored", () => {
   for (const code of [
     "VALIDATION_FAILED",
     "MENU_CHANGED",
@@ -131,7 +131,18 @@ test("only an understood rejection of a first attempt frees the cart", () => {
     "RATE_LIMITED",
   ])
     assert.equal(submissionFailure(409, code, false), "editable", code);
-  assert.equal(submissionFailure(409, "ONLINE_CLOSED", true), "unknown");
+  // A retry after an unknown result frees the cart only when the rejection proves no request was stored.
+  for (const code of ["MENU_CHANGED", "ONLINE_CLOSED", "ONLINE_BUSY", "SERVICE_SUSPENDED"])
+    assert.equal(submissionFailure(409, code, true), "editable", code);
+  for (const code of [
+    "VALIDATION_FAILED",
+    "ONLINE_LINK_NOT_FOUND",
+    "CSRF_VALIDATION_FAILED",
+    "RATE_LIMITED",
+    "SOMETHING_ELSE",
+  ])
+    assert.equal(submissionFailure(409, code, true), "unknown", code);
+  assert.equal(submissionFailure(null, null, true), "unknown");
   assert.equal(submissionFailure(null, null, false), "unknown");
   assert.equal(submissionFailure(502, null, false), "unknown");
   assert.equal(submissionFailure(400, "SOMETHING_ELSE", false), "unknown");

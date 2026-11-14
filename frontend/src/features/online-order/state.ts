@@ -121,23 +121,31 @@ export function restoreOnlineCart(raw: string | null, restaurantId: string): Onl
 
 type FailureDisposition = "editable" | "unknown";
 
-// Whether a failed submission frees the cart. Only an understood rejection of a first attempt does; a
-// rejection after an unknown result never proves the original failed, so the intent stays.
+// The server returns these only after its duplicate check, inside the transaction that holds the day's
+// counter row: the request ID had no stored request at that moment, so even a retry may free the cart.
+const rejectedAfterDuplicateCheck = [
+  "MENU_CHANGED",
+  "ONLINE_PAUSED",
+  "ONLINE_CLOSED",
+  "ONLINE_BUSY",
+  "ONLINE_NOT_OFFERED",
+  "SERVICE_SUSPENDED",
+  "DELIVERY_NOT_OFFERED",
+];
+
+// Whether a failed submission frees the cart. Any understood rejection of a first attempt does. After an
+// unknown result, a retry frees it only on a rejection that proves the original was never stored; the
+// others (format, link, CSRF, rate limit) come before the duplicate check, so the intent stays.
 export function submissionFailure(
   status: number | null,
   code: string | null,
   wasUnknown: boolean,
 ): FailureDisposition {
-  if (wasUnknown || status === null || status >= 500) return "unknown";
+  if (status === null || status >= 500) return "unknown";
+  if (rejectedAfterDuplicateCheck.includes(code ?? "")) return "editable";
+  if (wasUnknown) return "unknown";
   return [
     "VALIDATION_FAILED",
-    "MENU_CHANGED",
-    "ONLINE_PAUSED",
-    "ONLINE_CLOSED",
-    "ONLINE_BUSY",
-    "ONLINE_NOT_OFFERED",
-    "SERVICE_SUSPENDED",
-    "DELIVERY_NOT_OFFERED",
     "ONLINE_LINK_NOT_FOUND",
     "CSRF_VALIDATION_FAILED",
     "RATE_LIMITED",

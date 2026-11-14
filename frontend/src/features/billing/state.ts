@@ -1,10 +1,12 @@
 import { isUuid } from "../../lib/ids.ts";
+import type { OnlineTicket, SessionNaming } from "../../lib/session-label.ts";
 
 export type CloseKind = "PAID" | "EMPTY" | "VOIDED";
-export type BillSummary = {
+// TableId and tableLabel belong to dine-in; online carries the accepted order's ticket and phone.
+export type BillSummary = SessionNaming & {
   sessionId: string;
   tableId: string | null;
-  tableLabel: string;
+  online: (OnlineTicket & { customerPhone: string | null }) | null;
   status: "ACTIVE" | "CLOSED";
   openedAt: string;
   closedAt: string | null;

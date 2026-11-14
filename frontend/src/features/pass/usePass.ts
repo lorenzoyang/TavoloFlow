@@ -11,7 +11,7 @@ import {
   watermarkAdvanced,
   type WatermarkBaseline,
 } from "@/lib/live-view";
-import { staffMessages } from "@/lib/staff-messages";
+import { sessionTitle } from "@/lib/session-label";
 import { useAlertSound } from "@/lib/useAlertSound";
 import { onLifecycleChange, useLiveView } from "@/lib/useLiveView";
 import { useOperations } from "@/lib/useOperations";
@@ -121,7 +121,7 @@ export function usePass(account: CurrentAccount) {
     const op = ops.start(item.id);
     if (!op) return;
     const current = () => op.isCurrent() && sameAccount();
-    const table = staffMessages[language].table(item.tableLabel);
+    const table = sessionTitle(item, language);
     const label = `${table} · ${displayName(item, item.defaultLanguage, language).text} ×${item.quantity}`;
     setBusy((ids) => [...ids, item.id]);
     try {

@@ -386,6 +386,8 @@ Table dining_sessions {
   Indexes {
     (id, restaurant_id) [unique, name: 'uq_sessions_id_tenant']
     (table_id, status)
+    restaurant_id
+    (restaurant_id, opened_at) [name: 'ix_dining_sessions_active', note: 'Partial: WHERE status = ACTIVE (bills page, online orders in progress)']
   }
 
   Checks {

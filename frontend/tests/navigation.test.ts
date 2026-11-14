@@ -13,7 +13,7 @@ const account = (role: NavAccount["role"], dineIn: boolean, online: boolean): Na
 
 test("dine-in restaurants keep today's tabs and home entries", () => {
   for (const online of [false, true]) {
-    const onlineEntry = online ? ["/staff/online-settings"] : [];
+    const onlineEntry = online ? ["/staff/online", "/staff/online-settings"] : [];
     assert.deepEqual(staffNavRoutes(account("OWNER", true, online)), [
       "/staff",
       "/staff/floor",
@@ -57,9 +57,11 @@ test("online-only restaurants have no floor or tables, and the other tabs keep t
     "/staff/menu",
   ]);
   assert.deepEqual(staffManagementRoutes(account("STAFF", false, true)), [
+    "/staff/online",
     "/staff/online-settings",
   ]);
   assert.deepEqual(staffManagementRoutes(account("OWNER", false, true)), [
+    "/staff/online",
     "/staff/online-settings",
     "/staff/pass",
     "/staff/history",

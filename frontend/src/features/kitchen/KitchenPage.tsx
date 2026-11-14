@@ -13,6 +13,7 @@ import type { CurrentAccount } from "@/features/accounts/api";
 import type { OrderLine } from "@/features/orders/api";
 import { formatDateTime, formatMoney, shortId } from "@/lib/format";
 import { displayName } from "@/lib/language";
+import { sessionText } from "@/lib/session-label";
 import { staffMessages } from "@/lib/staff-messages";
 import { onLifecycleChange } from "@/lib/useLiveView";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
@@ -278,7 +279,7 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
       <ConfirmDialog
         open={!!confirmation}
         tone="destructive"
-        title={m.cancelTitle(c.table(confirmation?.order.tableLabel ?? ""))}
+        title={m.cancelTitle(confirmation ? sessionText(confirmation.order, language) : "")}
         description={
           confirmation &&
           m.cancelHint(

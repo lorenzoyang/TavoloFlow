@@ -229,6 +229,7 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
         var rows = await active
             .Include(i => i.Order)
                 .ThenInclude(o => o.DiningSession)
+                    .ThenInclude(s => s.OnlineRequest)
             .OrderBy(i => i.ReadyAt)
             .ThenBy(i => i.Id)
             .Take(limit + 1)
@@ -279,6 +280,7 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
                 .AsNoTracking()
                 .Include(i => i.Order)
                     .ThenInclude(o => o.DiningSession)
+                        .ThenInclude(s => s.OnlineRequest)
                 .SingleAsync(ct)
         );
         await tx.CommitAsync(ct);
@@ -299,6 +301,7 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
             .Orders.AsNoTracking()
             .Include(o => o.Items)
             .Include(o => o.DiningSession)
+                .ThenInclude(s => s.OnlineRequest)
             .Where(o => o.RestaurantId == restaurantId);
 
     private async Task<Order> FindAsync(Guid restaurantId, Guid id, CancellationToken ct) =>

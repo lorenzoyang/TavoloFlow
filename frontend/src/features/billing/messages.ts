@@ -85,14 +85,37 @@ const zh = {
   ownerOnly: "此页面仅老板可访问。",
   toFloor: "返回桌台",
   title: "结账",
-  description: "核对整桌账单，在线下收款后结束本轮用餐。",
-  refreshTables: "刷新桌位",
-  tablesError: "桌位列表暂时无法更新，请恢复连接后刷新。",
-  loadingTables: "正在读取活动桌位…",
-  noVisits: "当前没有活动用餐",
-  noVisitsHint: "开桌后，用餐中的桌会出现在这里。",
+  description: "核对账单，线下收款后关闭。",
+  refreshTables: "刷新列表",
+  tablesError: "账单列表暂时无法更新，请恢复连接后刷新。",
+  loadingTables: "正在读取进行中的账单…",
+  noVisits: "当前没有进行中的账单",
+  noVisitsHint: (dineIn: boolean, online: boolean): string =>
+    dineIn && online
+      ? "开桌或接受线上订单后，会出现在这里。"
+      : online
+        ? "接受线上订单后，会出现在这里。"
+        : "开桌后，用餐中的桌会出现在这里。",
   pendingBadge: (count: number) => `待处理 ${count}`,
   tableSummary: (orders: number, time: string) => `共 ${orders} 笔 · ${time} 开桌`,
+  // Accepted online orders (pickup): the same bill, worded for a customer who collects.
+  online: {
+    totalDue: "应收",
+    active: "进行中",
+    times: (accepted: string, closed: string | null) =>
+      `接单：${accepted}${closed ? ` · 关闭：${closed}` : ""}`,
+    estimated: (time: string) => `预计 ${time}`,
+    call: (phone: string) => `拨打 ${phone}`,
+    closedHint: "这一单已结束，顾客的订单页会显示结果。",
+    summary: (time: string) => `${time} 接单`,
+    paidButton: "已取餐，核对收款",
+    paidTitle: "确认已取餐并收款",
+    confirmPaid: "请确认顾客已取餐并完成线下收款，再关闭这一单。",
+    confirmPaidLabel: "已取餐并收款",
+    checkedPaid: "已核对单号和金额，顾客已取餐并付款",
+    confirmZero: "此操作不记录收款。请核对订单，并确认已通知顾客。",
+    checkedZero: "已核对零账单，并已通知顾客",
+  },
   // History.
   historyTitle: "历史账单",
   historyDescription: "默认查看餐厅当天关闭的用餐。按关桌日期查询，保留原始账单快照。",
@@ -201,14 +224,36 @@ export const billingMessages: Record<Language, typeof zh> = {
     ownerOnly: "Questa pagina è riservata al titolare.",
     toFloor: "Torna alla sala",
     title: "Conto",
-    description: "Controlla il conto del tavolo e chiudi la visita dopo l’incasso.",
-    refreshTables: "Aggiorna tavoli",
-    tablesError: "Impossibile aggiornare i tavoli: aggiorna quando torna la connessione.",
-    loadingTables: "Caricamento dei tavoli occupati…",
-    noVisits: "Nessuna visita in corso",
-    noVisitsHint: "I tavoli aperti compaiono qui.",
+    description: "Controlla il conto e chiudilo dopo l’incasso.",
+    refreshTables: "Aggiorna elenco",
+    tablesError: "Impossibile aggiornare l’elenco: aggiorna quando torna la connessione.",
+    loadingTables: "Caricamento dei conti aperti…",
+    noVisits: "Nessun conto aperto",
+    noVisitsHint: (dineIn, online) =>
+      dineIn && online
+        ? "I tavoli aperti e gli ordini online accettati compaiono qui."
+        : online
+          ? "Gli ordini online accettati compaiono qui."
+          : "I tavoli aperti compaiono qui.",
     pendingBadge: (count) => `Da fare ${count}`,
     tableSummary: (orders, time) => `${plural(orders, "ordine", "ordini")} · aperto ${time}`,
+    online: {
+      totalDue: "Da incassare",
+      active: "In corso",
+      times: (accepted, closed) => `Accettato: ${accepted}${closed ? ` · Chiuso: ${closed}` : ""}`,
+      estimated: (time) => `Previsto ${time}`,
+      call: (phone) => `Chiama ${phone}`,
+      closedHint: "Ordine concluso: la pagina del cliente mostra l’esito.",
+      summary: (time) => `accettato ${time}`,
+      paidButton: "Ritirato, verifica incasso",
+      paidTitle: "Conferma ritiro e incasso",
+      confirmPaid: "Conferma che il cliente ha ritirato l’ordine e hai incassato, poi chiudilo.",
+      confirmPaidLabel: "Ritirato e incassato",
+      checkedPaid: "Ho controllato numero e importo: il cliente ha ritirato e pagato",
+      confirmZero:
+        "Non viene registrato alcun incasso. Controlla l’ordine e conferma di aver avvisato il cliente.",
+      checkedZero: "Ho controllato il conto a zero e ho avvisato il cliente",
+    },
     historyTitle: "Storico conti",
     historyDescription:
       "Mostra le visite chiuse oggi. Cerca per data di chiusura; i conti restano come al momento della chiusura.",
@@ -309,14 +354,35 @@ export const billingMessages: Record<Language, typeof zh> = {
     ownerOnly: "This page is for the owner only.",
     toFloor: "Back to floor",
     title: "Bill",
-    description: "Check the table’s bill and close the visit after payment.",
-    refreshTables: "Refresh tables",
-    tablesError: "Can’t update the tables: refresh when the connection is back.",
-    loadingTables: "Loading occupied tables…",
-    noVisits: "No open visits",
-    noVisitsHint: "Open tables show up here.",
+    description: "Check the bill and close it after payment.",
+    refreshTables: "Refresh list",
+    tablesError: "Can’t update the list: refresh when the connection is back.",
+    loadingTables: "Loading open bills…",
+    noVisits: "No open bills",
+    noVisitsHint: (dineIn, online) =>
+      dineIn && online
+        ? "Open tables and accepted online orders show up here."
+        : online
+          ? "Accepted online orders show up here."
+          : "Open tables show up here.",
     pendingBadge: (count) => `To do ${count}`,
     tableSummary: (orders, time) => `${plural(orders, "order", "orders")} · opened ${time}`,
+    online: {
+      totalDue: "Due",
+      active: "In progress",
+      times: (accepted, closed) => `Accepted: ${accepted}${closed ? ` · Closed: ${closed}` : ""}`,
+      estimated: (time) => `Expected ${time}`,
+      call: (phone) => `Call ${phone}`,
+      closedHint: "This order is closed: the customer’s order page shows the outcome.",
+      summary: (time) => `accepted ${time}`,
+      paidButton: "Collected, check payment",
+      paidTitle: "Confirm collection and payment",
+      confirmPaid: "Confirm the customer collected the order and paid, then close it.",
+      confirmPaidLabel: "Collected and paid",
+      checkedPaid: "I checked the number and amount; the customer collected and paid",
+      confirmZero: "No payment is recorded. Check the order and confirm you told the customer.",
+      checkedZero: "I checked the zero bill and told the customer",
+    },
     historyTitle: "Bill history",
     historyDescription:
       "Shows visits closed today. Search by closing date; bills stay as they were when closed.",

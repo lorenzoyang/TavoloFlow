@@ -1,13 +1,17 @@
 using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Entities;
+using TavoloFlow.Api.Online;
 using TavoloFlow.Api.Ordering;
 
 namespace TavoloFlow.Api.Kitchen;
 
+// TableLabel is set for dine-in, Online for pickup and delivery (Channel says which).
 public sealed record KitchenOrderResponse(
     Guid Id,
     Guid SessionId,
+    string Channel,
     string? TableLabel,
+    OnlineTicketResponse? Online,
     string Status,
     DateTime CreatedAt,
     DateTime? ProcessedAt,
@@ -17,12 +21,14 @@ public sealed record KitchenOrderResponse(
     OrderLineResponse[] Items
 )
 {
-    // Requires Items and DiningSession to be loaded.
+    // Requires Items, DiningSession and its OnlineRequest to be loaded.
     public static KitchenOrderResponse From(Order order) =>
         new(
             order.Id,
             order.DiningSessionId,
+            ApiEnum.Text(order.DiningSession.Channel),
             order.DiningSession.TableLabelSnapshot,
+            OnlineTicketResponse.For(order.DiningSession),
             ApiEnum.Text(order.Status),
             order.CreatedAt,
             order.ProcessedAt,
@@ -46,7 +52,9 @@ public sealed record PassItemResponse(
     Guid Id,
     Guid OrderId,
     Guid SessionId,
+    string Channel,
     string? TableLabel,
+    OnlineTicketResponse? Online,
     string DefaultLanguage,
     string? ItemCode,
     string? NameZh,
@@ -59,13 +67,15 @@ public sealed record PassItemResponse(
     DateTime? ServedAt
 )
 {
-    // Requires Order and its DiningSession to be loaded.
+    // Requires Order, its DiningSession and the session's OnlineRequest to be loaded.
     public static PassItemResponse From(OrderItem item) =>
         new(
             item.Id,
             item.OrderId,
             item.Order.DiningSessionId,
+            ApiEnum.Text(item.Order.DiningSession.Channel),
             item.Order.DiningSession.TableLabelSnapshot,
+            OnlineTicketResponse.For(item.Order.DiningSession),
             item.Order.DefaultLanguageSnapshot,
             item.ItemCodeSnapshot,
             item.NameZhSnapshot,

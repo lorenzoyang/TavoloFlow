@@ -233,7 +233,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
         e instanceof ApiError ? e.code : null,
         retry,
       );
-      // An understood rejection of a first attempt frees the cart for changes; anything else keeps it.
+      // An understood rejection frees the cart for changes (see submissionFailure); anything else keeps it.
       if (sending && disposition === "editable") {
         remember({ ...current.current, pending: null });
         setReview(null);

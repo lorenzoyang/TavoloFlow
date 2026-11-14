@@ -1,6 +1,7 @@
+import type { SessionNaming } from "../../lib/session-label.ts";
 import type { PassItem } from "./api.ts";
 
-export type PassTable = { sessionId: string; tableLabel: string; items: PassItem[] };
+export type PassTable = SessionNaming & { sessionId: string; items: PassItem[] };
 
 // One card per visit. Dishes arrive oldest-ready first, so the table waiting longest comes first and
 // each card keeps its dishes in ready order.
@@ -9,7 +10,9 @@ export function groupByTable(items: readonly PassItem[]): PassTable[] {
   for (const item of items) {
     const table = tables.get(item.sessionId) ?? {
       sessionId: item.sessionId,
+      channel: item.channel,
       tableLabel: item.tableLabel,
+      online: item.online,
       items: [],
     };
     table.items.push(item);

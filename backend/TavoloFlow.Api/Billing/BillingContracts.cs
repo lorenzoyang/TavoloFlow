@@ -26,6 +26,8 @@ public sealed record BillPage(
     string? NextCursor
 );
 
+public sealed record ActiveSessionsPage(BillSummaryResponse[] Items);
+
 public sealed record HistoryPage(
     BillSummaryResponse[] Items,
     string? NextCursor,

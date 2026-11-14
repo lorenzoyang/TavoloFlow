@@ -3,7 +3,16 @@ import type { QueryClient } from "@tanstack/react-query";
 // Store pages whose cached data a service write can change. Each feature's api.ts builds its key
 // factory from storeKey, so other features can refresh a view without importing that feature.
 export type StoreView =
-  "kitchen" | "pass" | "floor" | "dining" | "billing" | "history" | "tables" | "online-settings";
+  | "kitchen"
+  | "pass"
+  | "floor"
+  | "dining"
+  | "billing"
+  | "history"
+  | "tables"
+  | "online-settings"
+  | "online-pending"
+  | "online-active";
 
 type Scope = { restaurantId: string; userId: string };
 
