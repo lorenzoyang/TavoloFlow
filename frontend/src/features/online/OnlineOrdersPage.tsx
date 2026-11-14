@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MapPin, Phone, RefreshCw, ShoppingBag } from "lucide-react";
+import { Phone, RefreshCw, ShoppingBag } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { LoadingState } from "@/components/loading-state";
@@ -21,13 +21,13 @@ import { staffMessages } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import type { OnlineActiveOrder, OnlinePendingPage, OnlinePendingRequest } from "./api";
+import { DeliveryAddress } from "./DeliveryAddress";
 import { onlineOrdersMessages } from "./messages";
 import {
   acceptFee,
   activeProgress,
   DELIVERY_MINUTES,
   formatCountdown,
-  mapsUrl,
   PICKUP_MINUTES,
   rejectReasons,
   requestTimes,
@@ -54,25 +54,6 @@ function CallLink({ phone, label }: { phone: string; label: string }) {
 // An amount that never wraps between the euro sign and the digits inside a longer line.
 const amount = (cents: number, language: Language) =>
   formatMoney(cents, language).replace(" ", "\u00a0");
-
-// A delivery address opens a plain maps search; the doorbell and floor notes follow it.
-function DeliveryAddress({ address, notes }: { address: string; notes: string | null }) {
-  const m = onlineOrdersMessages[useStaffLanguage()];
-  return (
-    <div className="space-y-1 text-sm">
-      <a
-        href={mapsUrl(address)}
-        target="_blank"
-        rel="noreferrer"
-        className="flex min-h-11 items-start gap-2 rounded-xl border px-3 py-2.5 font-medium underline-offset-4 hover:underline"
-      >
-        <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-        <span className="min-w-0 wrap-break-word">{address}</span>
-      </a>
-      {notes && <p className="text-muted-foreground wrap-break-word">{m.doorbell(notes)}</p>}
-    </div>
-  );
-}
 
 function PendingCard({
   request,

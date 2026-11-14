@@ -140,6 +140,65 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         );
     }
 
+    // OWNER corrects a delivery fee before closure. Like a cancellation it changes the bill, so it takes
+    // only the session UPDATE lock, requires the confirmed version and increments it; the version alone
+    // makes a lost or repeated request harmless, so the browser persists no marker. An unchanged fee
+    // writes nothing and keeps the version.
+    public async Task<BillSummaryResponse> SetDeliveryFeeAsync(
+        Guid restaurantId,
+        Guid id,
+        DeliveryFeeInput input,
+        CancellationToken ct
+    )
+    {
+        if (input.DeliveryFeeCents is not { } fee || fee < 0 || fee > InputRules.MaxSafeCents)
+            throw InvalidDeliveryFee();
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var session =
+            await RowLocks.SessionAsync(db, restaurantId, id, RowLock.Update, ct)
+            ?? throw DiningErrors.SessionNotFound();
+        if (session.Status == DiningSessionStatus.Closed)
+            throw DiningErrors.SessionClosed();
+        var bill = await SessionSummaries.ReadAsync(db, restaurantId, id, ct);
+        if (bill.BillVersion != input.ExpectedBillVersion)
+            throw BillingErrors.Changed(bill);
+        if (session.Channel != SessionChannel.Delivery)
+            throw BillingErrors.Conflict(
+                "SESSION_NOT_DELIVERY",
+                "Only delivery orders have a delivery fee.",
+                bill
+            );
+        if (fee == session.DeliveryFeeCents)
+        {
+            await tx.CommitAsync(ct);
+            return bill;
+        }
+        // Like acceptance: every ordered item plus the fee stays a safe integer.
+        var items = await db
+            .OrderItems.Where(i => i.RestaurantId == restaurantId && i.Order.DiningSessionId == id)
+            .SumAsync(i => i.UnitPriceCents * i.Quantity, ct);
+        if (fee > InputRules.MaxSafeCents - items)
+            throw InvalidDeliveryFee();
+        await db
+            .DiningSessions.Where(s => s.RestaurantId == restaurantId && s.Id == id)
+            .ExecuteUpdateAsync(
+                u =>
+                    u.SetProperty(s => s.DeliveryFeeCents, fee)
+                        .SetProperty(s => s.BillVersion, s => s.BillVersion + 1),
+                ct
+            );
+        var result = await SessionSummaries.ReadAsync(db, restaurantId, id, ct);
+        await tx.CommitAsync(ct);
+        return result;
+    }
+
+    private static ApiException InvalidDeliveryFee() =>
+        ApiException.Validation(
+            "Enter the delivery fee in whole cents, 0 for free delivery.",
+            "deliveryFeeCents",
+            "Invalid fee."
+        );
+
     private Task<BillSummaryResponse> CloseZeroBillAsync(
         Guid restaurantId,
         Guid id,

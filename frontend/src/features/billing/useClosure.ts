@@ -12,7 +12,7 @@ import { useOperations } from "@/lib/useOperations";
 import { usePendingMarkers } from "@/lib/usePendingMarkers";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { billingKey } from "./api";
-import { billingMessages } from "./messages";
+import { billingMessages, closeLabel } from "./messages";
 import {
   closureKey,
   closureRequest,
@@ -106,7 +106,7 @@ export function useClosure(account: CurrentAccount) {
         data.status === "CLOSED"
           ? m.recoveredClosed(
               table,
-              m.close[data.closeReason!],
+              closeLabel(language, data.closeReason!, data.channel),
               formatMoney(data.totalAmountCents, language),
             )
           : m.recoveredActive(table),
@@ -148,7 +148,7 @@ export function useClosure(account: CurrentAccount) {
       setNotice(
         m.closedNotice(
           sessionTitle(summary, language),
-          m.close[confirmation.kind],
+          closeLabel(language, confirmation.kind, summary.channel),
           formatMoney(summary.totalAmountCents, language),
         ),
       );

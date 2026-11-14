@@ -28,6 +28,13 @@ public sealed record CloseNoShowInput(
     [Required] bool? NoShowConfirmed
 );
 
+// OWNER corrects a delivery order's fee before closure, against the bill version it was read at.
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record DeliveryFeeInput(
+    [Required, Range(1, int.MaxValue)] int? ExpectedBillVersion,
+    [Required] long? DeliveryFeeCents
+);
+
 public sealed record BillPage(
     BillSummaryResponse Summary,
     KitchenOrderResponse[] Orders,

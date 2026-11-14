@@ -16,6 +16,7 @@ Store endpoints use trusted restaurant identity, require the first password chan
 | `GET /api/staff/sessions/{id}/bill`           | STAFF/OWNER | Active bill; cursor, limit default 50/max 100                                          |
 | `POST /api/owner/sessions/{id}/checkout`      | OWNER       | `{ expectedBillVersion, confirmedTotalCents }` → closed summary                        |
 | `POST /api/owner/sessions/{id}/close-no-show` | OWNER       | `{ expectedBillVersion, confirmedTotalCents, noShowConfirmed: true }` → closed summary |
+| `PATCH /api/owner/sessions/{id}/delivery-fee` | OWNER       | `{ expectedBillVersion, deliveryFeeCents }` → active summary                           |
 | `POST /api/staff/sessions/{id}/close-empty`   | STAFF/OWNER | Zero-bill input → closed summary                                                       |
 | `POST /api/staff/sessions/{id}/close-void`    | STAFF/OWNER | Zero-bill input → closed summary                                                       |
 | `GET /api/owner/history`                      | OWNER       | Resolved filters and paged closed summaries                                            |
@@ -108,6 +109,23 @@ rejects later writes. Any intermediate failure rolls back the entire closure and
 Service suspension, disabled tables and paused ordering do not block closure. Closed visits never
 reopen, and guest access is rejected through the existing live visit checks.
 
+## Delivery fee correction
+
+OWNER corrects an ACTIVE delivery's fee before closing it, for example a fee typed wrongly at
+acceptance. The write takes only the session UPDATE lock, like closures and cancellations. It returns
+`SESSION_NOT_FOUND`, `SESSION_CLOSED`, `BILL_CHANGED` (with `currentBill`) for a version other than the
+current one, and `SESSION_NOT_DELIVERY` (409, with `currentBill`) for pickup and dine-in sessions. The
+fee is whole cents, 0 for free, and every ordered item plus the fee stays a safe integer
+(`VALIDATION_FAILED`). A changed fee increments `bill_version`, so a confirmation frozen before it can
+no longer close the bill; the same fee writes nothing and keeps the version.
+
+The bills page offers "Edit delivery fee" on an ACTIVE delivery for OWNER, as a `ConfirmDialog` holding
+the fee field (prefilled, with the new amount due) and frozen with the bill it was read from; a newer
+bill invalidates it. The version is the write's only duplicate guard: a lost or repeated request just
+gets `BILL_CHANGED`, so the browser persists no marker. Every outcome rereads the bill, and an unknown
+result asks the owner to check the current fee before trying again. A fee correction and a closure of
+the same bill never run together.
+
 ## Confirmation and unknown results
 
 The selected session ID stays in URL search on Bill and Floor. OWNER-only pages check role before
@@ -147,7 +165,9 @@ DST transitions can therefore produce 23- or 25-hour days.
 Response: `{ items, nextCursor, totalCount, fromDate, toDate, timeZone }`. Order is `(closedAt, id)`
 descending, default 50/max 100. Cursors retain resolved date bounds across midnight and bind restaurant,
 historical table label and closure reason. Labels match trimmed, case-sensitive snapshots exactly.
-PAID, EMPTY, VOIDED and NO_SHOW are all queryable regardless of currently enabled services. Detail
+PAID, EMPTY, VOIDED and NO_SHOW are all queryable regardless of currently enabled services.
+Rows and bills name `NO_SHOW` by channel ("not collected" for pickup, "not delivered" for delivery,
+`closeLabel`); the filter keeps one combined label. Detail
 lookup by session ID is independent of list filters.
 
 Catalog deletion detaches nullable references, preserving original labels/names/prices and final totals.
@@ -161,10 +181,12 @@ Sources: [BillingController](../../backend/TavoloFlow.Api/Controllers/BillingCon
 [summary projection](../../backend/TavoloFlow.Api/Dining/SessionSummaries.cs),
 [bill hook](../../frontend/src/features/billing/useBill.ts),
 [closure hook](../../frontend/src/features/billing/useClosure.ts),
+[delivery fee hook](../../frontend/src/features/billing/useDeliveryFee.ts),
 [pending markers](../../frontend/src/lib/usePendingMarkers.ts).
 
-Tests: [billing integration](../../backend/TavoloFlow.Api.Tests/BillingTests.cs) and
-[frontend confirmation/recovery](../../frontend/tests/billing.test.ts).
+Tests: [billing integration](../../backend/TavoloFlow.Api.Tests/BillingTests.cs),
+[online bills and the delivery fee](../../backend/TavoloFlow.Api.Tests/OnlineStaffTests.cs) and
+[frontend confirmation/recovery and delivery amounts](../../frontend/tests/billing.test.ts).
 Manual checks: NEW blocks checkout; a concurrent addition invalidates a frozen amount; distinct zero
 closures; lost checkout response followed by GET-only recovery; guest invalidation; multi-page bills;
 DST/history filters; catalog deletion preserving snapshots; two owners confirming the same closure.

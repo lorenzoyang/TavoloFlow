@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  billAmounts,
+  canEditDeliveryFee,
   closureKind,
   confirmationChanged,
   closureRequest,
@@ -8,7 +10,9 @@ import {
   recoveryPath,
   historySearch,
   closureKey,
+  deliveryFeeRequest,
   noShowAllowed,
+  totalWithFee,
   type BillSummary,
   type Confirmation,
 } from "../src/features/billing/state.ts";
@@ -24,6 +28,7 @@ const bill: BillSummary = {
   openedAt: "2026-10-23T12:00:00Z",
   closedAt: null,
   closeReason: null,
+  deliveryFeeCents: null,
   billVersion: 3,
   orderCount: 2,
   itemCount: 2,
@@ -131,6 +136,8 @@ test("an online order the owner could check out may instead close as not collect
       customerName: "Marco",
       customerPhone: "+393331234567",
       estimatedAt: "2026-10-23T12:30:00Z",
+      deliveryAddress: null,
+      deliveryNotes: null,
     },
   };
   assert.equal(noShowAllowed(online, "OWNER"), true);
@@ -149,4 +156,38 @@ test("an online order the owner could check out may instead close as not collect
     { sessionId: id, kind: "NO_SHOW" },
   ]);
   assert.equal(historySearch({ closeReason: "NO_SHOW" }).closeReason, "NO_SHOW");
+});
+
+test("a delivery bill splits into dishes and a fee that stops counting once every dish is cancelled", () => {
+  const delivery = {
+    ...bill,
+    channel: "DELIVERY" as const,
+    tableLabel: null,
+    deliveryFeeCents: 300,
+    itemCount: 2,
+    cancelledItemCount: 1,
+    totalAmountCents: 1500,
+  };
+  assert.deepEqual(billAmounts(delivery), { fee: 300, feeCounted: true, items: 1200 });
+  assert.deepEqual(billAmounts({ ...delivery, cancelledItemCount: 2, totalAmountCents: 0 }), {
+    fee: 300,
+    feeCounted: false,
+    items: 0,
+  });
+  assert.deepEqual(billAmounts(bill), {
+    fee: null,
+    feeCounted: false,
+    items: bill.totalAmountCents,
+  });
+  assert.equal(totalWithFee(delivery, 150), 1350);
+  assert.equal(totalWithFee({ ...delivery, cancelledItemCount: 2, totalAmountCents: 0 }, 150), 0);
+
+  assert.equal(canEditDeliveryFee(delivery, "OWNER"), true);
+  assert.equal(canEditDeliveryFee(delivery, "STAFF"), false);
+  assert.equal(canEditDeliveryFee({ ...delivery, status: "CLOSED" }, "OWNER"), false);
+  assert.equal(canEditDeliveryFee({ ...delivery, channel: "PICKUP" }, "OWNER"), false);
+  assert.deepEqual(deliveryFeeRequest({ ...delivery, billVersion: 3 }, 150), {
+    path: `/api/owner/sessions/${delivery.sessionId}/delivery-fee`,
+    body: { expectedBillVersion: 3, deliveryFeeCents: 150 },
+  });
 });

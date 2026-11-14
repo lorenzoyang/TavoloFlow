@@ -371,13 +371,19 @@ take `min-w-0` so a long name never widens a 360px grid). The kitchen
 dish view keeps only the short title and adds the estimated time beside the existing wait, without
 a customer-name row. That second line stays on one line, keeping the estimated time whole and
 allowing the wait to truncate at 360px. The bills page lists every ACTIVE session in
-all channels from `GET /api/staff/sessions/active` (see [billing](billing-history.md)). Online orders
-close through the existing paths: PAID ("collected, check payment") and VOIDED (after telling the
-customer), plus `NO_SHOW` ("customer didn't come"), OWNER-only through
+all channels from `GET /api/staff/sessions/active` (see [billing](billing-history.md)). A delivery bill
+shows the dishes and the fee apart (the fee struck through once every dish is cancelled), the address
+link and doorbell notes, and lets OWNER correct the fee before closure
+(`PATCH /api/owner/sessions/{id}/delivery-fee`, see
+[billing](billing-history.md#delivery-fee-correction)). Online orders close through the existing
+paths: PAID ("collected, check payment"; for delivery "delivered, check payment") and VOIDED (after
+telling the customer), plus `NO_SHOW` ("customer didn't come"; for delivery "not delivered": refused
+or unreachable), OWNER-only through
 `POST /api/owner/sessions/{id}/close-no-show` with PAID's conditions (see
 [billing](billing-history.md#closure-conditions-and-transaction)); an online session always has its
 order, so EMPTY returns `SESSION_HAS_ORDERS`. Closed online
-orders appear in history as "Pickup #12"; the table filter does not match them.
+orders appear in history as "Pickup #12" or "Delivery #12", with `NO_SHOW` worded by channel; the
+table filter does not match them.
 
 ## Phone
 
@@ -428,7 +434,8 @@ discarded.
   repeat, closure stamping, status page and history filter); delivery acceptance (fee required, 0
   allowed, overflow, delivery times, pickup without a fee, the delivery switch ignored, `OUT_OF_RANGE`)
   and the delivery bill (fee in PAID and NO_SHOW totals and history, a fully cancelled delivery voided
-  at zero).
+  at zero) and the OWNER fee correction (version, `SESSION_NOT_DELIVERY`, unchanged fee, overflow,
+  a frozen checkout after a change, closed sessions).
 - `OnlineOrderingTests` also covers the 30-day contact cleanup (strictly older, own restaurant only,
   rolled back with a rejected submission) and the status link's 24-hour limit after expiry, rejection
   and closure, while an active order keeps its link.

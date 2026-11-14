@@ -8,11 +8,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import type { CurrentAccount } from "@/features/accounts/api";
 import type { KitchenOrder } from "@/features/kitchen/api";
+import { DeliveryAddress } from "@/features/online/DeliveryAddress";
+import { acceptFee } from "@/features/online/state";
 import { displayName } from "@/lib/language";
 import { optionSummary } from "@/lib/options";
 import {
+  formatCents,
   formatDateTime,
   formatMoney,
   formatTime,
@@ -24,18 +29,22 @@ import { sessionTitle } from "@/lib/session-label";
 import { staffMessages } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
-import { billingMessages } from "./messages";
+import { billingMessages, closeLabel } from "./messages";
 import {
+  billAmounts,
+  canEditDeliveryFee,
   closeBadges,
   closureKind,
   confirmationChanged,
   noShowAllowed,
+  totalWithFee,
   type BillSummary,
   type CloseKind,
   type Confirmation,
 } from "./state";
 import { useBill } from "./useBill";
 import { useClosure } from "./useClosure";
+import { useDeliveryFee } from "./useDeliveryFee";
 
 const itemBadges = { NEW: "warning", READY: "success", CANCELLED: "outline" } as const;
 
@@ -127,6 +136,7 @@ function BillTotal({ bill, timeZone }: { bill: BillSummary; timeZone: string }) 
   const language = useStaffLanguage();
   const m = billingMessages[language];
   const online = bill.online;
+  const amounts = billAmounts(bill);
   const opened = formatDateTime(bill.openedAt, language, timeZone);
   const closed = bill.closedAt && formatDateTime(bill.closedAt, language, timeZone);
   return (
@@ -136,12 +146,34 @@ function BillTotal({ bill, timeZone }: { bill: BillSummary; timeZone: string }) 
           {bill.status === "CLOSED" ? m.closedAmount : online ? m.online.totalDue : m.totalDue}
         </p>
         <Badge variant={bill.closeReason ? closeBadges[bill.closeReason] : "secondary"}>
-          {bill.closeReason ? m.close[bill.closeReason] : online ? m.online.active : m.dining}
+          {bill.closeReason
+            ? closeLabel(language, bill.closeReason, bill.channel)
+            : online
+              ? m.online.active
+              : m.dining}
         </Badge>
       </div>
       <p className="text-3xl font-semibold tabular-nums">
         {formatMoney(bill.totalAmountCents, language)}
       </p>
+      {amounts.fee !== null && (
+        <dl className="grid grid-cols-[1fr_auto] gap-x-3 text-sm">
+          <dt className="text-muted-foreground">{m.online.itemsAmount}</dt>
+          <dd className="text-right tabular-nums">{formatMoney(amounts.items, language)}</dd>
+          <dt className="text-muted-foreground">{m.online.deliveryFee}</dt>
+          <dd
+            className={cn(
+              "text-right tabular-nums",
+              !amounts.feeCounted && "text-muted-foreground line-through",
+            )}
+          >
+            {formatMoney(amounts.fee, language)}
+          </dd>
+          {!amounts.feeCounted && (
+            <dd className="col-span-2 text-xs text-muted-foreground">{m.online.feeNotCounted}</dd>
+          )}
+        </dl>
+      )}
       <p className="text-sm text-muted-foreground">
         {m.counts(bill.orderCount, bill.itemCount, bill.newItemCount, bill.cancelledItemCount)}
       </p>
@@ -162,6 +194,9 @@ function BillTotal({ bill, timeZone }: { bill: BillSummary; timeZone: string }) 
             >
               {m.online.call(online.customerPhone)}
             </a>
+          )}
+          {bill.channel === "DELIVERY" && online.deliveryAddress && (
+            <DeliveryAddress address={online.deliveryAddress} notes={online.deliveryNotes} />
           )}
         </div>
       )}
@@ -226,38 +261,57 @@ export function ActiveBillPanel({
   const m = billingMessages[language];
   const model = useBill(account, sessionId);
   const closure = useClosure(account);
+  const fees = useDeliveryFee(account);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [checked, setChecked] = useState(false);
   const checkbox = useRef<HTMLElement>(null);
+  // The fee being corrected, frozen with the bill it was read from.
+  const [feeEdit, setFeeEdit] = useState<{ bill: BillSummary; text: string } | null>(null);
+  const feeInput = useRef<HTMLInputElement>(null);
   const bill = model.head?.summary;
   const kind = bill ? closureKind(bill, account.role) : null;
   const changed = !!confirmation && (!bill || confirmationChanged(confirmation, bill));
-  // Online orders are worded for a customer who collects, who never came, or who was told nothing
-  // will come.
+  // Online orders are worded for a customer who collects or receives a delivery, who never came or
+  // refused it, or who was told nothing will come.
   const confirming = confirmation?.kind ?? "VOIDED";
   const online = !!confirmation?.bill.online;
+  const delivery = confirmation?.bill.channel === "DELIVERY";
   const copy =
     confirming === "NO_SHOW"
-      ? {
-          title: m.confirmTitle.NO_SHOW,
-          description: m.online.confirmNoShow,
-          label: m.online.confirmNoShowLabel,
-          checked: m.online.checkedNoShow,
-        }
+      ? delivery
+        ? {
+            title: m.online.notDeliveredTitle,
+            description: m.online.confirmNotDelivered,
+            label: m.online.confirmNotDeliveredLabel,
+            checked: m.online.checkedNotDelivered,
+          }
+        : {
+            title: m.confirmTitle.NO_SHOW,
+            description: m.online.confirmNoShow,
+            label: m.online.confirmNoShowLabel,
+            checked: m.online.checkedNoShow,
+          }
       : confirming === "PAID"
-        ? online
+        ? delivery
           ? {
-              title: m.online.paidTitle,
-              description: m.online.confirmPaid,
-              label: m.online.confirmPaidLabel,
-              checked: m.online.checkedPaid,
+              title: m.online.deliveredTitle,
+              description: m.online.confirmDelivered,
+              label: m.online.confirmDeliveredLabel,
+              checked: m.online.checkedDelivered,
             }
-          : {
-              title: m.confirmTitle.PAID,
-              description: m.confirmPaid,
-              label: m.confirmPaidLabel,
-              checked: m.checkedPaid,
-            }
+          : online
+            ? {
+                title: m.online.paidTitle,
+                description: m.online.confirmPaid,
+                label: m.online.confirmPaidLabel,
+                checked: m.online.checkedPaid,
+              }
+            : {
+                title: m.confirmTitle.PAID,
+                description: m.confirmPaid,
+                label: m.confirmPaidLabel,
+                checked: m.checkedPaid,
+              }
         : {
             title: m.confirmTitle[confirming],
             description: online ? m.online.confirmZero : m.confirmZero,
@@ -266,17 +320,35 @@ export function ActiveBillPanel({
           };
   function confirm(next: CloseKind) {
     closure.clearFeedback();
+    fees.clearNotice();
     setChecked(false);
     setConfirmation({ kind: next, bill: { ...bill! } });
   }
   const busy = closure.busy.includes(sessionId);
-  const locked = busy || closure.pending.some((p) => p.sessionId === sessionId);
+  // A fee correction and a closure never run together on one bill.
+  const locked = busy || fees.busy || closure.pending.some((p) => p.sessionId === sessionId);
+  const fee = feeEdit ? acceptFee(feeEdit.text, billAmounts(feeEdit.bill).items) : null;
+  const feeChanged =
+    !!feeEdit && (!bill || confirmationChanged({ kind: "PAID", bill: feeEdit.bill }, bill));
   useEffect(() => {
     // Leaving the active view requires a fresh human confirmation when it returns.
     // oxlint-disable-next-line react/set-state-in-effect
     setConfirmation(null);
     setChecked(false);
+    setFeeEdit(null);
   }, [model.view.resumeAfter]);
+  function editFee() {
+    closure.clearFeedback();
+    fees.clearNotice();
+    setFeeEdit({ bill: { ...bill! }, text: formatCents(bill!.deliveryFeeCents ?? 0) });
+  }
+  async function saveFee() {
+    if (!feeEdit || fee === null || feeChanged || !model.fresh || locked) return;
+    const editing = feeEdit;
+    await fees.save(editing.bill, fee);
+    // Whatever happened, the bill is reread; a new correction starts from it.
+    setFeeEdit((current) => (current === editing ? null : current));
+  }
   async function submit() {
     if (!confirmation || !checked || changed || !model.fresh || locked) return;
     await closure.close(confirmation);
@@ -312,6 +384,7 @@ export function ActiveBillPanel({
         </div>
       </div>
       {closure.notice && <Notice tone="success">{closure.notice}</Notice>}
+      {fees.notice && <Notice tone={fees.notice.tone}>{fees.notice.text}</Notice>}
       {closure.error && (
         <Notice tone="error">
           {closure.error}
@@ -353,7 +426,7 @@ export function ActiveBillPanel({
           </h3>
           <p>
             {m.closedSummary(
-              m.close[model.session.data.closeReason!],
+              closeLabel(language, model.session.data.closeReason!, model.session.data.channel),
               formatMoney(model.session.data.totalAmountCents, language),
             )}
           </p>
@@ -383,7 +456,11 @@ export function ActiveBillPanel({
               disabled={!model.fresh || locked}
               onClick={() => confirm(kind)}
             >
-              {kind === "PAID" && bill?.online ? m.online.paidButton : m.closeButton[kind]}
+              {kind === "PAID" && bill?.channel === "DELIVERY"
+                ? m.online.deliveredButton
+                : kind === "PAID" && bill?.online
+                  ? m.online.paidButton
+                  : m.closeButton[kind]}
             </Button>
           )}
           {bill && noShowAllowed(bill, account.role) && (
@@ -394,7 +471,17 @@ export function ActiveBillPanel({
               disabled={!model.fresh || locked}
               onClick={() => confirm("NO_SHOW")}
             >
-              {m.closeButton.NO_SHOW}
+              {bill.channel === "DELIVERY" ? m.online.notDeliveredButton : m.closeButton.NO_SHOW}
+            </Button>
+          )}
+          {bill && canEditDeliveryFee(bill, account.role) && (
+            <Button
+              variant="outline"
+              className="w-full"
+              disabled={!model.fresh || locked}
+              onClick={editFee}
+            >
+              {m.online.editFee}
             </Button>
           )}
           {bill &&
@@ -424,6 +511,14 @@ export function ActiveBillPanel({
                 <p className="text-2xl font-semibold tabular-nums">
                   {m.checkAmount(formatMoney(confirmation.bill.totalAmountCents, language))}
                 </p>
+                {confirmation.bill.deliveryFeeCents !== null &&
+                  billAmounts(confirmation.bill).feeCounted && (
+                    <p className="text-sm text-muted-foreground tabular-nums">
+                      {m.online.confirmFee(
+                        formatMoney(confirmation.bill.deliveryFeeCents, language),
+                      )}
+                    </p>
+                  )}
                 {changed && <Notice tone="error">{m.changed}</Notice>}
                 <label className="flex min-h-11 items-center gap-3 rounded-xl border bg-card p-3 font-medium">
                   <Checkbox
@@ -434,6 +529,53 @@ export function ActiveBillPanel({
                   />
                   {copy.checked}
                 </label>
+              </div>
+            )}
+          </ConfirmDialog>
+          <ConfirmDialog
+            open={!!feeEdit}
+            title={feeEdit ? `${m.online.editFee} · ${sessionTitle(feeEdit.bill, language)}` : ""}
+            description={m.online.editFeeHint}
+            confirmLabel={m.online.saveFee}
+            cancelLabel={m.backToBill}
+            busy={fees.busy}
+            confirmDisabled={
+              fee === null ||
+              fee === feeEdit?.bill.deliveryFeeCents ||
+              feeChanged ||
+              locked ||
+              !model.fresh
+            }
+            initialFocus={feeInput}
+            onConfirm={() => void saveFee()}
+            onCancel={() => setFeeEdit(null)}
+          >
+            {feeEdit && (
+              <div className="space-y-2">
+                {feeChanged && <Notice tone="error">{m.changed}</Notice>}
+                <Label htmlFor="delivery-fee-edit">{m.online.feeLabel}</Label>
+                <Input
+                  id="delivery-fee-edit"
+                  ref={feeInput}
+                  inputMode="decimal"
+                  autoComplete="off"
+                  value={feeEdit.text}
+                  disabled={locked || feeChanged}
+                  aria-invalid={fee === null}
+                  aria-describedby="delivery-fee-edit-hint"
+                  onChange={(event) => setFeeEdit({ ...feeEdit, text: event.target.value })}
+                />
+                <p
+                  id="delivery-fee-edit-hint"
+                  className={cn(
+                    "text-sm",
+                    fee === null ? "text-destructive" : "font-semibold tabular-nums",
+                  )}
+                >
+                  {fee === null
+                    ? m.online.feeInvalid
+                    : m.online.newTotal(formatMoney(totalWithFee(feeEdit.bill, fee), language))}
+                </p>
               </div>
             )}
           </ConfirmDialog>

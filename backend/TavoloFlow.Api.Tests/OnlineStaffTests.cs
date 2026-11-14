@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using TavoloFlow.Api.Billing;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Dining;
 using TavoloFlow.Api.Entities;
@@ -763,6 +764,187 @@ public sealed class OnlineStaffTests(PostgreSqlFixture database) : IClassFixture
             history.Items.Select(s => (s.CloseReason!, s.TotalAmountCents))
         );
         Assert.All(history.Items, s => Assert.Equal(300L, s.DeliveryFeeCents));
+    }
+
+    // OWNER corrects the fee before closure against the bill version, which then moves on: a confirmation
+    // frozen before the change can no longer close the bill.
+    [Fact]
+    public async Task DeliveryFee_OwnerCorrectsBeforeClosure_AgainstTheBillVersion()
+    {
+        using var host = new AccountTestHost(database);
+        host.Clock.Set(MondayNoon);
+        var shop = await OnlineTestData.SeedShopAsync(database);
+        var delivery = Delivery(shop, Noon, 1);
+        var pickup = OnlineTestData.Request(shop.RestaurantId, Noon, 2, shop.Dish.Id);
+        await using (var db = database.CreateContext())
+        {
+            db.AddRange(delivery, pickup);
+            await db.SaveChangesAsync();
+        }
+        using var owner = await OnlineTestData.LoginAsync(host, shop.Owner);
+        using var staff = await OnlineTestData.LoginAsync(host, shop.Staff);
+        var session = (
+            await (
+                await AcceptAsync(owner, delivery.Id, 30, 300)
+            ).Content.ReadFromJsonAsync<OnlineActiveOrderResponse>()
+        )!.SessionId;
+        var pickupSession = (
+            await (
+                await AcceptAsync(owner, pickup.Id, 20)
+            ).Content.ReadFromJsonAsync<OnlineActiveOrderResponse>()
+        )!.SessionId;
+
+        await AssertErrorAsync(
+            await FeeAsync(staff, session, new { expectedBillVersion = 1, deliveryFeeCents = 150 }),
+            HttpStatusCode.Forbidden,
+            "FORBIDDEN"
+        );
+        foreach (
+            var invalid in new object[]
+            {
+                new { expectedBillVersion = 1, deliveryFeeCents = -1 },
+                new { expectedBillVersion = 1, deliveryFeeCents = (long?)null },
+                new { expectedBillVersion = 0, deliveryFeeCents = 150 },
+                new
+                {
+                    expectedBillVersion = 1,
+                    deliveryFeeCents = InputRules.MaxSafeCents - 2400 + 1,
+                },
+                new
+                {
+                    expectedBillVersion = 1,
+                    deliveryFeeCents = 150,
+                    reason = "typo",
+                },
+            }
+        )
+            await AssertErrorAsync(
+                await FeeAsync(owner, session, invalid),
+                HttpStatusCode.BadRequest,
+                "VALIDATION_FAILED"
+            );
+        await AssertErrorAsync(
+            await FeeAsync(owner, session, new { expectedBillVersion = 2, deliveryFeeCents = 150 }),
+            HttpStatusCode.Conflict,
+            "BILL_CHANGED"
+        );
+        await AssertErrorAsync(
+            await FeeAsync(
+                owner,
+                pickupSession,
+                new { expectedBillVersion = 1, deliveryFeeCents = 150 }
+            ),
+            HttpStatusCode.Conflict,
+            "SESSION_NOT_DELIVERY"
+        );
+        await AssertErrorAsync(
+            await FeeAsync(
+                owner,
+                Guid.NewGuid(),
+                new { expectedBillVersion = 1, deliveryFeeCents = 150 }
+            ),
+            HttpStatusCode.NotFound,
+            "SESSION_NOT_FOUND"
+        );
+
+        // The same fee changes nothing; a new one moves the bill version on.
+        var same = await BillAsync(
+            await FeeAsync(owner, session, new { expectedBillVersion = 1, deliveryFeeCents = 300 })
+        );
+        Assert.Equal(
+            (1, 300L, 2700L),
+            (same.BillVersion, same.DeliveryFeeCents, same.TotalAmountCents)
+        );
+        var corrected = await BillAsync(
+            await FeeAsync(owner, session, new { expectedBillVersion = 1, deliveryFeeCents = 150 })
+        );
+        Assert.Equal(
+            (2, 150L, 2550L),
+            (corrected.BillVersion, corrected.DeliveryFeeCents, corrected.TotalAmountCents)
+        );
+        // A lost response repeated with the old version only learns the bill changed.
+        await AssertErrorAsync(
+            await FeeAsync(owner, session, new { expectedBillVersion = 1, deliveryFeeCents = 150 }),
+            HttpStatusCode.Conflict,
+            "BILL_CHANGED"
+        );
+        Assert.Equal(
+            2550L,
+            Assert
+                .Single((await ActiveAsync(staff)).Items, o => o.SessionId == session)
+                .TotalAmountCents
+        );
+
+        var order = (
+            await owner.GetFromJsonAsync<BillPage>($"/api/staff/sessions/{session}/bill")
+        )!.Orders.Single();
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (
+                await PostAsync(
+                    owner,
+                    $"/api/staff/orders/{order.Id}/items/{order.Items.Single().Id}/ready",
+                    new { }
+                )
+            ).StatusCode
+        );
+        await AssertErrorAsync(
+            await PostAsync(
+                owner,
+                $"/api/owner/sessions/{session}/checkout",
+                new { expectedBillVersion = 1, confirmedTotalCents = 2700 }
+            ),
+            HttpStatusCode.Conflict,
+            "BILL_CHANGED"
+        );
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (
+                await PostAsync(
+                    owner,
+                    $"/api/owner/sessions/{session}/checkout",
+                    new { expectedBillVersion = 2, confirmedTotalCents = 2550 }
+                )
+            ).StatusCode
+        );
+        await AssertErrorAsync(
+            await FeeAsync(owner, session, new { expectedBillVersion = 2, deliveryFeeCents = 0 }),
+            HttpStatusCode.Conflict,
+            "SESSION_CLOSED"
+        );
+        using var customer = host.Browser();
+        var status = (
+            await customer.GetFromJsonAsync<OnlineOrderStatusResponse>(
+                $"/api/public/online-orders/{delivery.StatusToken}"
+            )
+        )!;
+        Assert.Equal(
+            ("PAID", 150L, 2550L),
+            (status.CloseReason, status.DeliveryFeeCents, status.TotalAmountCents)
+        );
+    }
+
+    private static async Task<HttpResponseMessage> FeeAsync(
+        HttpClient client,
+        Guid session,
+        object body
+    )
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Patch,
+            $"/api/owner/sessions/{session}/delivery-fee"
+        )
+        {
+            Content = JsonContent.Create(body),
+        };
+        request.Headers.Add("X-CSRF-TOKEN", await CsrfAsync(client));
+        return await client.SendAsync(request);
+    }
+
+    private static async Task<BillSummaryResponse> BillAsync(HttpResponseMessage response)
+    {
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<BillSummaryResponse>())!;
     }
 
     // NO_SHOW: online orders only, OWNER only, like PAID a positive receivable with no NEW dishes.

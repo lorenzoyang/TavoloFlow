@@ -37,6 +37,14 @@ public sealed class BillingController(BillingService billing, CurrentAccount cur
         CancellationToken ct
     ) => Ok(await billing.CloseNoShowAsync(RestaurantId, id, input, ct));
 
+    [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
+    [HttpPatch("api/owner/sessions/{id:guid}/delivery-fee")]
+    public async Task<IActionResult> DeliveryFee(
+        Guid id,
+        DeliveryFeeInput input,
+        CancellationToken ct
+    ) => Ok(await billing.SetDeliveryFeeAsync(RestaurantId, id, input, ct));
+
     [HttpPost("api/staff/sessions/{id:guid}/close-empty")]
     public async Task<IActionResult> CloseEmpty(
         Guid id,

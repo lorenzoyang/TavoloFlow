@@ -58,6 +58,38 @@ export function noShowAllowed(bill: BillSummary, role: "OWNER" | "STAFF") {
   return bill.channel !== "DINE_IN" && closureKind(bill, role) === "PAID";
 }
 
+// A delivery bill's two parts: the dishes and the fee, which stops counting once every dish is
+// cancelled (the server's SessionSummaries rule). Null fee for every other channel.
+export function billAmounts(
+  bill: Pick<
+    BillSummary,
+    "deliveryFeeCents" | "itemCount" | "cancelledItemCount" | "totalAmountCents"
+  >,
+) {
+  const fee = bill.deliveryFeeCents;
+  const feeCounted = fee !== null && bill.cancelledItemCount < bill.itemCount;
+  return { fee, feeCounted, items: bill.totalAmountCents - (feeCounted ? fee : 0) };
+}
+
+// OWNER corrects an active delivery's fee before closing it.
+export const canEditDeliveryFee = (bill: BillSummary, role: "OWNER" | "STAFF") =>
+  role === "OWNER" && bill.status === "ACTIVE" && bill.channel === "DELIVERY";
+
+// What the bill would ask for with another fee.
+export function totalWithFee(bill: BillSummary, fee: number) {
+  const { items } = billAmounts(bill);
+  return bill.cancelledItemCount < bill.itemCount ? items + fee : 0;
+}
+
+// The fee write carries the bill version it was read at; that version is its only duplicate guard, so
+// nothing is persisted and an unknown result is checked by rereading the bill.
+export function deliveryFeeRequest(bill: BillSummary, deliveryFeeCents: number) {
+  return {
+    path: `/api/owner/sessions/${bill.sessionId}/delivery-fee`,
+    body: { expectedBillVersion: bill.billVersion, deliveryFeeCents },
+  };
+}
+
 export function confirmationChanged(confirmation: Confirmation, bill: BillSummary) {
   const previous = confirmation.bill;
   return (

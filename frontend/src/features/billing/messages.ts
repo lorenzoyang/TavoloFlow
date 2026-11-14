@@ -1,13 +1,16 @@
 import type { Language } from "@/lib/language";
+import type { SessionChannel } from "@/lib/session-label";
 import type { CloseKind } from "./state";
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
 const zh = {
-  close: { PAID: "已收款", EMPTY: "空桌关闭", VOIDED: "全部取消后关闭", NO_SHOW: "未取" } as Record<
-    CloseKind,
-    string
-  >,
+  close: {
+    PAID: "已收款",
+    EMPTY: "空桌关闭",
+    VOIDED: "全部取消后关闭",
+    NO_SHOW: "未取或未送达",
+  } as Record<CloseKind, string>,
   // One order inside a bill.
   orderNew: "待处理",
   orderProcessed: "已处理",
@@ -120,6 +123,31 @@ const zh = {
     confirmNoShow: "这一单按「未取」关闭：记录没收到的应收款，不记录收款。请先打电话联系顾客。",
     confirmNoShowLabel: "按未取关闭",
     checkedNoShow: "已核对单号和金额，顾客没有来取餐",
+    notCollected: "未取",
+    notDelivered: "未送达",
+    deliveredButton: "已送达，核对收款",
+    deliveredTitle: "确认已送达并收款",
+    confirmDelivered: "请确认已送到顾客手中并完成收款，再关闭这一单。",
+    confirmDeliveredLabel: "已送达并收款",
+    checkedDelivered: "已核对单号和金额，已送达并收款",
+    notDeliveredButton: "未送达",
+    notDeliveredTitle: "确认未送达",
+    confirmNotDelivered:
+      "这一单按「未送达」关闭：记录没收到的应收款，不记录收款。请先打电话联系顾客。",
+    confirmNotDeliveredLabel: "按未送达关闭",
+    checkedNotDelivered: "已核对单号和金额，顾客拒收或无法送达",
+    itemsAmount: "菜品",
+    deliveryFee: "配送费",
+    feeNotCounted: "菜品全部取消，配送费不计入",
+    confirmFee: (amount: string) => `其中配送费：${amount}`,
+    editFee: "修改配送费",
+    editFeeHint: "改正接单时填写的配送费。保存后账单会更新，结账时按新金额核对。",
+    feeLabel: "配送费（€）",
+    feeInvalid: "请填写配送费，例如 2 或 2.50；免费填 0。",
+    newTotal: (amount: string) => `新的应收：${amount}`,
+    saveFee: "保存配送费",
+    feeSaved: (fee: string, total: string) => `配送费已改为 ${fee}，应收 ${total}。`,
+    feeUnknown: "配送费是否已修改待确认，账单已刷新：请核对当前配送费再决定。",
   },
   // History.
   historyTitle: "历史账单",
@@ -150,7 +178,7 @@ export const billingMessages: Record<Language, typeof zh> = {
       PAID: "Pagato",
       EMPTY: "Chiuso vuoto",
       VOIDED: "Tutto annullato",
-      NO_SHOW: "Non ritirato",
+      NO_SHOW: "Non ritirato o non consegnato",
     },
     orderNew: "Da fare",
     orderProcessed: "Evaso",
@@ -269,6 +297,34 @@ export const billingMessages: Record<Language, typeof zh> = {
         "L’ordine si chiude come non ritirato: registra l’importo non incassato, nessun pagamento. Prima prova a chiamare il cliente.",
       confirmNoShowLabel: "Chiudi come non ritirato",
       checkedNoShow: "Ho controllato numero e importo: il cliente non è venuto a ritirare",
+      notCollected: "Non ritirato",
+      notDelivered: "Non consegnato",
+      deliveredButton: "Consegnato, verifica incasso",
+      deliveredTitle: "Conferma consegna e incasso",
+      confirmDelivered: "Conferma che l’ordine è stato consegnato e incassato, poi chiudilo.",
+      confirmDeliveredLabel: "Consegnato e incassato",
+      checkedDelivered: "Ho controllato numero e importo: consegnato e pagato",
+      notDeliveredButton: "Non consegnato",
+      notDeliveredTitle: "Conferma ordine non consegnato",
+      confirmNotDelivered:
+        "L’ordine si chiude come non consegnato: registra l’importo non incassato, nessun pagamento. Prima prova a chiamare il cliente.",
+      confirmNotDeliveredLabel: "Chiudi come non consegnato",
+      checkedNotDelivered:
+        "Ho controllato numero e importo: il cliente ha rifiutato o non era raggiungibile",
+      itemsAmount: "Piatti",
+      deliveryFee: "Consegna",
+      feeNotCounted: "Tutti i piatti annullati: la consegna non si conta",
+      confirmFee: (amount) => `Di cui consegna: ${amount}`,
+      editFee: "Modifica costo di consegna",
+      editFeeHint:
+        "Correggi il costo inserito all’accettazione. Il conto si aggiorna e l’incasso va confermato sul nuovo importo.",
+      feeLabel: "Costo di consegna (€)",
+      feeInvalid: "Inserisci il costo di consegna, ad es. 2 o 2,50; 0 se gratis.",
+      newTotal: (amount) => `Nuovo importo: ${amount}`,
+      saveFee: "Salva costo",
+      feeSaved: (fee, total) => `Consegna ${fee}, da incassare ${total}.`,
+      feeUnknown:
+        "Esito da verificare, conto aggiornato: controlla il costo di consegna attuale prima di riprovare.",
     },
     historyTitle: "Storico conti",
     historyDescription:
@@ -296,7 +352,7 @@ export const billingMessages: Record<Language, typeof zh> = {
       PAID: "Paid",
       EMPTY: "Closed empty",
       VOIDED: "All cancelled",
-      NO_SHOW: "Not collected",
+      NO_SHOW: "Not collected or delivered",
     },
     orderNew: "To do",
     orderProcessed: "Done",
@@ -409,6 +465,34 @@ export const billingMessages: Record<Language, typeof zh> = {
         "The order closes as not collected: it records the amount not received, no payment. Try calling the customer first.",
       confirmNoShowLabel: "Close as not collected",
       checkedNoShow: "I checked the number and amount; the customer didn’t collect",
+      notCollected: "Not collected",
+      notDelivered: "Not delivered",
+      deliveredButton: "Delivered, check payment",
+      deliveredTitle: "Confirm delivery and payment",
+      confirmDelivered: "Confirm the order was delivered and paid, then close it.",
+      confirmDeliveredLabel: "Delivered and paid",
+      checkedDelivered: "I checked the number and amount; delivered and paid",
+      notDeliveredButton: "Not delivered",
+      notDeliveredTitle: "Confirm order not delivered",
+      confirmNotDelivered:
+        "The order closes as not delivered: it records the amount not received, no payment. Try calling the customer first.",
+      confirmNotDeliveredLabel: "Close as not delivered",
+      checkedNotDelivered:
+        "I checked the number and amount; the customer refused it or couldn’t be reached",
+      itemsAmount: "Dishes",
+      deliveryFee: "Delivery fee",
+      feeNotCounted: "Every dish cancelled: the fee isn’t charged",
+      confirmFee: (amount) => `Including delivery fee: ${amount}`,
+      editFee: "Edit delivery fee",
+      editFeeHint:
+        "Correct the fee entered when the order was accepted. The bill updates and checkout confirms the new amount.",
+      feeLabel: "Delivery fee (€)",
+      feeInvalid: "Enter the delivery fee, e.g. 2 or 2.50; 0 if free.",
+      newTotal: (amount) => `New amount due: ${amount}`,
+      saveFee: "Save fee",
+      feeSaved: (fee, total) => `Delivery fee now ${fee}, ${total} due.`,
+      feeUnknown:
+        "Result unconfirmed, bill refreshed: check the current delivery fee before trying again.",
     },
     historyTitle: "Bill history",
     historyDescription:
@@ -432,3 +516,11 @@ export const billingMessages: Record<Language, typeof zh> = {
     loadMoreHistory: "Load more bills",
   },
 };
+
+// A closure as staff read it on one bill: NO_SHOW is "not collected" for pickup and "not delivered" for
+// delivery; the history filter keeps the combined label.
+export function closeLabel(language: Language, reason: CloseKind, channel: SessionChannel) {
+  const m = billingMessages[language];
+  if (reason !== "NO_SHOW") return m.close[reason];
+  return channel === "DELIVERY" ? m.online.notDelivered : m.online.notCollected;
+}

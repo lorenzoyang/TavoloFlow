@@ -19,7 +19,7 @@ import { staffMessages } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn, uniqueBy } from "@/lib/utils";
 import { historyKey, readHistory } from "./api";
-import { billingMessages } from "./messages";
+import { billingMessages, closeLabel } from "./messages";
 import { closeBadges, historySearch, type HistorySearch } from "./state";
 import { HistoricalBill } from "./BillViews";
 import { OwnerOnlyNotice } from "./BillingPage";
@@ -184,7 +184,9 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
                   <span className="text-lg font-semibold wrap-break-word">
                     {sessionTitle(row, language)}
                   </span>
-                  <Badge variant={closeBadges[row.closeReason!]}>{m.close[row.closeReason!]}</Badge>
+                  <Badge variant={closeBadges[row.closeReason!]}>
+                    {closeLabel(language, row.closeReason!, row.channel)}
+                  </Badge>
                 </span>
                 <span className="block text-sm text-muted-foreground">
                   {m.closedAt(formatDateTime(row.closedAt!, language, head?.timeZone))}
