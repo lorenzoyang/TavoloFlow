@@ -1,12 +1,15 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TavoloFlow.Api.Common;
+using TavoloFlow.Api.Guests;
 using TavoloFlow.Api.Online;
 
 namespace TavoloFlow.Api.Controllers;
 
 // Anonymous online ordering. The submission still needs a CSRF token from /api/public/csrf.
+// Select Guest explicitly so the Store fallback cannot replace the public CSRF identity.
 [ApiController]
+[Authorize(Policy = GuestAuthentication.Policy)]
 [AllowAnonymous]
 public sealed class OnlineOrderController(
     OnlineMenuService menus,

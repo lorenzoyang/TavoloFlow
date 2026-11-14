@@ -140,6 +140,9 @@ request's session link is a composite `(session_id, restaurant_id)` key.
 All are anonymous under `/api/public` (Guest scheme, no cookie needed). The submission is a write, so
 it carries a CSRF token from `GET /api/public/csrf`; the browser must send the antiforgery cookie
 (`credentials: same-origin`).
+The customer APIs explicitly select Guest authentication while allowing anonymous access, so Store
+and Platform sign-ins can coexist in the same browser without affecting online ordering. If a Guest
+cookie is present, both CSRF issuance and submission use that identity; no Guest login is required.
 
 | Method and path                                                    | Result                                        |
 | ------------------------------------------------------------------ | --------------------------------------------- |

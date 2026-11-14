@@ -6,12 +6,16 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
+using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
+using TavoloFlow.Api.Dining;
 using TavoloFlow.Api.Entities;
+using TavoloFlow.Api.Guests;
 using TavoloFlow.Api.Online;
 using TavoloFlow.Api.Ordering;
 using TavoloFlow.Api.Platform;
+using TavoloFlow.Api.Tables;
 using static TavoloFlow.Api.Tests.AccountTestHost;
 
 namespace TavoloFlow.Api.Tests;
@@ -373,6 +377,124 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
             HttpStatusCode.NotFound,
             "ONLINE_LINK_NOT_FOUND"
         );
+    }
+
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData(null, true)]
+    [InlineData(RestaurantUserRole.Owner, false)]
+    [InlineData(RestaurantUserRole.Owner, true)]
+    [InlineData(RestaurantUserRole.Staff, false)]
+    [InlineData(RestaurantUserRole.Staff, true)]
+    public async Task Submit_CoexistingStoreAndGuestIdentities_PreservesAccessAndIdempotency(
+        RestaurantUserRole? role,
+        bool withGuest
+    )
+    {
+        using var host = new AccountTestHost(database);
+        host.Clock.Set(MondayNoon);
+        var shop = await SeedAsync();
+        var account = role switch
+        {
+            RestaurantUserRole.Owner => shop.Owner,
+            RestaurantUserRole.Staff => shop.Staff,
+            _ => null,
+        };
+        using var browser = account is null ? host.Browser() : await LoginAsync(host, account);
+        var guest = withGuest ? await JoinGuestAsync(host, browser, shop) : null;
+        var id = Guid.NewGuid();
+        var body = Body(id, shop.Dish);
+
+        // The same cookie jar is used for public CSRF, submission and the existing identities.
+        var created = await SubmitAsync(browser, shop, body);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var submitted = await created.Content.ReadFromJsonAsync<OnlineSubmissionResponse>();
+        Assert.NotNull(submitted);
+        var repeat = await SubmitAsync(browser, shop, body);
+        Assert.Equal(HttpStatusCode.OK, repeat.StatusCode);
+        Assert.Equal(submitted, await repeat.Content.ReadFromJsonAsync<OnlineSubmissionResponse>());
+        Assert.Equal(
+            submitted,
+            await browser.GetFromJsonAsync<OnlineSubmissionResponse>(
+                $"/api/public/r/{shop.Slug}/requests/by-client-id/{id}"
+            )
+        );
+
+        if (account is null)
+        {
+            await AssertErrorAsync(
+                await browser.GetAsync("/api/auth/me"),
+                HttpStatusCode.Unauthorized,
+                "UNAUTHENTICATED"
+            );
+            await AssertErrorAsync(
+                await browser.GetAsync("/api/staff/online/settings"),
+                HttpStatusCode.Unauthorized,
+                "UNAUTHENTICATED"
+            );
+        }
+        else
+        {
+            var me = await browser.GetFromJsonAsync<CurrentAccountResponse>("/api/auth/me");
+            Assert.Equal(account.Id, me!.UserId);
+            Assert.Equal(account.RestaurantId, me.RestaurantId);
+        }
+        if (guest is not null)
+        {
+            var access = await browser.GetFromJsonAsync<GuestAccessResponse>(
+                $"/api/public/sessions/{guest.SessionId}/access"
+            );
+            Assert.Equal(guest.RestaurantId, access!.RestaurantId);
+            Assert.Equal(guest.TableId, access.TableId);
+            Assert.Equal(guest.SessionId, access.SessionId);
+            Assert.Equal("ACTIVE", access.Status);
+        }
+        else
+            await AssertErrorAsync(
+                await browser.GetAsync($"/api/public/sessions/{Guid.NewGuid()}/access"),
+                HttpStatusCode.Unauthorized,
+                "GUEST_AUTH_REQUIRED"
+            );
+
+        await using var db = database.CreateContext();
+        var saved = Assert.Single(
+            await db.OnlineRequests.Where(r => r.RestaurantId == shop.RestaurantId).ToListAsync()
+        );
+        Assert.Equal(id, saved.ClientRequestId);
+        Assert.Equal(submitted.Number, saved.Number);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Submit_InvalidOrCrossScopeCsrf_RejectsBeforeAnyWrite(bool withGuest)
+    {
+        using var host = new AccountTestHost(database);
+        host.Clock.Set(MondayNoon);
+        var shop = await SeedAsync();
+        using var browser = await LoginAsync(host, shop.Owner);
+        if (withGuest)
+            await JoinGuestAsync(host, browser, shop);
+
+        var path = $"/api/public/r/{shop.Slug}/requests";
+        await AssertErrorAsync(
+            await browser.PostAsJsonAsync(path, Body(Guid.NewGuid(), shop.Dish)),
+            HttpStatusCode.BadRequest,
+            "CSRF_VALIDATION_FAILED"
+        );
+        var publicCsrf = await PublicCsrfAsync(browser);
+        var tamperedCsrf = (publicCsrf[0] == 'A' ? "B" : "A") + publicCsrf[1..];
+        var platformCsrf = (await browser.GetFromJsonAsync<Csrf>("/api/platform/auth/csrf"))!.Token;
+        foreach (var csrf in new[] { tamperedCsrf, await CsrfAsync(browser), platformCsrf })
+            await AssertErrorAsync(
+                await PostAsync(browser, path, Body(Guid.NewGuid(), shop.Dish), csrf),
+                HttpStatusCode.BadRequest,
+                "CSRF_VALIDATION_FAILED"
+            );
+
+        await using var db = database.CreateContext();
+        Assert.False(await db.OnlineRequests.AnyAsync(r => r.RestaurantId == shop.RestaurantId));
+        Assert.False(await db.OnlineCounters.AnyAsync(c => c.RestaurantId == shop.RestaurantId));
     }
 
     [Fact]
@@ -944,6 +1066,29 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
 
     private static async Task<string> PublicCsrfAsync(HttpClient client) =>
         (await client.GetFromJsonAsync<Csrf>("/api/public/csrf"))!.Token;
+
+    private static async Task<JoinResponse> JoinGuestAsync(
+        AccountTestHost host,
+        HttpClient browser,
+        Shop shop
+    )
+    {
+        using var owner = await LoginAsync(host, shop.Owner);
+        var created = await PostAsync(owner, "/api/owner/tables", new TableLabelInput("1"));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var table = (await created.Content.ReadFromJsonAsync<TableResponse>())!;
+        var opened = await PostAsync(owner, $"/api/staff/tables/{table.Id}/open", new { });
+        Assert.Equal(HttpStatusCode.Created, opened.StatusCode);
+        var visit = (await opened.Content.ReadFromJsonAsync<OpenSessionResponse>())!;
+        var joined = await PostAsync(
+            browser,
+            $"/api/public/qr/{table.QrPath.Split('/').Last()}/join",
+            new JoinInput(visit.Session.SessionId, visit.JoinCode),
+            await PublicCsrfAsync(browser)
+        );
+        Assert.Equal(HttpStatusCode.OK, joined.StatusCode);
+        return (await joined.Content.ReadFromJsonAsync<JoinResponse>())!;
+    }
 
     private async Task UpdateRestaurantAsync(
         Shop shop,
