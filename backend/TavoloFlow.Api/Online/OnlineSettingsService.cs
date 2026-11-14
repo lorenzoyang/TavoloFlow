@@ -7,7 +7,8 @@ using TavoloFlow.Api.Entities;
 
 namespace TavoloFlow.Api.Online;
 
-// The restaurant's online ordering settings: public phone and weekly hours (OWNER), pause (STAFF, OWNER).
+// The restaurant's online ordering settings: public phone, weekly hours and delivery (OWNER), pause
+// (STAFF, OWNER).
 // Every write locks the restaurant row (UPDATE), so a submission holding restaurant SHARE sees either the
 // old or the new settings, and the platform cannot turn the service off halfway through a write.
 public sealed class OnlineSettingsService(ApplicationDbContext db, TimeProvider clock)
@@ -86,6 +87,51 @@ public sealed class OnlineSettingsService(ApplicationDbContext db, TimeProvider 
         return response;
     }
 
+    // Turning delivery off only stops new delivery submissions: waiting delivery requests can still be
+    // accepted or rejected, and accepted ones close as usual.
+    public async Task<OnlineSettingsResponse> SetDeliveryAsync(
+        Guid restaurantId,
+        OnlineDeliveryInput input,
+        CancellationToken ct
+    )
+    {
+        var zh = DeliveryNote(input.NoteZh, "noteZh");
+        var it = DeliveryNote(input.NoteIt, "noteIt");
+        var en = DeliveryNote(input.NoteEn, "noteEn");
+        var enabled = input.Enabled!.Value;
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var restaurant = await LockOfferedAsync(restaurantId, ct);
+        await db
+            .Restaurants.Where(r => r.Id == restaurantId)
+            .ExecuteUpdateAsync(
+                u =>
+                    u.SetProperty(r => r.DeliveryEnabled, enabled)
+                        .SetProperty(r => r.DeliveryNoteZh, zh)
+                        .SetProperty(r => r.DeliveryNoteIt, it)
+                        .SetProperty(r => r.DeliveryNoteEn, en),
+                ct
+            );
+        restaurant.DeliveryEnabled = enabled;
+        restaurant.DeliveryNoteZh = zh;
+        restaurant.DeliveryNoteIt = it;
+        restaurant.DeliveryNoteEn = en;
+        var response = await ResponseAsync(restaurant, ct);
+        await transaction.CommitAsync(ct);
+        return response;
+    }
+
+    private static string? DeliveryNote(string? value, string field)
+    {
+        var note = InputRules.TrimToNull(value);
+        return note?.Length > InputRules.MaxDeliveryNoteLength
+            ? throw ApiException.Validation(
+                "Each delivery note takes at most 500 characters.",
+                field,
+                "Too long."
+            )
+            : note;
+    }
+
     // The pause lasts until a computed moment and then lapses by itself, so nobody has to remember to resume.
     public async Task<OnlineSettingsResponse> PauseAsync(
         Guid restaurantId,
@@ -158,7 +204,11 @@ public sealed class OnlineSettingsService(ApplicationDbContext db, TimeProvider 
             OnlineAvailability.IsPaused(restaurant, now) ? restaurant.OnlinePausedUntil : null,
             availability.Status,
             availability.NextOpensAt,
-            current is { } slot ? OnlineSchedule.SlotEndUtc(slot, local, zone) : null
+            current is { } slot ? OnlineSchedule.SlotEndUtc(slot, local, zone) : null,
+            restaurant.DeliveryEnabled,
+            restaurant.DeliveryNoteZh,
+            restaurant.DeliveryNoteIt,
+            restaurant.DeliveryNoteEn
         );
     }
 

@@ -10,6 +10,8 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { isSameAccount } from "@/features/accounts/queries";
@@ -18,7 +20,7 @@ import { qrPng } from "@/features/tables/qr-image";
 import { isLocalOnlyUrl, publicMenuUrl } from "@/features/tables/qr-url";
 import { errorMessage, withTimeout } from "@/lib/api";
 import { formatTime, formatWeekdayTime } from "@/lib/format";
-import type { Language } from "@/lib/language";
+import { LANGUAGES, type Language } from "@/lib/language";
 import { staffMessages } from "@/lib/staff-messages";
 import { isLive, onLifecycleChange } from "@/lib/useLiveView";
 import { useOperations } from "@/lib/useOperations";
@@ -29,12 +31,26 @@ import {
   onlineSettingsQuery,
   pauseOnline,
   resumeOnline,
+  saveDelivery,
   saveOnlineHours,
   savePublicPhone,
   type OnlineSettings,
 } from "./api";
 import { onlineMessages } from "./messages";
-import { normalizePhone, sameHours, WEEKDAYS, weekDraft, weekHours, type WeekDraft } from "./state";
+import {
+  deliveryDraft,
+  deliveryInput,
+  deliveryWithoutNote,
+  MAX_DELIVERY_NOTE_LENGTH,
+  normalizePhone,
+  sameDelivery,
+  sameHours,
+  WEEKDAYS,
+  weekDraft,
+  weekHours,
+  type DeliveryDraft,
+  type WeekDraft,
+} from "./state";
 
 type Messages = (typeof onlineMessages)[Language];
 type SettingsWrite = (signal: AbortSignal) => Promise<OnlineSettings>;
@@ -450,7 +466,113 @@ function HoursCard({
                   setError("");
                 }}
               >
-                {m.resetHours}
+                {m.discardChanges}
+              </Button>
+            )}
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+// OWNER: the delivery switch and the note per language, saved together like the week of hours.
+function DeliveryCard({
+  settings,
+  busy,
+  send,
+}: {
+  settings: OnlineSettings;
+  busy: boolean;
+  send: SendSettings;
+}) {
+  const m = onlineMessages[useStaffLanguage()];
+  // The local edit survives background refreshes until it is saved or discarded.
+  const [draft, setDraft] = useState<DeliveryDraft | null>(null);
+  const [error, setError] = useState("");
+  const value = draft ?? deliveryDraft(settings);
+  const parsed = deliveryInput(value);
+  const unchanged = draft === null || (parsed.ok && sameDelivery(parsed.input, settings));
+  const edit = (next: DeliveryDraft) => {
+    setError("");
+    setDraft(next);
+  };
+  function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    if (!parsed.ok) {
+      setError(m.deliveryTooLong(m.noteLanguages[parsed.tooLong]));
+      return;
+    }
+    setError("");
+    send(
+      (signal) => saveDelivery(parsed.input, signal),
+      () => setDraft(null),
+    );
+  }
+  return (
+    <Card>
+      <CardContent>
+        <form className="space-y-4" onSubmit={save} noValidate>
+          <div className="space-y-1">
+            <h2 className="font-semibold">{m.deliveryTitle}</h2>
+            <p className="text-sm leading-6 text-muted-foreground">{m.deliveryHint}</p>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p id="delivery-enabled" className="font-medium">
+                {m.deliveryEnabled}
+              </p>
+              <p className="text-sm leading-5 text-muted-foreground">
+                {value.enabled ? m.deliveryOn : m.deliveryOff}
+              </p>
+            </div>
+            <Switch
+              aria-labelledby="delivery-enabled"
+              checked={value.enabled}
+              disabled={busy}
+              onCheckedChange={(enabled) => edit({ ...value, enabled })}
+            />
+          </div>
+          {LANGUAGES.map((language) => (
+            <div key={language} className="space-y-2">
+              <Label htmlFor={`delivery-note-${language}`}>
+                {m.deliveryNote(m.noteLanguages[language])}
+              </Label>
+              <Textarea
+                id={`delivery-note-${language}`}
+                lang={language}
+                rows={3}
+                maxLength={MAX_DELIVERY_NOTE_LENGTH}
+                placeholder={m.deliveryPlaceholder}
+                value={value.notes[language]}
+                disabled={busy}
+                aria-invalid={!parsed.ok && parsed.tooLong === language}
+                onChange={(event) =>
+                  edit({ ...value, notes: { ...value.notes, [language]: event.target.value } })
+                }
+              />
+            </div>
+          ))}
+          {parsed.ok && deliveryWithoutNote(parsed.input) && (
+            <Notice tone="warning">{m.deliveryNoNote}</Notice>
+          )}
+          {error && <Notice tone="error">{error}</Notice>}
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" disabled={busy || unchanged}>
+              {m.saveDelivery}
+            </Button>
+            {draft !== null && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={() => {
+                  setDraft(null);
+                  setError("");
+                }}
+              >
+                {m.discardChanges}
               </Button>
             )}
           </div>
@@ -541,6 +663,7 @@ function OnlineSettingsContent({ account }: { account: CurrentAccount }) {
           <LinkCard slug={settings.slug} />
           {owner && <PhoneCard settings={settings} busy={busy} send={send} />}
           {owner && <HoursCard settings={settings} busy={busy} send={send} />}
+          {owner && <DeliveryCard settings={settings} busy={busy} send={send} />}
         </div>
       )}
     </div>

@@ -27,10 +27,21 @@ public sealed record OnlinePauseInput(
     [Required, RegularExpression("^(SLOT|TODAY)$")] string? Until
 );
 
+// Delivery: the switch and the optional note per language, replaced together. Blank notes are stored as
+// NULL; turning delivery off keeps the notes for the next time.
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record OnlineDeliveryInput(
+    [Required] bool? Enabled,
+    string? NoteZh,
+    string? NoteIt,
+    string? NoteEn
+);
+
 public sealed record OnlineHourResponse(int Weekday, int OpensMinute, int ClosesMinute);
 
 // Hours are ordered by weekday and opening time. PausedUntil is null once the pause has lapsed.
 // CurrentSlotEndsAt is set while a slot accepts orders, so the page can offer "pause until then".
+// Delivery does not affect Status: pickup stays possible whether or not the restaurant delivers.
 public sealed record OnlineSettingsResponse(
     string? Slug,
     string? PublicPhone,
@@ -38,7 +49,11 @@ public sealed record OnlineSettingsResponse(
     DateTime? PausedUntil,
     string Status,
     DateTime? NextOpensAt,
-    DateTime? CurrentSlotEndsAt
+    DateTime? CurrentSlotEndsAt,
+    bool DeliveryEnabled,
+    string? DeliveryNoteZh,
+    string? DeliveryNoteIt,
+    string? DeliveryNoteEn
 );
 
 public static class OnlineErrors

@@ -149,6 +149,24 @@ internal sealed class RestaurantConfiguration : IEntityTypeConfiguration<Restaur
             .HasColumnType("timestamptz");
 
         builder
+            .Property(restaurant => restaurant.DeliveryEnabled)
+            .HasColumnName("delivery_enabled")
+            .HasDefaultValue(false)
+            .ValueGeneratedNever();
+        builder
+            .Property(restaurant => restaurant.DeliveryNoteZh)
+            .HasColumnName("delivery_note_zh")
+            .HasMaxLength(InputRules.MaxDeliveryNoteLength);
+        builder
+            .Property(restaurant => restaurant.DeliveryNoteIt)
+            .HasColumnName("delivery_note_it")
+            .HasMaxLength(InputRules.MaxDeliveryNoteLength);
+        builder
+            .Property(restaurant => restaurant.DeliveryNoteEn)
+            .HasColumnName("delivery_note_en")
+            .HasMaxLength(InputRules.MaxDeliveryNoteLength);
+
+        builder
             .Property(restaurant => restaurant.OwnerContact)
             .HasColumnName("owner_contact")
             .HasMaxLength(500);

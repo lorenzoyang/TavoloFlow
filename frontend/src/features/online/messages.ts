@@ -64,7 +64,7 @@ const zh = {
   addSlot: "添加时段",
   removeSlot: (day: string, index: number) => `删除${day}第 ${index} 段`,
   saveHours: "保存营业时间",
-  resetHours: "放弃修改",
+  discardChanges: "放弃修改",
   weekProblem: (day: string, problem: WeekProblem) =>
     `${day}：${
       {
@@ -74,6 +74,19 @@ const zh = {
         tooMany: "每天最多两段。",
       }[problem]
     }`,
+  // Delivery
+  deliveryTitle: "配送",
+  deliveryHint:
+    "开启后，顾客结账时可以选择配送。说明里写配送范围和收费规则，结账时按顾客的语言显示；配送费由接单的人按地址和说明填写。",
+  deliveryEnabled: "提供配送",
+  deliveryOn: "顾客可以选择配送",
+  deliveryOff: "只能到店自取",
+  deliveryNote: (language: string) => `配送说明（${language}）`,
+  noteLanguages: { zh: "中文", it: "意大利语", en: "英语" },
+  deliveryPlaceholder: "例如：5 公里内满 20 € 免配送费，否则 2 €。",
+  deliveryNoNote: "还没有写配送说明：顾客结账时只会看到“配送费以餐厅确认为准”。",
+  deliveryTooLong: (language: string) => `${language}说明最多 500 个字符。`,
+  saveDelivery: "保存配送设置",
 };
 
 export const onlineMessages: Record<Language, typeof zh> = {
@@ -143,7 +156,7 @@ export const onlineMessages: Record<Language, typeof zh> = {
     addSlot: "Aggiungi fascia",
     removeSlot: (day, index) => `Rimuovi la fascia ${index} di ${day}`,
     saveHours: "Salva orari",
-    resetHours: "Annulla modifiche",
+    discardChanges: "Annulla modifiche",
     weekProblem: (day, problem) =>
       `${day}: ${
         {
@@ -153,6 +166,19 @@ export const onlineMessages: Record<Language, typeof zh> = {
           tooMany: "al massimo due fasce al giorno.",
         }[problem]
       }`,
+    deliveryTitle: "Consegna a domicilio",
+    deliveryHint:
+      "Se attiva, al momento dell’ordine i clienti possono scegliere la consegna. Nella nota scrivi zona e costi: compare nella lingua del cliente. Chi accetta l’ordine inserisce il costo in base all’indirizzo e alla nota.",
+    deliveryEnabled: "Offri la consegna",
+    deliveryOn: "I clienti possono scegliere la consegna",
+    deliveryOff: "Solo ritiro",
+    deliveryNote: (language) => `Nota sulla consegna (${language})`,
+    noteLanguages: { zh: "cinese", it: "italiano", en: "inglese" },
+    deliveryPlaceholder: "Es.: entro 5 km gratis sopra 20 €, altrimenti 2 €.",
+    deliveryNoNote:
+      "Nessuna nota: al momento dell’ordine i clienti vedranno solo che il costo di consegna lo conferma il ristorante.",
+    deliveryTooLong: (language) => `La nota in ${language} può avere al massimo 500 caratteri.`,
+    saveDelivery: "Salva consegna",
   },
   en: {
     title: "Online ordering",
@@ -218,7 +244,7 @@ export const onlineMessages: Record<Language, typeof zh> = {
     addSlot: "Add slot",
     removeSlot: (day, index) => `Remove ${day} slot ${index}`,
     saveHours: "Save hours",
-    resetHours: "Discard changes",
+    discardChanges: "Discard changes",
     weekProblem: (day, problem) =>
       `${day}: ${
         {
@@ -228,6 +254,19 @@ export const onlineMessages: Record<Language, typeof zh> = {
           tooMany: "at most two slots a day.",
         }[problem]
       }`,
+    deliveryTitle: "Delivery",
+    deliveryHint:
+      "When on, customers can choose delivery at checkout. Write the delivery area and fee rules in the note; it appears in the customer’s language. Whoever accepts the order enters the fee from the address and the note.",
+    deliveryEnabled: "Offer delivery",
+    deliveryOn: "Customers can choose delivery",
+    deliveryOff: "Pickup only",
+    deliveryNote: (language) => `Delivery note (${language})`,
+    noteLanguages: { zh: "Chinese", it: "Italian", en: "English" },
+    deliveryPlaceholder: "E.g. within 5 km free over €20, otherwise €2.",
+    deliveryNoNote:
+      "No note yet: at checkout customers will only see that the restaurant confirms the delivery fee.",
+    deliveryTooLong: (language) => `The ${language} note takes at most 500 characters.`,
+    saveDelivery: "Save delivery",
   },
 };
 

@@ -48,6 +48,10 @@ Table restaurants {
   slug varchar(40) [note: 'Readable online ordering link /r/{slug}; required while online ordering is on, never cleared']
   public_phone varchar(16) [note: 'OWNER-set phone shown to online customers; online ordering stays closed without it']
   online_paused_until timestamptz [note: 'STAFF/OWNER pause of online ordering; lapses on its own once the time passes']
+  delivery_enabled boolean [not null, default: false, note: 'OWNER switch for restaurant-run delivery; off only stops new delivery submissions']
+  delivery_note_zh varchar(500) [note: 'Optional delivery area and fee rules shown at checkout, per language']
+  delivery_note_it varchar(500)
+  delivery_note_en varchar(500)
   owner_contact varchar(500)
   default_annual_fee_cents bigint
   subscription_version int [not null, default: 1]

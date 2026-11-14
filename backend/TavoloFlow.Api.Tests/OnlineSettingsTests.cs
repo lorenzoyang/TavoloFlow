@@ -16,6 +16,7 @@ public sealed class OnlineSettingsTests(PostgreSqlFixture database)
     private const string Pause = "/api/staff/online/pause";
     private const string Hours = "/api/owner/online/hours";
     private const string Phone = "/api/owner/online/phone";
+    private const string Delivery = "/api/owner/online/delivery";
 
     // Monday 16 November 2026, 12:00 in Rome (CET, UTC+1).
     private static readonly DateTimeOffset MondayNoon = new(2026, 11, 16, 11, 0, 0, TimeSpan.Zero);
@@ -250,6 +251,81 @@ public sealed class OnlineSettingsTests(PostgreSqlFixture database)
     }
 
     [Fact]
+    public async Task Delivery_OwnerOnly_TrimsValidatesAndKeepsNotesWhenOff()
+    {
+        using var host = new AccountTestHost(database);
+        host.Clock.Set(MondayNoon);
+        var (owner, staff, restaurantId) = await SeedAsync(online: true, phone: "0212345678");
+        using var ownerClient = await LoginAsync(host, owner);
+        using var staffClient = await LoginAsync(host, staff);
+
+        var initial = await ReadAsync(staffClient);
+        Assert.False(initial.DeliveryEnabled);
+        Assert.Null(initial.DeliveryNoteIt);
+
+        await AssertErrorAsync(
+            await SendAsync(staffClient, HttpMethod.Put, Delivery, new { enabled = true }),
+            HttpStatusCode.Forbidden,
+            "FORBIDDEN"
+        );
+        foreach (
+            var invalid in new object[]
+            {
+                new { },
+                new { enabled = (bool?)null },
+                new { enabled = true, noteIt = new string('a', 501) },
+                new { enabled = true, noteZh = " " + new string('配', 501) + " " },
+                new { enabled = true, note = "unknown field" },
+            }
+        )
+            await AssertErrorAsync(
+                await SendAsync(ownerClient, HttpMethod.Put, Delivery, invalid),
+                HttpStatusCode.BadRequest,
+                "VALIDATION_FAILED"
+            );
+        Assert.False((await ReadAsync(ownerClient)).DeliveryEnabled);
+
+        // Notes are optional; blank ones are stored as null and the rest are trimmed.
+        var on = await SettingsAsync(
+            await SendAsync(
+                ownerClient,
+                HttpMethod.Put,
+                Delivery,
+                new
+                {
+                    enabled = true,
+                    noteZh = "   ",
+                    noteIt = $"  Entro 5 km gratis sopra 20 €.{new string(' ', 600)}",
+                    noteEn = (string?)null,
+                }
+            )
+        );
+        Assert.True(on.DeliveryEnabled);
+        Assert.Null(on.DeliveryNoteZh);
+        Assert.Equal("Entro 5 km gratis sopra 20 €.", on.DeliveryNoteIt);
+        Assert.Null(on.DeliveryNoteEn);
+        // Delivery never changes whether customers can order: pickup stays open.
+        Assert.Equal(initial.Status, on.Status);
+        Assert.Equal(on.DeliveryNoteIt, (await ReadAsync(staffClient)).DeliveryNoteIt);
+
+        var off = await SettingsAsync(
+            await SendAsync(
+                ownerClient,
+                HttpMethod.Put,
+                Delivery,
+                new { enabled = false, noteIt = on.DeliveryNoteIt }
+            )
+        );
+        Assert.False(off.DeliveryEnabled);
+        Assert.Equal(on.DeliveryNoteIt, off.DeliveryNoteIt);
+
+        await using var db = database.CreateContext();
+        var stored = await db.Restaurants.AsNoTracking().SingleAsync(r => r.Id == restaurantId);
+        Assert.False(stored.DeliveryEnabled);
+        Assert.Equal("Entro 5 km gratis sopra 20 €.", stored.DeliveryNoteIt);
+    }
+
+    [Fact]
     public async Task Writes_OnlineNotOffered_RejectedWhileReadsReportTheState()
     {
         using var host = new AccountTestHost(database);
@@ -262,6 +338,7 @@ public sealed class OnlineSettingsTests(PostgreSqlFixture database)
             {
                 (HttpMethod.Patch, Phone, new { publicPhone = "0212345678" }),
                 (HttpMethod.Put, Hours, new { slots = new[] { Slot(1, 720, 900) } }),
+                (HttpMethod.Put, Delivery, new { enabled = true }),
                 (HttpMethod.Put, Pause, new { until = "TODAY" }),
                 (HttpMethod.Delete, Pause, null),
             }

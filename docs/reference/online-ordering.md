@@ -26,11 +26,14 @@ is off render a "service not offered" state.
 | `DELETE /api/staff/online/pause` | STAFF, OWNER | → settings (resumes)                                             |
 | `PUT /api/owner/online/hours`    | OWNER        | `{ slots: [{ weekday, opensMinute, closesMinute }] }` → settings |
 | `PATCH /api/owner/online/phone`  | OWNER        | `{ publicPhone }`, blank clears → settings                       |
+| `PUT /api/owner/online/delivery` | OWNER        | `{ enabled, noteZh, noteIt, noteEn }` → settings                 |
 
-Settings are `{ slug, publicPhone, hours, pausedUntil, status, nextOpensAt, currentSlotEndsAt }`.
+Settings are `{ slug, publicPhone, hours, pausedUntil, status, nextOpensAt, currentSlotEndsAt,
+deliveryEnabled, deliveryNoteZh, deliveryNoteIt, deliveryNoteEn }`.
 `hours` are ordered by weekday and opening time. `pausedUntil` is null once the pause has lapsed.
 `nextOpensAt` accompanies `CLOSED_HOURS` and is null when the week has no slots. `currentSlotEndsAt`
-is set while a slot accepts orders. Times are UTC.
+is set while a slot accepts orders. Times are UTC. Delivery never changes `status`: pickup stays
+possible whether or not the restaurant delivers.
 
 The read is one Repeatable Read snapshot. Every write owns a transaction, takes restaurant UPDATE
 (so a later submission holding restaurant SHARE sees the old or the new settings, never half), rejects
@@ -56,6 +59,18 @@ Comparisons use local wall-clock minutes from the injected `TimeProvider`: a slo
 to UTC. A start that falls in the hour skipped by a spring DST change moves to the jump; a time that
 occurs twice in autumn takes its first occurrence. Calendar rules live in `Online/OnlineSchedule.cs`
 and are unit-tested with Europe/Rome DST dates.
+
+## Delivery settings
+
+Restaurant-run delivery is an OWNER setting on `restaurants`: `delivery_enabled` (default false) and an
+optional note per language (`delivery_note_zh`, `delivery_note_it`, `delivery_note_en`, up to 500
+characters each once trimmed; blank is stored as NULL) with the delivery area and fee rules. The write
+replaces the switch and the three notes together, under restaurant UPDATE like the other settings;
+`enabled` is required and longer notes return `VALIDATION_FAILED`. Notes are optional: without one,
+checkout only says that the restaurant confirms the fee. Turning delivery off keeps the notes and only
+stops new delivery submissions; waiting delivery requests can still be accepted or rejected and
+accepted ones close as usual. There is no fee rule in code: whoever accepts a delivery order enters
+its fee.
 
 ## Pause
 
@@ -350,7 +365,8 @@ customer phones; the frontend repeats it in `features/online/state.ts`.
 `/staff/online-settings` (from 首页, with a back link) shows the status, the full online link with copy
 and open actions, and its QR PNG, generated in the browser with the table QR options and the same
 `VITE_PUBLIC_BASE_URL` origin rule (`publicMenuUrl` accepts `/r/{slug}`). STAFF and OWNER pause or
-resume; OWNER also edits the phone and the week. A missing phone or week is explained in one warning.
+resume; OWNER also edits the phone, the week and delivery (a switch and three note fields, with a
+warning while delivery is on without any note). A missing phone or week is explained in one warning.
 Time inputs cannot hold 24:00, so 00:00 as a closing time means midnight. The query key is
 `["online-settings", restaurantId, userId]`; the visible page rereads it every 60 seconds because
 slots and pauses change with the clock. Local form edits survive background refreshes until saved or
@@ -372,7 +388,8 @@ discarded.
   counting only waiting requests (twenty expired ones never block); the rate limit; recovery scoped to
   the restaurant; every status-page phase without private fields; and the race between a submission
   and switching online ordering off (`LockGate`).
-- `OnlineSettingsTests`: OWNER-only phone and hours, validation, whole-week replacement, both pauses
+- `OnlineSettingsTests`: OWNER-only phone, hours and delivery (trimmed notes, blank as null, 500
+  characters, notes kept when off), validation, whole-week replacement, both pauses
   lapsing with `TestClock.Set`, `ONLINE_CLOSED`, `ONLINE_NOT_OFFERED`, `SUSPENDED`, the database
   constraints and the cascade on restaurant deletion.
 - `OnlineStaffTests`: the pending list (only waiting requests, oldest first, expiry at `expires_at`,

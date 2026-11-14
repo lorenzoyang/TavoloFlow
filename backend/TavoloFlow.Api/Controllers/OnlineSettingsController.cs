@@ -5,7 +5,7 @@ using TavoloFlow.Api.Online;
 
 namespace TavoloFlow.Api.Controllers;
 
-// Phone and hours belong to OWNER; STAFF and OWNER read the settings and pause or resume.
+// Phone, hours and delivery belong to OWNER; STAFF and OWNER read the settings and pause or resume.
 [ApiController]
 [Authorize(Policy = StoreAuthentication.StaffPolicy)]
 public sealed class OnlineSettingsController(OnlineSettingsService service, CurrentAccount current)
@@ -29,6 +29,11 @@ public sealed class OnlineSettingsController(OnlineSettingsService service, Curr
     [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
     public async Task<IActionResult> Hours(OnlineHoursInput input, CancellationToken ct) =>
         Ok(await service.SetHoursAsync(RestaurantId, input, ct));
+
+    [HttpPut("api/owner/online/delivery")]
+    [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
+    public async Task<IActionResult> Delivery(OnlineDeliveryInput input, CancellationToken ct) =>
+        Ok(await service.SetDeliveryAsync(RestaurantId, input, ct));
 
     [HttpPatch("api/owner/online/phone")]
     [Authorize(Policy = StoreAuthentication.OwnerPolicy)]

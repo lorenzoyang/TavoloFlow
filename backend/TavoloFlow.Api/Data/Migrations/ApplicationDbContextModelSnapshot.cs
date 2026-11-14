@@ -985,6 +985,26 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("character varying(2)")
                         .HasColumnName("default_language");
 
+                    b.Property<bool>("DeliveryEnabled")
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("delivery_enabled");
+
+                    b.Property<string>("DeliveryNoteEn")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("delivery_note_en");
+
+                    b.Property<string>("DeliveryNoteIt")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("delivery_note_it");
+
+                    b.Property<string>("DeliveryNoteZh")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("delivery_note_zh");
+
                     b.Property<bool>("DineInEnabled")
                         .HasColumnType("boolean")
                         .HasDefaultValue(true)

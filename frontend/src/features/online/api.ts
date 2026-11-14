@@ -4,7 +4,7 @@ import { request, write } from "@/lib/api";
 import { storeKey } from "@/lib/store-views";
 import type { OnlineOrder } from "@/features/online-order/api";
 import type { Language } from "@/lib/language";
-import type { OnlineHour, RejectReason } from "./state";
+import type { DeliveryInput, DeliverySettings, OnlineHour, RejectReason } from "./state";
 
 // The server's single "can customers order online now" rule (OnlineAvailability).
 export type OnlineStatus =
@@ -21,7 +21,7 @@ export type OnlineSettings = {
   nextOpensAt: string | null;
   // Set while a slot accepts orders: "pause until the end of this slot" ends then.
   currentSlotEndsAt: string | null;
-};
+} & DeliverySettings;
 
 export const onlineSettingsKey = (account: AccountScope) => storeKey("online-settings", account);
 
@@ -44,6 +44,8 @@ export const saveOnlineHours = (slots: OnlineHour[], signal?: AbortSignal) =>
   write<OnlineSettings>("/api/owner/online/hours", "PUT", { slots }, signal);
 export const savePublicPhone = (publicPhone: string | null, signal?: AbortSignal) =>
   write<OnlineSettings>("/api/owner/online/phone", "PATCH", { publicPhone }, signal);
+export const saveDelivery = (input: DeliveryInput, signal?: AbortSignal) =>
+  write<OnlineSettings>("/api/owner/online/delivery", "PUT", input, signal);
 
 // Online requests waiting for staff, oldest first. Now is the server's clock when it answered, so the
 // page counts the ten minutes on the server's time rather than the device's.

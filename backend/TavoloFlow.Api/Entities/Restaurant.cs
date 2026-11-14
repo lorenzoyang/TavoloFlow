@@ -39,6 +39,13 @@ public sealed class Restaurant
     public string? PublicPhone { get; set; }
     public DateTime? OnlinePausedUntil { get; set; }
 
+    // Restaurant-run delivery (OWNER): the switch and an optional zh/it/en note shown at checkout with
+    // the delivery area and fee rules. Whoever accepts a delivery order enters its fee.
+    public bool DeliveryEnabled { get; set; }
+    public string? DeliveryNoteZh { get; set; }
+    public string? DeliveryNoteIt { get; set; }
+    public string? DeliveryNoteEn { get; set; }
+
     public DateTime CreatedAt { get; set; }
     public string? GoogleMapsUrl { get; set; }
     public string? OwnerContact { get; set; }

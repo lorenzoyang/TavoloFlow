@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   activeProgress,
+  deliveryDraft,
+  deliveryInput,
+  deliveryWithoutNote,
   formatCountdown,
   formatMinute,
   MAX_WAITING_REQUESTS,
@@ -9,6 +12,7 @@ import {
   pendingBanner,
   requestTimes,
   parseTime,
+  sameDelivery,
   sameHours,
   timeInputValue,
   weekDraft,
@@ -167,4 +171,40 @@ test("sessions are named by their table or their online ticket in every language
   assert.equal(namesSession(pickup), true);
   assert.equal(namesSession({ ...table, tableLabel: null }), false);
   assert.equal(namesSession({ ...pickup, online: null }), false);
+});
+
+test("delivery settings trim notes, store blanks as null and reject notes over 500 characters", () => {
+  const saved = {
+    deliveryEnabled: false,
+    deliveryNoteZh: null,
+    deliveryNoteIt: "Entro 5 km gratis",
+    deliveryNoteEn: null,
+  };
+  const draft = deliveryDraft(saved);
+  assert.deepEqual(draft, { enabled: false, notes: { zh: "", it: "Entro 5 km gratis", en: "" } });
+  const unchanged = deliveryInput(draft);
+  assert.ok(unchanged.ok && sameDelivery(unchanged.input, saved));
+
+  const edited = deliveryInput({
+    enabled: true,
+    notes: { zh: "   ", it: "  Entro 5 km gratis  ", en: ` ${"a".repeat(500)} ` },
+  });
+  assert.deepEqual(edited, {
+    ok: true,
+    input: { enabled: true, noteZh: null, noteIt: "Entro 5 km gratis", noteEn: "a".repeat(500) },
+  });
+  assert.ok(edited.ok && !sameDelivery(edited.input, saved));
+  assert.ok(edited.ok && !deliveryWithoutNote(edited.input));
+
+  assert.deepEqual(
+    deliveryInput({ enabled: true, notes: { zh: "配".repeat(501), it: "", en: "" } }),
+    {
+      ok: false,
+      tooLong: "zh",
+    },
+  );
+  const bare = deliveryInput({ enabled: true, notes: { zh: " ", it: "", en: "" } });
+  assert.ok(bare.ok && deliveryWithoutNote(bare.input));
+  const off = deliveryInput({ enabled: false, notes: { zh: "", it: "", en: "" } });
+  assert.ok(off.ok && !deliveryWithoutNote(off.input));
 });

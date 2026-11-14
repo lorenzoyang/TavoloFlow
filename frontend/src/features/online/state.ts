@@ -88,6 +88,64 @@ export function sameHours(a: OnlineHour[], b: OnlineHour[]): boolean {
   );
 }
 
+// Delivery settings: the switch and an optional note per language, saved together. Blank notes are
+// stored as null, like the server; each note takes at most 500 characters once trimmed.
+export const MAX_DELIVERY_NOTE_LENGTH = 500;
+export type DeliveryNotes = { zh: string; it: string; en: string };
+export type DeliveryDraft = { enabled: boolean; notes: DeliveryNotes };
+export type DeliverySettings = {
+  deliveryEnabled: boolean;
+  deliveryNoteZh: string | null;
+  deliveryNoteIt: string | null;
+  deliveryNoteEn: string | null;
+};
+export type DeliveryInput = {
+  enabled: boolean;
+  noteZh: string | null;
+  noteIt: string | null;
+  noteEn: string | null;
+};
+
+export function deliveryDraft(settings: DeliverySettings): DeliveryDraft {
+  return {
+    enabled: settings.deliveryEnabled,
+    notes: {
+      zh: settings.deliveryNoteZh ?? "",
+      it: settings.deliveryNoteIt ?? "",
+      en: settings.deliveryNoteEn ?? "",
+    },
+  };
+}
+
+const note = (value: string) => value.trim() || null;
+
+export function deliveryInput(
+  draft: DeliveryDraft,
+): { ok: true; input: DeliveryInput } | { ok: false; tooLong: keyof DeliveryNotes } {
+  for (const language of ["zh", "it", "en"] as const)
+    if ((note(draft.notes[language])?.length ?? 0) > MAX_DELIVERY_NOTE_LENGTH)
+      return { ok: false, tooLong: language };
+  return {
+    ok: true,
+    input: {
+      enabled: draft.enabled,
+      noteZh: note(draft.notes.zh),
+      noteIt: note(draft.notes.it),
+      noteEn: note(draft.notes.en),
+    },
+  };
+}
+
+export const sameDelivery = (input: DeliveryInput, settings: DeliverySettings) =>
+  input.enabled === settings.deliveryEnabled &&
+  input.noteZh === settings.deliveryNoteZh &&
+  input.noteIt === settings.deliveryNoteIt &&
+  input.noteEn === settings.deliveryNoteEn;
+
+// Delivery is on but customers get no area or fee rules, only "the restaurant confirms the fee".
+export const deliveryWithoutNote = (input: DeliveryInput) =>
+  input.enabled && !input.noteZh && !input.noteIt && !input.noteEn;
+
 // The submission cap (OnlineAvailability): with this many requests waiting, customers cannot order.
 export const MAX_WAITING_REQUESTS = 20;
 

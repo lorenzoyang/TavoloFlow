@@ -40,6 +40,9 @@ public static class InputRules
         return Regex.IsMatch(compact, @"^\+?[0-9]{6,15}$") ? compact : null;
     }
 
+    // Each language of a restaurant's delivery note (area and fee rules shown at checkout).
+    public const int MaxDeliveryNoteLength = 500;
+
     // Optional text fields store blank input as NULL.
     public static string? TrimToNull(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
