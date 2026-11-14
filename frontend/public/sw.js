@@ -2,7 +2,8 @@
 // it never controls the guest pages on /q/*. It caches nothing: every page load goes to the
 // network, and only a load that fails gets the offline page below instead of the browser's error
 // page. All other requests, /api included, are left to the browser. The fetch handler provides
-// the offline screen; it is not an install-promotion prerequisite.
+// the offline screen; it is not an install-promotion prerequisite. It also shows the lock-screen
+// notifications of new online orders and opens the online orders page when one is tapped.
 
 // Colours mirror the tokens in src/index.css; the app's own styles are not available offline.
 const offlinePage = `<!doctype html>
@@ -151,6 +152,56 @@ self.addEventListener("fetch", (event) => {
           headers: { "Content-Type": "text/html; charset=utf-8" },
         });
       }
+    })(),
+  );
+});
+
+// Lock-screen push. The server sends only the order number and the device's interface language
+// ({ number, language }); like the offline page, the text lives here because a worker cannot load
+// the app's messages.
+const pushMessages = {
+  zh: { title: "新线上订单", body: "点按查看并接单" },
+  it: { title: "Nuovo ordine online", body: "Tocca per vederlo e accettarlo" },
+  en: { title: "New online order", body: "Tap to review and accept" },
+};
+const onlineOrdersPage = "/staff/online";
+
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data?.json() ?? {};
+  } catch {}
+  const language = Object.hasOwn(pushMessages, payload.language) ? payload.language : "en";
+  const copy = pushMessages[language];
+  const number = Number.isInteger(payload.number) && payload.number > 0 ? payload.number : null;
+  // Browsers require a visible notification for every push, so a broken payload still shows one.
+  // Each order has its own tag and sound; opening the online orders page clears them.
+  event.waitUntil(
+    self.registration.showNotification(number ? `${copy.title} #${number}` : copy.title, {
+      body: copy.body,
+      tag: number ? `online-order-${number}` : "online-order",
+      renotify: true,
+      lang: language === "zh" ? "zh-CN" : language,
+      icon: "/icons/icon-192.png",
+      data: { url: onlineOrdersPage },
+    }),
+  );
+});
+
+// Opens the online orders page: in a staff window that is already open, otherwise in a new one.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    (async () => {
+      const target = new URL(onlineOrdersPage, self.location.origin).href;
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const staff = windows.find((client) => new URL(client.url).pathname.startsWith("/staff"));
+      if (!staff) {
+        await self.clients.openWindow(target);
+        return;
+      }
+      await staff.focus();
+      if (staff.url !== target) await staff.navigate(target).catch(() => undefined);
     })(),
   );
 });

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Spinner } from "@/components/ui/spinner";
 import { FieldSet } from "@/components/ui/field";
+import { resyncPush } from "@/features/push/usePushSync";
 import { ApiError, errorMessage } from "@/lib/api";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { changePassword, type CurrentAccount } from "./api";
@@ -35,6 +36,8 @@ function PasswordForm({ account }: { account: CurrentAccount }) {
     }) => {
       const updated = await changePassword(currentPassword, newPassword);
       await replaceAccount(updated);
+      // The new credential version stopped this device's notifications; it keeps them.
+      resyncPush();
       await navigate({ to: "/staff", search: { passwordChanged: true }, replace: true });
     },
   });

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
 import { ServiceSuspendedNotice } from "@/features/dining/ServiceNotice";
+import { PushSection } from "@/features/push/PushSection";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import type { CurrentAccount } from "./api";
 import { accountMessages } from "./messages";
@@ -164,6 +165,7 @@ function Home({ account, passwordChanged }: { account: CurrentAccount; passwordC
           </CardContent>
         </Card>
       </section>
+      {account.services.online && <PushSection account={account} />}
       <InstallSection />
       <SourceLink />
     </div>

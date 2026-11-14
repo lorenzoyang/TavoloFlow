@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Phone, RefreshCw, ShoppingBag } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
@@ -14,6 +14,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { ServiceNotOffered } from "@/features/accounts/ServiceNotOffered";
+import { closeOrderNotifications } from "@/features/push/device";
 import { formatMoney, formatTime } from "@/lib/format";
 import { displayName, type Language } from "@/lib/language";
 import { optionSummary } from "@/lib/options";
@@ -246,6 +247,10 @@ function OnlineOrdersContent({ account }: { account: CurrentAccount }) {
   const page = model.pending.data;
   const active = model.active.data?.items ?? [];
   const fetching = model.pending.isFetching || model.active.isFetching;
+  // Opening the page, or returning to it, answers the lock-screen notifications on this device.
+  useEffect(() => {
+    if (model.view.active) void closeOrderNotifications().catch(() => undefined);
+  }, [model.view.active]);
   async function reject() {
     if (!rejecting) return;
     await model.reject(rejecting, reason);

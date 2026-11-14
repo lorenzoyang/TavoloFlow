@@ -429,6 +429,13 @@ change, OWNER or platform reset, deactivation), or the registering sign-in has e
 `TimeProvider`). Registering deletes those rows of the restaurant before counting the cap, so no
 credential write needs to know about push. Deleting the account or the restaurant cascades.
 
+### Devices in the browser
+
+Home (首页) offers the switch for this device while online ordering is on and the server has a key; the
+service worker shows the notifications and opens the online orders page on a tap. Signing out removes
+the server row but keeps the browser subscription, and `StaffLayout` registers a kept subscription again
+for whoever signs in on the device. The browser side is described in [the staff PWA](pwa.md#lock-screen-push).
+
 ### Sending
 
 Only a committed first submission notifies: `OnlineRequestService.SubmitAsync` enqueues the restaurant,

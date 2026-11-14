@@ -47,6 +47,8 @@ const zhErrors = {
   MENU_RESOURCE_NOT_FOUND: "分类、菜品或选项不存在，请刷新菜单。",
   ONLINE_CLOSED: "现在不在线上点单的营业时间内。",
   ONLINE_NOT_OFFERED: "本餐厅未开通线上点单。",
+  PUSH_NOT_CONFIGURED: "这台服务器没有开启锁屏通知。",
+  PUSH_DEVICE_LIMIT: "本餐厅开启锁屏通知的设备已达 20 台，请先在不用的设备上关闭。",
   ONLINE_REQUEST_CHANGED: "这个线上订单已被处理或已超时，请刷新列表。",
   ONLINE_REQUEST_NOT_FOUND: "线上订单不存在。",
   OPTION_GROUPS_CHANGED: "选项组已有变化，请刷新菜单后重新排序。",
@@ -108,6 +110,9 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
     MENU_RESOURCE_NOT_FOUND: "Categoria, piatto o opzione inesistente. Aggiorna il menu.",
     ONLINE_CLOSED: "Ora gli ordini online sono fuori orario.",
     ONLINE_NOT_OFFERED: "Questo ristorante non offre ordini online.",
+    PUSH_NOT_CONFIGURED: "Questo server non invia notifiche a schermo bloccato.",
+    PUSH_DEVICE_LIMIT:
+      "Il ristorante ha già 20 dispositivi con le notifiche attive: disattivale su uno che non usate più.",
     ONLINE_REQUEST_CHANGED: "L’ordine online è già stato gestito o è scaduto: aggiorna l’elenco.",
     ONLINE_REQUEST_NOT_FOUND: "Ordine online non trovato.",
     OPTION_GROUPS_CHANGED: "I gruppi di opzioni sono cambiati. Aggiorna il menu e riordinali.",
@@ -173,6 +178,9 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
     MENU_RESOURCE_NOT_FOUND: "Category, dish or option not found. Refresh the menu.",
     ONLINE_CLOSED: "Online ordering is outside its hours right now.",
     ONLINE_NOT_OFFERED: "This restaurant doesn’t offer online ordering.",
+    PUSH_NOT_CONFIGURED: "This server doesn’t send lock-screen notifications.",
+    PUSH_DEVICE_LIMIT:
+      "The restaurant already has 20 devices with notifications on: turn them off on one you no longer use.",
     ONLINE_REQUEST_CHANGED:
       "This online order was already handled or has expired: refresh the list.",
     ONLINE_REQUEST_NOT_FOUND: "Online order not found.",

@@ -3,6 +3,7 @@ import { LogOut } from "lucide-react";
 import { Notice } from "@/components/notice";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { unregisterBeforeSignOut } from "@/features/push/device";
 import { errorMessage } from "@/lib/api";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { logout } from "./api";
@@ -15,6 +16,8 @@ export function LogoutButton({ disabled = false }: { disabled?: boolean }) {
   const m = accountMessages[language];
   const mutation = useMutation({
     mutationFn: async () => {
+      // The server stops this device's lock-screen notifications while the session still works.
+      await unregisterBeforeSignOut();
       await logout();
       await replaceAccount(null);
     },

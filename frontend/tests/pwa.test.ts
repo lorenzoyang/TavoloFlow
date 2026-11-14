@@ -199,3 +199,130 @@ test("blocked storage preserves language fallback and offline reconnection behav
     }
   }
 });
+
+type Shown = { title: string; options: NotificationOptions & { data: { url: string } } };
+type WindowClient = {
+  url: string;
+  focused: number;
+  navigated: string[];
+  focus: () => Promise<void>;
+  navigate: (url: string) => Promise<void>;
+};
+
+// Runs the real sw.js with only its push and click handlers' browser APIs stubbed.
+function pushWorker(windows: { url: string }[] = []) {
+  const listeners = new Map<string, (event: unknown) => void>();
+  const shown: Shown[] = [];
+  const opened: string[] = [];
+  const clients: WindowClient[] = windows.map(({ url }) => ({
+    url,
+    focused: 0,
+    navigated: [],
+    async focus() {
+      this.focused++;
+    },
+    async navigate(target: string) {
+      this.navigated.push(target);
+    },
+  }));
+  runInNewContext(read("public/sw.js").toString(), {
+    self: {
+      addEventListener: (name: string, handler: (event: unknown) => void) =>
+        listeners.set(name, handler),
+      location: { origin: "https://app.example.com" },
+      registration: {
+        showNotification: async (title: string, options: Shown["options"]) => {
+          shown.push({ title, options });
+        },
+      },
+      clients: {
+        matchAll: async () => clients,
+        openWindow: async (url: string) => {
+          opened.push(url);
+        },
+      },
+    },
+    Response,
+    URL,
+  });
+  async function dispatch(name: string, event: Record<string, unknown>) {
+    let pending: Promise<unknown> | undefined;
+    listeners.get(name)!({ ...event, waitUntil: (work: Promise<unknown>) => (pending = work) });
+    assert.ok(pending);
+    await pending;
+  }
+  return {
+    shown,
+    opened,
+    clients,
+    push: (data: unknown) => dispatch("push", { data }),
+    click: (notification: { close: () => void; data?: unknown }) =>
+      dispatch("notificationclick", { notification }),
+  };
+}
+
+const payload = (body: unknown) => ({ json: () => body });
+
+test("a push shows the order number in the device's language, one notification per order", async () => {
+  const expected = {
+    zh: ["新线上订单 #12", "点按查看并接单", "zh-CN"],
+    it: ["Nuovo ordine online #12", "Tocca per vederlo e accettarlo", "it"],
+    en: ["New online order #12", "Tap to review and accept", "en"],
+  };
+  for (const [language, [title, body, lang]] of Object.entries(expected)) {
+    const worker = pushWorker();
+    await worker.push(payload({ number: 12, language }));
+    const [notification] = worker.shown;
+    assert.equal(notification.title, title);
+    assert.equal(notification.options.body, body);
+    assert.equal(notification.options.lang, lang);
+    assert.equal(notification.options.tag, "online-order-12");
+    assert.equal(notification.options.renotify, true);
+    assert.equal(notification.options.data.url, "/staff/online");
+  }
+});
+
+test("a broken push payload still shows a notification, in English without a number", async () => {
+  for (const data of [
+    payload({ number: 0, language: "constructor" }),
+    payload({ number: "12", language: "fr" }),
+    payload(null),
+    {
+      json: () => {
+        throw new SyntaxError("not JSON");
+      },
+    },
+    null,
+  ]) {
+    const worker = pushWorker();
+    await worker.push(data);
+    assert.equal(worker.shown.length, 1);
+    assert.equal(worker.shown[0].title, "New online order");
+    assert.equal(worker.shown[0].options.tag, "online-order");
+  }
+});
+
+test("tapping a notification opens the online orders page in a staff window or a new one", async () => {
+  let closed = 0;
+  const notification = { close: () => closed++ };
+  const fresh = pushWorker([{ url: "https://app.example.com/q/token" }]);
+  await fresh.click(notification);
+  assert.deepEqual(fresh.opened, ["https://app.example.com/staff/online"]);
+  assert.equal(fresh.clients[0].focused, 0);
+
+  const running = pushWorker([
+    { url: "https://app.example.com/q/token" },
+    { url: "https://app.example.com/staff/kitchen" },
+  ]);
+  await running.click(notification);
+  assert.deepEqual(running.opened, []);
+  assert.equal(running.clients[1].focused, 1);
+  assert.deepEqual(running.clients[1].navigated, ["https://app.example.com/staff/online"]);
+  assert.equal(running.clients[0].focused, 0);
+
+  const already = pushWorker([{ url: "https://app.example.com/staff/online" }]);
+  await already.click(notification);
+  assert.equal(already.clients[0].focused, 1);
+  assert.deepEqual(already.clients[0].navigated, []);
+  assert.equal(closed, 3);
+});

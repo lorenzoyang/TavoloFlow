@@ -4,6 +4,7 @@ import { BrandMark } from "@/components/brand";
 import { SourceLink } from "@/components/source-link";
 import { Card, CardContent } from "@/components/ui/card";
 import { OnlinePendingBanner } from "@/features/online/OnlinePendingBanner";
+import { usePushSync } from "@/features/push/usePushSync";
 import { OwnerSubscriptionReminder } from "@/features/subscriptions/SubscriptionReminders";
 import { useDocumentTheme } from "@/lib/useDocumentTheme";
 import { htmlLang } from "@/lib/staff-language";
@@ -20,12 +21,14 @@ import { useInstallableStaffApp } from "./useInstallApp";
 // Every staff page, sign-in included, makes the staff app installable. Only signed-in pages take the
 // restaurant's theme; sign-in and the first password change keep the default palette.
 // Before signing in, the language switch sits under the brand, so a new employee can change it
-// before reading anything else. With online ordering, every signed-in page carries the pending banner.
+// before reading anything else. With online ordering, every signed-in page carries the pending banner,
+// and a device that kept its lock-screen push subscription registers it for whoever signed in.
 export function StaffLayout({ children }: { children: ReactNode }) {
   const account = useQuery(accountQuery).data;
   const signedIn = !!account && !account.mustChangePassword;
   const language = useStaffLanguage();
   useInstallableStaffApp();
+  usePushSync(account);
   useDocumentTheme(signedIn ? account.restaurantTheme : null);
   useEffect(() => {
     const root = document.documentElement;
