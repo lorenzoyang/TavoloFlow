@@ -39,10 +39,10 @@ separate from production.
 | [Menu, tables and public entrance](reference/menu-tables.md)      | Menu editing, photos, allergens, language fallback, fixed QR codes and anonymous bootstrap             |
 | [Dining and ordering](reference/dining-ordering.md)               | Opening visits, guest access, code-free joining, carts, idempotent ordering and unknown results        |
 | [Kitchen and pass](reference/kitchen-pass.md)                     | Item processing, category screens, delivery, polling and audio                                         |
-| [Billing and history](reference/billing-history.md)               | Bill confirmation, PAID/EMPTY/VOIDED closure and historical queries                                    |
+| [Billing and history](reference/billing-history.md)               | Bill confirmation, PAID/EMPTY/VOIDED/NO_SHOW closure and historical queries                            |
 | [Restaurant subscriptions](reference/restaurant-subscriptions.md) | Service periods, offline fee collection, concurrency and reminders                                     |
-| [Staff PWA](reference/pwa.md)                                     | Installation, navigation-only worker, offline page and tablet setup                                    |
-| [Online ordering](reference/online-ordering.md)                   | Services and link, online hours, pause and availability (in development)                               |
+| [Staff PWA](reference/pwa.md)                                     | Installation, worker with offline page and push notifications, tablet setup                            |
+| [Online ordering](reference/online-ordering.md)                   | Link and hours, customer pages, accepting orders, pickup, delivery and lock-screen push                |
 
 These describe the current interfaces and their important invariants. Read controllers and DTOs for
 exact wire types, services for transaction behavior, and tests for executable examples. Shared coding

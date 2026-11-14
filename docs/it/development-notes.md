@@ -61,10 +61,10 @@ TavoloFlow è un sistema di ordinazione al tavolo tramite codice QR. Ogni tavolo
 - **Pagamenti online.** Gestire pagamenti vuol dire commissioni, sicurezza dei dati di pagamento e rimborsi: troppo per una prima versione.
 - **Scontrino fiscale.** TavoloFlow non sostituisce la cassa né il registratore telematico: lo scontrino continua a emetterlo il sistema di cassa del ristorante.
 - **Stampa delle comande.** Per i motivi spiegati sopra: serve una stampante cloud compatibile, e non ne avevo una per provarla.
-- **Notifiche push.** Cucina, pass e conti si aggiornano interrogando il server a intervalli regolari (polling). Per un ristorante piccolo basta, ed è molto più semplice.
+- **Notifiche push per cucina, pass e conti.** Queste pagine si aggiornano interrogando il server a intervalli regolari (polling). Per un ristorante piccolo basta, ed è molto più semplice. L'unica notifica push è quella dei nuovi ordini online, che deve arrivare anche a telefono bloccato (vedi «PWA per lo staff»).
 - **Funzionamento offline.** L'app non salva pagine né dati sul dispositivo per usarli senza rete: ordini e conti devono essere sempre aggiornati. Se la connessione cade, la pagina già aperta mostra gli ultimi dati con un avviso, ma blocca le operazioni (per esempio chiudere un conto) finché un aggiornamento non riesce; se si apre una pagina senza rete, l'area staff mostra solo una pagina che lo segnala.
 - **Account personali per ogni cameriere.** Ogni ristorante ha un solo account staff, condiviso, più quello del titolare. Per un ristorante piccolo è sufficiente e non serve sapere chi ha fatto cosa.
-- **Asporto e consegna.** Solo ordini al tavolo. Una versione con ordini da ritirare è stata sviluppata e poi tolta, per tenere semplice la prima versione.
+- **Consegne con piattaforme esterne.** Gli ordini online ci sono, con ritiro in negozio o consegna fatta dal ristorante, ma senza piattaforme come Glovo o Deliveroo, senza pagamento online e senza orario prenotato: il cliente paga al ritiro o alla consegna, e il costo della consegna lo scrive chi accetta l'ordine. Una prima versione dell'asporto era stata sviluppata e poi tolta, per tenere semplice la prima versione; quella di oggi è stata riprogettata da zero.
 - **Divisione del conto e statistiche di vendita.** Ogni visita ha un solo conto, e oltre allo storico dei conti chiusi non ci sono report.
 - **All you can eat.** Niente turni di ordinazione né limiti per persona: i ristoranti a cui pensavo (ramen, cucina cinese, bubble tea) lavorano alla carta.
 
@@ -513,7 +513,7 @@ In Cucina e durante la chiusura del conto, quando la pagina viene nascosta, la r
 
 ### Polling invece di WebSocket
 
-**La scelta.** Cucina, Pass, Sala e Conto non ricevono notifiche dal server: lo interrogano a intervalli regolari con il `refetchInterval` di TanStack Query.
+**La scelta.** Cucina, Pass, Sala e Conto non ricevono notifiche dal server: lo interrogano a intervalli regolari con il `refetchInterval` di TanStack Query. L'unica cosa che il server manda di sua iniziativa sono le notifiche push dei nuovi ordini online, un promemoria in più per i telefoni bloccati (vedi «PWA per lo staff»): le pagine restano comunque basate sul polling.
 
 | Pagina                                   | Intervallo |
 | ---------------------------------------- | ---------- |
@@ -562,7 +562,15 @@ Il controllo lo fa `CsrfValidationFilter`, registrato in modo globale perché `A
 - un interruttore tiene lo schermo acceso (Screen Wake Lock API), utile per il tablet in cucina;
 - su iOS l'app installata non ha il pulsante Indietro del browser, quindi le pagine fuori dalle schede hanno un link per tornare indietro (`PageHeader`).
 
-Le notifiche push (Web Push) le ho rimandate: richiederebbero chiavi VAPID e le iscrizioni dei dispositivi salvate sul backend, e per ora il polling basta.
+**Notifiche a schermo bloccato, solo per gli ordini online.** Il polling si ferma quando il telefono è bloccato o l'app è in background. Per la cucina va bene, perché chi lavora ha la pagina aperta; un ordine online invece aspetta che qualcuno lo accetti, e dopo 10 minuti scade. Per questo, e solo per questo, l'app usa Web Push: quando arriva un nuovo ordine online, i dispositivi che le hanno attivate ricevono una notifica di sistema con un suono, anche bloccati.
+
+- **Cosa contiene.** Solo il numero dell'ordine e la lingua del dispositivo: «Nuovo ordine online #12». Niente nome, telefono o indirizzo del cliente, perché la notifica passa dai server di Apple, Google o Mozilla: il contenuto è cifrato per il singolo dispositivo, ma meno dati escono, meglio è. Il testo lo scrive il service worker nelle tre lingue, come la pagina offline.
+- **Una chiave sola.** Il server firma ogni invio con una chiave VAPID. In `.env` ne serve una sola, la privata (`VAPID_PRIVATE_KEY`, 64 caratteri esadecimali come la password del database): la pubblica, con cui il browser si iscrive, l'API la ricava da quella.
+- **Un'iscrizione per dispositivo.** Ogni dispositivo si attiva dalla Home con un tocco, che chiede il permesso delle notifiche. L'iscrizione (`push_subscriptions`) ricorda l'account, la sua `credential_version` e la scadenza del login: se la password cambia, l'account viene disattivato o il login scade, quel dispositivo non riceve più niente. Il controllo è una regola sola (`PushTargets`), usata prima di ogni invio e di ogni nuova iscrizione: così il cambio di password e gli altri punti che toccano le credenziali non devono sapere niente delle notifiche.
+- **Uscita e nuovo accesso.** Uscendo, il server cancella l'iscrizione di quel dispositivo, ma il browser la tiene: al prossimo accesso sullo stesso dispositivo l'app la registra di nuovo da sola, per chiunque entri. Solo «Disattiva su questo dispositivo» la cancella anche dal browser.
+- **Solo un promemoria.** Il backend mette il numero dell'ordine in una coda in memoria solo dopo aver salvato l'ordine, e un `BackgroundService` lo invia senza riprovare. Se una notifica si perde, o il server si riavvia mentre è ancora in coda, non succede niente di grave: il banner e il suono nella pagina restano il meccanismo principale.
+- **Solo servizi conosciuti.** L'indirizzo a cui inviare lo sceglie il browser, quindi il server accetta solo quelli dei servizi di notifica conosciuti (Apple, Google, Mozilla, Microsoft) e non segue i redirect: altrimenti un account potrebbe far chiamare al server indirizzi interni.
+- **iPhone.** Su iOS le notifiche esistono solo nell'app aggiunta alla schermata Home (iOS 16.4 o successivo), non in Safari. A schermo bloccato arriva una notifica con un suono, non una suoneria continua.
 
 ### Altri compromessi
 
@@ -575,7 +583,7 @@ Le notifiche push (Web Push) le ho rimandate: richiederebbero chiavi VAPID e le 
 
 ### Limiti attuali
 
-- **Pensato per una sola istanza.** Il rate limiter (`FixedWindowLimiter`) tiene i contatori in memoria: si azzerano a ogni riavvio e, con più istanze dell'API, ognuna avrebbe i suoi. Per scalare servirebbe un archivio condiviso, per esempio Redis o lo stesso PostgreSQL.
+- **Pensato per una sola istanza.** Il rate limiter (`FixedWindowLimiter`) tiene i contatori in memoria: si azzerano a ogni riavvio e, con più istanze dell'API, ognuna avrebbe i suoi. Per scalare servirebbe un archivio condiviso, per esempio Redis o lo stesso PostgreSQL. Lo stesso vale per la coda delle notifiche push, che sta in memoria.
 - **Il codice del tavolo è corto.** Quattro caratteri da un alfabeto di 32 fanno circa un milione di combinazioni (2²⁰). Contro chi prova a indovinarlo lo protegge solo il rate limit, per IP e per visita: prima di un uso pubblico vero andrebbe rivalutato, magari con un codice più lungo.
 - **Polling.** Il carico sul server cresce con il numero di dispositivi accesi: con molti ristoranti varrebbe la pena passare a WebSocket o a Server-Sent Events.
 - **Test.** Il backend ha oltre 300 test di integrazione, che girano su un PostgreSQL vero in Docker; il frontend ha solo test della logica pura con `node --test`. Nel repository mancano test dei componenti e test end-to-end. Tutti i test che ci sono girano a ogni push nella CI (`.github/workflows/ci.yml`).

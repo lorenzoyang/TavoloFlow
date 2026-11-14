@@ -262,6 +262,14 @@ Poi apri <http://localhost:5173/staff/login>, oppure `/platform/login`.
 
 - **Ripartire da zero.** `docker compose down -v` cancella il volume del database di sviluppo, e solo quello: la demo ha un progetto Compose suo. Poi si ricomincia da `docker compose up -d db` e dal passo 3.
 - **La PWA.** Con `npm run dev` il service worker non viene registrato, per non disturbare l'aggiornamento automatico. Per provare l'installazione e la pagina offline serve una build: `npm run build && npm run preview`, su <http://localhost:4173>, con l'API avviata (i dettagli sono in [`pwa.md`](../reference/pwa.md), in inglese).
+- **Le notifiche push.** In sviluppo sono spente, e nella demo anche: senza chiave l'API non le offre e la Home non mostra la sezione «Notifiche a schermo bloccato». Per provarle, aggiungi la chiave e un contatto ai segreti locali e riavvia l'API:
+
+  ```bash
+  dotnet user-secrets set 'WebPush:PrivateKey' "$(openssl rand -hex 32)" --project backend/TavoloFlow.Api
+  dotnet user-secrets set 'WebPush:Subject' 'mailto:tu@esempio.it' --project backend/TavoloFlow.Api
+  ```
+
+  Servono tutti e due: con uno solo l'API non parte. Le notifiche passano dal service worker, quindi anche qui serve la build (`npm run build && npm run preview`). In Chrome sul computer apri <http://localhost:4173/staff>, attiva le notifiche dalla Home, metti il browser in background e fai un ordine online da un'altra finestra: deve arrivare «Nuovo ordine online #N». I servizi di notifica sono veri (Google per Chrome), quindi il computer deve essere online.
 
 ## Parte 3: test e controlli
 
@@ -390,13 +398,13 @@ La regola apre la porta 5173 solo sulle reti private e solo ai dispositivi della
 
 Un indirizzo come `http://192.168.1.36:5173` non è HTTPS, quindi per il browser del telefono non è un contesto sicuro. Alcune funzioni del browser ne hanno bisogno:
 
-- **l'installazione della PWA** e il service worker;
+- **l'installazione della PWA** e il service worker, e quindi anche **le notifiche push**;
 - **lo schermo sempre acceso** di Cucina e Pass (Screen Wake Lock);
 - **la copia automatica** di link e codici: l'app se ne accorge e chiede di copiarli a mano.
 
 Tutto il resto funziona. Per esempio, gli ID degli ordini sono generati con `crypto.getRandomValues` proprio perché, a differenza di `crypto.randomUUID`, funziona anche senza HTTPS ([`lib/ids.ts`](../../frontend/src/lib/ids.ts)).
 
-Per provare la PWA su un telefono Android c'è un trucco: con il debug USB e il port forwarding di `chrome://inspect`, il telefono apre `localhost:4173` della build di preview, e `localhost` conta come contesto sicuro (vedi [`pwa.md`](../reference/pwa.md)). Per l'iPhone, e per la prova finale, serve l'HTTPS vero del [self-hosting](self-hosting.md).
+Per provare la PWA su un telefono Android c'è un trucco: con il debug USB e il port forwarding di `chrome://inspect`, il telefono apre `localhost:4173` della build di preview, e `localhost` conta come contesto sicuro (vedi [`pwa.md`](../reference/pwa.md)). Così si provano anche le notifiche push a telefono bloccato, con la chiave configurata come in «Cose utili». Per l'iPhone, che le notifiche le offre solo all'app aggiunta alla schermata Home, e per la prova finale serve l'HTTPS vero del [self-hosting](self-hosting.md).
 
 ### Pulizia
 
