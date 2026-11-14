@@ -152,10 +152,14 @@ Pickup takes no address; delivery needs one (1–200, notes up to 100) but is re
    builds the line snapshots.
 7. Inserts the request with a random 32-byte Base64URL status token and `expires_at` ten minutes after
    submission, and returns `{ statusToken, number, expiresAt }`.
+8. In the same transaction, clears the name, phone, address and notes of the restaurant's requests
+   submitted more than 30 days before this one (`OnlineRequestService.ContactRetention`), reading only
+   uncleared rows through `ix_online_requests_contact`. The lines stay. There is no background job: a
+   restaurant's old contact data is cleared by its next submission.
 
 A rejected submission rolls back and uses no number. Submissions are limited to 10 per IP address per
-ten minutes (`OnlineRateLimits:SubmissionsPerIpPerTenMinutes`, `RATE_LIMITED` with `Retry-After`). The
-30-day contact cleanup is not built yet.
+ten minutes (`OnlineRateLimits:SubmissionsPerIpPerTenMinutes`, `RATE_LIMITED` with `Retry-After`).
+Repeats and rejected submissions roll back, cleanup included.
 
 Recovery takes the random `clientRequestId` as its credential: only the submitting device knows it. It
 returns the same `{ statusToken, number, expiresAt }`; `ONLINE_REQUEST_NOT_FOUND` (404) only means the
@@ -168,8 +172,11 @@ unknown token). It returns `restaurant { name, slug, currencyCode, defaultLangua
 `closeReason` once accepted, `items` and `totalAmountCents`. Before acceptance the items are the
 submitted snapshot (`status` null) and the total is the submitted item total; after acceptance they are
 the order items with their status and the total is the session's bill amount (`SessionSummaries`). It
-never returns the customer's phone, an address or any request or session ID. The 24-hour limit after
-an order ends is not built yet.
+never returns the customer's phone, an address or any request or session ID. From 24 hours after the
+order ended (`OnlineOrderStatusService.LinkLifetime`) the link returns `ONLINE_ORDER_NOT_FOUND`: the
+end is the expiry, the rejection or the accepted order's session closure (`OnlineRequestState.EndedAt`),
+so an order still waiting or in progress keeps its link. The page then says the order has ended, and
+the menu forgets the remembered token.
 
 ## Customer pages
 
@@ -306,7 +313,10 @@ name and estimated time (`SessionName` puts them on a second, truncated line, an
 take `min-w-0` so a long name never widens a 360px grid). The bills page lists every ACTIVE session in
 all channels from `GET /api/staff/sessions/active` (see [billing](billing-history.md)). Online orders
 close through the existing paths: PAID ("collected, check payment") and VOIDED (after telling the
-customer); an online session always has its order, so EMPTY returns `SESSION_HAS_ORDERS`. Closed online
+customer), plus `NO_SHOW` ("customer didn't come"), OWNER-only through
+`POST /api/owner/sessions/{id}/close-no-show` with PAID's conditions (see
+[billing](billing-history.md#closure-conditions-and-transaction)); an online session always has its
+order, so EMPTY returns `SESSION_HAS_ORDERS`. Closed online
 orders appear in history as "Pickup #12"; the table filter does not match them.
 
 ## Phone
@@ -351,7 +361,11 @@ discarded.
   invalid minutes, `SERVICE_SUSPENDED`, `DELIVERY_NOT_OFFERED`, pause/hours/sold-out ignored, repeats
   and foreign IDs, rejection reasons, accept/reject races (exactly one wins), acceptance racing dish
   deletion (`LockGate`), and an accepted order through ready, pass, checkout, VOIDED, the EMPTY refusal,
-  the active sessions list and history.
+  the active sessions list and history; `NO_SHOW` (OWNER only, online only, PAID's conditions,
+  repeat, closure stamping, status page and history filter).
+- `OnlineOrderingTests` also covers the 30-day contact cleanup (strictly older, own restaurant only,
+  rolled back with a rejected submission) and the status link's 24-hour limit after expiry, rejection
+  and closure, while an active order keeps its link.
 - Frontend: `tests/online.test.ts` (phone, time inputs, week validation, banner, ringing, countdown on
   the server's clock, progress, session labels), `tests/navigation.test.ts`,
   the `/r/{slug}` cases in `tests/public-menu.test.ts`, and `tests/online-order.test.ts` (cart key,
@@ -364,4 +378,5 @@ discarded.
   pause (the cart is freed); pause and check that the checkout stays closed. Staff side at 360px in zh,
   it and en: the banner and its tap hint on every staff page, the ringing continuing with the kitchen
   sound off, accept and reject (with the dialog), a lost accept response, the kitchen, pass, bills and
-  history labels with a 30-character name, and checkout of a pickup order.
+  history labels with a 30-character name, checkout of a pickup order, and closing one as not
+  collected with the history filter.

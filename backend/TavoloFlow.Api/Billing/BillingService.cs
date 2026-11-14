@@ -120,6 +120,26 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         CancellationToken ct
     ) => CloseZeroBillAsync(restaurantId, id, SessionCloseReason.Voided, input, ct);
 
+    // Online orders only, OWNER only (the controller), like PAID: positive receivable and no NEW dishes.
+    public Task<BillSummaryResponse> CloseNoShowAsync(
+        Guid restaurantId,
+        Guid id,
+        CloseNoShowInput input,
+        CancellationToken ct
+    )
+    {
+        if (input.NoShowConfirmed != true)
+            throw ApiException.Validation("Confirm that the customer didn't collect the order.");
+        return CloseAsync(
+            restaurantId,
+            id,
+            SessionCloseReason.NoShow,
+            input.ExpectedBillVersion,
+            input.ConfirmedTotalCents,
+            ct
+        );
+    }
+
     private Task<BillSummaryResponse> CloseZeroBillAsync(
         Guid restaurantId,
         Guid id,
@@ -140,7 +160,7 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         );
     }
 
-    // PAID, VOIDED and EMPTY share one path. Order creation, kitchen transitions and closure all serialize
+    // PAID, VOIDED, EMPTY and NO_SHOW share one path. Order creation, kitchen transitions and closure all serialize
     // on this session's UPDATE lock, so the bill checked here is exactly the bill that gets closed.
     private async Task<BillSummaryResponse> CloseAsync(
         Guid restaurantId,
@@ -175,6 +195,12 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         }
         if (bill.BillVersion != version)
             throw BillingErrors.Changed(bill);
+        if (reason == SessionCloseReason.NoShow && session.Channel == SessionChannel.DineIn)
+            throw BillingErrors.Conflict(
+                "SESSION_NOT_ONLINE",
+                "Only online orders close as not collected.",
+                bill
+            );
         // EMPTY means no order was ever placed, not even a cancelled one; that check precedes the amount.
         if (reason == SessionCloseReason.Empty && bill.OrderCount > 0)
             throw BillingErrors.Conflict(
@@ -190,10 +216,13 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
                 "Some dishes are still waiting: finish them in the kitchen or cancel them.",
                 bill
             );
-        if (reason == SessionCloseReason.Paid && bill.TotalAmountCents <= 0)
+        if (
+            reason is SessionCloseReason.Paid or SessionCloseReason.NoShow
+            && bill.TotalAmountCents <= 0
+        )
             throw BillingErrors.Conflict(
                 "SESSION_NOT_PAYABLE",
-                "A zero bill closes as an empty or voided table, not as paid.",
+                "A zero bill closes as empty or voided, not as paid or not collected.",
                 bill
             );
         if (
@@ -278,7 +307,9 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         if (closeReason is not null)
         {
             if (!ApiEnum.TryParse(closeReason, out SessionCloseReason parsed))
-                throw ApiException.Validation("The closure reason must be PAID, EMPTY or VOIDED.");
+                throw ApiException.Validation(
+                    "The closure reason must be PAID, EMPTY, VOIDED or NO_SHOW."
+                );
             reason = parsed;
         }
         var after = Paging.Decode<HistoryCursor>(cursor);

@@ -66,7 +66,8 @@ const zhErrors = {
   SESSION_CLOSED: "本次用餐已结束。",
   SESSION_HAS_ORDERS: "本轮曾产生订单，不能按空桌关闭。",
   SESSION_NOT_FOUND: "用餐记录不存在。",
-  SESSION_NOT_PAYABLE: "零账单应按空桌或全部取消关闭，不记录为收款。",
+  SESSION_NOT_ONLINE: "只有线上订单可以按未取关闭。",
+  SESSION_NOT_PAYABLE: "零账单应按空桌或全部取消关闭，不记录为收款或未取。",
   SESSION_NOT_VOIDABLE: "只有本轮已有订单且所有菜品均已取消时，才能按零账单关闭。",
   SLUG_CONFLICT: "这个线上链接已被其他餐厅使用，请换一个。",
   SUBSCRIPTION_CHANGED: "年费资料已变化（可能是本次或其他操作已生效），请核对最新资料后再确认。",
@@ -127,8 +128,9 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
     SESSION_CLOSED: "Questa visita è già chiusa.",
     SESSION_HAS_ORDERS: "Questa visita ha ordini: non si può chiudere come tavolo vuoto.",
     SESSION_NOT_FOUND: "Visita inesistente.",
+    SESSION_NOT_ONLINE: "Solo gli ordini online si chiudono come non ritirati.",
     SESSION_NOT_PAYABLE:
-      "Un conto a zero si chiude come tavolo vuoto o annullato, non come incassato.",
+      "Un conto a zero si chiude come tavolo vuoto o annullato, non come incassato o non ritirato.",
     SESSION_NOT_VOIDABLE:
       "Si chiude a zero solo se ci sono ordini e tutti i piatti sono annullati.",
     SLUG_CONFLICT: "Questo link online è già usato da un altro ristorante. Scegline un altro.",
@@ -190,7 +192,9 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
     SESSION_CLOSED: "This visit is already closed.",
     SESSION_HAS_ORDERS: "This visit has orders: it can’t be closed as an empty table.",
     SESSION_NOT_FOUND: "Visit not found.",
-    SESSION_NOT_PAYABLE: "A zero bill closes as an empty or voided table, not as paid.",
+    SESSION_NOT_ONLINE: "Only online orders close as not collected.",
+    SESSION_NOT_PAYABLE:
+      "A zero bill closes as an empty or voided table, not as paid or not collected.",
     SESSION_NOT_VOIDABLE:
       "A bill closes at zero only if it has orders and every dish is cancelled.",
     SLUG_CONFLICT: "Another restaurant already uses this online link. Choose another one.",

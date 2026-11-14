@@ -626,6 +626,119 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
         );
     }
 
+    [Fact]
+    public async Task Submit_ClearsContactDataOlderThan30Days_OfItsRestaurant()
+    {
+        using var host = new AccountTestHost(database);
+        host.Clock.Set(MondayNoon);
+        var shop = await SeedAsync();
+        var other = await SeedAsync();
+        var noon = MondayNoon.UtcDateTime;
+        var old = OnlineTestData.Request(shop.RestaurantId, noon.AddDays(-30).AddSeconds(-1), 1);
+        old.Fulfillment = OnlineFulfillment.Delivery;
+        old.DeliveryAddress = "Via Roma 1";
+        old.DeliveryNotes = "Citofono 3";
+        var boundary = OnlineTestData.Request(shop.RestaurantId, noon.AddDays(-30), 2);
+        var recent = OnlineTestData.Request(shop.RestaurantId, noon.AddDays(-29), 1);
+        var foreign = OnlineTestData.Request(other.RestaurantId, noon.AddDays(-31), 1);
+        await using (var db = database.CreateContext())
+        {
+            db.AddRange(old, boundary, recent, foreign);
+            await db.SaveChangesAsync();
+        }
+        using var client = host.Browser();
+
+        // A rejected submission rolls back, cleanup included.
+        await AssertErrorAsync(
+            await SubmitAsync(client, shop, Body(Guid.NewGuid(), shop.Dish, price: 1)),
+            HttpStatusCode.Conflict,
+            "MENU_CHANGED"
+        );
+        await using (var db = database.CreateContext())
+            Assert.NotNull(
+                (await db.OnlineRequests.SingleAsync(r => r.Id == old.Id)).CustomerPhone
+            );
+
+        await NumberAsync(client, shop, Guid.NewGuid());
+
+        await using var check = database.CreateContext();
+        var stored = await check.OnlineRequests.AsNoTracking().ToDictionaryAsync(r => r.Id);
+        var cleared = stored[old.Id];
+        Assert.Equal(
+            (null, null, null, null),
+            (
+                cleared.CustomerName,
+                cleared.CustomerPhone,
+                cleared.DeliveryAddress,
+                cleared.DeliveryNotes
+            )
+        );
+        Assert.Single(cleared.Lines);
+        foreach (var kept in new[] { boundary, recent, foreign })
+            Assert.Equal(
+                ("Marco", "+393331234567"),
+                (stored[kept.Id].CustomerName, stored[kept.Id].CustomerPhone)
+            );
+    }
+
+    [Fact]
+    public async Task Status_LinkAnswersUntil24HoursAfterTheOrderEnded()
+    {
+        using var host = new AccountTestHost(database);
+        host.Clock.Set(MondayNoon);
+        var shop = await SeedAsync();
+        var noon = MondayNoon.UtcDateTime;
+        var expired = OnlineTestData.Request(shop.RestaurantId, noon, 1);
+        var rejected = OnlineTestData.Request(shop.RestaurantId, noon, 2);
+        rejected.RejectedAt = noon.AddMinutes(1);
+        var active = OnlineTestData.Request(shop.RestaurantId, noon, 3);
+        var closed = OnlineTestData.Request(shop.RestaurantId, noon, 4);
+        await using (var db = database.CreateContext())
+        {
+            db.Add(OnlineTestData.Accept(active, noon.AddMinutes(2), menuItemExists: false));
+            var session = OnlineTestData.Accept(closed, noon.AddMinutes(2), menuItemExists: false);
+            session.Status = DiningSessionStatus.Closed;
+            session.ClosedAt = noon.AddMinutes(30);
+            session.CloseReason = SessionCloseReason.Paid;
+            session.ClosedTotalCents = closed.ItemsTotalCents;
+            db.Add(session);
+            db.AddRange(expired, rejected, active, closed);
+            await db.SaveChangesAsync();
+        }
+        using var client = host.Browser();
+        async Task<HttpStatusCode> At(OnlineRequest request, DateTime when)
+        {
+            host.Clock.Set(new DateTimeOffset(when, TimeSpan.Zero));
+            return (
+                await client.GetAsync($"/api/public/online-orders/{request.StatusToken}")
+            ).StatusCode;
+        }
+        var day = OnlineOrderStatusService.LinkLifetime;
+
+        foreach (
+            var (request, ended) in new[]
+            {
+                (expired, noon.AddMinutes(10)),
+                (rejected, noon.AddMinutes(1)),
+                (closed, noon.AddMinutes(30)),
+            }
+        )
+        {
+            Assert.Equal(
+                HttpStatusCode.OK,
+                await At(request, ended + day - TimeSpan.FromSeconds(1))
+            );
+            Assert.Equal(HttpStatusCode.NotFound, await At(request, ended + day));
+        }
+        await AssertErrorAsync(
+            await client.GetAsync($"/api/public/online-orders/{expired.StatusToken}"),
+            HttpStatusCode.NotFound,
+            "ONLINE_ORDER_NOT_FOUND"
+        );
+        // An order still in progress keeps its link.
+        Assert.Equal(HttpStatusCode.OK, await At(active, noon.AddDays(10)));
+    }
+
     // A submission holds restaurant SHARE until it commits; switching online off takes restaurant UPDATE.
     // Whichever locks first, the other sees its result: no request waits once online ordering is off.
     [Theory]

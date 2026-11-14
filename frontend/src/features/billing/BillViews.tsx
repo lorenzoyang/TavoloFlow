@@ -29,7 +29,9 @@ import {
   closeBadges,
   closureKind,
   confirmationChanged,
+  noShowAllowed,
   type BillSummary,
+  type CloseKind,
   type Confirmation,
 } from "./state";
 import { useBill } from "./useBill";
@@ -230,27 +232,43 @@ export function ActiveBillPanel({
   const bill = model.head?.summary;
   const kind = bill ? closureKind(bill, account.role) : null;
   const changed = !!confirmation && (!bill || confirmationChanged(confirmation, bill));
-  // Online orders are worded for a customer who collects, or who was told nothing will come.
-  const paid = confirmation?.kind === "PAID";
+  // Online orders are worded for a customer who collects, who never came, or who was told nothing
+  // will come.
+  const confirming = confirmation?.kind ?? "VOIDED";
   const online = !!confirmation?.bill.online;
-  const copy = {
-    title: paid && online ? m.online.paidTitle : m.confirmTitle[confirmation?.kind ?? "VOIDED"],
-    description: paid
-      ? online
-        ? m.online.confirmPaid
-        : m.confirmPaid
-      : online
-        ? m.online.confirmZero
-        : m.confirmZero,
-    label: paid ? (online ? m.online.confirmPaidLabel : m.confirmPaidLabel) : m.confirmZeroLabel,
-    checked: paid
-      ? online
-        ? m.online.checkedPaid
-        : m.checkedPaid
-      : online
-        ? m.online.checkedZero
-        : m.checkedZero,
-  };
+  const copy =
+    confirming === "NO_SHOW"
+      ? {
+          title: m.confirmTitle.NO_SHOW,
+          description: m.online.confirmNoShow,
+          label: m.online.confirmNoShowLabel,
+          checked: m.online.checkedNoShow,
+        }
+      : confirming === "PAID"
+        ? online
+          ? {
+              title: m.online.paidTitle,
+              description: m.online.confirmPaid,
+              label: m.online.confirmPaidLabel,
+              checked: m.online.checkedPaid,
+            }
+          : {
+              title: m.confirmTitle.PAID,
+              description: m.confirmPaid,
+              label: m.confirmPaidLabel,
+              checked: m.checkedPaid,
+            }
+        : {
+            title: m.confirmTitle[confirming],
+            description: online ? m.online.confirmZero : m.confirmZero,
+            label: m.confirmZeroLabel,
+            checked: online ? m.online.checkedZero : m.checkedZero,
+          };
+  function confirm(next: CloseKind) {
+    closure.clearFeedback();
+    setChecked(false);
+    setConfirmation({ kind: next, bill: { ...bill! } });
+  }
   const busy = closure.busy.includes(sessionId);
   const locked = busy || closure.pending.some((p) => p.sessionId === sessionId);
   useEffect(() => {
@@ -363,13 +381,20 @@ export function ActiveBillPanel({
               size="lg"
               className="w-full"
               disabled={!model.fresh || locked}
-              onClick={() => {
-                closure.clearFeedback();
-                setChecked(false);
-                setConfirmation({ kind, bill: { ...bill! } });
-              }}
+              onClick={() => confirm(kind)}
             >
               {kind === "PAID" && bill?.online ? m.online.paidButton : m.closeButton[kind]}
+            </Button>
+          )}
+          {bill && noShowAllowed(bill, account.role) && (
+            <Button
+              size="lg"
+              variant="outline"
+              className="w-full"
+              disabled={!model.fresh || locked}
+              onClick={() => confirm("NO_SHOW")}
+            >
+              {m.closeButton.NO_SHOW}
             </Button>
           )}
           {bill &&

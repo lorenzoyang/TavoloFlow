@@ -16,6 +16,9 @@ public sealed class OnlineRequestService(ApplicationDbContext db, TimeProvider c
 {
     public static readonly TimeSpan WaitingTime = TimeSpan.FromMinutes(10);
 
+    // Customer contact data (name, phone, address, notes) is kept this long after submission.
+    public static readonly TimeSpan ContactRetention = TimeSpan.FromDays(30);
+
     // Lock order: restaurant SHARE, then the day's counter row. Menu writers take restaurant UPDATE, so
     // prices and snapshots stay stable; the counter row serializes one restaurant's submissions per day,
     // so the duplicate check and the waiting cap below run one submission at a time.
@@ -95,6 +98,21 @@ public sealed class OnlineRequestService(ApplicationDbContext db, TimeProvider c
         };
         db.OnlineRequests.Add(request);
         await db.SaveChangesAsync(ct);
+        // Each new submission clears its restaurant's contact data older than 30 days in the same
+        // transaction, so no background job is needed. ix_online_requests_contact holds only uncleared rows.
+        var cutoff = submittedAt - ContactRetention;
+        await db
+            .OnlineRequests.Where(r =>
+                r.RestaurantId == restaurantId && r.CustomerPhone != null && r.SubmittedAt < cutoff
+            )
+            .ExecuteUpdateAsync(
+                u =>
+                    u.SetProperty(r => r.CustomerName, (string?)null)
+                        .SetProperty(r => r.CustomerPhone, (string?)null)
+                        .SetProperty(r => r.DeliveryAddress, (string?)null)
+                        .SetProperty(r => r.DeliveryNotes, (string?)null),
+                ct
+            );
         // Read back PostgreSQL's timestamp precision, so a repeat returns exactly the same response.
         var saved = await StoredAsync(restaurantId, r => r.Id == request.Id, ct);
         await transaction.CommitAsync(ct);

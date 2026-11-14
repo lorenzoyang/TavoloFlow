@@ -1,7 +1,7 @@
 import { isUuid } from "../../lib/ids.ts";
 import type { OnlineTicket, SessionNaming } from "../../lib/session-label.ts";
 
-export type CloseKind = "PAID" | "EMPTY" | "VOIDED";
+export type CloseKind = "PAID" | "EMPTY" | "VOIDED" | "NO_SHOW";
 // TableId and tableLabel belong to dine-in; online carries the accepted order's ticket and phone.
 export type BillSummary = SessionNaming & {
   sessionId: string;
@@ -22,7 +22,14 @@ export type Confirmation = { kind: CloseKind; bill: BillSummary };
 export type PendingClosure = { sessionId: string; kind: CloseKind };
 export const closureKey = (restaurantId: string, userId: string) =>
   `tavoloflow:billing:${restaurantId}:${userId}`;
-export const closeBadges = { PAID: "success", EMPTY: "outline", VOIDED: "outline" } as const;
+export const closeBadges = {
+  PAID: "success",
+  EMPTY: "outline",
+  VOIDED: "outline",
+  NO_SHOW: "outline",
+} as const;
+const closeKinds: readonly unknown[] = ["PAID", "EMPTY", "VOIDED", "NO_SHOW"];
+const isCloseKind = (value: unknown): value is CloseKind => closeKinds.includes(value);
 
 export function closureKind(bill: BillSummary, role: "OWNER" | "STAFF"): CloseKind | null {
   if (bill.status !== "ACTIVE" || bill.newItemCount > 0) return null;
@@ -35,6 +42,12 @@ export function closureKind(bill: BillSummary, role: "OWNER" | "STAFF"): CloseKi
   )
     return "VOIDED";
   return role === "OWNER" && bill.totalAmountCents > 0 ? "PAID" : null;
+}
+
+// The owner's second choice for an online order that would be paid: the customer never collected it.
+// The server records the uncollected amount, with the same conditions as PAID.
+export function noShowAllowed(bill: BillSummary, role: "OWNER" | "STAFF") {
+  return bill.channel !== "DINE_IN" && closureKind(bill, role) === "PAID";
 }
 
 export function confirmationChanged(confirmation: Confirmation, bill: BillSummary) {
@@ -60,7 +73,7 @@ export function readClosures(raw: string | null): PendingClosure[] {
       if (
         row &&
         isUuid(row.sessionId) &&
-        (row.kind === "PAID" || row.kind === "EMPTY" || row.kind === "VOIDED") &&
+        isCloseKind(row.kind) &&
         !result.some((x) => x.sessionId === row.sessionId)
       )
         result.push({ sessionId: row.sessionId, kind: row.kind });
@@ -73,15 +86,24 @@ export function readClosures(raw: string | null): PendingClosure[] {
 
 export function closureRequest(confirmation: Confirmation) {
   const { bill, kind } = confirmation;
+  const path = {
+    PAID: `/api/owner/sessions/${bill.sessionId}/checkout`,
+    NO_SHOW: `/api/owner/sessions/${bill.sessionId}/close-no-show`,
+    EMPTY: `/api/staff/sessions/${bill.sessionId}/close-empty`,
+    VOIDED: `/api/staff/sessions/${bill.sessionId}/close-void`,
+  }[kind];
+  const confirmed =
+    kind === "PAID"
+      ? {}
+      : kind === "NO_SHOW"
+        ? { noShowConfirmed: true }
+        : { guestsLeftConfirmed: true };
   return {
-    path:
-      kind === "PAID"
-        ? `/api/owner/sessions/${bill.sessionId}/checkout`
-        : `/api/staff/sessions/${bill.sessionId}/${kind === "EMPTY" ? "close-empty" : "close-void"}`,
+    path,
     body: {
       expectedBillVersion: bill.billVersion,
       confirmedTotalCents: bill.totalAmountCents,
-      ...(kind === "PAID" ? {} : { guestsLeftConfirmed: true }),
+      ...confirmed,
     },
   };
 }
@@ -111,11 +133,6 @@ export function historySearch(search: Record<string, unknown>): HistorySearch {
       typeof search.tableLabel === "string"
         ? search.tableLabel.trim().slice(0, 50) || undefined
         : undefined,
-    closeReason:
-      search.closeReason === "PAID" ||
-      search.closeReason === "EMPTY" ||
-      search.closeReason === "VOIDED"
-        ? search.closeReason
-        : undefined,
+    closeReason: isCloseKind(search.closeReason) ? search.closeReason : undefined,
   };
 }

@@ -8,6 +8,7 @@ import {
   recoveryPath,
   historySearch,
   closureKey,
+  noShowAllowed,
   type BillSummary,
   type Confirmation,
 } from "../src/features/billing/state.ts";
@@ -117,4 +118,35 @@ test("history URL keeps exact filter values and validates session identifiers", 
 test("pending closure metadata is scoped to the account and restaurant", () => {
   assert.notEqual(closureKey("restaurant", "owner"), closureKey("restaurant", "staff"));
   assert.notEqual(closureKey("restaurant", "owner"), closureKey("other", "owner"));
+});
+
+test("an online order the owner could check out may instead close as not collected", () => {
+  const online = {
+    ...bill,
+    channel: "PICKUP" as const,
+    tableId: null,
+    tableLabel: null,
+    online: {
+      number: 12,
+      customerName: "Marco",
+      customerPhone: "+393331234567",
+      estimatedAt: "2026-10-23T12:30:00Z",
+    },
+  };
+  assert.equal(noShowAllowed(online, "OWNER"), true);
+  assert.equal(noShowAllowed(online, "STAFF"), false);
+  assert.equal(noShowAllowed(bill, "OWNER"), false);
+  assert.equal(noShowAllowed({ ...online, newItemCount: 1 }, "OWNER"), false);
+  assert.equal(
+    noShowAllowed({ ...online, totalAmountCents: 0, cancelledItemCount: 2 }, "OWNER"),
+    false,
+  );
+  assert.deepEqual(closureRequest({ kind: "NO_SHOW", bill: online }), {
+    path: `/api/owner/sessions/${id}/close-no-show`,
+    body: { expectedBillVersion: 3, confirmedTotalCents: 1400, noShowConfirmed: true },
+  });
+  assert.deepEqual(readClosures(JSON.stringify([{ sessionId: id, kind: "NO_SHOW" }])), [
+    { sessionId: id, kind: "NO_SHOW" },
+  ]);
+  assert.equal(historySearch({ closeReason: "NO_SHOW" }).closeReason, "NO_SHOW");
 });

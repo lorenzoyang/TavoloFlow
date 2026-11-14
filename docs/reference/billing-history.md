@@ -10,16 +10,17 @@ OWNER-only. The system records confirmation of offline payment, not a payment tr
 Store endpoints use trusted restaurant identity, require the first password change and return
 `Cache-Control: no-store`. Writes need Store CSRF; request DTOs reject unknown fields.
 
-| Method and path                             | Role        | Input / success                                                 |
-| ------------------------------------------- | ----------- | --------------------------------------------------------------- |
-| `GET /api/staff/sessions/active`            | STAFF/OWNER | `{ items }`: every ACTIVE session's summary, oldest first       |
-| `GET /api/staff/sessions/{id}/bill`         | STAFF/OWNER | Active bill; cursor, limit default 50/max 100                   |
-| `POST /api/owner/sessions/{id}/checkout`    | OWNER       | `{ expectedBillVersion, confirmedTotalCents }` → closed summary |
-| `POST /api/staff/sessions/{id}/close-empty` | STAFF/OWNER | Zero-bill input → closed summary                                |
-| `POST /api/staff/sessions/{id}/close-void`  | STAFF/OWNER | Zero-bill input → closed summary                                |
-| `GET /api/owner/history`                    | OWNER       | Resolved filters and paged closed summaries                     |
-| `GET /api/owner/history/{id}`               | OWNER       | Closed bill; cursor, limit default 50/max 100                   |
-| `GET /api/staff/sessions/{id}`              | STAFF/OWNER | Summary of the original active/closed visit for recovery        |
+| Method and path                               | Role        | Input / success                                                                        |
+| --------------------------------------------- | ----------- | -------------------------------------------------------------------------------------- |
+| `GET /api/staff/sessions/active`              | STAFF/OWNER | `{ items }`: every ACTIVE session's summary, oldest first                              |
+| `GET /api/staff/sessions/{id}/bill`           | STAFF/OWNER | Active bill; cursor, limit default 50/max 100                                          |
+| `POST /api/owner/sessions/{id}/checkout`      | OWNER       | `{ expectedBillVersion, confirmedTotalCents }` → closed summary                        |
+| `POST /api/owner/sessions/{id}/close-no-show` | OWNER       | `{ expectedBillVersion, confirmedTotalCents, noShowConfirmed: true }` → closed summary |
+| `POST /api/staff/sessions/{id}/close-empty`   | STAFF/OWNER | Zero-bill input → closed summary                                                       |
+| `POST /api/staff/sessions/{id}/close-void`    | STAFF/OWNER | Zero-bill input → closed summary                                                       |
+| `GET /api/owner/history`                      | OWNER       | Resolved filters and paged closed summaries                                            |
+| `GET /api/owner/history/{id}`                 | OWNER       | Closed bill; cursor, limit default 50/max 100                                          |
+| `GET /api/staff/sessions/{id}`                | STAFF/OWNER | Summary of the original active/closed visit for recovery                               |
 
 Zero-bill input is `{ expectedBillVersion, confirmedTotalCents: 0, guestsLeftConfirmed: true }`.
 Closing succeeds with 200 and the shared summary. It never returns codes, credentials or client request
@@ -56,15 +57,20 @@ reading totals/counts/orders, but multiple page requests are not one frozen data
 
 ## Closure conditions and transaction
 
-| Reason | Preconditions                                                                                           | Actor       |
-| ------ | ------------------------------------------------------------------------------------------------------- | ----------- |
-| PAID   | Positive receivable, no NEW lines, matching version/amount, confirmed offline collection                | OWNER       |
-| EMPTY  | No orders of any status, zero amount, matching version and guests-left confirmation                     | STAFF/OWNER |
-| VOIDED | At least one order and every line CANCELLED, zero amount, matching version and guests-left confirmation | STAFF/OWNER |
+| Reason  | Preconditions                                                                                                                                              | Actor       |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| PAID    | Positive receivable, no NEW lines, matching version/amount, confirmed offline collection                                                                   | OWNER       |
+| EMPTY   | No orders of any status, zero amount, matching version and guests-left confirmation                                                                        | STAFF/OWNER |
+| VOIDED  | At least one order and every line CANCELLED, zero amount, matching version and guests-left confirmation                                                    | STAFF/OWNER |
+| NO_SHOW | Online sessions only (`SESSION_NOT_ONLINE` otherwise); PAID's conditions and the customer-did-not-collect confirmation; records the uncollected receivable | OWNER       |
 
 A zero amount alone is insufficient for VOIDED. A visit that ever received an order cannot use EMPTY,
-so an online session, which always has its order, never closes as EMPTY. For online orders the page
-words PAID as "collected, check payment" and VOIDED as closing after telling the customer.
+so an online session, which always has its order, never closes as EMPTY, and a zero online bill closes
+as VOIDED, not NO_SHOW (`SESSION_NOT_PAYABLE`). For online orders the page words PAID as "collected,
+check payment" and VOIDED as closing after telling the customer, and offers "customer didn't come"
+(NO_SHOW) beside checkout whenever checkout is possible. Like every closure, NO_SHOW stamps the remaining
+READY lines served, so the pass index keeps only open visits; the history filter lists NO_SHOW only
+for restaurants with online ordering.
 The owner confirms money received outside the app; no payment provider verifies it.
 
 All reasons share `BillingService.CloseAsync`:

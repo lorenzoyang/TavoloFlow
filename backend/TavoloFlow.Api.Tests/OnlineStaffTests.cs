@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using TavoloFlow.Api.Billing;
 using TavoloFlow.Api.Data;
@@ -559,6 +560,129 @@ public sealed class OnlineStaffTests(PostgreSqlFixture database) : IClassFixture
             )
         )!;
         Assert.Equal(("CLOSED", "PAID"), (status.SessionStatus, status.CloseReason));
+    }
+
+    // NO_SHOW: online orders only, OWNER only, like PAID a positive receivable with no NEW dishes.
+    [Fact]
+    public async Task NoShow_ClosesOnlyOnlineOrders_ForTheOwner()
+    {
+        using var host = new AccountTestHost(database);
+        host.Clock.Set(MondayNoon);
+        var shop = await OnlineTestData.SeedShopAsync(database);
+        var missed = OnlineTestData.Request(shop.RestaurantId, Noon, 1, shop.Dish.Id);
+        var cancelled = OnlineTestData.Request(shop.RestaurantId, Noon, 2, shop.Dish.Id);
+        await using (var db = database.CreateContext())
+        {
+            db.AddRange(missed, cancelled);
+            await db.SaveChangesAsync();
+        }
+        using var owner = await OnlineTestData.LoginAsync(host, shop.Owner);
+        using var staff = await OnlineTestData.LoginAsync(host, shop.Staff);
+        Assert.Equal(HttpStatusCode.OK, (await AcceptAsync(owner, missed.Id, 10)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await AcceptAsync(owner, cancelled.Id, 10)).StatusCode);
+        var sessions = (await ActiveAsync(owner)).Items;
+        var session = sessions.Single(o => o.Number == 1).SessionId;
+        var order = (
+            await owner.GetFromJsonAsync<BillPage>($"/api/staff/sessions/{session}/bill")
+        )!.Orders.Single();
+        string NoShow(Guid id) => $"/api/owner/sessions/{id}/close-no-show";
+        object Body(long amount, bool confirmed = true, int version = 1) =>
+            new
+            {
+                expectedBillVersion = version,
+                confirmedTotalCents = amount,
+                noShowConfirmed = confirmed,
+            };
+
+        await AssertErrorAsync(
+            await PostAsync(staff, NoShow(session), Body(2400)),
+            HttpStatusCode.Forbidden,
+            "FORBIDDEN"
+        );
+        await AssertErrorAsync(
+            await PostAsync(owner, NoShow(session), Body(2400, confirmed: false)),
+            HttpStatusCode.BadRequest,
+            "VALIDATION_FAILED"
+        );
+        await AssertErrorAsync(
+            await PostAsync(owner, NoShow(session), Body(2400, version: 2)),
+            HttpStatusCode.Conflict,
+            "BILL_CHANGED"
+        );
+        await AssertErrorAsync(
+            await PostAsync(owner, NoShow(session), Body(2400)),
+            HttpStatusCode.Conflict,
+            "ORDERS_PENDING"
+        );
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (
+                await PostAsync(
+                    owner,
+                    $"/api/staff/orders/{order.Id}/items/{order.Items.Single().Id}/ready",
+                    new { }
+                )
+            ).StatusCode
+        );
+        host.Clock.Advance(TimeSpan.FromMinutes(40));
+        var closed = await PostAsync(owner, NoShow(session), Body(2400));
+        Assert.Equal(HttpStatusCode.OK, closed.StatusCode);
+        var summary = (await closed.Content.ReadFromJsonAsync<BillSummaryResponse>())!;
+        Assert.Equal(
+            ("CLOSED", "NO_SHOW", 2400L),
+            (summary.Status, summary.CloseReason, summary.TotalAmountCents)
+        );
+        // The identical repeat returns the stored result; the dish has left the pass.
+        var repeat = await PostAsync(owner, NoShow(session), Body(2400));
+        Assert.Equal(summary, await repeat.Content.ReadFromJsonAsync<BillSummaryResponse>());
+        Assert.Empty((await owner.GetFromJsonAsync<PassPage>("/api/staff/pass"))!.Items);
+        await using (var db = database.CreateContext())
+            Assert.NotNull((await db.OrderItems.SingleAsync(i => i.OrderId == order.Id)).ServedAt);
+        using var customer = host.Browser();
+        var status = (
+            await customer.GetFromJsonAsync<OnlineOrderStatusResponse>(
+                $"/api/public/online-orders/{missed.StatusToken}"
+            )
+        )!;
+        Assert.Equal(("CLOSED", "NO_SHOW"), (status.SessionStatus, status.CloseReason));
+        var history = (
+            await owner.GetFromJsonAsync<HistoryPage>("/api/owner/history?closeReason=NO_SHOW")
+        )!;
+        Assert.Equal(1, Assert.Single(history.Items).Online!.Number);
+
+        // Every dish cancelled: a zero bill closes as VOIDED, never as not collected.
+        var other = sessions.Single(o => o.Number == 2).SessionId;
+        var second = (
+            await owner.GetFromJsonAsync<BillPage>($"/api/staff/sessions/{other}/bill")
+        )!.Orders.Single();
+        await PostAsync(
+            owner,
+            $"/api/staff/orders/{second.Id}/items/{second.Items.Single().Id}/cancel",
+            new { }
+        );
+        await AssertErrorAsync(
+            await PostAsync(owner, NoShow(other), Body(0, version: 2)),
+            HttpStatusCode.Conflict,
+            "SESSION_NOT_PAYABLE"
+        );
+
+        // A dine-in visit never closes as not collected.
+        var table = await (
+            await PostAsync(owner, "/api/owner/tables", new { tableLabel = "5" })
+        ).Content.ReadFromJsonAsync<JsonElement>();
+        var opened = await (
+            await PostAsync(
+                owner,
+                $"/api/staff/tables/{table.GetProperty("id").GetGuid()}/open",
+                new { }
+            )
+        ).Content.ReadFromJsonAsync<JsonElement>();
+        var visit = opened.GetProperty("session").GetProperty("sessionId").GetGuid();
+        await AssertErrorAsync(
+            await PostAsync(owner, NoShow(visit), Body(0)),
+            HttpStatusCode.Conflict,
+            "SESSION_NOT_ONLINE"
+        );
     }
 
     private static async Task<OnlinePendingPage> PendingAsync(HttpClient client) =>

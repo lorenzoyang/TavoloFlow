@@ -11,6 +11,9 @@ namespace TavoloFlow.Api.Online;
 // The customer's status page /o/{token}. The secret token is the only credential.
 public sealed class OnlineOrderStatusService(ApplicationDbContext db, TimeProvider clock)
 {
+    // The link answers until this long after the order ended, then returns ONLINE_ORDER_NOT_FOUND.
+    public static readonly TimeSpan LinkLifetime = TimeSpan.FromHours(24);
+
     public async Task<OnlineOrderStatusResponse> ReadAsync(string token, CancellationToken ct)
     {
         if (token.Length > 128)
@@ -25,7 +28,8 @@ public sealed class OnlineOrderStatusService(ApplicationDbContext db, TimeProvid
                 .Include(r => r.Restaurant)
                 .SingleOrDefaultAsync(r => r.StatusToken == token, ct)
             ?? throw OnlineErrors.OrderNotFound();
-        var phase = OnlineRequestState.Phase(request, clock.GetUtcNow().UtcDateTime);
+        var now = clock.GetUtcNow().UtcDateTime;
+        var phase = OnlineRequestState.Phase(request, now);
         BillSummaryResponse? bill = null;
         OnlineOrderLineResponse[] items;
         if (request.SessionId is { } sessionId)
@@ -56,6 +60,11 @@ public sealed class OnlineOrderStatusService(ApplicationDbContext db, TimeProvid
         else
             items = OnlineOrderLineResponse.ForSnapshot(request.Lines);
         await transaction.CommitAsync(ct);
+        if (
+            OnlineRequestState.EndedAt(request, bill?.ClosedAt, now) is { } ended
+            && now >= ended + LinkLifetime
+        )
+            throw OnlineErrors.OrderNotFound();
         var restaurant = request.Restaurant;
         return new(
             new(

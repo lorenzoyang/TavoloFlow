@@ -20,6 +20,14 @@ public sealed record CloseZeroBillInput(
     [Required] bool? GuestsLeftConfirmed
 );
 
+// NO_SHOW: an online order the customer never collected. The amount is the receivable not received.
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record CloseNoShowInput(
+    [Required, Range(1, int.MaxValue)] int? ExpectedBillVersion,
+    [Required] long? ConfirmedTotalCents,
+    [Required] bool? NoShowConfirmed
+);
+
 public sealed record BillPage(
     BillSummaryResponse Summary,
     KitchenOrderResponse[] Orders,

@@ -4,7 +4,7 @@ import type { CloseKind } from "./state";
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
 const zh = {
-  close: { PAID: "已收款", EMPTY: "空桌关闭", VOIDED: "全部取消后关闭" } as Record<
+  close: { PAID: "已收款", EMPTY: "空桌关闭", VOIDED: "全部取消后关闭", NO_SHOW: "未取" } as Record<
     CloseKind,
     string
   >,
@@ -53,12 +53,14 @@ const zh = {
     PAID: "核对收款并清桌",
     EMPTY: "关闭空桌",
     VOIDED: "关闭全部取消的零账单",
+    NO_SHOW: "顾客未取餐",
   } as Record<CloseKind, string>,
   ownerCollects: "本轮仍有应收，请由老板核对收款。",
   confirmTitle: {
     PAID: "确认线下收款并清桌",
     EMPTY: "确认关闭空桌",
     VOIDED: "确认全部取消后关闭",
+    NO_SHOW: "确认顾客未取餐",
   } as Record<CloseKind, string>,
   confirmPaid: "请完成线下收款，再确认关闭本轮用餐。",
   confirmZero: "此操作不记录收款。请核对订单并确认顾客已离桌。",
@@ -115,6 +117,9 @@ const zh = {
     checkedPaid: "已核对单号和金额，顾客已取餐并付款",
     confirmZero: "此操作不记录收款。请核对订单，并确认已通知顾客。",
     checkedZero: "已核对零账单，并已通知顾客",
+    confirmNoShow: "这一单按「未取」关闭：记录没收到的应收款，不记录收款。请先打电话联系顾客。",
+    confirmNoShowLabel: "按未取关闭",
+    checkedNoShow: "已核对单号和金额，顾客没有来取餐",
   },
   // History.
   historyTitle: "历史账单",
@@ -141,7 +146,12 @@ const zh = {
 export const billingMessages: Record<Language, typeof zh> = {
   zh,
   it: {
-    close: { PAID: "Pagato", EMPTY: "Chiuso vuoto", VOIDED: "Tutto annullato" },
+    close: {
+      PAID: "Pagato",
+      EMPTY: "Chiuso vuoto",
+      VOIDED: "Tutto annullato",
+      NO_SHOW: "Non ritirato",
+    },
     orderNew: "Da fare",
     orderProcessed: "Evaso",
     payable: (amount) => `Da incassare ${amount}`,
@@ -188,12 +198,14 @@ export const billingMessages: Record<Language, typeof zh> = {
       PAID: "Incassa e libera il tavolo",
       EMPTY: "Chiudi tavolo vuoto",
       VOIDED: "Chiudi conto a zero",
+      NO_SHOW: "Cliente non venuto",
     },
     ownerCollects: "C’è ancora da incassare: il titolare deve verificare il pagamento.",
     confirmTitle: {
       PAID: "Incasso e tavolo libero",
       EMPTY: "Chiudi tavolo vuoto",
       VOIDED: "Chiudi dopo l’annullamento",
+      NO_SHOW: "Conferma ordine non ritirato",
     },
     confirmPaid: "Prima incassa il pagamento, poi conferma la chiusura della visita.",
     confirmZero:
@@ -253,6 +265,10 @@ export const billingMessages: Record<Language, typeof zh> = {
       confirmZero:
         "Non viene registrato alcun incasso. Controlla l’ordine e conferma di aver avvisato il cliente.",
       checkedZero: "Ho controllato il conto a zero e ho avvisato il cliente",
+      confirmNoShow:
+        "L’ordine si chiude come non ritirato: registra l’importo non incassato, nessun pagamento. Prima prova a chiamare il cliente.",
+      confirmNoShowLabel: "Chiudi come non ritirato",
+      checkedNoShow: "Ho controllato numero e importo: il cliente non è venuto a ritirare",
     },
     historyTitle: "Storico conti",
     historyDescription:
@@ -276,7 +292,12 @@ export const billingMessages: Record<Language, typeof zh> = {
     loadMoreHistory: "Carica altri conti",
   },
   en: {
-    close: { PAID: "Paid", EMPTY: "Closed empty", VOIDED: "All cancelled" },
+    close: {
+      PAID: "Paid",
+      EMPTY: "Closed empty",
+      VOIDED: "All cancelled",
+      NO_SHOW: "Not collected",
+    },
     orderNew: "To do",
     orderProcessed: "Done",
     payable: (amount) => `Due ${amount}`,
@@ -321,12 +342,14 @@ export const billingMessages: Record<Language, typeof zh> = {
       PAID: "Take payment, free table",
       EMPTY: "Close empty table",
       VOIDED: "Close zero bill",
+      NO_SHOW: "Customer didn’t come",
     },
     ownerCollects: "There’s still money due: the owner must check the payment.",
     confirmTitle: {
       PAID: "Payment taken, table free",
       EMPTY: "Close empty table",
       VOIDED: "Close after cancellation",
+      NO_SHOW: "Confirm order not collected",
     },
     confirmPaid: "Take the payment first, then confirm closing the visit.",
     confirmZero: "No payment is recorded. Check the orders and confirm the guests have left.",
@@ -382,6 +405,10 @@ export const billingMessages: Record<Language, typeof zh> = {
       checkedPaid: "I checked the number and amount; the customer collected and paid",
       confirmZero: "No payment is recorded. Check the order and confirm you told the customer.",
       checkedZero: "I checked the zero bill and told the customer",
+      confirmNoShow:
+        "The order closes as not collected: it records the amount not received, no payment. Try calling the customer first.",
+      confirmNoShowLabel: "Close as not collected",
+      checkedNoShow: "I checked the number and amount; the customer didn’t collect",
     },
     historyTitle: "Bill history",
     historyDescription:

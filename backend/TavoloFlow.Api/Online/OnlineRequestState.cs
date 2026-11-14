@@ -28,6 +28,21 @@ public static class OnlineRequestState
             && r.ExpiresAt > now
         );
 
+    // When the customer's order ended: at expiry, at rejection, or when the accepted order's session
+    // closed. Null while it goes on (waiting, or accepted with the session still ACTIVE).
+    public static DateTime? EndedAt(
+        OnlineRequest request,
+        DateTime? sessionClosedAt,
+        DateTime now
+    ) =>
+        Phase(request, now) switch
+        {
+            OnlineRequestPhase.Expired => request.ExpiresAt,
+            OnlineRequestPhase.Rejected => request.RejectedAt,
+            OnlineRequestPhase.Accepted => sessionClosedAt,
+            _ => null,
+        };
+
     public static OnlineRequestPhase Phase(OnlineRequest request, DateTime now) =>
         request.AcceptedAt is not null ? OnlineRequestPhase.Accepted
         : request.RejectedAt is not null ? OnlineRequestPhase.Rejected
