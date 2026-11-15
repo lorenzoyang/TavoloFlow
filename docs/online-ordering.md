@@ -655,10 +655,16 @@
    **第 3 部分（员工端）已完成（2026-11-14）。** 与设计的差异：
    - 开关在首页“锁屏通知”区（开通线上且服务器配置了推送时显示），两种角色都有；iPhone / iPad 没添加到主屏幕时提示先安装，
      通知被阻止时说明怎么在设置里允许；开发构建不注册 service worker，显示“不支持”。
-   - 开启时一次完成：请求权限、用服务器公钥订阅、PUT 登记；任何一步失败都取消浏览器订阅，所以“已开启”一定已经登记。
-   - 自动重新登记由 `StaffLayout` 负责：已登录、开通线上、通知权限仍是 granted、浏览器订阅用的是当前公钥时 PUT；
-     身份或界面语言变化、本机改密码后（`resyncPush`）各重来一次。订阅用的是旧公钥（服务器换了密钥）就取消，首页显示“未开启”。
-   - 退出登录前先 DELETE 本设备（最多等 5 秒，失败不阻止退出），浏览器订阅保留；“在本设备关闭”先尽力 DELETE 再取消浏览器订阅。
+   - 开启：点按时立即请求权限，再用服务器公钥订阅并 PUT 登记。只有当前身份、endpoint、公钥和语言的 PUT 成功后才显示“已开启”；
+     PUT 失败时保留浏览器订阅，首页显示同步失败，提供「重试同步」和关闭。
+   - `StaffLayout` 通过 `PushProvider`（React Context）持有唯一的 controller（`push/controller.ts`），首页开关、自动登记、改密码和
+     退出共用它的操作跟踪。启动、身份或界面语言变化、本机改密码后、回到前台、窗口获得焦点和恢复联网时核对：并发的核对合并为一次，
+     旧身份的迟到结果丢弃；没有重试定时器，也不在 service worker 里后台登记。浏览器换了 endpoint 时下次核对上传；
+     订阅用的是旧公钥（服务器换了密钥）就取消，首页显示“未开启”。
+   - 退出登录：暂停核对，等进行中的登记结束，把浏览器 endpoint 放进 `POST /api/auth/logout` 的可选 `pushEndpoint`；
+     服务器先删本店这一行再清 Cookie（首次改密码前、线上点单关闭或推送未配置时也一样）。没有 Service Worker API、
+     `/staff` 的 registration 或 PushManager 时不带 endpoint 退出；真正读取浏览器订阅或删除失败时保留登录，提供重试和核对身份。
+     浏览器订阅保留到下次登录；已经发出的通知仍可能到达。“在本设备关闭”先尽力 DELETE 再取消浏览器订阅。
    - 通知文案在 `sw.js` 里（三种语言，和离线页一样），标题“新线上订单 #12”，正文“点按查看并接单”；载荷坏了也显示一条通用通知
      （浏览器要求每次推送都显示）。点击时先找已打开的员工端窗口并导航到 `/staff/online`，没有就新开窗口。
    - 推送写入不保存待确认标记，`CLAUDE.md` 的例外列表因此是七条。
@@ -669,7 +675,26 @@
    - 生产 `deploy/compose.yaml` 把 `.env` 的 `VAPID_PRIVATE_KEY` 传给 API（`:?` 必填），subject 写 `https://${DOMAIN}`，不另加变量；
      `install-release.sh` 在停旧 API 之前检查它是 64 位十六进制；已有服务器升级前要先在 `.env` 加这一行。备份本来就包含 `.env`。
    - 冒烟测试生成一个密钥，并用 OWNER 读 `/api/staff/push/key` 确认 API 拿到了配置。演示环境不配，推送关闭。
-   - 自托管指南（`docs/it/` 及译本）要改的地方由维护者决定，这一步只列出来，没有直接修改。
+   - 自托管指南（`docs/it/` 及译本）要改的地方由维护者决定，这一步只列出来，没有直接修改；维护者随后更新了三种语言的版本。
+
+**第 8 步审查修复（2026-11-14）。**
+
+- 推送订阅的生命周期改为上面第 3 部分的写法。最初的实现在 PUT 失败时取消浏览器订阅，退出前单独 DELETE 且失败也照常退出：
+  可能显示“已开启”而服务器没有这台设备，或者退出后设备仍收到通知。现在服务器确认后才显示已开启，删除和退出在同一个请求里。
+  `POST /api/auth/logout` 接受可选的 `pushEndpoint`（可为 null，最多 2048 个字符，拒绝未知字段，`{}` 照旧可用）。
+  测试：后端 `PushLogoutTests`，前端 `push-controller.test.ts`。
+- 推送的 HttpClient 去掉默认日志（`RemoveAllLoggers()`）：默认日志会写出 endpoint 的路径，其中就是设备令牌。
+- `install-release.sh` 另外检查私钥在 P-256 的范围内（1 到 n−1），与 API 启动时的校验一致。冒烟测试验证各种非法密钥都在停掉旧 API
+  之前被拒、已安装的版本和运行中的 API 不变，并验证恢复备份和回滚后公钥不变；`smoke-http.py` 补上菜品的 `optionGroupIds`
+  （菜单选项上线后冒烟测试就一直在这里失败）。
+- `OnlineOrderController` 在 `[AllowAnonymous]` 之外加上 `[Authorize(Policy = GuestAuthentication.Policy)]`。只写 `[AllowAnonymous]` 时，
+  后备的 Store 策略会用 Store 方案认证，浏览器里同时有员工登录 Cookie 时，公开范围的 CSRF 令牌对不上身份，提交失败（第 4 步起就存在）。
+  `OnlineOrderingTests` 覆盖匿名、员工和顾客身份同时存在的情况。
+- 没有 Push API 的浏览器（16.4 之前的 iOS，可能还有 iPhone 上没添加到主屏幕的 Safari）有 service worker 的 registration 但没有
+  `pushManager`，读取订阅抛出 TypeError，员工无法退出登录。现在没有 registration 或 PushManager 时返回 null，按“没有订阅”退出；
+  真正的读取失败仍然保留登录。测试：`push-device.test.ts`。
+- 文档（2026-11-15）：README 三种语言、`CONTRIBUTING.md`、开发笔记和本地开发指南补上线上点单和锁屏通知；
+  `product-requirements.md` 去掉“开发中”。ER 图的 PNG 由维护者另行更换。
 
 ## 13. 要同步修改的现有规则
 

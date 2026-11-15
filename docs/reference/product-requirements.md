@@ -33,7 +33,7 @@ Their language is a shared device preference; guests choose separately for each 
 ### 1. Restaurant preparation
 
 The platform creates a suspended restaurant with ordering off and both store accounts atomically,
-choosing its services: QR dine-in, online ordering (in development) or both, with a readable online link
+choosing its services: QR dine-in, online ordering or both, with a readable online link
 when online ordering is on. Restaurants without dine-in have no floor or tables. Online ordering covers
 pickup and restaurant-run delivery, paid on collection or delivery; staff accept each order first,
 and staff devices can turn on lock-screen notifications of new orders

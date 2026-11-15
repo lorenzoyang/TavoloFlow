@@ -2,9 +2,11 @@
 
 # Qiao TavoloFlow
 
-A self-hostable QR table-ordering app for small restaurants. Guests scan the table's QR code and order
-from their phones; the kitchen and the pass see the dishes as they arrive; the owner closes the bill
-after taking payment at the till.
+A self-hostable QR table-ordering app for small restaurants, which can also take online orders for
+pickup or delivery. Guests scan the table's QR code and order from their phones; customers elsewhere
+order from the restaurant's own link, and staff accept each online order before it reaches the
+kitchen. The kitchen and the pass see the dishes as they arrive; the owner closes the bill after
+taking payment at the till, at pickup or on delivery.
 
 [![CI](https://github.com/lorenzoyang/TavoloFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/lorenzoyang/TavoloFlow/actions/workflows/ci.yml)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
@@ -15,24 +17,32 @@ after taking payment at the till.
 ![The Kitchen screen on a tablet, with the guest menu on a phone](docs/images/hero-en.webp)
 
 Every interface (guest, staff, administrator) is available in English, Italian and Chinese. The staff
-area installs as a PWA on phones and kitchen tablets. The app does not process online payments and
-does not replace a fiscal cash register.
+area installs as a PWA on phones and kitchen tablets, and can show lock-screen notifications of new
+online orders. The app does not process online payments and does not replace a fiscal cash register.
 
 ## What it does
 
 - **Guests** scan the table's fixed QR code, browse the menu with photos and allergens, join the
   table's visit with a four-character code, and order as many times as they like during the meal.
+- **Online customers** order from the restaurant's own link for pickup or, where the restaurant
+  delivers, delivery. They pay on collection or delivery and follow the order on a status page.
 - **Staff** open tables on the Floor, follow orders in the Kitchen (grouped by dish or by order, with
-  an alert sound and per-screen category filters), and mark dishes served on the Pass screen.
+  an alert sound and per-screen category filters), and mark dishes served on the Pass screen. They
+  accept or reject online orders, choosing the estimated time and, for delivery, the fee; a banner
+  rings on every staff page while orders wait, and devices that turn them on also get lock-screen
+  notifications.
 - **Owners** manage the menu, with shared options such as drink sizes, sugar, toppings or spice
   levels that can add to the price, and the tables, download QR codes and printable table cards, close
-  the bill after payment and browse the bill history.
+  the bill after payment and browse the bill history. For online ordering they set the public phone,
+  the weekly hours and the delivery notes, correct a delivery fee and close collected or delivered
+  orders.
 - **Platform administrators** create restaurants and their accounts, choose each restaurant's color
-  theme and record service periods and annual fees paid offline.
+  theme, turn QR dine-in and online ordering on for each restaurant with its online link, and record
+  service periods and annual fees paid offline.
 
-There are no order printers, online payments, split bills, stock management, takeaway or push
-notifications. The [product requirements](docs/reference/product-requirements.md) describe the full
-scope.
+There are no order printers, online payments, split bills, stock management or third-party delivery
+platforms, and customers cannot book a pickup or delivery time. The
+[product requirements](docs/reference/product-requirements.md) describe the full scope.
 
 ## Screenshots
 

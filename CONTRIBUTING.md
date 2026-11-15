@@ -8,7 +8,7 @@ documentation improvements in particular.
 - **Try the demo first.** `docker compose -f demo/compose.yaml up -d` starts a complete restaurant
   with sample data; see the [quick demo](README.md#quick-demo).
 - **Check the scope.** TavoloFlow deliberately stays small: there are no order printers, online
-  payments, split bills, stock management, takeaway or push notifications. The
+  payments, split bills, stock management or third-party delivery platforms. The
   [product requirements](docs/reference/product-requirements.md) describe what is in and out. For a
   new feature, please open an issue to discuss it before writing code.
 - **Read [AGENTS.md](AGENTS.md).** It holds the layout, the coding and UI conventions and the domain

@@ -28,7 +28,7 @@ separate from production.
 - [Product requirements](reference/product-requirements.md): users, scope, visit lifecycle and
   acceptance criteria.
 - [Database schema](reference/er-diagram.dbml) and [ER diagram](reference/er-diagram.png): the
-  eleven-table persistence model. Deployed schema changes are defined by
+  eighteen-table persistence model. Deployed schema changes are defined by
   [EF migrations](../backend/TavoloFlow.Api/Data/Migrations/).
 
 ### Implementation contracts
