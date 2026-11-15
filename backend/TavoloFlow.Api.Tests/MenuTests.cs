@@ -295,6 +295,54 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
     }
 
     [Fact]
+    public async Task SaveItem_SalePrice_SavesClearsAndRejectsPricesNotBelowThePrice()
+    {
+        using var host = new AccountTestHost(database);
+        using var owner = await LoginAsync(host, await SeedAsync());
+        var category = await CreateCategoryAsync(owner);
+        var item = await CreateItemAsync(
+            owner,
+            ValidItem(category.Id) with
+            {
+                SalePriceCents = 990,
+            }
+        );
+        Assert.Equal((1250L, 990L), (item.PriceCents, item.SalePriceCents!.Value));
+        Assert.Equal(990, Assert.Single((await ReadAsync(owner)).Items).SalePriceCents);
+
+        foreach (var sale in new long[] { 1250, 1300, 0, -1 })
+            await AssertErrorAsync(
+                await SendAsync(
+                    owner,
+                    HttpMethod.Put,
+                    $"{Items}/{item.Id}",
+                    ValidItem(category.Id) with
+                    {
+                        SalePriceCents = sale,
+                    }
+                ),
+                HttpStatusCode.BadRequest,
+                "VALIDATION_FAILED"
+            );
+        Assert.Equal(990, Assert.Single((await ReadAsync(owner)).Items).SalePriceCents);
+
+        var cleared = await SendAsync(
+            owner,
+            HttpMethod.Put,
+            $"{Items}/{item.Id}",
+            ValidItem(category.Id)
+        );
+        Assert.Equal(HttpStatusCode.OK, cleared.StatusCode);
+        Assert.Null((await cleared.Content.ReadFromJsonAsync<MenuItemResponse>())!.SalePriceCents);
+
+        // The database repeats the rule, so no other writer can store a sale at or above the price.
+        await using var db = database.CreateContext();
+        var row = await db.MenuItems.SingleAsync(x => x.Id == item.Id);
+        row.SalePriceCents = row.PriceCents;
+        await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+    }
+
+    [Fact]
     public async Task ReorderItems_ExactPermutation_OrdersEveryMenuAndChangesOnlyPositions()
     {
         using var host = new AccountTestHost(database);
@@ -1832,6 +1880,7 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
             null,
             null,
             1250,
+            null,
             ["GLUTEN", "SOY"],
             true,
             []

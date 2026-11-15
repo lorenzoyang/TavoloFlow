@@ -171,6 +171,7 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
                 item.DescriptionIt = value.DescriptionIt;
                 item.DescriptionEn = value.DescriptionEn;
                 item.PriceCents = value.PriceCents;
+                item.SalePriceCents = value.SalePriceCents;
                 item.AllergenCodes = value.AllergenCodes!;
                 item.AllergenReviewed = true;
                 // Never copy availability from a content-edit form.

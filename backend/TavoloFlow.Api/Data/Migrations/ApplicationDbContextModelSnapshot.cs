@@ -254,6 +254,10 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("restaurant_id");
 
+                    b.Property<long?>("SalePriceCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("sale_price_cents");
+
                     b.HasKey("Id");
 
                     b.HasAlternateKey("Id", "RestaurantId")
@@ -275,6 +279,8 @@ namespace TavoloFlow.Api.Data.Migrations
                             t.HasCheckConstraint("ck_item_position", "position >= 0");
 
                             t.HasCheckConstraint("ck_item_positive_price", "price_cents > 0");
+
+                            t.HasCheckConstraint("ck_item_sale_price", "sale_price_cents IS NULL OR (sale_price_cents > 0 AND sale_price_cents < price_cents)");
                         });
                 });
 

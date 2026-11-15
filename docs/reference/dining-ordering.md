@@ -109,7 +109,8 @@ restarts reset them. Multi-instance deployments need a shared or edge limiting d
 
 Use actual resource IDs. Orders have no whole-order remark. `optionIds` lists the chosen
 [options](menu-tables.md#option-groups) (required; at most 50, distinct; empty for none) and
-`expectedUnitPriceCents` is the dish price plus their deltas. Response fields are `id`, `sessionId`,
+`expectedUnitPriceCents` is the dish price (its `salePriceCents` while the dish is on sale) plus their
+deltas. Response fields are `id`, `sessionId`,
 `status`, `createdAt`, `defaultLanguage`, `totalAmountCents`, `payableAmountCents` and `items`.
 Each item contains `id`, nullable `menuItemId`, `itemCode`, three names, `allergenCodes`,
 `unitPriceCents`, `quantity`, nullable `remark`, `options`, `status`, `readyAt` and `cancelledAt`.
@@ -129,7 +130,8 @@ an ACTIVE bound visit, even when ordering/service/table availability is paused.
 `isAvailable`. Reasons are MISSING, UNAVAILABLE, OPTIONS_CHANGED and PRICE_CHANGED. OPTIONS_CHANGED
 means the choice no longer fits the dish's current groups: an option is gone, sold out or from a group
 the dish doesn't use, or a group's count is outside its minimum/maximum. PRICE_CHANGED compares the
-dish price plus deltas and returns that current unit price. Refresh the menu and require another
+dish price (sale price while on sale) plus deltas and returns that current unit price; starting or ending
+a sale therefore reprices open carts like any price edit. Refresh the menu and require another
 confirmation; do not silently remove lines or submit at a new price. A first definitively refused
 intent may unlock; an already unknown intent follows the stricter recovery rule below.
 
@@ -171,8 +173,9 @@ return `BILL_LIMIT_REACHED`; an existing intent still recovers before first-subm
 
 Carts use tab-local sessionStorage keyed by `tavoloflow:cart:{restaurantId}:{tableId}` and retain
 the observed visit (null before opening). Same item, same options and trimmed remark merge;
-differing options or remarks stay separate. Carts are version 2: each line keeps a snapshot of its
-chosen options (id, group id, names, delta), refreshed with the dish before review; a choice that no
+differing options or remarks stay separate. Carts are version 3: each line keeps a snapshot of its
+dish (including its nullable sale price) and its chosen options (id, group id, names, delta), refreshed
+with the dish before review; other versions are discarded as damaged; a choice that no
 longer fits stops the review (`CartError("options")`) and the line asks to be removed and added
 again. Option rules shared by the picker and the cart live in the node-tested
 `features/orders/options.ts`. The first opened visit requires explicit confirmation. An old visit's

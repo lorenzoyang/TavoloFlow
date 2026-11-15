@@ -259,6 +259,58 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
     }
 
     [Fact]
+    public async Task Create_SalePrice_ChargesSalePricePlusFullOptionDeltas()
+    {
+        using var host = new AccountTestHost(database);
+        var s = await SeedAsync(host);
+        await using var db = database.CreateContext();
+        var (size, toppings) = await AddOptionsAsync(db, s);
+        await db
+            .MenuItems.Where(i => i.Id == s.Item.Id)
+            .ExecuteUpdateAsync(u => u.SetProperty(i => i.SalePriceCents, 500));
+        using var guest = await JoinAsync(host, s);
+        var optionIds = new[] { size.Options[1].Id, toppings.Options[0].Id };
+        CreateOrderInput Input(long expected) =>
+            new(
+                s.Opened.Session.SessionId,
+                Guid.NewGuid(),
+                [new(s.Item.Id, 2, expected, null, optionIds)]
+            );
+
+        // The regular price is refused while the dish is on sale, with the sale price to show instead.
+        var regular = await SubmitAsync(guest, Input(700 + 100 + 80));
+        await AssertErrorAsync(regular, HttpStatusCode.Conflict, "MENU_CHANGED");
+        using (var body = JsonDocument.Parse(await regular.Content.ReadAsStringAsync()))
+        {
+            var change = body.RootElement.GetProperty("changes")[0];
+            Assert.Equal("PRICE_CHANGED", change.GetProperty("reason").GetString());
+            Assert.Equal(680, change.GetProperty("currentUnitPriceCents").GetInt64());
+        }
+
+        var response = await SubmitAsync(guest, Input(500 + 100 + 80));
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var order = (await response.Content.ReadFromJsonAsync<OrderResponse>())!;
+        Assert.Equal((680L, 1360L), (order.Items.Single().UnitPriceCents, order.TotalAmountCents));
+
+        // Ending the sale reprices new orders; the stored snapshot keeps what the guest paid.
+        await db
+            .MenuItems.Where(i => i.Id == s.Item.Id)
+            .ExecuteUpdateAsync(u => u.SetProperty(i => i.SalePriceCents, (long?)null));
+        await AssertErrorAsync(
+            await SubmitAsync(guest, Input(680)),
+            HttpStatusCode.Conflict,
+            "MENU_CHANGED"
+        );
+        Assert.Equal(
+            680,
+            await db
+                .OrderItems.Where(i => i.OrderId == order.Id)
+                .Select(i => i.UnitPriceCents)
+                .SingleAsync()
+        );
+    }
+
+    [Fact]
     public async Task Create_WithOptions_PricesSnapshotsAndKeepsThemAfterMenuEdits()
     {
         using var host = new AccountTestHost(database);

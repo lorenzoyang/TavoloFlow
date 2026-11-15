@@ -7,6 +7,7 @@ import {
   createIntent,
   editLine,
   emptyCart,
+  intentItems,
   persistCart,
   refreshCart,
   restoreCart,
@@ -17,6 +18,7 @@ import {
 import {
   chosenOptions,
   combinedAllergens,
+  dishPriceCents,
   hasExtraCost,
   missingGroups,
   orderable,
@@ -40,6 +42,7 @@ const item = {
   descriptionEn: null,
   itemCode: "A1",
   priceCents: 700,
+  salePriceCents: null as number | null,
   isAvailable: true,
   allergenReviewed: true,
   allergenCodes: ["SOY"],
@@ -300,9 +303,34 @@ test("a saved cart restores its options and pending option ids; damaged options 
       ...cart,
       lines: [{ ...cart.lines[0], item: { ...tea, optionGroupIds: undefined } }],
     }),
-    JSON.stringify({ ...cart, version: 1 }),
+    JSON.stringify({ ...cart, version: 2 }),
+    // Saved before sale prices existed, or with a sale price the server would never send.
+    JSON.stringify({
+      ...cart,
+      lines: [{ ...cart.lines[0], item: { ...tea, salePriceCents: undefined } }],
+    }),
+    JSON.stringify({
+      ...cart,
+      lines: [{ ...cart.lines[0], item: { ...tea, salePriceCents: tea.priceCents } }],
+    }),
   ])
     throwsIssue(() => restoreCart(raw, blank()), "damaged");
+});
+
+test("a dish on sale is priced from its sale price, and options are added in full", () => {
+  const onSale = { ...tea, salePriceCents: 400 };
+  assert.equal(dishPriceCents(tea), tea.priceCents);
+  assert.equal(dishPriceCents(onSale), 400);
+  const options = chosenOptions(onSale, groups, [foam, large, pearls]);
+  assert.equal(unitPriceCents(onSale, options), 1000 - tea.priceCents + 400);
+  let cart = addItem(blank(), onSale, groups, [large]);
+  assert.equal(totalCents(cart.lines), 400 + 100);
+  assert.equal(intentItems(cart.lines)[0].expectedUnitPriceCents, 500);
+  // The refreshed menu ends the sale: the line follows the regular price again.
+  cart = refreshCart(cart, [tea], groups);
+  assert.equal(totalCents(cart.lines), tea.priceCents + 100);
+  const saved = JSON.stringify(addItem(blank(), onSale, groups, [large]));
+  assert.equal(restoreCart(saved, blank()).lines[0].item.salePriceCents, 400);
 });
 
 test("option summaries group each group's options and follow the viewer's language", () => {

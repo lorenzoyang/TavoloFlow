@@ -12,6 +12,8 @@ export type MenuItem = Names & {
   descriptionIt: string | null;
   descriptionEn: string | null;
   priceCents: number;
+  // Charged instead of priceCents while the dish is on sale; always below it.
+  salePriceCents: number | null;
   allergenCodes: string[];
   allergenReviewed: boolean;
   isAvailable: boolean;

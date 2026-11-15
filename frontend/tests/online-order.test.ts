@@ -33,6 +33,7 @@ const item = {
   descriptionEn: null,
   itemCode: "R1",
   priceCents: 1200,
+  salePriceCents: null as number | null,
   isAvailable: true,
   allergenReviewed: true,
   allergenCodes: ["GLUTEN"],

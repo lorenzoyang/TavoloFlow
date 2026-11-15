@@ -123,6 +123,7 @@ public sealed class DemoSeeder(
                     item.Descriptions.It,
                     item.Descriptions.En,
                     item.PriceCents,
+                    item.SalePriceCents,
                     item.AllergenCodes,
                     item.AllergenReviewed,
                     // Linked below, once every option group exists.
@@ -147,6 +148,7 @@ public sealed class DemoSeeder(
                 DescriptionIt = content.DescriptionIt,
                 DescriptionEn = content.DescriptionEn,
                 PriceCents = content.PriceCents,
+                SalePriceCents = content.SalePriceCents,
                 AllergenCodes = content.AllergenCodes!,
                 AllergenReviewed = true,
                 IsAvailable = item.IsAvailable,

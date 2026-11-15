@@ -34,7 +34,9 @@ public sealed record DemoItem(
     string[] AllergenCodes,
     bool AllergenReviewed,
     bool IsAvailable,
-    string Image
+    string Image,
+    // Optional: the dish is on sale at this price, below PriceCents.
+    long? SalePriceCents = null
 );
 
 // Items lists the dish keys that use the group; groups keep the fixture's order on every dish.

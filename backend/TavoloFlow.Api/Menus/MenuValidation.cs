@@ -52,6 +52,11 @@ public static class MenuValidation
             [
                 "The price must be positive whole euro cents within the safe integer range.",
             ];
+        if (value.SalePriceCents is { } sale && (sale < 1 || sale >= value.PriceCents))
+            errors["salePriceCents"] =
+            [
+                "The sale price must be positive whole euro cents below the price; send null for none.",
+            ];
         foreach (
             var (name, description, field) in new[]
             {

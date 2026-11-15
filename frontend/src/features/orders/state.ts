@@ -25,9 +25,10 @@ export type CartLine = {
 // What the line rules below need from a cart; the QR cart and the online cart both have it. A pending
 // request freezes the lines.
 export type CartDraft = { lines: CartLine[]; pending: unknown };
-// Version 2: every line carries its chosen options. Any other saved version is treated as damaged.
+// Version 3: every line carries its chosen options and its dish's sale price (null when not on sale).
+// Any other saved version is treated as damaged.
 export type Cart = {
-  version: 2;
+  version: 3;
   restaurantId: string;
   tableId: string;
   sessionId: string | null;
@@ -49,7 +50,7 @@ export const emptyCart = (
   tableId: string,
   sessionId: string | null,
 ): Cart => ({
-  version: 2,
+  version: 3,
   restaurantId,
   tableId,
   sessionId,
@@ -66,8 +67,7 @@ export function totalCents(lines: CartLine[]): number {
     if (
       !Number.isSafeInteger(line.quantity) ||
       line.quantity < 1 ||
-      !Number.isSafeInteger(line.item.priceCents) ||
-      line.item.priceCents < 1 ||
+      !validPrices(line.item) ||
       !Number.isSafeInteger(price)
     )
       throw new CartError("amount");
@@ -173,6 +173,16 @@ export function intentItems(lines: CartLine[]): OrderLineInput[] {
   }));
 }
 
+// The server's rule: a positive price, and a sale price, when set, positive and below it.
+const validPrices = ({
+  priceCents,
+  salePriceCents,
+}: Pick<MenuItem, "priceCents" | "salePriceCents">) =>
+  Number.isSafeInteger(priceCents) &&
+  priceCents > 0 &&
+  (salePriceCents === null ||
+    (Number.isSafeInteger(salePriceCents) && salePriceCents > 0 && salePriceCents < priceCents));
+
 function validItem(value: unknown): value is MenuItem {
   if (!value || typeof value !== "object") return false;
   const item = value as MenuItem;
@@ -181,8 +191,7 @@ function validItem(value: unknown): value is MenuItem {
     typeof item.categoryId === "string" &&
     Array.isArray(item.optionGroupIds) &&
     item.optionGroupIds.every((x) => isUuid(x)) &&
-    Number.isSafeInteger(item.priceCents) &&
-    item.priceCents > 0 &&
+    validPrices(item) &&
     typeof item.isAvailable === "boolean" &&
     typeof item.allergenReviewed === "boolean" &&
     Array.isArray(item.allergenCodes) &&
@@ -249,14 +258,14 @@ export function restoreCart(raw: string | null, fallback: Cart): Cart {
   try {
     const value = JSON.parse(raw) as Cart;
     if (
-      value.version !== 2 ||
+      value.version !== 3 ||
       value.restaurantId !== fallback.restaurantId ||
       value.tableId !== fallback.tableId ||
       (value.sessionId !== null && !isUuid(value.sessionId))
     )
       throw new Error();
     const cart: Cart = validateCart({
-      version: 2,
+      version: 3,
       restaurantId: value.restaurantId,
       tableId: value.tableId,
       sessionId: value.sessionId,

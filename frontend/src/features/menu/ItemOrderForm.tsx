@@ -1,11 +1,13 @@
 import { useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp } from "lucide-react";
+import { DishPrice } from "@/components/dish-price";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/format";
 import { displayName, type Language } from "@/lib/language";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import type { Category, MenuItem } from "./api";
 import { menuMessages } from "./messages";
+import { dishPriceCents } from "@/features/orders/options";
 
 export type ItemOrderSnapshot = {
   category: Category;
@@ -61,9 +63,15 @@ export function ItemOrderForm({
             <li key={item.id} className="flex items-center gap-3 py-2">
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium wrap-break-word">{name}</p>
-                <p className="text-sm text-muted-foreground tabular-nums">
-                  {formatMoney(item.priceCents, language)}
-                </p>
+                <DishPrice
+                  className="text-sm text-muted-foreground"
+                  regular={
+                    item.salePriceCents === null ? null : formatMoney(item.priceCents, language)
+                  }
+                  regularLabel={m.regularPrice}
+                >
+                  {formatMoney(dishPriceCents(item), language)}
+                </DishPrice>
               </div>
               <div className="flex shrink-0 gap-1">
                 <Button

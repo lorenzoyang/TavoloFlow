@@ -298,6 +298,7 @@ Table menu_items {
   description_it text
   description_en text
   price_cents bigint [not null]
+  sale_price_cents bigint [note: 'Charged instead of price_cents while set; option deltas are added in full']
   allergen_codes "text[]" [not null, default: '{}', note: 'Only 14 predefined EU allergen codes, validated by the API']
   allergen_reviewed boolean [not null, default: false, note: 'true + empty codes = reviewed, no identified declarable allergens']
   is_available boolean [not null, default: true]
@@ -311,6 +312,7 @@ Table menu_items {
   Checks {
     `concat(name_zh, name_it, name_en) ~ '[^[:space:]]'` [name: 'ck_item_has_name']
     `price_cents > 0` [name: 'ck_item_positive_price']
+    `sale_price_cents IS NULL OR (sale_price_cents > 0 AND sale_price_cents < price_cents)` [name: 'ck_item_sale_price']
     `position >= 0` [name: 'ck_item_position']
   }
 
