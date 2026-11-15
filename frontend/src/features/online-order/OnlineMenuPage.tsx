@@ -18,7 +18,7 @@ import { messages as menuMessages } from "@/features/public-menu/messages";
 import { CartBar, LanguageToggle, MenuList } from "@/features/public-menu/PublicMenuViews";
 import { onlineMenuQuery, type OnlineMenu } from "./api";
 import { onlineOrderMessages } from "./messages";
-import { ActiveOrder, OnlineCartPanel, OnlineHeader, PhoneLink } from "./OnlineViews";
+import { ActiveOrder, OnlineCartPanel, OnlineHeader } from "./OnlineViews";
 import { useRestaurantLanguage } from "./useRestaurantLanguage";
 import { useOnlineCart } from "./useOnlineCart";
 
@@ -118,12 +118,8 @@ function MenuContent({
         <main className="min-w-0 space-y-5 pt-5">
           <ActiveOrder restaurantId={data.restaurant.id} language={language} />
           {closed ? (
-            <Notice
-              tone="warning"
-              action={phone ? <PhoneLink phone={phone} language={language} /> : undefined}
-            >
-              {closed}
-            </Notice>
+            // Text only: the header keeps the restaurant's phone right above it.
+            <Notice tone="warning">{closed}</Notice>
           ) : (
             <p className="text-sm leading-6 text-muted-foreground">{m.open}</p>
           )}

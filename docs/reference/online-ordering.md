@@ -231,8 +231,9 @@ restaurant theme, and every page ends with the source link.
 The menu reuses the QR page's `MenuList`, option picker, `CartBar` and the cart's line list
 (`CartLines`); their props take any cart with `{ lines, pending }`, and the pure line rules in
 `orders/state.ts` (`addItem`, `editLine`, `refreshCart`, `validateCart`) are generic over it. The header
-shows the restaurant's phone as a `tel:` link. A status other than `OPEN` is explained with the phone
-and keeps the checkout closed; browsing and building a cart stay possible. A remembered order still in
+shows the restaurant's phone as a `tel:` button in every status. A status other than `OPEN` is
+explained by a text-only notice below it and keeps the checkout closed; browsing and building a cart
+stay possible. A remembered order still in
 progress shows "you have an order in progress" with a link to its status page.
 
 The cart lives in `sessionStorage` under `tavoloflow:cart:{restaurantId}:online` (version 1, separate
