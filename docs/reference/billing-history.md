@@ -39,18 +39,28 @@ totalAmountCents
 
 `tableId`, `closedAt` and `closeReason` may be null as appropriate. `channel` is `DINE_IN`, `PICKUP` or
 `DELIVERY`. Dine-in visits have `tableLabel` and a null `online`; accepted online orders have no table
-and `online: { number, customerName, customerPhone, estimatedAt, deliveryAddress, deliveryNotes }`
-(contact and address become null once contact data is cleared). `deliveryFeeCents` is set on delivery
+and `online: { number, customerName, customerPhone, estimatedAt, deliveryAddress, deliveryNotes,
+coupon }` (contact and address become null once contact data is cleared; `coupon` is
+`{ code, percentOff, discountCents }` when the customer used one, else null). `deliveryFeeCents` is set on delivery
 sessions only: the fee whoever accepted the order entered. The active list reads only open sessions through the partial index
 `ix_dining_sessions_active`, in one statement, ordered by opening time (for online orders, acceptance). Item counts count lines, not
-portions. Active totals sum uncancelled unit-price × quantity across the entire visit, plus the
-delivery fee while any line is not cancelled (a fully cancelled delivery is a zero bill that closes as
-VOIDED); `SessionSummaries.Project` is the only place that computes a bill amount. Closed totals come
-from stored `closed_total_cents`, so PAID and NO_SHOW record the fee. Neither is a page subtotal; an
-order's own amounts never include the fee, which belongs to the session.
+portions. Active totals sum uncancelled unit-price × quantity across the entire visit, less an online
+coupon's percentage of that sum (rounded down to the cent, `OnlineCoupons.DiscountCents`; the
+percentage comes from the request, so a deleted coupon still counts), plus the delivery fee while any
+line is not cancelled (a fully cancelled delivery is a zero bill that closes as VOIDED, its discount
+zero too); `SessionSummaries.Project` is the only place that computes a bill amount. Coupons are at most
+50 %, so a bill with any charged dish stays positive and PAID is unaffected. `coupon.discountCents`
+follows the same uncancelled sum, so cancelling a dish lowers the discount in proportion; a closed
+visit's lines no longer change, so it still matches the stored total. Closed totals come from stored
+`closed_total_cents`, so PAID and NO_SHOW record the fee and the discount. Neither is a page subtotal; an
+order's own amounts never include the fee or the discount, which belong to the session. The bills page
+shows the dishes, the coupon line and the fee under the total, and the closure confirmation repeats the
+coupon's discount, because the restaurant's till issues the receipt and needs the same discount.
 
 Orders reuse the [kitchen DTO](kitchen-pass.md#kitchen-apis-and-transactions): original amount,
 remaining payable amount, status and immutable line snapshots with READY/cancellation timestamps.
+Order cards label that remaining amount "dishes" (菜品, Piatti, Dishes), never "due": only the bill
+total, which adds the delivery fee and takes off a coupon, says what to collect.
 A line's unit price already includes its chosen options' deltas; the options appear under its name.
 Cancelled lines retain original prices and content and are shown as excluded from receivables.
 There is no cancellation reason or whole-order note.

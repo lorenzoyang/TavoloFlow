@@ -18,6 +18,10 @@ internal sealed class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                     "concat(name_zh, name_it, name_en) ~ '[^[:space:]]'"
                 );
                 table.HasCheckConstraint("ck_item_positive_price", "price_cents > 0");
+                table.HasCheckConstraint(
+                    "ck_item_sale_price",
+                    "sale_price_cents IS NULL OR (sale_price_cents > 0 AND sale_price_cents < price_cents)"
+                );
                 table.HasCheckConstraint("ck_item_position", "position >= 0");
             }
         );
@@ -67,6 +71,7 @@ internal sealed class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
             .HasColumnType("text");
 
         builder.Property(item => item.PriceCents).HasColumnName("price_cents");
+        builder.Property(item => item.SalePriceCents).HasColumnName("sale_price_cents");
 
         builder
             .Property(item => item.AllergenCodes)

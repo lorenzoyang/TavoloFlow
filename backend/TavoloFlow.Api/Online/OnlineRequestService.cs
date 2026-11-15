@@ -86,6 +86,23 @@ public sealed class OnlineRequestService(
         // Delivery is the OWNER's switch; it never closes pickup.
         if (form.Fulfillment == OnlineFulfillment.Delivery && !restaurant.DeliveryEnabled)
             throw OnlineErrors.DeliveryNotOffered();
+        // Coupon writes take restaurant UPDATE, so this SHARE lock sees the coupon whole or not at all.
+        // Acceptance never checks it again: the customer was promised this total.
+        if (form.Coupon is { } wanted)
+        {
+            var coupon = await db
+                .OnlineCoupons.AsNoTracking()
+                .SingleOrDefaultAsync(
+                    c => c.RestaurantId == restaurantId && c.Code == wanted.Code,
+                    ct
+                );
+            if (
+                coupon is null
+                || !OnlineCoupons.IsValid(coupon, businessDate)
+                || coupon.PercentOff != wanted.PercentOff
+            )
+                throw OnlineErrors.CouponInvalid();
+        }
         var lines = await OrderLines.SnapshotAsync(db, restaurantId, form.Lines, ct);
         var submittedAt = now.UtcDateTime;
         var request = new OnlineRequest
@@ -103,6 +120,8 @@ public sealed class OnlineRequestService(
             DeliveryNotes = form.Notes,
             Lines = [.. lines],
             ItemsTotalCents = OrderLines.Total(lines),
+            CouponCode = form.Coupon?.Code,
+            CouponPercentOff = form.Coupon?.PercentOff,
             DefaultLanguageSnapshot = restaurant.DefaultLanguage,
             SubmittedAt = submittedAt,
             ExpiresAt = submittedAt + WaitingTime,
@@ -220,6 +239,17 @@ public sealed class OnlineRequestService(
                 "deliveryNotes",
                 "Invalid notes."
             );
+        Coupon? coupon = null;
+        if (input.Coupon is { } wanted)
+            coupon =
+                OnlineCoupons.Normalize(wanted.Code) is { } code
+                && OnlineCoupons.ValidPercent(wanted.PercentOff)
+                    ? new(code, wanted.PercentOff!.Value)
+                    : throw ApiException.Validation(
+                        "Send the coupon's code and its confirmed percentage, or null for none.",
+                        "coupon",
+                        "Invalid coupon."
+                    );
         return new(
             clientRequestId,
             fulfillment,
@@ -227,9 +257,12 @@ public sealed class OnlineRequestService(
             phone,
             address,
             notes,
-            OrderLines.Validate(input.Items)
+            OrderLines.Validate(input.Items),
+            coupon
         );
     }
+
+    private sealed record Coupon(string Code, int PercentOff);
 
     private sealed record Form(
         Guid ClientRequestId,
@@ -238,7 +271,8 @@ public sealed class OnlineRequestService(
         string Phone,
         string? Address,
         string? Notes,
-        OrderLineInput[] Lines
+        OrderLineInput[] Lines,
+        Coupon? Coupon
     );
 
     private sealed record StoredResponse(

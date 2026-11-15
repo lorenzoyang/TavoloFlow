@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TavoloFlow.Api.Entities;
+using TavoloFlow.Api.Online;
 
 namespace TavoloFlow.Api.Data.Configurations;
 
@@ -39,6 +40,12 @@ internal sealed class OnlineRequestConfiguration : IEntityTypeConfiguration<Onli
                     "fulfillment = 'DELIVERY' OR (delivery_address IS NULL AND delivery_notes IS NULL)"
                 );
                 table.HasCheckConstraint("ck_online_request_expiry", "expires_at > submitted_at");
+                table.HasCheckConstraint(
+                    "ck_online_request_coupon",
+                    "(coupon_code IS NULL AND coupon_percent_off IS NULL) OR "
+                        + "(coupon_code IS NOT NULL AND coupon_percent_off IS NOT NULL AND "
+                        + $"coupon_percent_off BETWEEN {OnlineCoupons.MinPercent} AND {OnlineCoupons.MaxPercent})"
+                );
                 // Accepted or rejected, never both, and only while the request was still waiting.
                 // Checks pass on NULL, so every comparison on a nullable column also states IS NOT NULL.
                 table.HasCheckConstraint(
@@ -142,6 +149,11 @@ internal sealed class OnlineRequestConfiguration : IEntityTypeConfiguration<Onli
         );
 
         builder.Property(request => request.ItemsTotalCents).HasColumnName("items_total_cents");
+        builder
+            .Property(request => request.CouponCode)
+            .HasColumnName("coupon_code")
+            .HasMaxLength(OnlineCoupons.MaxCodeLength);
+        builder.Property(request => request.CouponPercentOff).HasColumnName("coupon_percent_off");
         builder
             .Property(request => request.DefaultLanguageSnapshot)
             .HasColumnName("default_language_snapshot")

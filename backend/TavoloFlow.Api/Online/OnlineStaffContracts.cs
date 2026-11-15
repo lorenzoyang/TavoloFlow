@@ -33,7 +33,9 @@ public sealed record OnlinePendingRequestResponse(
     DateTime ExpiresAt,
     string DefaultLanguage,
     OnlineOrderLineResponse[] Items,
-    long ItemsTotalCents
+    long ItemsTotalCents,
+    // ItemsTotalCents is before the coupon; the discount comes off it, and acceptance adds any fee.
+    CouponDiscountResponse? Coupon
 )
 {
     public static OnlinePendingRequestResponse From(OnlineRequest request) =>
@@ -49,7 +51,12 @@ public sealed record OnlinePendingRequestResponse(
             request.ExpiresAt,
             request.DefaultLanguageSnapshot,
             OnlineOrderLineResponse.ForSnapshot(request.Lines),
-            request.ItemsTotalCents
+            request.ItemsTotalCents,
+            CouponDiscountResponse.For(
+                request.CouponCode,
+                request.CouponPercentOff,
+                request.ItemsTotalCents
+            )
         );
 }
 
@@ -73,6 +80,7 @@ public sealed record OnlineActiveOrderResponse(
     int ItemCount,
     int NewItemCount,
     int ReadyItemCount,
+    CouponDiscountResponse? Coupon,
     long? DeliveryFeeCents,
     long TotalAmountCents
 )
@@ -95,6 +103,7 @@ public sealed record OnlineActiveOrderResponse(
             bill.ItemCount,
             bill.NewItemCount,
             bill.ItemCount - bill.NewItemCount - bill.CancelledItemCount,
+            online.Coupon,
             bill.DeliveryFeeCents,
             bill.TotalAmountCents
         );
@@ -113,12 +122,14 @@ public sealed record OnlineTicketResponse(int Number, string? CustomerName, Date
 }
 
 // The bill adds the phone, so the owner can call a customer who has not come, and for delivery the
-// address and doorbell notes.
+// address and doorbell notes. Coupon is the one used at submission, with its discount on the dishes
+// still charged; the bill's TotalAmountCents already takes it off.
 public sealed record OnlineBillResponse(
     int Number,
     string? CustomerName,
     string? CustomerPhone,
     DateTime EstimatedAt,
     string? DeliveryAddress,
-    string? DeliveryNotes
+    string? DeliveryNotes,
+    CouponDiscountResponse? Coupon
 );

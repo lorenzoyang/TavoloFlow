@@ -25,6 +25,8 @@ public sealed record MenuItemInput(
     string? DescriptionIt,
     string? DescriptionEn,
     long PriceCents,
+    // The reduced price, below PriceCents; null when the dish is not on sale.
+    long? SalePriceCents,
     string[]? AllergenCodes,
     bool AllergenReviewed,
     // Replaces the dish's option groups; an empty array means none.
@@ -81,6 +83,8 @@ public sealed record MenuItemResponse(
     string? DescriptionIt,
     string? DescriptionEn,
     long PriceCents,
+    // Charged instead of PriceCents while set; menus show PriceCents struck through beside it.
+    long? SalePriceCents,
     string[] AllergenCodes,
     bool AllergenReviewed,
     bool IsAvailable,
@@ -101,6 +105,7 @@ public sealed record MenuItemResponse(
             item.DescriptionIt,
             item.DescriptionEn,
             item.PriceCents,
+            item.SalePriceCents,
             item.AllergenCodes,
             item.AllergenReviewed,
             item.IsAvailable,

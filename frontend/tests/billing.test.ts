@@ -138,6 +138,7 @@ test("an online order the owner could check out may instead close as not collect
       estimatedAt: "2026-10-23T12:30:00Z",
       deliveryAddress: null,
       deliveryNotes: null,
+      coupon: null,
     },
   };
   assert.equal(noShowAllowed(online, "OWNER"), true);
@@ -168,15 +169,25 @@ test("a delivery bill splits into dishes and a fee that stops counting once ever
     cancelledItemCount: 1,
     totalAmountCents: 1500,
   };
-  assert.deepEqual(billAmounts(delivery), { fee: 300, feeCounted: true, items: 1200 });
+  assert.deepEqual(billAmounts(delivery), {
+    fee: 300,
+    feeCounted: true,
+    coupon: null,
+    discount: 0,
+    items: 1200,
+  });
   assert.deepEqual(billAmounts({ ...delivery, cancelledItemCount: 2, totalAmountCents: 0 }), {
     fee: 300,
     feeCounted: false,
+    coupon: null,
+    discount: 0,
     items: 0,
   });
   assert.deepEqual(billAmounts(bill), {
     fee: null,
     feeCounted: false,
+    coupon: null,
+    discount: 0,
     items: bill.totalAmountCents,
   });
   assert.equal(totalWithFee(delivery, 150), 1350);
@@ -189,5 +200,51 @@ test("a delivery bill splits into dishes and a fee that stops counting once ever
   assert.deepEqual(deliveryFeeRequest({ ...delivery, billVersion: 3 }, 150), {
     path: `/api/owner/sessions/${delivery.sessionId}/delivery-fee`,
     body: { expectedBillVersion: 3, deliveryFeeCents: 150 },
+  });
+});
+
+test("an online coupon comes off the dishes, never the fee, and the bill total already includes it", () => {
+  const coupon = { code: "ESTATE10", percentOff: 10, discountCents: 240 };
+  const online = {
+    number: 7,
+    customerName: "Marco",
+    estimatedAt: "2026-10-23T12:30:00Z",
+    customerPhone: "+393331234567",
+    deliveryAddress: "Via Roma 1",
+    deliveryNotes: null,
+    coupon,
+  };
+  // 24.00 € of dishes, 2.40 € off and a 3.00 € fee.
+  const delivery: BillSummary = {
+    ...bill,
+    channel: "DELIVERY",
+    tableId: null,
+    tableLabel: null,
+    online,
+    deliveryFeeCents: 300,
+    totalAmountCents: 2400 - 240 + 300,
+  };
+  assert.deepEqual(billAmounts(delivery), {
+    fee: 300,
+    feeCounted: true,
+    coupon,
+    discount: 240,
+    items: 2400,
+  });
+  // A new fee changes only the fee part.
+  assert.equal(totalWithFee(delivery, 500), 2400 - 240 + 500);
+  const pickup: BillSummary = {
+    ...delivery,
+    channel: "PICKUP",
+    online: { ...online, deliveryAddress: null },
+    deliveryFeeCents: null,
+    totalAmountCents: 2160,
+  };
+  assert.deepEqual(billAmounts(pickup), {
+    fee: null,
+    feeCounted: false,
+    coupon,
+    discount: 240,
+    items: 2400,
   });
 });

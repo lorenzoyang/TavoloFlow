@@ -254,6 +254,10 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("restaurant_id");
 
+                    b.Property<long?>("SalePriceCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("sale_price_cents");
+
                     b.HasKey("Id");
 
                     b.HasAlternateKey("Id", "RestaurantId")
@@ -275,6 +279,8 @@ namespace TavoloFlow.Api.Data.Migrations
                             t.HasCheckConstraint("ck_item_position", "position >= 0");
 
                             t.HasCheckConstraint("ck_item_positive_price", "price_cents > 0");
+
+                            t.HasCheckConstraint("ck_item_sale_price", "sale_price_cents IS NULL OR (sale_price_cents > 0 AND sale_price_cents < price_cents)");
                         });
                 });
 
@@ -464,6 +470,45 @@ namespace TavoloFlow.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TavoloFlow.Api.Entities.OnlineCoupon", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("code");
+
+                    b.Property<int>("PercentOff")
+                        .HasColumnType("integer")
+                        .HasColumnName("percent_off");
+
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("restaurant_id");
+
+                    b.Property<DateOnly?>("ValidUntil")
+                        .HasColumnType("date")
+                        .HasColumnName("valid_until");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RestaurantId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("uq_online_coupon_code");
+
+                    b.ToTable("online_coupons", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_online_coupon_code", "code ~ '^[A-Z0-9]{3,20}$'");
+
+                            t.HasCheckConstraint("ck_online_coupon_percent", "percent_off BETWEEN 1 AND 50");
+                        });
+                });
+
             modelBuilder.Entity("TavoloFlow.Api.Entities.OnlineHour", b =>
                 {
                     b.Property<Guid>("RestaurantId")
@@ -516,6 +561,15 @@ namespace TavoloFlow.Api.Data.Migrations
                     b.Property<Guid>("ClientRequestId")
                         .HasColumnType("uuid")
                         .HasColumnName("client_request_id");
+
+                    b.Property<string>("CouponCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("coupon_code");
+
+                    b.Property<int?>("CouponPercentOff")
+                        .HasColumnType("integer")
+                        .HasColumnName("coupon_percent_off");
 
                     b.Property<string>("CustomerName")
                         .HasMaxLength(30)
@@ -689,6 +743,8 @@ namespace TavoloFlow.Api.Data.Migrations
                     b.ToTable("online_requests", null, t =>
                         {
                             t.HasCheckConstraint("ck_online_request_accepted", "(accepted_at IS NULL AND estimated_at IS NULL AND session_id IS NULL) OR (accepted_at IS NOT NULL AND estimated_at IS NOT NULL AND estimated_at >= accepted_at AND session_id IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_online_request_coupon", "(coupon_code IS NULL AND coupon_percent_off IS NULL) OR (coupon_code IS NOT NULL AND coupon_percent_off IS NOT NULL AND coupon_percent_off BETWEEN 1 AND 50)");
 
                             t.HasCheckConstraint("ck_online_request_decision", "(accepted_at IS NULL OR rejected_at IS NULL) AND (accepted_at IS NULL OR accepted_at < expires_at) AND (rejected_at IS NULL OR rejected_at < expires_at)");
 
@@ -1465,6 +1521,17 @@ namespace TavoloFlow.Api.Data.Migrations
                 });
 
             modelBuilder.Entity("TavoloFlow.Api.Entities.OnlineCounter", b =>
+                {
+                    b.HasOne("TavoloFlow.Api.Entities.Restaurant", "Restaurant")
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Restaurant");
+                });
+
+            modelBuilder.Entity("TavoloFlow.Api.Entities.OnlineCoupon", b =>
                 {
                     b.HasOne("TavoloFlow.Api.Entities.Restaurant", "Restaurant")
                         .WithMany()

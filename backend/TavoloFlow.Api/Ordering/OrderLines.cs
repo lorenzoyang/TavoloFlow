@@ -62,7 +62,9 @@ internal static class OrderLines
             if (!menu.TryGetValue(line.MenuItemId, out var item))
                 changes.Add(new(line.MenuItemId, "MISSING", null, null));
             else if (!item.IsAvailable || !item.AllergenReviewed)
-                changes.Add(new(item.Id, "UNAVAILABLE", item.PriceCents, false));
+                changes.Add(
+                    new(item.Id, "UNAVAILABLE", item.SalePriceCents ?? item.PriceCents, false)
+                );
             else if (
                 OrderOptions.Resolve(item, groups.GetValueOrDefault(item.Id, []), line.OptionIds!)
                 is not { } choice

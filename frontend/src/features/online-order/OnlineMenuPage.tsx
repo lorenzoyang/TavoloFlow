@@ -162,7 +162,12 @@ function MenuContent({
       {!wide && (
         <>
           {cart.cart.lines.length > 0 && (
-            <CartBar cart={cart} language={language} open={() => setCartOpen(true)} />
+            <CartBar
+              cart={cart}
+              amountCents={cart.amounts.totalCents}
+              language={language}
+              open={() => setCartOpen(true)}
+            />
           )}
           <Sheet open={cartOpen} onOpenChange={setCartOpen}>
             <SheetContent

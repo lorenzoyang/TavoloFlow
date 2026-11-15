@@ -87,6 +87,29 @@ const zh = {
   deliveryNoNote: "还没有写配送说明：顾客结账时只会看到“配送费以餐厅确认为准”。",
   deliveryTooLong: (language: string) => `${language}说明最多 500 个字符。`,
   saveDelivery: "保存配送设置",
+  // Coupons
+  couponsTitle: "优惠券",
+  couponsHint:
+    "把券码发到 Instagram、传单或外卖袋里，线上顾客结账时输入即可按百分比减免菜品金额（不含配送费）。每个码可以反复使用，直到过期或被删除。",
+  couponsEmpty: "还没有优惠券。",
+  couponCode: "券码",
+  couponCodeHint: "3–20 位字母或数字，不区分大小写。",
+  couponPercent: "折扣（%）",
+  couponPercentHint: "1–50 的整数，例如 10 表示菜品九折。",
+  couponValidUntil: "最后有效日（可选）",
+  couponValidUntilHint: "包含当天；留空表示长期有效。",
+  couponCodeProblem: "请输入 3–20 位字母或数字。",
+  couponPercentProblem: "请输入 1–50 的整数。",
+  couponDateProblem: "请填完整日期，或清空表示长期有效。",
+  createCoupon: "添加优惠券",
+  couponOff: (percent: number) => `−${percent}%`,
+  couponUntil: (date: string) => `有效至 ${date}`,
+  couponForever: "长期有效",
+  couponExpired: "已过期",
+  deleteCoupon: (code: string) => `删除优惠券 ${code}`,
+  deleteCouponTitle: (code: string) => `删除优惠券 ${code}？`,
+  deleteCouponBody: "删除后顾客不能再使用这个码。已经用过它的订单和账单保持原来的折扣。",
+  deleteCouponConfirm: "删除",
 };
 
 export const onlineMessages: Record<Language, typeof zh> = {
@@ -179,6 +202,29 @@ export const onlineMessages: Record<Language, typeof zh> = {
       "Nessuna nota: al momento dell’ordine i clienti vedranno solo che il costo di consegna lo conferma il ristorante.",
     deliveryTooLong: (language) => `La nota in ${language} può avere al massimo 500 caratteri.`,
     saveDelivery: "Salva consegna",
+    couponsTitle: "Codici sconto",
+    couponsHint:
+      "Condividi il codice su Instagram, volantini o nei sacchetti: chi ordina online lo inserisce alla cassa e ottiene una percentuale di sconto sui piatti (consegna esclusa). Ogni codice si può usare più volte, finché non scade o lo elimini.",
+    couponsEmpty: "Nessun codice sconto.",
+    couponCode: "Codice",
+    couponCodeHint: "Da 3 a 20 lettere o cifre, maiuscole o minuscole indifferenti.",
+    couponPercent: "Sconto (%)",
+    couponPercentHint: "Un numero intero da 1 a 50: 10 vuol dire piatti scontati del 10%.",
+    couponValidUntil: "Ultimo giorno valido (facoltativo)",
+    couponValidUntilHint: "Giorno incluso; vuoto se non scade.",
+    couponCodeProblem: "Inserisci da 3 a 20 lettere o cifre.",
+    couponPercentProblem: "Inserisci un numero intero da 1 a 50.",
+    couponDateProblem: "Completa la data, oppure cancella tutto se il codice non scade.",
+    createCoupon: "Aggiungi codice",
+    couponOff: (percent) => `−${percent}%`,
+    couponUntil: (date) => `Valido fino al ${date}`,
+    couponForever: "Senza scadenza",
+    couponExpired: "Scaduto",
+    deleteCoupon: (code) => `Elimina il codice ${code}`,
+    deleteCouponTitle: (code) => `Eliminare il codice ${code}?`,
+    deleteCouponBody:
+      "Dopo l’eliminazione i clienti non potranno più usarlo. Gli ordini e i conti che l’hanno già usato mantengono lo sconto.",
+    deleteCouponConfirm: "Elimina",
   },
   en: {
     title: "Online ordering",
@@ -267,6 +313,29 @@ export const onlineMessages: Record<Language, typeof zh> = {
       "No note yet: at checkout customers will only see that the restaurant confirms the delivery fee.",
     deliveryTooLong: (language) => `The ${language} note takes at most 500 characters.`,
     saveDelivery: "Save delivery",
+    couponsTitle: "Coupons",
+    couponsHint:
+      "Share the code on Instagram, flyers or in delivery bags: online customers enter it at checkout for a percentage off the dishes (not the delivery fee). Each code works any number of times until it expires or you delete it.",
+    couponsEmpty: "No coupons yet.",
+    couponCode: "Code",
+    couponCodeHint: "3–20 letters or digits, not case-sensitive.",
+    couponPercent: "Discount (%)",
+    couponPercentHint: "A whole number from 1 to 50: 10 takes 10% off the dishes.",
+    couponValidUntil: "Last valid day (optional)",
+    couponValidUntilHint: "That day included; leave empty to never expire.",
+    couponCodeProblem: "Enter 3–20 letters or digits.",
+    couponPercentProblem: "Enter a whole number from 1 to 50.",
+    couponDateProblem: "Enter a complete date, or clear it for no expiry.",
+    createCoupon: "Add coupon",
+    couponOff: (percent) => `−${percent}%`,
+    couponUntil: (date) => `Valid until ${date}`,
+    couponForever: "No expiry",
+    couponExpired: "Expired",
+    deleteCoupon: (code) => `Delete coupon ${code}`,
+    deleteCouponTitle: (code) => `Delete coupon ${code}?`,
+    deleteCouponBody:
+      "Customers can no longer use it. Orders and bills that already used it keep their discount.",
+    deleteCouponConfirm: "Delete",
   },
 };
 
@@ -303,6 +372,11 @@ const ordersZh = {
   doorbell: (notes: string) => `门铃、楼层：${notes}`,
   toCollect: (amount: string) => `应收 ${amount}`,
   feeIncluded: (amount: string) => `含配送费 ${amount}`,
+  coupon: (code: string, percent: number, amount: string) =>
+    `优惠券 ${code}（−${percent}%）：−${amount}`,
+  deliveryTotalWithCoupon: (subtotal: string, discount: string, fee: string, total: string) =>
+    `小计 ${subtotal} − 优惠 ${discount} + 配送费 ${fee} = 合计 ${total}`,
+  couponIncluded: (code: string, percent: number) => `已减优惠券 ${code}（−${percent}%）`,
   reject: "拒单",
   rejectTitle: (number: number) => `拒绝订单 #${number}`,
   rejectHint: "拒单后不能撤销，顾客的订单页会显示餐厅无法接单。可以选择一个原因：",
@@ -364,6 +438,10 @@ export const onlineOrdersMessages: Record<Language, typeof ordersZh> = {
     doorbell: (notes) => `Citofono, piano: ${notes}`,
     toCollect: (amount) => `Da incassare ${amount}`,
     feeIncluded: (amount) => `consegna inclusa ${amount}`,
+    coupon: (code, percent, amount) => `Codice ${code} (−${percent}%): −${amount}`,
+    deliveryTotalWithCoupon: (subtotal, discount, fee, total) =>
+      `Subtotale ${subtotal} − sconto ${discount} + consegna ${fee} = totale ${total}`,
+    couponIncluded: (code, percent) => `Scontato con il codice ${code} (−${percent}%)`,
     reject: "Rifiuta",
     rejectTitle: (number) => `Rifiuta l’ordine #${number}`,
     rejectHint:
@@ -423,6 +501,10 @@ export const onlineOrdersMessages: Record<Language, typeof ordersZh> = {
     doorbell: (notes) => `Doorbell, floor: ${notes}`,
     toCollect: (amount) => `To collect ${amount}`,
     feeIncluded: (amount) => `incl. delivery ${amount}`,
+    coupon: (code, percent, amount) => `Coupon ${code} (−${percent}%): −${amount}`,
+    deliveryTotalWithCoupon: (subtotal, discount, fee, total) =>
+      `Subtotal ${subtotal} − discount ${discount} + delivery ${fee} = total ${total}`,
+    couponIncluded: (code, percent) => `Coupon ${code} taken off (−${percent}%)`,
     reject: "Reject",
     rejectTitle: (number) => `Reject order #${number}`,
     rejectHint:

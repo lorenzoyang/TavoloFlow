@@ -1,14 +1,15 @@
 // Pure online ordering rules for customers, node-tested: the tab's cart and its pending submission,
 // the checkout form, the remembered status link and what the status page says.
-import type { OnlineMenu, OnlineOrder } from "./api.ts";
+import type { CouponPreview, OnlineMenu, OnlineOrder } from "./api.ts";
 import type { Language } from "../../lib/language.ts";
 import { isUuid } from "../../lib/ids.ts";
-import { normalizePhone } from "../online/state.ts";
+import { normalizeCouponCode, normalizePhone, validCouponPercent } from "../online/state.ts";
 import {
   CartError,
   cartKey,
   intentItems,
   restoreLines,
+  totalCents,
   validateCart,
   type CartLine,
   type OrderLineInput,
@@ -17,7 +18,8 @@ import {
 export type Fulfillment = "PICKUP" | "DELIVERY";
 
 // What the tab sends; saved and read back before the POST, so a lost result is recovered by GET.
-// The address and notes are delivery only and null for pickup.
+// The address and notes are delivery only and null for pickup. The coupon carries the percentage the
+// customer saw, which the server checks like a line's expected price; null without one.
 export type OnlineIntent = {
   clientRequestId: string;
   fulfillment: Fulfillment;
@@ -26,11 +28,13 @@ export type OnlineIntent = {
   deliveryAddress: string | null;
   deliveryNotes: string | null;
   items: OrderLineInput[];
+  coupon: CouponPreview | null;
 };
 
-// The online cart of one restaurant in this tab. A pending submission freezes the lines.
+// The online cart of one restaurant in this tab. A pending submission freezes the lines. Version 2:
+// lines carry the dish's sale price and the pending intent its coupon; other versions are damaged.
 export type OnlineCart = {
-  version: 1;
+  version: 2;
   restaurantId: string;
   lines: CartLine[];
   pending: OnlineIntent | null;
@@ -40,7 +44,7 @@ export type OnlineCart = {
 export const onlineCartKey = (restaurantId: string) => cartKey(restaurantId, "online");
 
 export const emptyOnlineCart = (restaurantId: string): OnlineCart => ({
-  version: 1,
+  version: 2,
   restaurantId,
   lines: [],
   pending: null,
@@ -50,12 +54,14 @@ export const MAX_NAME_LENGTH = 30;
 export const MAX_ADDRESS_LENGTH = 200;
 export const MAX_DELIVERY_NOTES_LENGTH = 100;
 
+// coupon is the code the restaurant confirmed at checkout (readCoupon), not what is being typed.
 export type CheckoutForm = {
   fulfillment: Fulfillment;
   name: string;
   phone: string;
   address: string;
   notes: string;
+  coupon: CouponPreview | null;
 };
 export type CheckoutProblem = "name" | "phone" | "address" | "notes";
 
@@ -65,7 +71,29 @@ export const emptyCheckoutForm: CheckoutForm = {
   phone: "",
   address: "",
   notes: "",
+  coupon: null,
 };
+
+// The server's rounding (OnlineCoupons.DiscountCents): the percentage of the dishes, down to the cent.
+export const couponDiscountCents = (itemsCents: number, percentOff: number) =>
+  Number((BigInt(itemsCents) * BigInt(percentOff)) / 100n);
+
+// The checkout panel and mobile bar share these amounts. A pending intent keeps its own coupon,
+// including null; a form's coupon counts only while reviewing the order.
+export function onlineCartAmounts(
+  cart: OnlineCart,
+  review: OnlineCart | null,
+  form: Pick<CheckoutForm, "coupon">,
+) {
+  const itemsCents = totalCents(review?.lines ?? cart.lines);
+  const coupon = cart.pending ? cart.pending.coupon : review ? form.coupon : null;
+  const discountCents = coupon ? couponDiscountCents(itemsCents, coupon.percentOff) : 0;
+  return { itemsCents, coupon, discountCents, totalCents: itemsCents - discountCents };
+}
+
+const validCoupon = (coupon: CouponPreview | null) =>
+  coupon === null ||
+  (normalizeCouponCode(coupon.code) === coupon.code && validCouponPercent(coupon.percentOff));
 
 // The server's rules: a trimmed name of 1-30 characters and the shared phone rule; delivery also needs
 // an address of 1-200 characters and takes optional notes of up to 100. Pickup ignores both.
@@ -118,7 +146,7 @@ export function createOnlineIntent(
     throw new CartError("limits");
   if (form.fulfillment !== "PICKUP" && form.fulfillment !== "DELIVERY")
     throw new CartError("limits");
-  if (checkoutProblems(form).length) throw new CartError("limits");
+  if (checkoutProblems(form).length || !validCoupon(form.coupon)) throw new CartError("limits");
   const delivery = form.fulfillment === "DELIVERY";
   return {
     clientRequestId: requestId,
@@ -128,6 +156,7 @@ export function createOnlineIntent(
     deliveryAddress: delivery ? form.address.trim() : null,
     deliveryNotes: delivery ? form.notes.trim() || null : null,
     items: intentItems(cart.lines),
+    coupon: form.coupon && { code: form.coupon.code, percentOff: form.coupon.percentOff },
   };
 }
 
@@ -137,9 +166,9 @@ export function restoreOnlineCart(raw: string | null, restaurantId: string): Onl
   if (raw === null) return emptyOnlineCart(restaurantId);
   try {
     const value = JSON.parse(raw) as OnlineCart;
-    if (value.version !== 1 || value.restaurantId !== restaurantId) throw new Error();
+    if (value.version !== 2 || value.restaurantId !== restaurantId) throw new Error();
     const cart: OnlineCart = validateCart({
-      version: 1,
+      version: 2,
       restaurantId,
       lines: restoreLines(value.lines),
       pending: null,
@@ -155,6 +184,7 @@ export function restoreOnlineCart(raw: string | null, restaurantId: string): Onl
           phone: p.customerPhone ?? "",
           address: p.deliveryAddress ?? "",
           notes: p.deliveryNotes ?? "",
+          coupon: p.coupon ?? null,
         },
         p.clientRequestId,
       );
@@ -174,6 +204,7 @@ export function restoreOnlineCart(raw: string | null, restaurantId: string): Onl
             remark: l.remark,
             optionIds: l.optionIds,
           })),
+          coupon: p.coupon && { code: p.coupon.code, percentOff: p.coupon.percentOff },
         })
       )
         throw new Error();
@@ -198,6 +229,7 @@ const rejectedAfterDuplicateCheck = [
   "ONLINE_NOT_OFFERED",
   "SERVICE_SUSPENDED",
   "DELIVERY_NOT_OFFERED",
+  "COUPON_INVALID",
 ];
 
 // Whether a failed submission frees the cart. Any understood rejection of a first attempt does. After an

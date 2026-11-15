@@ -109,6 +109,23 @@ Table online_counters {
   Note: 'The last daily pickup/delivery number. A submission takes the next one with INSERT ... ON CONFLICT DO UPDATE ... RETURNING, which also serializes one restaurant-day of submissions.'
 }
 
+Table online_coupons {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  code varchar(20) [not null, note: 'Uppercase letters and digits customers type at checkout']
+  percent_off int [not null, note: 'Taken off the dishes of an online order, never the delivery fee']
+  valid_until date [note: 'Last local business date it works, inclusive; null never expires']
+
+  Indexes {
+    (restaurant_id, code) [unique, name: 'uq_online_coupon_code']
+  }
+  Checks {
+    `code ~ '^[A-Z0-9]{3,20}$'` [name: 'ck_online_coupon_code']
+    `percent_off BETWEEN 1 AND 50` [name: 'ck_online_coupon_percent']
+  }
+  Note: 'Online coupon codes. OWNER creates and deletes them under the restaurant UPDATE lock (at most 50 per restaurant); never edited. Submissions copy code and percentage, so deletion never changes requests or bills.'
+}
+
 Table online_requests {
   id uuid [pk]
   restaurant_id uuid [not null]
@@ -123,6 +140,8 @@ Table online_requests {
   delivery_notes varchar(100) [note: 'Delivery only']
   lines jsonb [not null, note: 'OrderLineSnapshot array: the order_items snapshot fields with nested options']
   items_total_cents bigint [not null]
+  coupon_code varchar(20) [note: 'Coupon used at submission; not a foreign key']
+  coupon_percent_off int [note: 'Set together with coupon_code']
   default_language_snapshot varchar(2) [not null]
   submitted_at timestamptz [not null]
   expires_at timestamptz [not null, note: 'submitted_at + 10 minutes']
@@ -149,6 +168,7 @@ Table online_requests {
     `customer_phone IS NULL OR customer_phone ~ '^\+?[0-9]{6,15}$'` [name: 'ck_online_request_phone']
     `fulfillment = 'DELIVERY' OR (delivery_address IS NULL AND delivery_notes IS NULL)` [name: 'ck_online_request_pickup_address']
     `expires_at > submitted_at` [name: 'ck_online_request_expiry']
+    `(coupon_code IS NULL AND coupon_percent_off IS NULL) OR (coupon_code IS NOT NULL AND coupon_percent_off IS NOT NULL AND coupon_percent_off BETWEEN 1 AND 50)` [name: 'ck_online_request_coupon']
     `(accepted_at IS NULL OR rejected_at IS NULL) AND (accepted_at IS NULL OR accepted_at < expires_at) AND (rejected_at IS NULL OR rejected_at < expires_at)` [name: 'ck_online_request_decision']
     `(accepted_at IS NULL AND estimated_at IS NULL AND session_id IS NULL) OR (accepted_at IS NOT NULL AND estimated_at IS NOT NULL AND estimated_at >= accepted_at AND session_id IS NOT NULL)` [name: 'ck_online_request_accepted']
     `reject_reason IS NULL OR (rejected_at IS NOT NULL AND (reject_reason IN ('SOLD_OUT', 'BUSY', 'CLOSING') OR (reject_reason = 'OUT_OF_RANGE' AND fulfillment = 'DELIVERY')))` [name: 'ck_online_request_reject_reason']
@@ -298,6 +318,7 @@ Table menu_items {
   description_it text
   description_en text
   price_cents bigint [not null]
+  sale_price_cents bigint [note: 'Charged instead of price_cents while set; option deltas are added in full']
   allergen_codes "text[]" [not null, default: '{}', note: 'Only 14 predefined EU allergen codes, validated by the API']
   allergen_reviewed boolean [not null, default: false, note: 'true + empty codes = reviewed, no identified declarable allergens']
   is_available boolean [not null, default: true]
@@ -311,6 +332,7 @@ Table menu_items {
   Checks {
     `concat(name_zh, name_it, name_en) ~ '[^[:space:]]'` [name: 'ck_item_has_name']
     `price_cents > 0` [name: 'ck_item_positive_price']
+    `sale_price_cents IS NULL OR (sale_price_cents > 0 AND sale_price_cents < price_cents)` [name: 'ck_item_sale_price']
     `position >= 0` [name: 'ck_item_position']
   }
 
@@ -547,6 +569,7 @@ Ref: restaurant_subscription_periods.restaurant_id > restaurants.id [delete: cas
 Ref: online_hours.restaurant_id > restaurants.id [delete: cascade]
 Ref: online_counters.restaurant_id > restaurants.id [delete: cascade]
 Ref: online_requests.restaurant_id > restaurants.id [delete: cascade]
+Ref: online_coupons.restaurant_id > restaurants.id [delete: cascade]
 Ref: push_subscriptions.restaurant_id > restaurants.id [delete: cascade]
 Ref: restaurant_tables.restaurant_id > restaurants.id [delete: cascade]
 Ref: menu_categories.restaurant_id > restaurants.id [delete: cascade]

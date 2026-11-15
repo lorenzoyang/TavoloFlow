@@ -23,6 +23,20 @@ public sealed class OnlineOrderController(
     public async Task<IActionResult> Menu(string slug, CancellationToken ct) =>
         Ok(await menus.ReadAsync(slug, ct));
 
+    [HttpGet("api/public/r/{slug}/coupons/{code}")]
+    public async Task<IActionResult> Coupon(string slug, string code, CancellationToken ct)
+    {
+        var wait = limiter.CheckCoupon(
+            HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"
+        );
+        if (wait is not null)
+            throw ApiException.RateLimited(
+                wait.Value,
+                "Too many coupon checks from this connection. Try again shortly."
+            );
+        return Ok(await menus.CouponAsync(slug, code, ct));
+    }
+
     [HttpPost("api/public/r/{slug}/requests")]
     [RequestSizeLimit(65_536)]
     public async Task<IActionResult> Submit(

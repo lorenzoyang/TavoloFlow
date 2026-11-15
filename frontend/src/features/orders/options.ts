@@ -67,13 +67,21 @@ export function chosenOptions(
   );
 }
 
-// The price of one portion with its options. An unsafe sum fails Number.isSafeInteger for the caller.
+// What one portion of the dish costs before options: its sale price while it is on sale.
+export const dishPriceCents = (item: Pick<MenuItem, "priceCents" | "salePriceCents">) =>
+  item.salePriceCents ?? item.priceCents;
+
+// The price of one portion with its options, which a sale never reduces. An unsafe sum fails
+// Number.isSafeInteger for the caller.
 export function unitPriceCents(
-  item: Pick<MenuItem, "priceCents">,
+  item: Pick<MenuItem, "priceCents" | "salePriceCents">,
   options: readonly Pick<MenuOption, "priceDeltaCents">[],
 ): number {
   return Number(
-    options.reduce((sum, option) => sum + BigInt(option.priceDeltaCents), BigInt(item.priceCents)),
+    options.reduce(
+      (sum, option) => sum + BigInt(option.priceDeltaCents),
+      BigInt(dishPriceCents(item)),
+    ),
   );
 }
 

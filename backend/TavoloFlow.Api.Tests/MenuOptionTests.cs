@@ -512,6 +512,7 @@ public sealed class MenuOptionTests(PostgreSqlFixture database) : IClassFixture<
             null,
             null,
             item.PriceCents,
+            null,
             [],
             true,
             optionGroupIds

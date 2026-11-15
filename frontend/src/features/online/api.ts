@@ -2,9 +2,16 @@ import { queryOptions } from "@tanstack/react-query";
 import type { AccountScope } from "@/features/accounts/api";
 import { request, write } from "@/lib/api";
 import { storeKey } from "@/lib/store-views";
-import type { OnlineOrder } from "@/features/online-order/api";
+import type { CouponDiscount, OnlineOrder } from "@/features/online-order/api";
 import type { Language } from "@/lib/language";
-import type { DeliveryInput, DeliverySettings, OnlineHour, RejectReason } from "./state";
+import type {
+  CouponInput,
+  DeliveryInput,
+  DeliverySettings,
+  OnlineCoupon,
+  OnlineHour,
+  RejectReason,
+} from "./state";
 
 // The server's single "can customers order online now" rule (OnlineAvailability).
 export type OnlineStatus =
@@ -21,6 +28,8 @@ export type OnlineSettings = {
   nextOpensAt: string | null;
   // Set while a slot accepts orders: "pause until the end of this slot" ends then.
   currentSlotEndsAt: string | null;
+  // Ordered by code.
+  coupons: OnlineCoupon[];
 } & DeliverySettings;
 
 export const onlineSettingsKey = (account: AccountScope) => storeKey("online-settings", account);
@@ -46,6 +55,11 @@ export const savePublicPhone = (publicPhone: string | null, signal?: AbortSignal
   write<OnlineSettings>("/api/owner/online/phone", "PATCH", { publicPhone }, signal);
 export const saveDelivery = (input: DeliveryInput, signal?: AbortSignal) =>
   write<OnlineSettings>("/api/owner/online/delivery", "PUT", input, signal);
+// A repeated create meets COUPON_CODE_TAKEN, and deleting a coupon that is gone still succeeds.
+export const createCoupon = (input: CouponInput, signal?: AbortSignal) =>
+  write<OnlineSettings>("/api/owner/online/coupons", "POST", input, signal);
+export const deleteCoupon = (id: string, signal?: AbortSignal) =>
+  write<OnlineSettings>(`/api/owner/online/coupons/${id}`, "DELETE", undefined, signal);
 
 // Online requests waiting for staff, oldest first. Now is the server's clock when it answered, so the
 // page counts the ten minutes on the server's time rather than the device's.
@@ -62,7 +76,9 @@ export type OnlinePendingRequest = {
   defaultLanguage: Language;
   // The submitted snapshot (status null), the same lines as the customer's status page.
   items: OnlineOrder["items"];
+  // Before the coupon; its discount comes off this, and acceptance adds any delivery fee.
   itemsTotalCents: number;
+  coupon: CouponDiscount | null;
 };
 export type OnlinePendingPage = { items: OnlinePendingRequest[]; now: string; receivedAt: number };
 
@@ -80,7 +96,9 @@ export type OnlineActiveOrder = {
   itemCount: number;
   newItemCount: number;
   readyItemCount: number;
-  // Delivery only. The total is the bill's amount to collect, with the fee while it counts.
+  coupon: CouponDiscount | null;
+  // Delivery only. The total is the bill's amount to collect, with the fee while it counts and less the
+  // coupon.
   deliveryFeeCents: number | null;
   totalAmountCents: number;
 };

@@ -76,6 +76,9 @@ function PendingCard({
   // Delivery is accepted with the fee whoever accepts enters: explicitly, 0 when free.
   const [feeText, setFeeText] = useState("");
   const fee = acceptFee(feeText, request.itemsTotalCents);
+  // The coupon comes off the dishes only; the fee whoever accepts enters is added in full.
+  const discount = request.coupon?.discountCents ?? 0;
+  const due = request.itemsTotalCents - discount;
   const feeId = `delivery-fee-${request.id}`;
   return (
     <article className="space-y-3 rounded-2xl border bg-card p-4 shadow-xs">
@@ -134,9 +137,25 @@ function PendingCard({
           );
         })}
       </ul>
-      <p className="text-right font-semibold tabular-nums">
-        {m.subtotal(formatMoney(request.itemsTotalCents, language))}
-      </p>
+      <div className="space-y-1 text-right tabular-nums">
+        <p className="font-semibold">
+          {m.subtotal(formatMoney(request.itemsTotalCents, language))}
+        </p>
+        {request.coupon && (
+          <>
+            <p className="text-sm wrap-break-word">
+              {m.coupon(
+                request.coupon.code,
+                request.coupon.percentOff,
+                formatMoney(discount, language),
+              )}
+            </p>
+            {!delivery && (
+              <p className="font-semibold">{m.toCollect(formatMoney(due, language))}</p>
+            )}
+          </>
+        )}
+      </div>
       <div className="space-y-2">
         {delivery && (
           <div className="space-y-2">
@@ -156,11 +175,18 @@ function PendingCard({
             </p>
             {fee !== null && (
               <p className="rounded-xl bg-secondary px-3 py-2 text-sm font-semibold tabular-nums">
-                {m.deliveryTotal(
-                  amount(request.itemsTotalCents, language),
-                  amount(fee, language),
-                  amount(request.itemsTotalCents + fee, language),
-                )}
+                {request.coupon
+                  ? m.deliveryTotalWithCoupon(
+                      amount(request.itemsTotalCents, language),
+                      amount(discount, language),
+                      amount(fee, language),
+                      amount(due + fee, language),
+                    )
+                  : m.deliveryTotal(
+                      amount(request.itemsTotalCents, language),
+                      amount(fee, language),
+                      amount(request.itemsTotalCents + fee, language),
+                    )}
               </p>
             )}
           </div>
@@ -227,6 +253,11 @@ function ActiveCard({ order }: { order: OnlineActiveOrder }) {
           </span>
         )}
       </p>
+      {order.coupon && progress !== "cancelled" && (
+        <p className="text-sm text-muted-foreground wrap-break-word">
+          {m.couponIncluded(order.coupon.code, order.coupon.percentOff)}
+        </p>
+      )}
       {order.customerPhone && (
         <CallLink phone={order.customerPhone} label={m.call(order.customerPhone)} />
       )}

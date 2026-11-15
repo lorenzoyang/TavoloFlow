@@ -76,6 +76,7 @@
         "en": "Six crisp-bottomed pork and vegetable dumplings with soy dipping sauce."
       },
       "priceCents": 600,
+      "salePriceCents": 500,
       "allergenCodes": ["GLUTEN", "SOY"],
       "allergenReviewed": true,
       "isAvailable": true,

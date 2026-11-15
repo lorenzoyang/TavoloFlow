@@ -30,7 +30,7 @@ public sealed record OnlineMenuResponse(
 );
 
 // Items use the QR order line format; Fulfillment is PICKUP or DELIVERY. The address and notes are
-// for delivery only.
+// for delivery only. Coupon is null without one.
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record OnlineRequestInput(
     [Required] Guid? ClientRequestId,
@@ -39,8 +39,26 @@ public sealed record OnlineRequestInput(
     string? CustomerPhone,
     string? DeliveryAddress,
     string? DeliveryNotes,
-    OrderLineInput?[]? Items
+    OrderLineInput?[]? Items,
+    OnlineRequestCouponInput? Coupon
 );
+
+// The coupon the customer saw at checkout. PercentOff is the confirmed percentage, like a line's expected
+// price: a coupon deleted and created again with another percentage is refused rather than applied.
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record OnlineRequestCouponInput([Required] string? Code, [Required] int? PercentOff);
+
+// A usable coupon at checkout, before the order is placed.
+public sealed record OnlineCouponPreviewResponse(string Code, int PercentOff);
+
+// A coupon applied to an order: DiscountCents is PercentOff of the dishes still charged, rounded down.
+public sealed record CouponDiscountResponse(string Code, int PercentOff, long DiscountCents)
+{
+    public static CouponDiscountResponse? For(string? code, int? percentOff, long itemsCents) =>
+        code is not null && percentOff is { } percent
+            ? new(code, percent, OnlineCoupons.DiscountCents(itemsCents, percent))
+            : null;
+}
 
 // The first submission and every repeat of it return the same values.
 public sealed record OnlineSubmissionResponse(string StatusToken, int Number, DateTime ExpiresAt);
@@ -90,8 +108,8 @@ public sealed record OnlineOrderLineResponse(
 
 // The customer's status page. Phase is WAITING, EXPIRED, REJECTED or ACCEPTED (OnlineRequestState);
 // SessionStatus and CloseReason exist once accepted, and DeliveryFeeCents once a delivery is accepted.
-// TotalAmountCents is the submitted item total before acceptance, then the session's bill amount (with
-// the fee while it counts). It never contains the phone, the address or request IDs.
+// TotalAmountCents is the submitted item total less the coupon before acceptance, then the session's
+// bill amount (with the fee while it counts). It never contains the phone, the address or request IDs.
 public sealed record OnlineOrderStatusResponse(
     OnlineOrderRestaurantResponse Restaurant,
     int Number,
@@ -105,6 +123,7 @@ public sealed record OnlineOrderStatusResponse(
     string? SessionStatus,
     string? CloseReason,
     OnlineOrderLineResponse[] Items,
+    CouponDiscountResponse? Coupon,
     long? DeliveryFeeCents,
     long TotalAmountCents
 );

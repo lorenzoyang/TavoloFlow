@@ -7,6 +7,7 @@ import {
   TriangleAlert,
   UtensilsCrossed,
 } from "lucide-react";
+import { DishPrice } from "@/components/dish-price";
 import { EmptyState } from "@/components/empty-state";
 import { FilterChips } from "@/components/filter-chips";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +21,12 @@ import { DishPhoto } from "@/features/menu/ItemImage";
 import { usePhoto } from "@/features/menu/usePhoto";
 import { orderMessages } from "@/features/orders/messages";
 import { OptionPicker } from "@/features/orders/OptionPicker";
-import { hasExtraCost, itemGroups, optionsInStock } from "@/features/orders/options";
+import {
+  dishPriceCents,
+  hasExtraCost,
+  itemGroups,
+  optionsInStock,
+} from "@/features/orders/options";
 import { totalCents, type CartLine } from "@/features/orders/state";
 import type { PublicMenu } from "./api";
 import { allergenNames, languageLabels, messages } from "./messages";
@@ -154,7 +160,7 @@ function DishRow({
   const m = messages[language];
   // A dish whose required choices have all sold out is sold out too.
   const soldOut = !item.isAvailable || !optionsInStock(item, groups);
-  const price = formatMoney(item.priceCents, language);
+  const price = formatMoney(dishPriceCents(item), language);
   const name = displayName(item, defaultLanguage, language);
   const description = { zh: item.descriptionZh, it: item.descriptionIt, en: item.descriptionEn }[
     name.language
@@ -202,9 +208,14 @@ function DishRow({
       {/* The text column never moves; a photo only fills the price column, with the add button
           on its corner so that button stays at the card's bottom right either way. */}
       <div className="flex shrink-0 flex-col items-end justify-between gap-3">
-        <p className="font-semibold whitespace-nowrap tabular-nums">
+        <DishPrice
+          stacked
+          className="font-semibold"
+          regular={item.salePriceCents === null ? null : formatMoney(item.priceCents, language)}
+          regularLabel={orderMessages[language].regularPrice}
+        >
           {hasExtraCost(item, groups) ? orderMessages[language].fromPrice(price) : price}
-        </p>
+        </DishPrice>
         {photo.shown ? (
           <div className="relative mr-2 mb-2">
             <DishPhoto
@@ -323,10 +334,13 @@ export function MenuList({
 // Phones only: the cart lives in a bottom sheet this bar opens.
 export function CartBar({
   cart,
+  amountCents,
   language,
   open,
 }: {
   cart: Pick<MenuCart, "cart" | "review">;
+  // Online checkout supplies its discounted total; QR carts use the sum of their lines.
+  amountCents?: number;
   language: Language;
   open: () => void;
 }) {
@@ -351,7 +365,7 @@ export function CartBar({
           </span>
         </span>
         <span className="text-lg font-semibold tabular-nums">
-          {formatMoney(totalCents(cart.cart.lines), language)}
+          {formatMoney(amountCents ?? totalCents(cart.cart.lines), language)}
         </span>
         <ChevronUp aria-hidden="true" className="size-5 shrink-0" />
       </button>

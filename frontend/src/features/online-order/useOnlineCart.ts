@@ -14,8 +14,10 @@ import {
   refreshCart,
   type CartLine,
 } from "@/features/orders/state";
+import { normalizeCouponCode } from "@/features/online/state";
 import {
   onlineMenuKey,
+  readCoupon,
   readOnlineMenu,
   readSubmission,
   submitOnlineRequest,
@@ -29,6 +31,7 @@ import {
   createOnlineIntent,
   emptyCheckoutForm,
   emptyOnlineCart,
+  onlineCartAmounts,
   onlineCartKey,
   restoreOnlineCart,
   saveOrderToken,
@@ -47,8 +50,9 @@ const closedMessages: Record<Exclude<OnlineStatus, "OPEN">, OnlineOrderMessage> 
 };
 
 // The customer's online cart in this tab and the request it becomes. The full intent (request ID,
-// fulfillment, name, phone, address and lines) is saved and read back before the POST, so a lost result is recovered by GET
-// with that request ID, and only an explicit retry resends the same request. One request at a time.
+// fulfillment, name, phone, address, lines and coupon) is saved and read back before the POST, so a lost
+// result is recovered by GET with that request ID, and only an explicit retry resends the same request.
+// One request at a time.
 export function useOnlineCart(slug: string, data: OnlineMenu) {
   const client = useQueryClient();
   const navigate = useNavigate();
@@ -214,6 +218,27 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     }
   }
 
+  // Asks the restaurant whether a typed code works today before showing its discount; the order then
+  // sends that percentage, which the server checks again.
+  async function applyCoupon(text: string) {
+    if (current.current.pending || !isLive()) return;
+    const code = normalizeCouponCode(text);
+    if (code === null) {
+      setMessage("couponInvalid");
+      return;
+    }
+    const work = start();
+    if (!work) return;
+    try {
+      const coupon = await readCoupon(slug, code, work.signal);
+      if (work.active()) setForm((value) => ({ ...value, coupon }));
+    } catch (e) {
+      if (work.active()) setMessage(e instanceof ApiError ? onlineOrderError(e.code) : "offline");
+    } finally {
+      work.finish();
+    }
+  }
+
   async function send(retry: boolean) {
     if (blocked || !isLive()) return;
     if ((!retry && (!review || current.current.pending)) || (retry && !current.current.pending))
@@ -258,6 +283,9 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
       );
       if (e instanceof ApiError && (e.code === "MENU_CHANGED" || e.code === "DELIVERY_NOT_OFFERED"))
         void client.invalidateQueries({ queryKey: onlineMenuKey(slug) });
+      // The code no longer works: drop it, so the next checkout shows the full total.
+      if (e instanceof ApiError && e.code === "COUPON_INVALID")
+        setForm((value) => ({ ...value, coupon: null }));
     } finally {
       work.finish();
     }
@@ -265,6 +293,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
 
   return {
     cart,
+    amounts: onlineCartAmounts(cart, review, form),
     busy,
     message,
     review,
@@ -277,6 +306,10 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     line: (index: number, patch: Partial<Pick<CartLine, "quantity" | "remark">>) =>
       edit((c) => editLine(c, index, patch)),
     checkout,
+    applyCoupon,
+    removeCoupon: () => {
+      if (!current.current.pending) setForm((value) => ({ ...value, coupon: null }));
+    },
     confirm: () => send(false),
     retry: () => send(true),
     recover,

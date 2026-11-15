@@ -3,9 +3,11 @@ import { test } from "node:test";
 import {
   checkoutProblems,
   clearOrderToken,
+  couponDiscountCents,
   createOnlineIntent,
   deliveryNote,
   emptyOnlineCart,
+  onlineCartAmounts,
   onlineCartKey,
   orderEnded,
   orderTokenKey,
@@ -33,6 +35,7 @@ const item = {
   descriptionEn: null,
   itemCode: "R1",
   priceCents: 1200,
+  salePriceCents: null as number | null,
   isAvailable: true,
   allergenReviewed: true,
   allergenCodes: ["GLUTEN"],
@@ -45,6 +48,7 @@ const form = {
   phone: "+39 333 123 4567",
   address: "",
   notes: "",
+  coupon: null as { code: string; percentOff: number } | null,
 };
 const delivery = {
   ...form,
@@ -104,6 +108,7 @@ test("the intent sends trimmed contact details and the confirmed lines", () => {
         optionIds: [],
       },
     ],
+    coupon: null,
   });
   throwsIssue(() => createOnlineIntent(emptyOnlineCart(restaurant), form, requestId), "limits");
   throwsIssue(() => createOnlineIntent(filled(), form, "not-a-uuid"), "limits");
@@ -194,7 +199,7 @@ test("a saved cart restores only for its restaurant, with a pending intent match
 
   throwsIssue(() => restoreOnlineCart(saved, "00000000-0000-4000-8000-000000000099"), "damaged");
   throwsIssue(
-    () => restoreOnlineCart(JSON.stringify({ ...cart, version: 2 }), restaurant),
+    () => restoreOnlineCart(JSON.stringify({ ...cart, version: 1 }), restaurant),
     "damaged",
   );
   throwsIssue(() => restoreOnlineCart("{", restaurant), "damaged");
@@ -224,13 +229,20 @@ test("an understood rejection frees the cart; after an unknown result only one t
     "ONLINE_NOT_OFFERED",
     "SERVICE_SUSPENDED",
     "DELIVERY_NOT_OFFERED",
+    "COUPON_INVALID",
     "ONLINE_LINK_NOT_FOUND",
     "CSRF_VALIDATION_FAILED",
     "RATE_LIMITED",
   ])
     assert.equal(submissionFailure(409, code, false), "editable", code);
   // A retry after an unknown result frees the cart only when the rejection proves no request was stored.
-  for (const code of ["MENU_CHANGED", "ONLINE_CLOSED", "ONLINE_BUSY", "SERVICE_SUSPENDED"])
+  for (const code of [
+    "MENU_CHANGED",
+    "ONLINE_CLOSED",
+    "ONLINE_BUSY",
+    "SERVICE_SUSPENDED",
+    "COUPON_INVALID",
+  ])
     assert.equal(submissionFailure(409, code, true), "editable", code);
   for (const code of [
     "VALIDATION_FAILED",
@@ -364,4 +376,91 @@ test("the status page follows the phase, then the session and its dishes", () =>
     assert.equal(statusCopy(value), copy, JSON.stringify(patch));
     assert.equal(orderEnded(value), ended, JSON.stringify(patch));
   }
+});
+
+test("a confirmed coupon travels in the intent and restores only exactly as saved", () => {
+  const coupon = { code: "ESTATE10", percentOff: 10 };
+  const cart = filled();
+  const intent = createOnlineIntent(cart, { ...form, coupon }, requestId);
+  assert.deepEqual(intent.coupon, coupon);
+  const saved = { ...cart, pending: intent };
+  assert.deepEqual(restoreOnlineCart(JSON.stringify(saved), restaurant), saved);
+  // Damaged coupons never restore: one this page would not have confirmed, or a missing field.
+  for (const changed of [
+    { ...intent, coupon: { code: "estate10", percentOff: 10 } },
+    { ...intent, coupon: undefined },
+    { ...intent, coupon: { code: "ESTATE10" } },
+  ])
+    throwsIssue(
+      () => restoreOnlineCart(JSON.stringify({ ...cart, pending: changed }), restaurant),
+      "damaged",
+    );
+  // Only a code the restaurant confirmed (normalized, 1-50 %) can be sent.
+  for (const bad of [
+    { code: "estate10", percentOff: 10 },
+    { code: "ESTATE10", percentOff: 0 },
+    { code: "ESTATE10", percentOff: 51 },
+    { code: "ES", percentOff: 10 },
+  ])
+    throwsIssue(() => createOnlineIntent(cart, { ...form, coupon: bad }, requestId), "limits");
+});
+
+test("the coupon discount rounds down to the cent like the server", () => {
+  assert.equal(couponDiscountCents(2400, 10), 240);
+  assert.equal(couponDiscountCents(1999, 15), 299);
+  assert.equal(couponDiscountCents(1, 50), 0);
+  assert.equal(
+    couponDiscountCents(Number.MAX_SAFE_INTEGER, 50),
+    Math.floor(Number.MAX_SAFE_INTEGER / 2),
+  );
+});
+
+test("the panel and bar apply a coupon only during checkout, using the reviewed sale price", () => {
+  const cart = addItem(emptyOnlineCart(restaurant), item);
+  const review = addItem(emptyOnlineCart(restaurant), { ...item, salePriceCents: 990 });
+  const coupon = { code: "ESTATE15", percentOff: 15 };
+  const checkout = { ...form, coupon };
+
+  // A coupon retained in the form does not discount the ordinary cart or a cart returned for editing.
+  assert.deepEqual(onlineCartAmounts(cart, null, checkout), {
+    itemsCents: 1200,
+    coupon: null,
+    discountCents: 0,
+    totalCents: 1200,
+  });
+  assert.deepEqual(onlineCartAmounts(cart, review, checkout), {
+    itemsCents: 990,
+    coupon,
+    discountCents: 148,
+    totalCents: 842,
+  });
+  assert.deepEqual(onlineCartAmounts(cart, review, form), {
+    itemsCents: 990,
+    coupon: null,
+    discountCents: 0,
+    totalCents: 990,
+  });
+});
+
+test("an unknown submission keeps its saved coupon amount after reload, ahead of the form", () => {
+  const cart = addItem(emptyOnlineCart(restaurant), { ...item, salePriceCents: 990 });
+  const coupon = { code: "ESTATE15", percentOff: 15 };
+  const pending = createOnlineIntent(cart, { ...form, coupon }, requestId);
+  const restored = restoreOnlineCart(JSON.stringify({ ...cart, pending }), restaurant);
+  const expected = { itemsCents: 990, coupon, discountCents: 148, totalCents: 842 };
+
+  assert.deepEqual(onlineCartAmounts(restored, null, form), expected);
+  assert.deepEqual(
+    onlineCartAmounts(restored, cart, { coupon: { code: "ALTRO50", percentOff: 50 } }),
+    expected,
+  );
+
+  // An explicit null in the saved intent must not fall back to a coupon in the checkout form.
+  const withoutCoupon = { ...cart, pending: createOnlineIntent(cart, form, requestId) };
+  assert.deepEqual(onlineCartAmounts(withoutCoupon, cart, { coupon }), {
+    itemsCents: 990,
+    coupon: null,
+    discountCents: 0,
+    totalCents: 990,
+  });
 });

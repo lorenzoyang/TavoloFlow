@@ -14,6 +14,10 @@ public sealed class MenuItem
     public string? DescriptionIt { get; set; }
     public string? DescriptionEn { get; set; }
     public long PriceCents { get; set; }
+
+    // The reduced price while the dish is on sale, always below PriceCents; null charges PriceCents.
+    // Option deltas are added on top either way (Ordering/OrderOptions).
+    public long? SalePriceCents { get; set; }
     public string[] AllergenCodes { get; set; } = [];
     public bool AllergenReviewed { get; set; }
     public bool IsAvailable { get; set; } = true;

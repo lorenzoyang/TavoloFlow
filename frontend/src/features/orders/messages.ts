@@ -47,6 +47,8 @@ const en = {
   chooseGroups: (names: string) => `Choose: ${names}`,
   addFor: (price: string) => `Add to cart · ${price}`,
   fromPrice: (price: string) => `from ${price}`,
+  // Read by screen readers before the struck-through price of a dish on sale.
+  regularPrice: "Regular price",
   extra: (price: string) => `+${price}`,
   choices: "Choose options",
   limits: "Use up to 30 lines, 1–20 per line and 100 items total. Item notes: 200 characters.",
@@ -131,6 +133,7 @@ export const orderMessages: Record<Language, typeof en> = {
     chooseGroups: (names) => `请选择：${names}`,
     addFor: (price) => `加入购物车 · ${price}`,
     fromPrice: (price) => `${price} 起`,
+    regularPrice: "原价",
     extra: (price) => `+${price}`,
     choices: "选择规格",
     limits: "每单最多 30 行，每行 1–20 份，总计最多 100 份；单行备注最多 200 字符。",
@@ -214,6 +217,7 @@ export const orderMessages: Record<Language, typeof en> = {
     chooseGroups: (names) => `Scegli: ${names}`,
     addFor: (price) => `Aggiungi · ${price}`,
     fromPrice: (price) => `da ${price}`,
+    regularPrice: "Prezzo pieno",
     extra: (price) => `+${price}`,
     choices: "Scegli le opzioni",
     limits:

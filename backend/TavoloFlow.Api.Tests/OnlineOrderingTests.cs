@@ -629,6 +629,36 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
                 .ExecuteUpdateAsync(u => u.SetProperty(x => x.IsAvailable, false));
         }
         Assert.Equal("UNAVAILABLE", await Reason(Body(Guid.NewGuid(), shop.Dish)));
+
+        // A sale reaches the online menu and prices the submission like QR orders.
+        await using (var db = database.CreateContext())
+            await db
+                .MenuItems.Where(x => x.Id == shop.Spicy.Id)
+                .ExecuteUpdateAsync(u => u.SetProperty(x => x.SalePriceCents, 1100));
+        var menu = await MenuAsync(client, shop.Slug);
+        Assert.Equal(1100, menu.Menu.Items.Single(x => x.Id == shop.Spicy.Id).SalePriceCents);
+        var onSale = Guid.NewGuid();
+        Assert.Equal(
+            HttpStatusCode.Created,
+            (
+                await SubmitAsync(
+                    client,
+                    shop,
+                    Body(onSale, shop.Spicy, price: 1250, optionIds: [shop.HotOptionId])
+                )
+            ).StatusCode
+        );
+        await using (var db = database.CreateContext())
+            Assert.Equal(
+                1250,
+                Assert
+                    .Single(
+                        (
+                            await db.OnlineRequests.SingleAsync(r => r.ClientRequestId == onSale)
+                        ).Lines
+                    )
+                    .UnitPriceCents
+            );
     }
 
     [Fact]
@@ -963,7 +993,8 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
                     "3331234567",
                     null,
                     null,
-                    [new OrderLineInput(shop.Dish.Id, 1, 1200, null, [])]
+                    [new OrderLineInput(shop.Dish.Id, 1, 1200, null, [])],
+                    null
                 ),
                 default
             );

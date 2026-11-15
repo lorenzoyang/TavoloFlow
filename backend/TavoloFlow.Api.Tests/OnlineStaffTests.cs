@@ -454,7 +454,7 @@ public sealed class OnlineStaffTests(PostgreSqlFixture database) : IClassFixture
         var bill = active.Items[0];
         Assert.Equal(("PICKUP", null, null), (bill.Channel, bill.TableId, bill.TableLabel));
         Assert.Equal(
-            new OnlineBillResponse(7, "Marco", "+393331234567", estimated, null, null),
+            new OnlineBillResponse(7, "Marco", "+393331234567", estimated, null, null, null),
             bill.Online
         );
         Assert.Equal((2400L, 1, 1), (bill.TotalAmountCents, bill.OrderCount, bill.NewItemCount));

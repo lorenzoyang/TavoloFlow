@@ -6,7 +6,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldLabel, FieldDescription, FieldError, FieldSet } from "@/components/ui/field";
 import { ApiError, fieldErrors } from "@/lib/api";
-import { formatCents, parsePrice } from "@/lib/format";
+import { formatCents, formatMoney, parsePrice } from "@/lib/format";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import type { Category, Menu, MenuItem } from "./api";
 import type { Names } from "@/lib/language";
@@ -213,19 +213,40 @@ export function ItemForm({
   const [codes, setCodes] = useState(initial?.allergenCodes ?? []);
   const [reviewed, setReviewed] = useState(initial?.allergenReviewed ?? false);
   const [groupIds, setGroupIds] = useState(initial?.optionGroupIds ?? []);
+  // Followed only to show how much the sale takes off; the form still reads both fields on submit.
+  const [priceText, setPriceText] = useState(initial ? formatCents(initial.priceCents) : "");
+  const [saleText, setSaleText] = useState(() => {
+    const sale = initial?.salePriceCents ?? null;
+    return sale === null ? "" : formatCents(sale);
+  });
   const [validation, setValidation] = useState("");
+  const typedPrice = parsePrice(priceText);
+  const typedSale = saleText.trim() ? parsePrice(saleText) : null;
+  const saving =
+    typedPrice !== null && typedSale !== null && typedSale < typedPrice
+      ? {
+          amount: formatMoney(typedPrice - typedSale, language),
+          percent: Math.round(((typedPrice - typedSale) * 100) / typedPrice),
+        }
+      : null;
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
     const data = new FormData(event.currentTarget);
     const names = namesFrom(data);
     const priceCents = parsePrice(String(data.get("price")));
+    const saleInput = String(data.get("salePrice")).trim();
+    const salePriceCents = saleInput ? parsePrice(saleInput) : null;
     if (!Object.values(names).some(Boolean)) {
       setValidation(m.namesInvalid);
       return;
     }
     if (priceCents === null) {
       setValidation(m.priceInvalid);
+      return;
+    }
+    if (saleInput && (salePriceCents === null || salePriceCents >= priceCents)) {
+      setValidation(m.saleInvalid);
       return;
     }
     if (!reviewed) {
@@ -238,6 +259,7 @@ export function ItemForm({
       categoryId: data.get("categoryId"),
       itemCode: data.get("itemCode"),
       priceCents,
+      salePriceCents,
       ...Object.fromEntries(
         languages.map(({ suffix }) => [`description${suffix}`, data.get(`description${suffix}`)]),
       ),
@@ -278,8 +300,24 @@ export function ItemForm({
               maxLength={17}
               defaultValue={initial ? formatCents(initial.priceCents) : ""}
               aria-describedby="price-hint"
+              onChange={(event) => setPriceText(event.target.value)}
             />
             <FieldDescription id="price-hint">{m.priceHint}</FieldDescription>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="salePrice">{m.salePrice}</FieldLabel>
+            <Input
+              id="salePrice"
+              name="salePrice"
+              inputMode="decimal"
+              maxLength={17}
+              defaultValue={saleText}
+              aria-describedby="sale-price-hint"
+              onChange={(event) => setSaleText(event.target.value)}
+            />
+            <FieldDescription id="sale-price-hint">
+              {saving ? m.saleSaving(saving.amount, saving.percent) : m.salePriceHint}
+            </FieldDescription>
           </Field>
           <Field>
             <FieldLabel htmlFor="itemCode">{m.itemCode}</FieldLabel>

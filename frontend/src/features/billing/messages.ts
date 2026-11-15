@@ -14,7 +14,8 @@ const zh = {
   // One order inside a bill.
   orderNew: "待处理",
   orderProcessed: "已处理",
-  payable: (amount: string) => `应收 ${amount}`,
+  // An order card's own dishes; only the bill total, with any coupon and fee, says what to collect.
+  orderDishes: (amount: string) => `菜品 ${amount}`,
   originalTotal: (amount: string) => `原订单金额：${amount}`,
   item: { NEW: "待出餐", READY: "已出餐", CANCELLED: "已取消 · 不计应收" },
   unitPrice: (amount: string) => `单价 ${amount}`,
@@ -140,6 +141,9 @@ const zh = {
     deliveryFee: "配送费",
     feeNotCounted: "菜品全部取消，配送费不计入",
     confirmFee: (amount: string) => `其中配送费：${amount}`,
+    coupon: (code: string, percent: number) => `优惠券 ${code}（−${percent}%）`,
+    confirmCoupon: (code: string, amount: string) =>
+      `已减优惠券 ${code}：${amount}，收银时请给出同样的折扣`,
     editFee: "修改配送费",
     editFeeHint: "改正接单时填写的配送费。保存后账单会更新，结账时按新金额核对。",
     feeLabel: "配送费（€）",
@@ -182,7 +186,7 @@ export const billingMessages: Record<Language, typeof zh> = {
     },
     orderNew: "Da fare",
     orderProcessed: "Evaso",
-    payable: (amount) => `Da incassare ${amount}`,
+    orderDishes: (amount) => `Piatti ${amount}`,
     originalTotal: (amount) => `Totale originale: ${amount}`,
     item: { NEW: "Da fare", READY: "Pronto", CANCELLED: "Annullato · escluso" },
     unitPrice: (amount) => `Prezzo unitario ${amount}`,
@@ -315,6 +319,9 @@ export const billingMessages: Record<Language, typeof zh> = {
       deliveryFee: "Consegna",
       feeNotCounted: "Tutti i piatti annullati: la consegna non si conta",
       confirmFee: (amount) => `Di cui consegna: ${amount}`,
+      coupon: (code, percent) => `Codice ${code} (−${percent}%)`,
+      confirmCoupon: (code, amount) =>
+        `Già scontato con il codice ${code}: ${amount}. Applica lo stesso sconto in cassa`,
       editFee: "Modifica costo di consegna",
       editFeeHint:
         "Correggi il costo inserito all’accettazione. Il conto si aggiorna e l’incasso va confermato sul nuovo importo.",
@@ -356,7 +363,7 @@ export const billingMessages: Record<Language, typeof zh> = {
     },
     orderNew: "To do",
     orderProcessed: "Done",
-    payable: (amount) => `Due ${amount}`,
+    orderDishes: (amount) => `Dishes ${amount}`,
     originalTotal: (amount) => `Original total: ${amount}`,
     item: { NEW: "To do", READY: "Ready", CANCELLED: "Cancelled · not charged" },
     unitPrice: (amount) => `Unit price ${amount}`,
@@ -483,6 +490,9 @@ export const billingMessages: Record<Language, typeof zh> = {
       deliveryFee: "Delivery fee",
       feeNotCounted: "Every dish cancelled: the fee isn’t charged",
       confirmFee: (amount) => `Including delivery fee: ${amount}`,
+      coupon: (code, percent) => `Coupon ${code} (−${percent}%)`,
+      confirmCoupon: (code, amount) =>
+        `Coupon ${code} already taken off: ${amount}. Give the same discount on the till`,
       editFee: "Edit delivery fee",
       editFeeHint:
         "Correct the fee entered when the order was accepted. The bill updates and checkout confirms the new amount.",

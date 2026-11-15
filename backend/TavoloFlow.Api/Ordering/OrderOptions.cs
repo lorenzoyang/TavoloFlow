@@ -25,7 +25,8 @@ internal static class OrderOptions
         var snapshot = new List<OrderItemOption>();
         var allergens = new List<string>(item.AllergenCodes);
         // At most 50 deltas within the safe range cannot overflow a long; the caller checks the safe range.
-        var price = item.PriceCents;
+        // A dish on sale starts from its sale price; options never get a reduction.
+        var price = item.SalePriceCents ?? item.PriceCents;
         var matched = 0;
         foreach (var group in groups)
         {

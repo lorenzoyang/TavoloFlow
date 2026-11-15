@@ -69,7 +69,7 @@ The interface follows your browser's language. To change it, pick a language und
 The **Demo Ramen** restaurant: LACQUER theme, euro and the Rome time zone, English as the default menu language, with names and descriptions in three languages. Service and ordering are on, and guests have to enter the table code. The restaurant uses QR dine-in only: online ordering is off, but turning it on takes a few steps (see "Trying online ordering").
 
 - 8 tables, T01 to T08, all free; the QR tokens are generated at random during initialization;
-- 4 categories and 12 dishes, with prices, descriptions, sample allergens and one photo each;
+- 4 categories and 12 dishes, with prices, descriptions, sample allergens and one photo each; the Pan-fried gyoza are on sale (€5.00 instead of €6.00);
 - 2 option groups: **Spice level** (required, on every ramen) and **Extras** (up to three, with extra prices, on every ramen except the vegan one);
 - a one-year subscription period of €199, already paid (visible in the administrator area and on the owner's Subscription page);
 - no visits, no orders, no bills: you start by opening a table.
@@ -84,7 +84,7 @@ The restaurant and the dishes are made up, allergens included, and the photos ar
 4. Go back to the staff area and open **Kitchen**: the order has arrived, with the chosen options under each dish. Mark the dishes **"Ready"**. For the sound, the browser first wants a tap on the page.
 5. From Home open **Pass** and mark the dishes **"Served"**.
 6. Open **Bill**, choose T01 and tap **"Take payment, free table"**; tick the confirmation and close with **"Paid, free table"**. You will find the closed bill in **Bill history**, from Home.
-7. As the owner, open **Menu** and its **Options** tab: the demo's two groups are there. Try **"New group"** from a template, for example Size for the drinks, or mark an extra as sold out with its switch: the guest can no longer choose it.
+7. As the owner, open **Menu** and its **Options** tab: the demo's two groups are there. Try **"New group"** from a template, for example Size for the drinks, or mark an extra as sold out with its switch: the guest can no longer choose it. To put a dish on sale, edit it and enter a **"Sale price (optional)"** below the price: the guest menu shows the regular price struck through; clear the field to end the sale.
 8. If you like, also sign in as the administrator at `/platform/login`, in the same browser: the guest, staff and administrator identities have separate cookies and don't get in each other's way (see ["Three identities"](development-notes.md#three-identities-staff-guest-platform)).
 
 All normal tabs of a browser share the same staff-area login: to use owner and staff at the same time you need another profile, another browser or a private window.
@@ -94,8 +94,8 @@ All normal tabs of a browser share the same staff-area login: to use owner and s
 In the demo online ordering is off. Turning it on takes a couple of minutes, with the demo accounts:
 
 1. Sign in as **administrator** at `/platform/login` and open **Demo Ramen**. Tap **"Set online link"**, type for example `demo-ramen`, save with **"Save link"** and confirm. Then tap **"Change services"**, turn on **"Online ordering"** next to "QR dine-in", save with **"Save services"** and confirm. The link comes first: without it online ordering can't be turned on.
-2. Sign in as **owner**. From Home open **Online ordering**: enter the phone and tap **"Save phone"**; then, under **Hours**, add a slot for today that includes the current time (the end is the last moment to order) and tap **"Save hours"**. The status at the top must become **"Open"**; otherwise the reason is shown just below. To try delivery too, turn on **"Offer delivery"** and tap **"Save delivery"**.
-3. In a private window or another profile, so there is no staff login, open the link shown under **Online link**, for example <http://127.0.0.1:8080/r/demo-ramen>. Add a few dishes, open the cart and tap **"Checkout"**, enter a name and phone and send with **"Place order"**. The order's status page opens.
+2. Sign in as **owner**. From Home open **Online ordering**: enter the phone and tap **"Save phone"**; then, under **Hours**, add a slot for today that includes the current time (the end is the last moment to order) and tap **"Save hours"**. The status at the top must become **"Open"**; otherwise the reason is shown just below. To try delivery too, turn on **"Offer delivery"** and tap **"Save delivery"**. To try a coupon, under **Coupons** enter for example `ESTATE10` and `10` and tap **"Add coupon"**.
+3. In a private window or another profile, so there is no staff login, open the link shown under **Online link**, for example <http://127.0.0.1:8080/r/demo-ramen>. Add a few dishes, open the cart and tap **"Checkout"**. If you created a coupon, enter it in **"Coupon code (optional)"** and tap **"Apply"**: the total shows the discount. Enter a name and phone and send with **"Place order"**. The order's status page opens.
 4. Go back to the staff area: at the top of every page the banner shows the order to accept (here too, the browser wants a tap on the page before it plays sound). Tap **"View"**, or **Online orders** from Home, and accept by tapping one of the times (10, 20, 30 or 45 min). The customer's status page shows the order accepted, with the expected time.
 5. The order is now in the **Kitchen** as "Pickup #1": mark the dishes **"Ready"** and, from the **Pass**, **"Served"**. Finally, as owner, open **Bill**, choose "Pickup #1" and tap **"Collected, check payment"**; tick the confirmation and close with **"Collected and paid"**.
 

@@ -36,8 +36,9 @@ Menu response: `restaurantId`, `defaultLanguage`, `availableLanguages`, `categor
 `optionGroups` and `allergens`. Categories sort by their restaurant-wide position, then ID; items follow
 that category order, sorting by their category-local position and then item ID. Option groups sort by their
 restaurant-wide position. Category response is `id/nameZh/nameIt/nameEn`. Items also carry
-`categoryId`, `itemCode`, three descriptions, `priceCents`, `allergenCodes`, `allergenReviewed`,
-`isAvailable`, nullable `imageId` and `optionGroupIds` (in group order).
+`categoryId`, `itemCode`, three descriptions, `priceCents`, nullable `salePriceCents`, `allergenCodes`,
+`allergenReviewed`, `isAvailable`, nullable `imageId` and `optionGroupIds` (in group order). The QR and
+online bootstraps return the same item fields.
 
 Category input contains the three names. An item content request is:
 
@@ -52,6 +53,7 @@ Category input contains the three names. An item content request is:
   "descriptionIt": null,
   "descriptionEn": "An example description, not ingredient advice.",
   "priceCents": 1250,
+  "salePriceCents": null,
   "allergenCodes": ["GLUTEN", "SOY"],
   "allergenReviewed": true,
   "optionGroupIds": ["00000000-0000-4000-8000-000000000002"]
@@ -60,7 +62,15 @@ Category input contains the three names. An item content request is:
 
 Use an actual category UUID and restaurant-reviewed ingredients/allergens. Item content input excludes
 `isAvailable` and `imageId`. `optionGroupIds` is required and replaces the dish's option groups; send
-an empty array for none. Availability uses `{ "isAvailable": false }`; default language uses
+an empty array for none.
+
+`salePriceCents` puts the dish on sale: null (or omitted) charges `priceCents`; otherwise it must be
+positive whole cents below `priceCents` (`VALIDATION_FAILED` on `salePriceCents`, repeated by
+`ck_item_sale_price`). It is part of the content save, so it needs the allergen review like any price
+change, and only OWNER sets it. There is no schedule: the owner clears it to end the sale. QR and online
+orders charge the sale price plus the full option deltas (`OrderOptions.Resolve`); order snapshots keep
+only the charged `unitPriceCents`, so kitchen, bills and history never see the regular price. Staff and
+guest menus show the regular price struck through before the sale price (`DishPrice`). Availability uses `{ "isAvailable": false }`; default language uses
 `{ "defaultLanguage": "it" }`. These endpoints update only their own setting.
 
 ## Content, language and concurrency
@@ -288,8 +298,9 @@ not browser language. Blocked storage retains the current in-memory choice.
 
 A confirmed `QR_NOT_FOUND` replaces cached menu data and hides the old menu. Network failures retain
 earlier data with a warning. Sold-out dishes remain visible; unreviewed allergens show pending review.
-A dish with option groups opens an option picker instead of entering the cart at once; its price reads
-"from" when an option costs extra, and it shows as sold out once a required group has fewer options in
+A dish on sale shows its regular price struck through above the sale price. A dish with option groups
+opens an option picker instead of entering the cart at once; its price reads "from" when an option costs
+extra, and it shows as sold out once a required group has fewer options in
 stock than its minimum.
 The restaurant theme applies after bootstrap loads; invalid/loading entrances keep the default theme.
 

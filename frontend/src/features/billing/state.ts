@@ -1,5 +1,6 @@
 import { isUuid } from "../../lib/ids.ts";
 import type { OnlineTicket, SessionNaming } from "../../lib/session-label.ts";
+import type { CouponDiscount } from "../online-order/api.ts";
 
 export type CloseKind = "PAID" | "EMPTY" | "VOIDED" | "NO_SHOW";
 // TableId and tableLabel belong to dine-in; online carries the accepted order's ticket and phone.
@@ -11,6 +12,8 @@ export type BillSummary = SessionNaming & {
         customerPhone: string | null;
         deliveryAddress: string | null;
         deliveryNotes: string | null;
+        // The coupon used at checkout; the total already takes its discount off the dishes.
+        coupon: CouponDiscount | null;
       })
     | null;
   status: "ACTIVE" | "CLOSED";
@@ -58,27 +61,36 @@ export function noShowAllowed(bill: BillSummary, role: "OWNER" | "STAFF") {
   return bill.channel !== "DINE_IN" && closureKind(bill, role) === "PAID";
 }
 
-// A delivery bill's two parts: the dishes and the fee, which stops counting once every dish is
-// cancelled (the server's SessionSummaries rule). Null fee for every other channel.
+// A bill's parts: the dishes, an online coupon's discount on them, and a delivery fee, which stops
+// counting once every dish is cancelled (the server's SessionSummaries rule). Null fee for every other
+// channel; no coupon means no discount.
 export function billAmounts(
   bill: Pick<
     BillSummary,
-    "deliveryFeeCents" | "itemCount" | "cancelledItemCount" | "totalAmountCents"
+    "deliveryFeeCents" | "itemCount" | "cancelledItemCount" | "totalAmountCents" | "online"
   >,
 ) {
   const fee = bill.deliveryFeeCents;
   const feeCounted = fee !== null && bill.cancelledItemCount < bill.itemCount;
-  return { fee, feeCounted, items: bill.totalAmountCents - (feeCounted ? fee : 0) };
+  const coupon = bill.online?.coupon ?? null;
+  const discount = coupon?.discountCents ?? 0;
+  return {
+    fee,
+    feeCounted,
+    coupon,
+    discount,
+    items: bill.totalAmountCents - (feeCounted ? fee : 0) + discount,
+  };
 }
 
 // OWNER corrects an active delivery's fee before closing it.
 export const canEditDeliveryFee = (bill: BillSummary, role: "OWNER" | "STAFF") =>
   role === "OWNER" && bill.status === "ACTIVE" && bill.channel === "DELIVERY";
 
-// What the bill would ask for with another fee.
+// What the bill would ask for with another fee; the coupon never applies to the fee.
 export function totalWithFee(bill: BillSummary, fee: number) {
-  const { items } = billAmounts(bill);
-  return bill.cancelledItemCount < bill.itemCount ? items + fee : 0;
+  const { items, discount } = billAmounts(bill);
+  return bill.cancelledItemCount < bill.itemCount ? items - discount + fee : 0;
 }
 
 // The fee write carries the bill version it was read at; that version is its only duplicate guard, so

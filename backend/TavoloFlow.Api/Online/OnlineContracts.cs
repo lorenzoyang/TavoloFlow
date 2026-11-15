@@ -37,11 +37,30 @@ public sealed record OnlineDeliveryInput(
     string? NoteEn
 );
 
+// A new coupon: the code customers type (trimmed and uppercased), the percentage off the dishes and an
+// optional last local day, not before today. Coupons are never edited: delete one and create another.
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record OnlineCouponInput(
+    [Required] string? Code,
+    [Required] int? PercentOff,
+    DateOnly? ValidUntil
+);
+
 public sealed record OnlineHourResponse(int Weekday, int OpensMinute, int ClosesMinute);
+
+// Expired compares ValidUntil with the restaurant's local date, so the page needs neither clock nor zone.
+public sealed record OnlineCouponResponse(
+    Guid Id,
+    string Code,
+    int PercentOff,
+    DateOnly? ValidUntil,
+    bool Expired
+);
 
 // Hours are ordered by weekday and opening time. PausedUntil is null once the pause has lapsed.
 // CurrentSlotEndsAt is set while a slot accepts orders, so the page can offer "pause until then".
 // Delivery does not affect Status: pickup stays possible whether or not the restaurant delivers.
+// Coupons are ordered by code.
 public sealed record OnlineSettingsResponse(
     string? Slug,
     string? PublicPhone,
@@ -53,7 +72,8 @@ public sealed record OnlineSettingsResponse(
     bool DeliveryEnabled,
     string? DeliveryNoteZh,
     string? DeliveryNoteIt,
-    string? DeliveryNoteEn
+    string? DeliveryNoteEn,
+    OnlineCouponResponse[] Coupons
 );
 
 public static class OnlineErrors
@@ -80,6 +100,28 @@ public static class OnlineErrors
 
     public static ApiException DeliveryNotOffered() =>
         new(409, "DELIVERY_NOT_OFFERED", "This restaurant doesn't deliver online orders.");
+
+    // Customers: the code doesn't exist, has expired or now has another percentage. The preview answers 404;
+    // a submission answers 409 after its duplicate check, so nothing was stored.
+    public static ApiException CouponNotFound() =>
+        new(404, "COUPON_INVALID", "This coupon code isn't valid at this restaurant today.");
+
+    public static ApiException CouponInvalid() =>
+        new(
+            409,
+            "COUPON_INVALID",
+            "This coupon code isn't valid any more. Remove it and check the total again."
+        );
+
+    public static ApiException CouponCodeTaken() =>
+        new(409, "COUPON_CODE_TAKEN", "This restaurant already has a coupon with this code.");
+
+    public static ApiException CouponLimit() =>
+        new(
+            409,
+            "COUPON_LIMIT",
+            $"A restaurant keeps at most {OnlineCoupons.MaxCoupons} coupons. Delete one first."
+        );
 
     public static ApiException Suspended() =>
         new(409, "SERVICE_SUSPENDED", "The restaurant's service is suspended.");

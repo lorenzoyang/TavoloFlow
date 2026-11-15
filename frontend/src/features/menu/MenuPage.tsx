@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDownUp, Pencil, Plus, RefreshCw, Trash2, Utensils, X } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { DishPrice } from "@/components/dish-price";
 import { EmptyState } from "@/components/empty-state";
 import { FilterChips } from "@/components/filter-chips";
 import { LoadingState } from "@/components/loading-state";
@@ -48,6 +49,7 @@ import { CategoryOrder } from "./CategoryOrder";
 import { ItemOrderForm, type ItemOrderSnapshot } from "./ItemOrderForm";
 import { allergenLabel, languages, menuMessages } from "./messages";
 import { OptionGroupForm } from "./OptionGroupForm";
+import { dishPriceCents } from "@/features/orders/options";
 import { OptionGroups, TemplatePicker } from "./OptionGroups";
 import type { OptionTemplate } from "./option-templates";
 
@@ -378,9 +380,18 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                         )}
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-2">
-                        <span className="font-semibold tabular-nums">
-                          {formatMoney(item.priceCents, language)}
-                        </span>
+                        <DishPrice
+                          stacked
+                          className="font-semibold"
+                          regular={
+                            item.salePriceCents === null
+                              ? null
+                              : formatMoney(item.priceCents, language)
+                          }
+                          regularLabel={m.regularPrice}
+                        >
+                          {formatMoney(dishPriceCents(item), language)}
+                        </DishPrice>
                         {item.imageId && (
                           <ItemThumbnail imageId={item.imageId} className="size-16" />
                         )}
