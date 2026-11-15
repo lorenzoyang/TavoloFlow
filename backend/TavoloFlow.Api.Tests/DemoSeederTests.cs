@@ -99,11 +99,14 @@ public sealed class DemoSeederTests(PostgreSqlFixture database) : IClassFixture<
                 );
             }
         );
-        // Screens list rows by ID: categories, dishes and tables must keep the fixtures' order.
+        // Categories have explicit positions; dishes and tables keep their ID order from the fixtures.
         Assert.Equal(
             new[] { "Ramen", "Sides", "Drinks", "Desserts" },
-            (await db.MenuCategories.OrderBy(x => x.Id).ToArrayAsync()).Select(x => x.NameEn)
+            (
+                await db.MenuCategories.OrderBy(x => x.Position).ThenBy(x => x.Id).ToArrayAsync()
+            ).Select(x => x.NameEn)
         );
+        Assert.Equal(new[] { 0, 1, 2, 3 }, categories.Select(x => x.Position).Order());
         Assert.Equal(
             new[] { "tonkotsu-ramen", "shoyu-ramen", "miso-ramen", "vegan-ramen" },
             (

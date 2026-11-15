@@ -9,6 +9,9 @@ namespace TavoloFlow.Api.Menus;
 public sealed record CategoryInput(string? NameZh, string? NameIt, string? NameEn);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record CategoryOrderInput(Guid[]? CategoryIds);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record MenuItemInput(
     Guid CategoryId,
     string? ItemCode,
@@ -218,6 +221,13 @@ public static class MenuErrors
             409,
             "OPTION_GROUPS_CHANGED",
             "The option groups have changed. Refresh the menu and order them again."
+        );
+
+    public static ApiException CategoriesChanged() =>
+        new(
+            409,
+            "CATEGORIES_CHANGED",
+            "The categories have changed. Refresh the menu and order them again."
         );
 
     public static ApiException ImageNotFound() =>

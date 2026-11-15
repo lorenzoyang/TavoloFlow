@@ -67,6 +67,225 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
     }
 
     [Fact]
+    public async Task ReorderCategories_ExactPermutation_OrdersEveryMenuAndKeepsDishesWithinCategories()
+    {
+        using var host = new AccountTestHost(database);
+        var user = await SeedAsync();
+        using var owner = await LoginAsync(host, user);
+        var a = await CreateCategoryAsync(owner, new("前菜", "Antipasti", "Starters"));
+        var b = await CreateCategoryAsync(owner, new("主食", "Primi", "Mains"));
+        var c = await CreateCategoryAsync(owner, new("甜点", "Dolci", "Desserts"));
+        await CreateItemAsync(owner, ValidItem(a.Id));
+        await CreateItemAsync(owner, ValidItem(a.Id));
+        var main = await CreateItemAsync(owner, ValidItem(b.Id));
+        var before = await ReadAsync(owner);
+        var starters = before.Items.Where(x => x.CategoryId == a.Id).Select(x => x.Id).ToArray();
+        Guid[] order = [b.Id, c.Id, a.Id];
+        for (var attempt = 0; attempt < 2; attempt++)
+            Assert.Equal(
+                HttpStatusCode.NoContent,
+                (
+                    await SendAsync(
+                        owner,
+                        HttpMethod.Put,
+                        $"{Categories}/order",
+                        new CategoryOrderInput(order)
+                    )
+                ).StatusCode
+            );
+        var menu = await ReadAsync(owner);
+        Assert.Equal(order, menu.Categories.Select(x => x.Id));
+        Assert.Equal(new[] { main.Id }.Concat(starters), menu.Items.Select(x => x.Id));
+        using var staff = await LoginAsync(
+            host,
+            await SeedAsync(RestaurantUserRole.Staff, user.RestaurantId)
+        );
+        Assert.Equal(order, (await ReadAsync(staff)).Categories.Select(x => x.Id));
+
+        var slug = $"sort-{Guid.NewGuid():N}";
+        var token = Guid.NewGuid().ToString("N");
+        await using (var context = database.CreateContext())
+        {
+            var restaurant = await context.Restaurants.SingleAsync(x => x.Id == user.RestaurantId);
+            restaurant.Slug = slug;
+            restaurant.OnlineEnabled = true;
+            context.RestaurantTables.Add(
+                new RestaurantTable
+                {
+                    RestaurantId = restaurant.Id,
+                    TableLabel = "1",
+                    QrToken = token,
+                }
+            );
+            await context.SaveChangesAsync();
+        }
+        using var guest = host.Browser();
+        foreach (
+            var path in new[]
+            {
+                $"/api/public/qr/{token}/bootstrap",
+                $"/api/public/r/{slug}/bootstrap",
+            }
+        )
+        {
+            using var response = await guest.GetAsync(path);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var json = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty(
+                "menu"
+            );
+            Assert.Equal(
+                order,
+                json.GetProperty("categories")
+                    .EnumerateArray()
+                    .Select(x => x.GetProperty("id").GetGuid())
+            );
+            Assert.Equal(
+                menu.Items.Select(x => x.Id),
+                json.GetProperty("items")
+                    .EnumerateArray()
+                    .Select(x => x.GetProperty("id").GetGuid())
+            );
+        }
+    }
+
+    [Fact]
+    public async Task ReorderCategories_InvalidOrStaleLists_RejectsWithoutChangingEitherRestaurant()
+    {
+        using var host = new AccountTestHost(database);
+        using var owner = await LoginAsync(host, await SeedAsync());
+        Assert.Equal(
+            HttpStatusCode.NoContent,
+            (
+                await SendAsync(
+                    owner,
+                    HttpMethod.Put,
+                    $"{Categories}/order",
+                    new CategoryOrderInput([])
+                )
+            ).StatusCode
+        );
+        var a = await CreateCategoryAsync(owner);
+        var b = await CreateCategoryAsync(owner);
+        using var other = await LoginAsync(host, await SeedAsync());
+        var foreign = await CreateCategoryAsync(other);
+        foreach (
+            Guid[]? invalid in new Guid[]?[]
+            {
+                null,
+                [],
+                [a.Id],
+                [a.Id, a.Id],
+                [a.Id, b.Id, foreign.Id],
+                [a.Id, foreign.Id],
+                [a.Id, Guid.NewGuid()],
+            }
+        )
+        {
+            await AssertErrorAsync(
+                await SendAsync(
+                    owner,
+                    HttpMethod.Put,
+                    $"{Categories}/order",
+                    new CategoryOrderInput(invalid)
+                ),
+                HttpStatusCode.Conflict,
+                "CATEGORIES_CHANGED"
+            );
+            Assert.Equal(
+                new[] { a.Id, b.Id },
+                (await ReadAsync(owner)).Categories.Select(x => x.Id)
+            );
+        }
+        var c = await CreateCategoryAsync(owner);
+        await AssertErrorAsync(
+            await SendAsync(
+                owner,
+                HttpMethod.Put,
+                $"{Categories}/order",
+                new CategoryOrderInput([b.Id, a.Id])
+            ),
+            HttpStatusCode.Conflict,
+            "CATEGORIES_CHANGED"
+        );
+        Assert.Equal(
+            HttpStatusCode.NoContent,
+            (await SendAsync(owner, HttpMethod.Delete, $"{Categories}/{b.Id}")).StatusCode
+        );
+        await AssertErrorAsync(
+            await SendAsync(
+                owner,
+                HttpMethod.Put,
+                $"{Categories}/order",
+                new CategoryOrderInput([c.Id, b.Id, a.Id])
+            ),
+            HttpStatusCode.Conflict,
+            "CATEGORIES_CHANGED"
+        );
+        Assert.Equal(new[] { a.Id, c.Id }, (await ReadAsync(owner)).Categories.Select(x => x.Id));
+        Assert.Equal(foreign.Id, Assert.Single((await ReadAsync(other)).Categories).Id);
+    }
+
+    [Fact]
+    public async Task ReorderCategories_EditDeleteAndCreate_KeepsOrderAndAppendsAfterGaps()
+    {
+        using var host = new AccountTestHost(database);
+        using var owner = await LoginAsync(host, await SeedAsync());
+        var a = await CreateCategoryAsync(owner);
+        var b = await CreateCategoryAsync(owner);
+        var c = await CreateCategoryAsync(owner);
+        Assert.Equal(
+            HttpStatusCode.NoContent,
+            (
+                await SendAsync(
+                    owner,
+                    HttpMethod.Put,
+                    $"{Categories}/order",
+                    new CategoryOrderInput([c.Id, b.Id, a.Id])
+                )
+            ).StatusCode
+        );
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (
+                await SendAsync(
+                    owner,
+                    HttpMethod.Put,
+                    $"{Categories}/{a.Id}",
+                    new CategoryInput("新名称", null, null)
+                )
+            ).StatusCode
+        );
+        Assert.Equal(
+            new[] { c.Id, b.Id, a.Id },
+            (await ReadAsync(owner)).Categories.Select(x => x.Id)
+        );
+        Assert.Equal(
+            HttpStatusCode.NoContent,
+            (await SendAsync(owner, HttpMethod.Delete, $"{Categories}/{c.Id}")).StatusCode
+        );
+        var d = await CreateCategoryAsync(owner);
+        Assert.Equal(
+            new[] { b.Id, a.Id, d.Id },
+            (await ReadAsync(owner)).Categories.Select(x => x.Id)
+        );
+        Assert.Equal(
+            HttpStatusCode.NoContent,
+            (
+                await SendAsync(
+                    owner,
+                    HttpMethod.Put,
+                    $"{Categories}/order",
+                    new CategoryOrderInput([d.Id, b.Id, a.Id])
+                )
+            ).StatusCode
+        );
+        Assert.Equal(
+            new[] { d.Id, b.Id, a.Id },
+            (await ReadAsync(owner)).Categories.Select(x => x.Id)
+        );
+    }
+
+    [Fact]
     public async Task Authorization_AnonymousFirstPasswordStaffAndCsrf_EnforcesActualMenuEndpoints()
     {
         using var host = new AccountTestHost(database);
@@ -80,7 +299,28 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
         using var owner = await LoginAsync(host, ownerUser);
         var category = await CreateCategoryAsync(owner);
         var item = await CreateItemAsync(owner, ValidItem(category.Id));
+        await AssertErrorAsync(
+            await SendAsync(
+                anonymous,
+                HttpMethod.Put,
+                $"{Categories}/order",
+                new CategoryOrderInput([category.Id]),
+                csrf: false
+            ),
+            HttpStatusCode.Unauthorized,
+            "UNAUTHENTICATED"
+        );
         using var firstLogin = await LoginAsync(host, await SeedAsync(mustChange: true));
+        await AssertErrorAsync(
+            await SendAsync(
+                firstLogin,
+                HttpMethod.Put,
+                $"{Categories}/order",
+                new CategoryOrderInput([category.Id])
+            ),
+            HttpStatusCode.Forbidden,
+            "PASSWORD_CHANGE_REQUIRED"
+        );
         await AssertErrorAsync(
             await firstLogin.GetAsync("/api/staff/menu"),
             HttpStatusCode.Forbidden,
@@ -95,6 +335,7 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
             var (method, path, body) in new (HttpMethod, string, object?)[]
             {
                 (HttpMethod.Post, Categories, new CategoryInput("test", null, null)),
+                (HttpMethod.Put, $"{Categories}/order", new CategoryOrderInput([category.Id])),
                 (
                     HttpMethod.Put,
                     $"{Categories}/{category.Id}",
@@ -116,6 +357,7 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
             var (method, path, body) in new (HttpMethod, string, object?)[]
             {
                 (HttpMethod.Post, Categories, new CategoryInput("test", null, null)),
+                (HttpMethod.Put, $"{Categories}/order", new CategoryOrderInput([category.Id])),
                 (HttpMethod.Put, $"{Items}/{item.Id}", ValidItem(category.Id)),
                 (HttpMethod.Delete, $"{Items}/{item.Id}", null),
                 (HttpMethod.Patch, Availability(item.Id), new { isAvailable = false }),

@@ -7,6 +7,7 @@ public sealed class MenuCategory
     public string? NameZh { get; set; }
     public string? NameIt { get; set; }
     public string? NameEn { get; set; }
+    public int Position { get; set; }
 
     public Restaurant Restaurant { get; set; } = null!;
     public ICollection<MenuItem> Items { get; } = new List<MenuItem>();

@@ -12,10 +12,13 @@ internal sealed class MenuCategoryConfiguration : IEntityTypeConfiguration<MenuC
         builder.ToTable(
             "menu_categories",
             table =>
+            {
                 table.HasCheckConstraint(
                     "ck_category_has_name",
                     "concat(name_zh, name_it, name_en) ~ '[^[:space:]]'"
-                )
+                );
+                table.HasCheckConstraint("ck_category_position", "position >= 0");
+            }
         );
 
         builder.HasKey(category => category.Id);
@@ -27,6 +30,7 @@ internal sealed class MenuCategoryConfiguration : IEntityTypeConfiguration<MenuC
         builder.Property(category => category.Id).HasColumnName("id");
 
         builder.Property(category => category.RestaurantId).HasColumnName("restaurant_id");
+        builder.Property(category => category.Position).HasColumnName("position");
 
         builder
             .Property(category => category.NameZh)

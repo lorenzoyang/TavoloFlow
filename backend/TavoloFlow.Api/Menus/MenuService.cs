@@ -38,7 +38,17 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
             async () =>
             {
                 var category = id is null
-                    ? new MenuCategory { RestaurantId = restaurantId }
+                    ? new MenuCategory
+                    {
+                        RestaurantId = restaurantId,
+                        Position =
+                            (
+                                await context
+                                    .MenuCategories.Where(x => x.RestaurantId == restaurantId)
+                                    .MaxAsync(x => (int?)x.Position, ct)
+                                ?? -1
+                            ) + 1,
+                    }
                     : await context.MenuCategories.SingleOrDefaultAsync(
                         x => x.RestaurantId == restaurantId && x.Id == id,
                         ct
@@ -54,6 +64,37 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
             ct
         );
     }
+
+    // Replace the whole order under the same lock as category creation/deletion. Repeats are harmless;
+    // missing, duplicate or foreign IDs reject the whole write rather than silently dropping categories.
+    public Task ReorderCategoriesAsync(
+        Guid restaurantId,
+        Guid[]? categoryIds,
+        CancellationToken ct
+    ) =>
+        WriteAsync(
+            restaurantId,
+            async () =>
+            {
+                var current = await context
+                    .MenuCategories.Where(x => x.RestaurantId == restaurantId)
+                    .Select(x => x.Id)
+                    .ToArrayAsync(ct);
+                if (
+                    categoryIds is null
+                    || categoryIds.Length != current.Length
+                    || !categoryIds.ToHashSet().SetEquals(current)
+                )
+                    throw MenuErrors.CategoriesChanged();
+                foreach (var (categoryId, position) in categoryIds.Select((x, i) => (x, i)))
+                    await context
+                        .MenuCategories.Where(x =>
+                            x.RestaurantId == restaurantId && x.Id == categoryId
+                        )
+                        .ExecuteUpdateAsync(u => u.SetProperty(x => x.Position, position), ct);
+            },
+            ct
+        );
 
     public Task DeleteCategoryAsync(Guid restaurantId, Guid id, CancellationToken ct) =>
         WriteAsync(

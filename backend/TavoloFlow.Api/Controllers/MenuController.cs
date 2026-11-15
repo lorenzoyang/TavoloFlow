@@ -36,6 +36,17 @@ public sealed class MenuController(MenuService menus, CurrentAccount current) : 
     ) => Ok(await menus.SaveCategoryAsync(RestaurantId, id, input, ct));
 
     [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
+    [HttpPut("api/owner/menu/categories/order")]
+    public async Task<IActionResult> ReorderCategories(
+        CategoryOrderInput input,
+        CancellationToken ct
+    )
+    {
+        await menus.ReorderCategoriesAsync(RestaurantId, input.CategoryIds, ct);
+        return NoContent();
+    }
+
+    [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
     [HttpDelete("api/owner/menu/categories/{id:guid}")]
     public async Task<IActionResult> DeleteCategory(Guid id, CancellationToken ct)
     {

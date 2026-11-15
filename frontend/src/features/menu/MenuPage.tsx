@@ -26,6 +26,7 @@ import {
   deleteMenuEntry,
   deleteOptionGroup,
   menuQuery,
+  reorderCategories,
   reorderOptionGroups,
   saveCategory,
   saveItem,
@@ -42,6 +43,7 @@ import {
 import { displayName } from "@/lib/language";
 import { ItemImageSection, ItemThumbnail } from "./ItemImage";
 import { CategoryForm, ItemForm } from "./MenuForms";
+import { CategoryOrder } from "./CategoryOrder";
 import { allergenLabel, languages, menuMessages } from "./messages";
 import { OptionGroupForm } from "./OptionGroupForm";
 import { OptionGroups, TemplatePicker } from "./OptionGroups";
@@ -119,7 +121,9 @@ function MenuContent({ account }: { account: CurrentAccount }) {
     <Notice
       tone="error"
       action={
-        (!(error instanceof ApiError) || error.status >= 500) && (
+        (!(error instanceof ApiError) ||
+          error.status >= 500 ||
+          error.code === "CATEGORIES_CHANGED") && (
           <Button
             variant="outline"
             disabled={query.isFetching}
@@ -155,6 +159,12 @@ function MenuContent({ account }: { account: CurrentAccount }) {
     const ids = menu!.optionGroups.map((group) => group.id);
     [ids[index], ids[index + by]] = [ids[index + by], ids[index]];
     mutation.mutate(() => reorderOptionGroups(ids));
+  }
+  function moveCategory(index: number, by: number) {
+    if (busy || editing || !menu) return;
+    const ids = menu.categories.map((category) => category.id);
+    [ids[index], ids[index + by]] = [ids[index + by], ids[index]];
+    mutation.mutate(() => reorderCategories(ids));
   }
   // The photo section follows the live menu, unlike the form fields, which keep their snapshot.
   const liveItem =
@@ -250,6 +260,13 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                   {m.addItem}
                 </Button>
               </div>
+            )}
+            {owner && (
+              <CategoryOrder
+                menu={menu}
+                disabled={busy || editing || query.isFetching || query.isError}
+                move={moveCategory}
+              />
             )}
             <FilterChips
               label={m.categories}

@@ -156,6 +156,10 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("name_zh");
 
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
                     b.Property<Guid>("RestaurantId")
                         .HasColumnType("uuid")
                         .HasColumnName("restaurant_id");
@@ -170,6 +174,8 @@ namespace TavoloFlow.Api.Data.Migrations
                     b.ToTable("menu_categories", null, t =>
                         {
                             t.HasCheckConstraint("ck_category_has_name", "concat(name_zh, name_it, name_en) ~ '[^[:space:]]'");
+
+                            t.HasCheckConstraint("ck_category_position", "position >= 0");
                         });
                 });
 

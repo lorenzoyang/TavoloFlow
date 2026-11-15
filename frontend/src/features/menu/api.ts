@@ -38,6 +38,7 @@ export type Menu = {
   restaurantId: string;
   defaultLanguage: Language;
   availableLanguages: Language[];
+  // In the restaurant-wide display order; dishes follow that order within their categories.
   categories: Category[];
   items: MenuItem[];
   // In the restaurant-wide display order.
@@ -53,6 +54,9 @@ export const menuQuery = (account: CurrentAccount) =>
 // OWNER writes replace the whole category/item (last write wins); availability is a separate STAFF field.
 export const saveCategory = (id: string | undefined, body: unknown) =>
   write<Category>(`/api/owner/menu/categories${id ? `/${id}` : ""}`, id ? "PUT" : "POST", body);
+
+export const reorderCategories = (categoryIds: string[]) =>
+  write<void>("/api/owner/menu/categories/order", "PUT", { categoryIds });
 
 export const saveItem = (id: string | undefined, body: unknown) =>
   write<MenuItem>(`/api/owner/menu/items${id ? `/${id}` : ""}`, id ? "PUT" : "POST", body);

@@ -65,13 +65,13 @@ public sealed class DemoSeeder(
             DefaultAnnualFeeCents = restaurantData.AnnualFeeCents,
         };
 
-        // Menus and table lists sort rows by ID,
-        // so IDs that grow in file order keep the fixtures' order on
-        // screen (random IDs would shuffle categories, dishes and tables).
+        // Dishes within a category and table lists sort rows by ID, so IDs that grow in file order
+        // keep the fixtures' order on screen. Categories have their own explicit position.
         // Photo IDs stay random on purpose.
         var idTime = clock.GetUtcNow();
         Guid NextId() => Guid.CreateVersion7(idTime = idTime.AddMilliseconds(1));
 
+        var categoryPosition = 0;
         var categories = menu.Categories.ToDictionary(
             x => x.Key,
             x =>
@@ -83,6 +83,7 @@ public sealed class DemoSeeder(
                 {
                     Id = NextId(),
                     RestaurantId = restaurant.Id,
+                    Position = categoryPosition++,
                     NameZh = names.NameZh,
                     NameIt = names.NameIt,
                     NameEn = names.NameEn,

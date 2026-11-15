@@ -271,6 +271,7 @@ Table menu_categories {
   name_zh varchar(100)
   name_it varchar(100)
   name_en varchar(100)
+  position int [not null]
 
   Indexes {
     (id, restaurant_id) [unique, name: 'uq_categories_id_tenant']
@@ -278,9 +279,10 @@ Table menu_categories {
 
   Checks {
     `concat(name_zh, name_it, name_en) ~ '[^[:space:]]'` [name: 'ck_category_has_name']
+    `position >= 0` [name: 'ck_category_position']
   }
 
-  Note: 'At least one localized name; normalize whitespace-only names to NULL. Client falls back to another available translation. Delete only after all items are removed or moved.'
+  Note: 'At least one localized name; normalize whitespace-only names to NULL. Client falls back to another available translation. Restaurant-wide position shared by staff, QR and online menus; new categories append, name edits preserve position and deletion may leave gaps. Delete only after all items are removed or moved.'
 }
 
 Table menu_items {

@@ -15,6 +15,7 @@ public photo read.
 | `GET /api/staff/menu`                             | OWNER/STAFF | 200, complete menu without paging                   |
 | `POST /api/owner/menu/categories`                 | OWNER       | 201, category                                       |
 | `PUT /api/owner/menu/categories/{id}`             | OWNER       | 200, category                                       |
+| `PUT /api/owner/menu/categories/order`            | OWNER       | 204                                                 |
 | `DELETE /api/owner/menu/categories/{id}`          | OWNER       | 204                                                 |
 | `POST /api/owner/menu/items`                      | OWNER       | 201, item initially available                       |
 | `PUT /api/owner/menu/items/{id}`                  | OWNER       | 200, item preserving availability/photo             |
@@ -31,8 +32,9 @@ public photo read.
 | `GET /api/public/menu-images/{imageId}`           | Anonymous   | 200, `image/webp`                                   |
 
 Menu response: `restaurantId`, `defaultLanguage`, `availableLanguages`, `categories`, `items`,
-`optionGroups` and `allergens`. Categories sort by ID; items by category ID and item ID; option groups
-by their restaurant-wide position. Category response is `id/nameZh/nameIt/nameEn`. Items also carry
+`optionGroups` and `allergens`. Categories sort by their restaurant-wide position, then ID; items follow
+that category order, retaining item ID order within each category. Option groups sort by their
+restaurant-wide position. Category response is `id/nameZh/nameIt/nameEn`. Items also carry
 `categoryId`, `itemCode`, three descriptions, `priceCents`, `allergenCodes`, `allergenReviewed`,
 `isAvailable`, nullable `imageId` and `optionGroupIds` (in group order).
 
@@ -87,10 +89,24 @@ SHARE. Item deletion calls `CatalogDeletionService` directly: its own transactio
 UPDATE then item UPDATE, clears historical links and deletes the item. Do not add an outer transaction.
 Category deletion requires an empty category. All snapshots survive catalog deletion.
 
+Category order is one restaurant-wide setting shared by the staff menu, QR menu and online menu in
+every language. New categories append after the current maximum position; renaming preserves position,
+and deletion may leave gaps. The migration backfills positions per restaurant in the previous ID order.
+`PUT /api/owner/menu/categories/order` takes `{ "categoryIds": [...] }`: an exact permutation of every
+current category ID (an empty array for an empty menu). Null, duplicate, missing, extra or foreign IDs
+receive `409 CATEGORIES_CHANGED`, with no partial changes. The write uses the same restaurant UPDATE
+lock as category creation/deletion, then assigns consecutive positions from zero in one transaction.
+Positions are non-negative and need not be unique in the database. Repeating a target order is harmless;
+concurrent reorderings of the same category set use last-write-wins. Category content requests cannot
+set position. The OWNER's inline sorting list uses up/down buttons and saves each move immediately;
+the "All dishes" filter stays first. After a conflict or unknown result, reread and check before moving
+again; writes are not retried automatically.
+
 Concurrent content saves use last-write-wins. A content save never overwrites availability, the photo
-or default language. Form snapshots survive background refresh; drafts are not persisted on closing
-the form. Writes are not automatically retried or queued offline. After an unknown result, reread and
-compare before resubmitting: category/item creation has no idempotency key. A known successful write
+or default language. Category name edits also preserve position. Form snapshots survive background
+refresh; drafts are not persisted on closing the form. Writes are not automatically retried or queued
+offline. After an unknown result, reread and compare before resubmitting: category/item creation has
+no idempotency key. A known successful write
 followed by refresh failure is reported separately.
 
 ## Option groups
@@ -249,7 +265,7 @@ The restaurant theme applies after bootstrap loads; invalid/loading entrances ke
 
 Common errors include `VALIDATION_FAILED` (400), `MENU_RESOURCE_NOT_FOUND`, `TABLE_NOT_FOUND` and
 `QR_NOT_FOUND` (404), plus conflicts `ITEM_CODE_CONFLICT`, `CATEGORY_NOT_EMPTY`,
-`ALLERGEN_REVIEW_REQUIRED`, `OPTION_GROUPS_CHANGED`, `TABLE_LABEL_CONFLICT` and
+`ALLERGEN_REVIEW_REQUIRED`, `CATEGORIES_CHANGED`, `OPTION_GROUPS_CHANGED`, `TABLE_LABEL_CONFLICT` and
 `TABLE_HAS_ACTIVE_SESSION` (409).
 Photo errors are `IMAGE_INVALID` (400), `IMAGE_TOO_LARGE` (413) and `MENU_IMAGE_NOT_FOUND` (404).
 Account/CSRF errors follow [accounts](accounts-platform.md).
@@ -262,9 +278,10 @@ Sources: [menu DTOs](../../backend/TavoloFlow.Api/Menus/MenuContracts.cs),
 [public reader](../../backend/TavoloFlow.Api/Menus/PublicMenuService.cs).
 
 Tests: [menu integration](../../backend/TavoloFlow.Api.Tests/MenuTests.cs),
+[category-order migration](../../backend/TavoloFlow.Api.Tests/CategoryOrderMigrationTests.cs),
 [option groups](../../backend/TavoloFlow.Api.Tests/MenuOptionTests.cs),
 [tables/bootstrap integration](../../backend/TavoloFlow.Api.Tests/TableAndPublicMenuTests.cs),
 [language](../../frontend/tests/menu-language.test.ts) and
 [public menu/QR](../../frontend/tests/public-menu.test.ts).
-Manually check simultaneous price/availability edits, unknown create results, photo replacement,
+Manually check category sorting and its conflict/unknown-result rereads, simultaneous price/availability edits, unknown create results, photo replacement,
 plain/card PNG downloads, invalid versus offline QR behavior, and 360px forms in every language.

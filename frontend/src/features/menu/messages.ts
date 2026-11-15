@@ -26,6 +26,8 @@ const zh = {
   all: "全部菜品",
   addCategory: "添加分类",
   editCategory: "编辑分类",
+  sortCategories: "分类排序",
+  categoryOrderHint: "上下移动分类，每次调整都会立即保存，并用于顾客菜单。",
   addItem: "添加菜品",
   editItem: "编辑菜品",
   edit: "编辑",
@@ -159,6 +161,9 @@ export const menuMessages: Record<Language, typeof zh> = {
     all: "Tutti i piatti",
     addCategory: "Nuova categoria",
     editCategory: "Modifica categoria",
+    sortCategories: "Ordina categorie",
+    categoryOrderHint:
+      "Sposta le categorie su o giù. Ogni modifica viene salvata subito e applicata ai menu dei clienti.",
     addItem: "Nuovo piatto",
     editItem: "Modifica piatto",
     edit: "Modifica",
@@ -299,6 +304,9 @@ export const menuMessages: Record<Language, typeof zh> = {
     all: "All dishes",
     addCategory: "New category",
     editCategory: "Edit category",
+    sortCategories: "Reorder categories",
+    categoryOrderHint:
+      "Move categories up or down. Each change is saved immediately and used on customer menus.",
     addItem: "New dish",
     editItem: "Edit dish",
     edit: "Edit",

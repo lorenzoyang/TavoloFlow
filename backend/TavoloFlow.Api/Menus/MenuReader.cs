@@ -17,7 +17,8 @@ internal static class MenuReader
         var categories = await context
             .MenuCategories.AsNoTracking()
             .Where(x => x.RestaurantId == restaurantId)
-            .OrderBy(x => x.Id)
+            .OrderBy(x => x.Position)
+            .ThenBy(x => x.Id)
             .ToArrayAsync(ct);
         var items = await context
             .MenuItems.AsNoTracking()
@@ -25,6 +26,9 @@ internal static class MenuReader
             .OrderBy(x => x.CategoryId)
             .ThenBy(x => x.Id)
             .ToArrayAsync(ct);
+        var categoryRank = categories
+            .Select((category, index) => (category.Id, index))
+            .ToDictionary();
         // Each name array follows InputRules.Languages order: zh, it, en. This is a content statistic only;
         // it never restricts the default language or the guest's language choice.
         string?[][] names =
@@ -61,6 +65,7 @@ internal static class MenuReader
             languages,
             categories.Select(CategoryResponse.From).ToArray(),
             items
+                .OrderBy(x => categoryRank[x.CategoryId])
                 .Select(x =>
                     MenuItemResponse.From(x, links[x.Id].OrderBy(id => rank[id]).ToArray())
                 )

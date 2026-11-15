@@ -61,6 +61,9 @@ A closed visit is never reopened.
 
 ### 3. Menu and cart
 
+OWNER can reorder menu categories with up/down controls. Each move is saved immediately and applies
+to the staff menu, QR menu and online menu in every language. New categories appear last.
+
 Guests can always choose Chinese, Italian or English.
 Without an explicit guest choice, use the restaurant's default menu language.
 Missing names follow a documented fallback; descriptions follow the resolved name's language.
