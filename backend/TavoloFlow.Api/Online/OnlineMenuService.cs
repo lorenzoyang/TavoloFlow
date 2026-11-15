@@ -46,4 +46,32 @@ public sealed class OnlineMenuService(ApplicationDbContext db, TimeProvider cloc
             new(menu.AvailableLanguages, menu.Categories, menu.Items, menu.OptionGroups)
         );
     }
+
+    // Checkout's coupon check: the code customers typed, valid today in the restaurant's time zone.
+    // Rate-limited per IP by the controller, so codes are not guessed by trying them all.
+    public async Task<OnlineCouponPreviewResponse> CouponAsync(
+        string slug,
+        string code,
+        CancellationToken ct
+    )
+    {
+        if (!InputRules.IsSlug(slug))
+            throw OnlineErrors.LinkNotFound();
+        var restaurant =
+            await db.Restaurants.AsNoTracking().SingleOrDefaultAsync(r => r.Slug == slug, ct)
+            ?? throw OnlineErrors.LinkNotFound();
+        var normalized = OnlineCoupons.Normalize(code) ?? throw OnlineErrors.CouponNotFound();
+        var coupon = await db
+            .OnlineCoupons.AsNoTracking()
+            .SingleOrDefaultAsync(c => c.RestaurantId == restaurant.Id && c.Code == normalized, ct);
+        var today = DateOnly.FromDateTime(
+            OnlineSchedule.Local(
+                TimeZoneInfo.FindSystemTimeZoneById(restaurant.TimeZone),
+                clock.GetUtcNow()
+            )
+        );
+        return coupon is not null && OnlineCoupons.IsValid(coupon, today)
+            ? new(coupon.Code, coupon.PercentOff)
+            : throw OnlineErrors.CouponNotFound();
+    }
 }

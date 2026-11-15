@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   checkoutProblems,
   clearOrderToken,
+  couponDiscountCents,
   createOnlineIntent,
   deliveryNote,
   emptyOnlineCart,
@@ -46,6 +47,7 @@ const form = {
   phone: "+39 333 123 4567",
   address: "",
   notes: "",
+  coupon: null as { code: string; percentOff: number } | null,
 };
 const delivery = {
   ...form,
@@ -105,6 +107,7 @@ test("the intent sends trimmed contact details and the confirmed lines", () => {
         optionIds: [],
       },
     ],
+    coupon: null,
   });
   throwsIssue(() => createOnlineIntent(emptyOnlineCart(restaurant), form, requestId), "limits");
   throwsIssue(() => createOnlineIntent(filled(), form, "not-a-uuid"), "limits");
@@ -195,7 +198,7 @@ test("a saved cart restores only for its restaurant, with a pending intent match
 
   throwsIssue(() => restoreOnlineCart(saved, "00000000-0000-4000-8000-000000000099"), "damaged");
   throwsIssue(
-    () => restoreOnlineCart(JSON.stringify({ ...cart, version: 2 }), restaurant),
+    () => restoreOnlineCart(JSON.stringify({ ...cart, version: 1 }), restaurant),
     "damaged",
   );
   throwsIssue(() => restoreOnlineCart("{", restaurant), "damaged");
@@ -225,13 +228,20 @@ test("an understood rejection frees the cart; after an unknown result only one t
     "ONLINE_NOT_OFFERED",
     "SERVICE_SUSPENDED",
     "DELIVERY_NOT_OFFERED",
+    "COUPON_INVALID",
     "ONLINE_LINK_NOT_FOUND",
     "CSRF_VALIDATION_FAILED",
     "RATE_LIMITED",
   ])
     assert.equal(submissionFailure(409, code, false), "editable", code);
   // A retry after an unknown result frees the cart only when the rejection proves no request was stored.
-  for (const code of ["MENU_CHANGED", "ONLINE_CLOSED", "ONLINE_BUSY", "SERVICE_SUSPENDED"])
+  for (const code of [
+    "MENU_CHANGED",
+    "ONLINE_CLOSED",
+    "ONLINE_BUSY",
+    "SERVICE_SUSPENDED",
+    "COUPON_INVALID",
+  ])
     assert.equal(submissionFailure(409, code, true), "editable", code);
   for (const code of [
     "VALIDATION_FAILED",
@@ -365,4 +375,41 @@ test("the status page follows the phase, then the session and its dishes", () =>
     assert.equal(statusCopy(value), copy, JSON.stringify(patch));
     assert.equal(orderEnded(value), ended, JSON.stringify(patch));
   }
+});
+
+test("a confirmed coupon travels in the intent and restores only exactly as saved", () => {
+  const coupon = { code: "ESTATE10", percentOff: 10 };
+  const cart = filled();
+  const intent = createOnlineIntent(cart, { ...form, coupon }, requestId);
+  assert.deepEqual(intent.coupon, coupon);
+  const saved = { ...cart, pending: intent };
+  assert.deepEqual(restoreOnlineCart(JSON.stringify(saved), restaurant), saved);
+  // Damaged coupons never restore: one this page would not have confirmed, or a missing field.
+  for (const changed of [
+    { ...intent, coupon: { code: "estate10", percentOff: 10 } },
+    { ...intent, coupon: undefined },
+    { ...intent, coupon: { code: "ESTATE10" } },
+  ])
+    throwsIssue(
+      () => restoreOnlineCart(JSON.stringify({ ...cart, pending: changed }), restaurant),
+      "damaged",
+    );
+  // Only a code the restaurant confirmed (normalized, 1-50 %) can be sent.
+  for (const bad of [
+    { code: "estate10", percentOff: 10 },
+    { code: "ESTATE10", percentOff: 0 },
+    { code: "ESTATE10", percentOff: 51 },
+    { code: "ES", percentOff: 10 },
+  ])
+    throwsIssue(() => createOnlineIntent(cart, { ...form, coupon: bad }, requestId), "limits");
+});
+
+test("the coupon discount rounds down to the cent like the server", () => {
+  assert.equal(couponDiscountCents(2400, 10), 240);
+  assert.equal(couponDiscountCents(1999, 15), 299);
+  assert.equal(couponDiscountCents(1, 50), 0);
+  assert.equal(
+    couponDiscountCents(Number.MAX_SAFE_INTEGER, 50),
+    Math.floor(Number.MAX_SAFE_INTEGER / 2),
+  );
 });

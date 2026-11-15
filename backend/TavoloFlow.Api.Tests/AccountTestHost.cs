@@ -100,8 +100,10 @@ public sealed class AccountTestHost(
                 options.PasswordChangesPerMinute = lowLimits ? 1 : 1000;
             });
             services.Configure<OnlineRateLimitOptions>(options =>
-                options.SubmissionsPerIpPerTenMinutes = lowLimits ? 3 : 1000
-            );
+            {
+                options.SubmissionsPerIpPerTenMinutes = lowLimits ? 3 : 1000;
+                options.CouponChecksPerIpPerTenMinutes = lowLimits ? 3 : 1000;
+            });
             services
                 .AddHttpClient(PushSender.HttpClientName)
                 .ConfigurePrimaryHttpMessageHandler(() => PushService);

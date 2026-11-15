@@ -993,7 +993,8 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
                     "3331234567",
                     null,
                     null,
-                    [new OrderLineInput(shop.Dish.Id, 1, 1200, null, [])]
+                    [new OrderLineInput(shop.Dish.Id, 1, 1200, null, [])],
+                    null
                 ),
                 default
             );

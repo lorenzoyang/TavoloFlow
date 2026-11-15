@@ -66,6 +66,14 @@ public sealed class OnlineOrderStatusService(ApplicationDbContext db, TimeProvid
         )
             throw OnlineErrors.OrderNotFound();
         var restaurant = request.Restaurant;
+        // Before acceptance the coupon applies to the submitted total; the bill takes over afterwards.
+        var coupon = bill is null
+            ? CouponDiscountResponse.For(
+                request.CouponCode,
+                request.CouponPercentOff,
+                request.ItemsTotalCents
+            )
+            : null;
         return new(
             new(
                 restaurant.Id,
@@ -87,8 +95,9 @@ public sealed class OnlineOrderStatusService(ApplicationDbContext db, TimeProvid
             bill?.Status,
             bill?.CloseReason,
             items,
+            coupon,
             bill?.DeliveryFeeCents,
-            bill?.TotalAmountCents ?? request.ItemsTotalCents
+            bill?.TotalAmountCents ?? request.ItemsTotalCents - (coupon?.DiscountCents ?? 0)
         );
     }
 }

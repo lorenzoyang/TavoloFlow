@@ -101,6 +101,18 @@ public static class OnlineErrors
     public static ApiException DeliveryNotOffered() =>
         new(409, "DELIVERY_NOT_OFFERED", "This restaurant doesn't deliver online orders.");
 
+    // Customers: the code doesn't exist, has expired or now has another percentage. The preview answers 404;
+    // a submission answers 409 after its duplicate check, so nothing was stored.
+    public static ApiException CouponNotFound() =>
+        new(404, "COUPON_INVALID", "This coupon code isn't valid at this restaurant today.");
+
+    public static ApiException CouponInvalid() =>
+        new(
+            409,
+            "COUPON_INVALID",
+            "This coupon code isn't valid any more. Remove it and check the total again."
+        );
+
     public static ApiException CouponCodeTaken() =>
         new(409, "COUPON_CODE_TAKEN", "This restaurant already has a coupon with this code.");
 

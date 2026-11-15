@@ -35,6 +35,11 @@ export type OnlineMenu = {
 // The first submission and every repeat or recovery return the same values.
 export type OnlineSubmission = { statusToken: string; number: number; expiresAt: string };
 
+// A coupon valid today at checkout, and the one an order used: discountCents is percentOff of the dishes
+// still charged, rounded down (never the delivery fee). Staff pages and bills read the same shape.
+export type CouponPreview = { code: string; percentOff: number };
+export type CouponDiscount = CouponPreview & { discountCents: number };
+
 export type OnlinePhase = "WAITING" | "EXPIRED" | "REJECTED" | "ACCEPTED";
 export type RejectReason = "SOLD_OUT" | "BUSY" | "CLOSING" | "OUT_OF_RANGE";
 
@@ -68,8 +73,10 @@ export type OnlineOrder = {
     options: OptionSnapshot[];
     status: OrderItemStatus | null;
   })[];
+  coupon: CouponDiscount | null;
   // Set once a delivery is accepted; the total then includes it while any dish counts.
   deliveryFeeCents: number | null;
+  // Already less the coupon.
   totalAmountCents: number;
 };
 
@@ -97,6 +104,12 @@ export const onlineMenuQuery = (slug: string) =>
         throw error;
       }
     },
+  });
+
+// 404 COUPON_INVALID for a code that doesn't exist or no longer works; limited per connection.
+export const readCoupon = (slug: string, code: string, signal: AbortSignal) =>
+  publicRequest<CouponPreview>(`${linkPath(slug)}/coupons/${encodeURIComponent(code)}`, {
+    signal,
   });
 
 export const submitOnlineRequest = (slug: string, intent: OnlineIntent, signal: AbortSignal) =>

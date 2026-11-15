@@ -195,6 +195,17 @@ function OrderContent({
               );
             })}
           </ul>
+          {/* The total already takes the coupon off the dishes still charged. */}
+          {order.coupon && order.coupon.discountCents > 0 && (
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="min-w-0 wrap-break-word">
+                {m.couponApplied(order.coupon.code, order.coupon.percentOff)}
+              </span>
+              <span className="shrink-0 tabular-nums">
+                −{formatMoney(order.coupon.discountCents, language)}
+              </span>
+            </div>
+          )}
           {order.deliveryFeeCents !== null && (
             <div className="flex items-baseline justify-between gap-3">
               <span>{m.deliveryFee}</span>

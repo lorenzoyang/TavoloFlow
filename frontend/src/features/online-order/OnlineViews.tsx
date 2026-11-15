@@ -19,6 +19,7 @@ import { onlineOrderMessages, type OnlineOrderMessage } from "./messages";
 import {
   checkoutProblems,
   clearOrderToken,
+  couponDiscountCents,
   deliveryNote,
   MAX_ADDRESS_LENGTH,
   MAX_DELIVERY_NOTES_LENGTH,
@@ -146,6 +147,7 @@ export function OnlineCartPanel({
 }) {
   const m = onlineOrderMessages[language];
   const [tried, setTried] = useState(false);
+  const [couponText, setCouponText] = useState("");
   const nameRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
   const addressRef = useRef<HTMLInputElement>(null);
@@ -162,6 +164,13 @@ export function OnlineCartPanel({
   const offersDelivery = data.restaurant.deliveryEnabled || form.fulfillment === "DELIVERY";
   const delivery = form.fulfillment === "DELIVERY";
   const note = delivery ? deliveryNote(data.restaurant, language) : null;
+  // The coupon the pending request carries, or the one confirmed for this checkout.
+  const coupon = pending ? pending.coupon : model.review ? form.coupon : null;
+  const itemsCents = lines.length ? totalCents(lines) : 0;
+  const discountCents = coupon ? couponDiscountCents(itemsCents, coupon.percentOff) : 0;
+  function applyCoupon() {
+    void model.applyCoupon(couponText);
+  }
   function place() {
     setTried(true);
     if (problems.length) {
@@ -237,10 +246,30 @@ export function OnlineCartPanel({
         />
       )}
       {lines.length > 0 && (
-        <p className="flex items-baseline justify-between gap-3 border-t pt-4 text-lg font-semibold">
-          <span>{model.review && delivery ? m.itemsTotal : m.total}</span>
-          <span className="text-xl tabular-nums">{formatMoney(totalCents(lines), language)}</span>
-        </p>
+        <div className="space-y-1 border-t pt-4">
+          {coupon && (
+            <>
+              <p className="flex items-baseline justify-between gap-3 text-sm text-muted-foreground">
+                <span>{m.subtotal}</span>
+                <span className="tabular-nums">{formatMoney(itemsCents, language)}</span>
+              </p>
+              <p className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="min-w-0 wrap-break-word">
+                  {m.couponApplied(coupon.code, coupon.percentOff)}
+                </span>
+                <span className="shrink-0 tabular-nums">
+                  −{formatMoney(discountCents, language)}
+                </span>
+              </p>
+            </>
+          )}
+          <p className="flex items-baseline justify-between gap-3 text-lg font-semibold">
+            <span>{model.review && delivery ? m.itemsTotal : m.total}</span>
+            <span className="text-xl tabular-nums">
+              {formatMoney(itemsCents - discountCents, language)}
+            </span>
+          </p>
+        </div>
       )}
       {lines.length > 0 && !pending && model.review && (
         <form
@@ -251,6 +280,59 @@ export function OnlineCartPanel({
             place();
           }}
         >
+          {form.coupon ? (
+            <div className="flex items-center justify-between gap-3 rounded-xl border p-3">
+              <p className="min-w-0 text-sm font-medium wrap-break-word">
+                {m.couponApplied(form.coupon.code, form.coupon.percentOff)}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={model.busy}
+                onClick={() => {
+                  model.removeCoupon();
+                  setCouponText("");
+                }}
+              >
+                {m.removeCoupon}
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="online-coupon">{m.coupon}</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="online-coupon"
+                  className="min-w-0 flex-1"
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                  spellCheck={false}
+                  maxLength={20}
+                  value={couponText}
+                  disabled={model.busy}
+                  aria-describedby="online-coupon-hint"
+                  onChange={(event) => setCouponText(event.target.value.toUpperCase())}
+                  onKeyDown={(event) => {
+                    // Enter applies the code instead of placing the order.
+                    if (event.key !== "Enter") return;
+                    event.preventDefault();
+                    if (couponText.trim()) applyCoupon();
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={model.busy || !couponText.trim()}
+                  onClick={applyCoupon}
+                >
+                  {m.applyCoupon}
+                </Button>
+              </div>
+              <p id="online-coupon-hint" className="text-sm text-muted-foreground">
+                {m.couponHint}
+              </p>
+            </div>
+          )}
           {offersDelivery && (
             <div className="space-y-2">
               <p id="online-fulfillment" className="text-sm font-medium">

@@ -48,6 +48,13 @@ const zh = {
   deliveryNoteTitle: "配送说明",
   feeConfirmed: "配送费以餐厅确认为准，接单后显示在订单页。",
   itemsTotal: "菜品合计",
+  subtotal: "小计",
+  coupon: "优惠码（选填）",
+  couponHint: "填写餐厅分享的优惠码，只减菜品金额，不含配送费。",
+  applyCoupon: "使用",
+  removeCoupon: "移除",
+  couponApplied: (code: string, percent: number) => `优惠码 ${code}（−${percent}%）`,
+  couponInvalid: "这个优惠码不能使用：可能输错了或已过期。请检查后再试，或不用优惠码下单。",
   asap: "订单尽快制作，不能预约时间。餐厅确认后，订单页会显示预计取餐时间。",
   asapDelivery: "订单尽快制作和配送，不能预约时间。餐厅确认后，订单页会显示配送费和预计送达时间。",
   privacyLine: (restaurant: string) =>
@@ -197,6 +204,15 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     feeConfirmed:
       "Il costo di consegna lo conferma il ristorante: lo vedrai nella pagina dell’ordine dopo l’accettazione.",
     itemsTotal: "Totale piatti",
+    subtotal: "Subtotale",
+    coupon: "Codice sconto (facoltativo)",
+    couponHint:
+      "Il codice condiviso dal ristorante: lo sconto vale sui piatti, non sulla consegna.",
+    applyCoupon: "Applica",
+    removeCoupon: "Rimuovi",
+    couponApplied: (code, percent) => `Codice ${code} (−${percent}%)`,
+    couponInvalid:
+      "Questo codice sconto non si può usare: forse è sbagliato o scaduto. Controllalo, oppure ordina senza codice.",
     asap: "Prepariamo l’ordine appena possibile, senza orari su prenotazione. Dopo la conferma, la pagina dell’ordine mostra l’orario previsto per il ritiro.",
     asapDelivery:
       "Prepariamo e consegniamo l’ordine appena possibile, senza orari su prenotazione. Dopo la conferma, la pagina dell’ordine mostra il costo di consegna e l’orario previsto.",
@@ -349,6 +365,15 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     feeConfirmed:
       "The restaurant confirms the delivery fee; you’ll see it on the order page once accepted.",
     itemsTotal: "Items total",
+    subtotal: "Subtotal",
+    coupon: "Coupon code (optional)",
+    couponHint:
+      "A code shared by the restaurant: it takes money off the dishes, not the delivery fee.",
+    applyCoupon: "Apply",
+    removeCoupon: "Remove",
+    couponApplied: (code, percent) => `Coupon ${code} (−${percent}%)`,
+    couponInvalid:
+      "This coupon code can’t be used: it may be mistyped or expired. Check it, or order without a code.",
     asap: "Orders are made as soon as possible; you can’t book a time. Once the restaurant confirms, the order page shows when to collect.",
     asapDelivery:
       "Orders are made and delivered as soon as possible; you can’t book a time. Once the restaurant confirms, the order page shows the delivery fee and expected time.",
@@ -467,6 +492,7 @@ export type OnlineOrderMessage =
   | "invalid"
   | "csrf"
   | "rateLimited"
+  | "couponInvalid"
   | "notFound"
   | "offline"
   | "generic"
@@ -493,5 +519,6 @@ export const onlineOrderError = (code: string): OnlineOrderMessage =>
       CSRF_VALIDATION_FAILED: "csrf",
       RATE_LIMITED: "rateLimited",
       ONLINE_REQUEST_NOT_FOUND: "notFound",
+      COUPON_INVALID: "couponInvalid",
     }) as Record<string, OnlineOrderMessage>
   )[code] ?? "generic";

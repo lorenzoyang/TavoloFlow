@@ -172,6 +172,7 @@ cookie is present, both CSRF issuance and submission use that identity; no Guest
 | Method and path                                                    | Result                                        |
 | ------------------------------------------------------------------ | --------------------------------------------- |
 | `GET /api/public/r/{slug}/bootstrap`                               | Restaurant, status, `nextOpensAt`, menu       |
+| `GET /api/public/r/{slug}/coupons/{code}`                          | `{ code, percentOff }`, or 404 `COUPON_INVALID` |
 | `POST /api/public/r/{slug}/requests`                               | 201 first time, 200 repeat: submission result |
 | `GET /api/public/r/{slug}/requests/by-client-id/{clientRequestId}` | Submission result, or 404 "not found yet"     |
 | `GET /api/public/online-orders/{token}`                            | Status page                                   |
@@ -182,12 +183,20 @@ deliveryEnabled, deliveryNoteZh, deliveryNoteIt, deliveryNoteEn }`, `status`, `n
 same `menu` as the QR bootstrap; the menu is shown in every status.
 An invalid or unknown slug is `ONLINE_LINK_NOT_FOUND` (404).
 
+The coupon check trims and uppercases the typed code and answers `{ code, percentOff }` when the
+restaurant has it and its `valid_until` has not passed in the restaurant's local date; otherwise
+(unknown, expired, another restaurant's, or not a code at all) `COUPON_INVALID` (404). It is limited to
+30 checks per IP address per ten minutes (`OnlineRateLimits:CouponChecksPerIpPerTenMinutes`,
+`RATE_LIMITED`), so codes cannot be guessed by trying them all.
+
 The submission body is `{ clientRequestId, fulfillment, customerName, customerPhone, deliveryAddress?,
-deliveryNotes?, items }`, unknown fields rejected; `items` uses the QR order line format and the shared
+deliveryNotes?, items, coupon? }`, unknown fields rejected; `items` uses the QR order line format and the shared
 `OrderLines` checks (1–30 lines, 1–20 portions each, 100 in all, 200-character remarks, `optionIds`
 required). The name is trimmed to 1–30 characters and the phone follows `InputRules.NormalizePhone`.
 Pickup takes no address; delivery needs a trimmed address of 1–200 characters and takes optional
-notes (doorbell, floor) of up to 100. The server then:
+notes (doorbell, floor) of up to 100. `coupon` is null or `{ code, percentOff }`: the code the coupon
+check confirmed and the percentage the customer saw, both required (a malformed one is
+`VALIDATION_FAILED`). The server then:
 
 1. Validates the format (`VALIDATION_FAILED`) before any write.
 2. Finds the restaurant by slug and locks it SHARE, rechecking the slug.
@@ -201,10 +210,15 @@ notes (doorbell, floor) of up to 100. The server then:
 5. Requires `OPEN`: `SERVICE_SUSPENDED`, `ONLINE_NOT_OFFERED`, `ONLINE_PAUSED`, `ONLINE_CLOSED` (with
    `nextOpensAt` when the week has a slot) or `ONLINE_BUSY` (all 409). A delivery request also needs
    the restaurant's delivery switch, otherwise `DELIVERY_NOT_OFFERED` (409); pickup never depends on it.
+   A coupon must exist, still be valid on the business date read in step 3 and have the sent
+   percentage, otherwise `COUPON_INVALID` (409): a coupon deleted and created again with another
+   percentage is refused, never applied silently. Coupon writes take restaurant UPDATE, so the SHARE
+   lock from step 2 sees each coupon whole or not at all.
 6. Checks dishes, options, availability and prices like QR orders (`MENU_CHANGED` with `changes`) and
    builds the line snapshots.
-7. Inserts the request with a random 32-byte Base64URL status token and `expires_at` ten minutes after
-   submission, and returns `{ statusToken, number, expiresAt }`.
+7. Inserts the request with a random 32-byte Base64URL status token, `expires_at` ten minutes after
+   submission and the coupon's code and percentage, and returns `{ statusToken, number, expiresAt }`.
+   Acceptance never checks the coupon again: the customer was promised that total.
 8. In the same transaction, clears the name, phone, address and notes of the restaurant's requests
    submitted more than 30 days before this one (`OnlineRequestService.ContactRetention`), reading only
    uncleared rows through `ix_online_requests_contact`. The lines stay. There is no background job: a
@@ -222,9 +236,10 @@ The status page reads one Repeatable Read snapshot by token (`ONLINE_ORDER_NOT_F
 unknown token). It returns `restaurant { name, slug, currencyCode, defaultLanguage, theme, publicPhone
 }`, `number`, `customerName`, `fulfillment`, `submittedAt`, `expiresAt`, `phase` (`WAITING`, `EXPIRED`,
 `REJECTED` or `ACCEPTED`, from `OnlineRequestState`), `rejectReason`, `estimatedAt`, `sessionStatus` and
-`closeReason` once accepted, `items`, `deliveryFeeCents` (once a delivery is accepted) and
-`totalAmountCents`. Before acceptance the items are the submitted snapshot (`status` null) and the
-total is the submitted item total; after acceptance they are the order items with their status and the
+`closeReason` once accepted, `items`, `coupon` (`{ code, percentOff, discountCents }` or null),
+`deliveryFeeCents` (once a delivery is accepted) and `totalAmountCents`. Before acceptance the items are
+the submitted snapshot (`status` null) and the total is the submitted item total less the coupon's
+discount (`OnlineCoupons.DiscountCents`, rounded down); after acceptance they are the order items with their status and the
 total is the session's bill amount (`SessionSummaries`, with the fee while any dish counts). It
 never returns the customer's phone, an address or any request or session ID. From 24 hours after the
 order ended (`OnlineOrderStatusService.LinkLifetime`) the link returns `ONLINE_ORDER_NOT_FOUND`: the
@@ -261,11 +276,16 @@ explained by a text-only notice below it and keeps the checkout closed; browsing
 stay possible. A remembered order still in
 progress shows "you have an order in progress" with a link to its status page.
 
-The cart lives in `sessionStorage` under `tavoloflow:cart:{restaurantId}:online` (version 1, separate
-from every QR cart), with the QR cart's limits. Checkout is two steps: "Checkout" rereads the bootstrap,
+The cart lives in `sessionStorage` under `tavoloflow:cart:{restaurantId}:online` (version 2: lines
+carry the dish's sale price and the pending intent its coupon; separate from every QR cart, other
+versions discarded as damaged), with the QR cart's limits. Checkout is two steps: "Checkout" rereads the bootstrap,
 requires `OPEN` and refreshes the lines' prices and choices; the confirmation then shows the lines,
-total, name and phone fields (validated like the server), the as-soon-as-possible note and a one-line
-privacy notice linking to the privacy page. With delivery on, the header says "pickup or delivery" and
+total, an optional coupon field, name and phone fields (validated like the server), the
+as-soon-as-possible note and a one-line privacy notice linking to the privacy page. "Apply" (or Enter
+in the field, which never places the order) trims and uppercases the code, asks the coupon check and,
+on success, keeps `{ code, percentOff }` in the checkout form: the totals then show the subtotal, the
+coupon line with its discount (`couponDiscountCents`, rounded down like the server) and the discounted
+total, and "Remove" drops it. An unusable code says so without touching the cart. With delivery on, the header says "pickup or delivery" and
 the confirmation starts with a pickup/delivery choice; delivery adds the address and the optional
 doorbell/floor notes, the restaurant's note in the customer's language (falling back to the default
 language, then Italian, Chinese and English; `deliveryNote` in `state.ts`) and a line saying the
@@ -274,7 +294,8 @@ as the items total, and the privacy line also names the address. If "Checkout" f
 off since the customer chose it, the form goes back to pickup and says so; a `DELIVERY_NOT_OFFERED`
 refusal says the restaurant isn't delivering and pickup is possible. Placing the order builds the
 intent (request ID from `randomUuid`, fulfillment, trimmed name, normalized phone, trimmed address and
-notes for delivery and null for pickup, lines with confirmed prices), writes it into the cart and reads
+notes for delivery and null for pickup, lines with confirmed prices, the confirmed coupon or null),
+writes it into the cart and reads
 it back before the POST; blocked storage allows editing but not sending. A saved intent must match its
 frozen lines and fields exactly or the cart is reported damaged.
 
@@ -286,15 +307,18 @@ restaurant's phone. A lost or failed response keeps the intent pending: the page
 offers "check the result", "retry the same order" (the identical saved request with a fresh CSRF token)
 and the phone. After an unknown result, a retry frees the intent only when it is rejected with a code
 the server returns after its duplicate check (`SERVICE_SUSPENDED`, `ONLINE_NOT_OFFERED`,
-`ONLINE_PAUSED`, `ONLINE_CLOSED`, `ONLINE_BUSY`, `DELIVERY_NOT_OFFERED`, `MENU_CHANGED`): that check
+`ONLINE_PAUSED`, `ONLINE_CLOSED`, `ONLINE_BUSY`, `DELIVERY_NOT_OFFERED`, `COUPON_INVALID`,
+`MENU_CHANGED`): that check
 runs inside the transaction holding the restaurant's cross-day submission lock and the day's counter
 row, so such a rejection proves no request with
 that ID was stored. Format, link, CSRF and rate-limit rejections come earlier and keep the intent
-(`submissionFailure` in `state.ts`). Leaving the foreground or going offline cancels the request in
+(`submissionFailure` in `state.ts`). A `COUPON_INVALID` refusal also drops the coupon from the form, so
+the next checkout shows the full total. Leaving the foreground or going offline cancels the request in
 flight.
 
 The status page shows the number, the customer's name, the submission and estimated times, the dishes
-(cancelled ones struck through and not charged) and the total. Its status card puts each state's icon
+(cancelled ones struck through and not charged), the coupon line while it takes something off, and the
+total. Its status card puts each state's icon
 beside the status line (state colours, with the restaurant's accent while the order is prepared) and,
 once accepted, the estimated time in large type on its own. `state.ts` derives what it says from
 `phase`, `sessionStatus`, `closeReason` and the dish statuses (`orderView`, `statusCopy`): waiting,
@@ -539,7 +563,10 @@ discarded.
   and switching online ordering off (`LockGate`).
 - `OnlineCouponTests`: OWNER-only coupon creation (normalized codes, per-restaurant uniqueness,
   validation, the inclusive last day in the restaurant's zone), idempotent deletion scoped to the
-  restaurant, the 50-coupon limit, `ONLINE_NOT_OFFERED` and the coupon check constraints.
+  restaurant, the 50-coupon limit, `ONLINE_NOT_OFFERED` and the coupon check constraints; the coupon
+  check (case-insensitive, per restaurant, expiry, rate limit); submissions snapshotting the coupon, the
+  status page discount, a repeat answered after the coupon's deletion, and `COUPON_INVALID` for unknown,
+  expired or re-created codes without using a number.
 - `OnlineSettingsTests`: OWNER-only phone, hours and delivery (trimmed notes, blank as null, 500
   characters, notes kept when off), validation, whole-week replacement, both pauses
   lapsing with `TestClock.Set`, `ONLINE_CLOSED`, `ONLINE_NOT_OFFERED`, `SUSPENDED`, the database
