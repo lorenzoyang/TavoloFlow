@@ -126,7 +126,7 @@ const zh = {
   serviceDineIn: "扫码堂食",
   serviceDineInHint: "顾客在桌上扫码点餐；员工端有大厅和桌台。",
   serviceOnline: "线上点单",
-  serviceOnlineHint: "顾客通过餐厅的线上链接点餐，到店自取；需要线上链接。",
+  serviceOnlineHint: "顾客通过餐厅的线上链接点餐，到店自取或由餐厅配送；需要线上链接。",
   slugField: "线上链接 /r/…（开通线上点单时必填）",
   slugHint: "3–40 个小写字母、数字或连字符，不能以连字符开头或结尾。",
   slugInvalid: "线上链接格式不对：3–40 个小写字母、数字或连字符，不能以连字符开头或结尾。",
@@ -296,7 +296,7 @@ export const platformMessages: Record<Language, typeof zh> = {
       "I clienti ordinano scansionando il QR al tavolo; lo staff ha Sala e Tavoli.",
     serviceOnline: "Ordini online",
     serviceOnlineHint:
-      "I clienti ordinano dal link online del ristorante e ritirano in negozio; serve il link.",
+      "I clienti ordinano dal link online del ristorante, con ritiro in negozio o consegna del ristorante; serve il link.",
     slugField: "Link online /r/… (obbligatorio con gli ordini online)",
     slugHint: "3–40 lettere minuscole, cifre o trattini, senza trattino all’inizio o alla fine.",
     slugInvalid:
@@ -465,7 +465,7 @@ export const platformMessages: Record<Language, typeof zh> = {
       "Guests order by scanning the QR code at their table; staff get Floor and Tables.",
     serviceOnline: "Online ordering",
     serviceOnlineHint:
-      "Customers order from the restaurant’s online link and collect in store; needs the link.",
+      "Customers order from the restaurant’s online link, for pickup or the restaurant’s own delivery; needs the link.",
     slugField: "Online link /r/… (required with online ordering)",
     slugHint: "3–40 lowercase letters, digits or hyphens, not starting or ending with a hyphen.",
     slugInvalid:
