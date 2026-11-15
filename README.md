@@ -55,9 +55,19 @@ kitchen, the pass and the bill.
 
 ![Guest menu, option picker and cart on a phone](docs/images/guest-en.webp)
 
-**Staff and owner**: Floor, Pass, Bill and dish editing on a tablet.
+**One online order, start to finish** (about 20 seconds): a customer orders a delivery from the
+restaurant's link, staff accept it with the fee and a time, then the kitchen, the pass and the bill.
 
-![Floor, Pass, Bill and dish editing on a tablet](docs/images/staff-en.webp)
+![An online delivery: the customer orders, staff accept it, kitchen, pass and bill](docs/images/walkthrough-online-en.webp)
+
+**Online customers**: the restaurant's online menu, checkout with pickup or delivery, and the order
+status page.
+
+![Online menu, delivery checkout and order status on a phone](docs/images/online-en.webp)
+
+**Staff and owner**: Online orders, Pass, Bill and dish editing on a tablet.
+
+![Online orders, Pass, Bill and dish editing on a tablet](docs/images/staff-en.webp)
 
 **Themes**: five colour presets, chosen per restaurant by the platform administrator.
 

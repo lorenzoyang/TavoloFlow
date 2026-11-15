@@ -58,9 +58,19 @@ cucina, pass e conto.
 
 ![Menu, opzioni del piatto e carrello su un telefono](docs/images/guest-it.webp)
 
-**Staff e titolare**: Sala, Pass, Conto e modifica di un piatto su un tablet.
+**Un ordine online dall'inizio alla fine** (circa 20 secondi): un cliente ordina una consegna dal link
+del ristorante, lo staff la accetta con il costo di consegna e un orario, poi cucina, pass e conto.
 
-![Sala, Pass, Conto e modifica di un piatto su un tablet](docs/images/staff-it.webp)
+![Una consegna online: il cliente ordina, lo staff accetta, cucina, pass e conto](docs/images/walkthrough-online-it.webp)
+
+**Clienti online**: il menu online del ristorante, la conferma con ritiro o consegna e la pagina dello
+stato dell'ordine.
+
+![Menu online, conferma con consegna e stato dell'ordine su un telefono](docs/images/online-it.webp)
+
+**Staff e titolare**: Ordini online, Pass, Conto e modifica di un piatto su un tablet.
+
+![Ordini online, Pass, Conto e modifica di un piatto su un tablet](docs/images/staff-it.webp)
 
 **Temi**: cinque palette di colori, scelte per ogni ristorante dall'amministratore della piattaforma.
 
