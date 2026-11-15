@@ -27,23 +27,25 @@ registratore di cassa.
   nella visita del tavolo con un codice di quattro caratteri e ordinano tutte le volte che vogliono
   durante il pasto.
 - **I clienti online** ordinano dal link del ristorante, per il ritiro o, se il ristorante consegna,
-  per la consegna. Pagano al ritiro o alla consegna e seguono l'ordine da una pagina di stato.
+  per la consegna. Possono inserire il codice sconto del ristorante per una percentuale di sconto sui
+  piatti, pagano al ritiro o alla consegna e seguono l'ordine da una pagina di stato.
 - **Lo staff** apre i tavoli in Sala, segue gli ordini in Cucina (raggruppati per piatto o per ordine,
   con un avviso sonoro e le categorie filtrate per schermo) e segna i piatti serviti dal Pass. Accetta
   o rifiuta gli ordini online, scegliendo il tempo previsto e, per la consegna, il costo; finché ci sono
   ordini da accettare un banner suona in ogni pagina dello staff, e i dispositivi che le attivano
   ricevono anche le notifiche a schermo bloccato.
 - **Il titolare** gestisce il menu, con opzioni condivise come formato, zucchero, topping o
-  piccantezza che possono avere un supplemento, e i tavoli, scarica i QR e i segnatavolo da stampare,
-  chiude il conto dopo l'incasso e consulta lo storico dei conti. Per gli ordini online imposta
-  telefono, orari e note sulla consegna, corregge il costo di consegna e chiude gli ordini ritirati o
-  consegnati.
+  piccantezza che possono avere un supplemento, e i prezzi scontati che ogni menu mostra accanto al
+  prezzo pieno barrato, e i tavoli, scarica i QR e i segnatavolo da stampare, chiude il conto dopo
+  l'incasso e consulta lo storico dei conti. Per gli ordini online imposta telefono, orari e note sulla
+  consegna, crea i codici sconto (una percentuale, con un ultimo giorno facoltativo), corregge il costo
+  di consegna e chiude gli ordini ritirati o consegnati.
 - **L'amministratore della piattaforma** crea i ristoranti e i loro account, sceglie il tema di colori
   di ogni ristorante, attiva per ognuno l'ordinazione al tavolo con QR e gli ordini online con il loro
   link, e registra i periodi di abbonamento e le tariffe pagate fuori dall'app.
 
-Non ci sono stampa delle comande, pagamenti online, divisione del conto, gestione del magazzino né
-piattaforme di consegna esterne, e il cliente non può prenotare un orario di ritiro o di consegna. I
+Non ci sono stampa delle comande, pagamenti online, divisione del conto, gestione del magazzino,
+programmi fedeltà né piattaforme di consegna esterne, e il cliente non può prenotare un orario di ritiro o di consegna. I
 [requisiti del prodotto](docs/reference/product-requirements.md), in inglese, descrivono tutto il
 perimetro.
 

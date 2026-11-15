@@ -25,23 +25,25 @@ online orders. The app does not process online payments and does not replace a f
 - **Guests** scan the table's fixed QR code, browse the menu with photos and allergens, join the
   table's visit with a four-character code, and order as many times as they like during the meal.
 - **Online customers** order from the restaurant's own link for pickup or, where the restaurant
-  delivers, delivery. They pay on collection or delivery and follow the order on a status page.
+  delivers, delivery. They can enter the restaurant's coupon code for a percentage off the dishes, pay
+  on collection or delivery and follow the order on a status page.
 - **Staff** open tables on the Floor, follow orders in the Kitchen (grouped by dish or by order, with
   an alert sound and per-screen category filters), and mark dishes served on the Pass screen. They
   accept or reject online orders, choosing the estimated time and, for delivery, the fee; a banner
   rings on every staff page while orders wait, and devices that turn them on also get lock-screen
   notifications.
 - **Owners** manage the menu, with shared options such as drink sizes, sugar, toppings or spice
-  levels that can add to the price, and the tables, download QR codes and printable table cards, close
-  the bill after payment and browse the bill history. For online ordering they set the public phone,
-  the weekly hours and the delivery notes, correct a delivery fee and close collected or delivered
-  orders.
+  levels that can add to the price, and sale prices that every menu shows beside the struck-through
+  regular price, and the tables, download QR codes and printable table cards, close the bill after
+  payment and browse the bill history. For online ordering they set the public phone, the weekly hours
+  and the delivery notes, create coupon codes (a percentage off, with an optional last day), correct a
+  delivery fee and close collected or delivered orders.
 - **Platform administrators** create restaurants and their accounts, choose each restaurant's color
   theme, turn QR dine-in and online ordering on for each restaurant with its online link, and record
   service periods and annual fees paid offline.
 
-There are no order printers, online payments, split bills, stock management or third-party delivery
-platforms, and customers cannot book a pickup or delivery time. The
+There are no order printers, online payments, split bills, stock management, loyalty programmes or
+third-party delivery platforms, and customers cannot book a pickup or delivery time. The
 [product requirements](docs/reference/product-requirements.md) describe the full scope.
 
 ## Screenshots

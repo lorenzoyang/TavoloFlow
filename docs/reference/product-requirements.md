@@ -83,6 +83,16 @@ required group themselves (nothing is preselected); the chosen options are snaps
 line and their prices are included in its unit price. Rules between options, several portions of one
 option, per-dish prices inside a shared group and combos are out of scope.
 
+OWNER can put a dish on sale with an optional sale price below its price. Every menu (staff, QR and
+online) shows the regular price struck through beside it, and orders charge the sale price plus the
+full option prices. A sale has no schedule: clearing the sale price ends it.
+
+For online orders only, OWNER can create coupon codes: a whole percentage (1–50%) off the dishes, never
+the delivery fee, usable any number of times until an optional last day or deletion. Customers apply a
+code at checkout and see the discounted total; the bill keeps the discount in proportion when dishes
+are cancelled, and staff repeat it on the till that issues the receipt (see
+[online ordering](online-ordering.md#coupons)).
+
 Carts are private to a browser tab and table, with the observed visit attached.
 A draft made before opening requires explicit confirmation of its first visit.
 Drafts from an ended visit never migrate into the next visit.
@@ -169,7 +179,8 @@ Permanent deletion requires a suspended restaurant and removes all its tenant da
 
 Online payments/refunds, fiscal receipts, order printers, stock, third-party delivery platforms,
 distance-based delivery fees, reservations,
-membership, all-you-can-eat rules, discounts, split bills and sales reports are outside this MVP.
+membership and loyalty schemes, fixed-amount, per-customer or dine-in coupons, scheduled sales,
+all-you-can-eat rules, split bills and sales reports are outside this MVP.
 There is no shared cart, WebSocket delivery or offline business operation queue; push notifications
 exist only as best-effort reminders of new online orders.
 There is no QR/code rotation, device-specific grant revocation, menu publishing workflow,
