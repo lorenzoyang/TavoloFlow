@@ -121,7 +121,7 @@ export function AllergenChecks({
       {menu.allergens.map((option) => (
         <label
           key={option.code}
-          className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm transition-colors has-data-checked:border-primary/40 has-data-checked:bg-accent"
+          className="flex min-h-11 min-w-0 cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm transition-colors has-data-checked:border-primary/40 has-data-checked:bg-accent"
         >
           <Checkbox
             className="mt-0.5"
@@ -321,7 +321,7 @@ export function ItemForm({
             {menu.optionGroups.map((group) => (
               <label
                 key={group.id}
-                className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm transition-colors has-data-checked:border-primary/40 has-data-checked:bg-accent"
+                className="flex min-h-11 min-w-0 cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm transition-colors has-data-checked:border-primary/40 has-data-checked:bg-accent"
               >
                 <Checkbox
                   className="mt-0.5"
@@ -336,7 +336,7 @@ export function ItemForm({
                   <span className="font-medium wrap-break-word">
                     {displayName(group, menu.defaultLanguage, language).text}
                   </span>
-                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                  <span className="mt-1 block text-xs leading-5 wrap-break-word text-muted-foreground">
                     {m.rule(group.minSelect, group.maxSelect)} ·{" "}
                     {optionPreview(group, menu, language)}
                   </span>

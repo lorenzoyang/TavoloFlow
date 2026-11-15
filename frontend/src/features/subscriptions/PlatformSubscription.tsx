@@ -188,7 +188,7 @@ export function PlatformSubscription({
           <SubscriptionStatus summary={summary} />
           <dl className="grid gap-x-4 gap-y-2 border-t pt-4 text-sm sm:grid-cols-[10rem_1fr]">
             <dt className="text-muted-foreground">{m.ownerContact}</dt>
-            <dd className="font-medium whitespace-pre-wrap wrap-break-word">
+            <dd className="min-w-0 font-medium whitespace-pre-wrap wrap-break-word">
               {summary.ownerContact || m.notRegistered}
             </dd>
             <dt className="text-muted-foreground">{m.defaultFee}</dt>

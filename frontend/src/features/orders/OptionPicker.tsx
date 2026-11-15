@@ -100,7 +100,7 @@ function Choices({
           const chosen = inGroup(group);
           const heading = (
             <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <span lang={groupName.language} className="font-semibold wrap-break-word">
+              <span lang={groupName.language} className="min-w-0 font-semibold wrap-break-word">
                 {groupName.text}
               </span>
               <span
@@ -185,9 +185,12 @@ function Choices({
           disabled={disabled || missing.length > 0}
           onClick={() => add(item, selected)}
         >
-          {missing.length > 0
-            ? m.chooseGroups(missing.map((group) => label(group).text).join(" · "))
-            : m.addFor(formatMoney(price, language))}
+          {/* Group names are restaurant text and may be one long word. */}
+          <span className="min-w-0 wrap-break-word">
+            {missing.length > 0
+              ? m.chooseGroups(missing.map((group) => label(group).text).join(" · "))
+              : m.addFor(formatMoney(price, language))}
+          </span>
         </Button>
       </div>
     </>
@@ -213,7 +216,7 @@ function OptionRow({
   return (
     <label
       className={cn(
-        "flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm transition-colors has-data-checked:border-primary/40 has-data-checked:bg-accent",
+        "flex min-h-11 min-w-0 cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm transition-colors has-data-checked:border-primary/40 has-data-checked:bg-accent",
         dimmed && "cursor-not-allowed text-muted-foreground",
       )}
     >

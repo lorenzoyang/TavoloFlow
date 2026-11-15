@@ -158,6 +158,11 @@
   body {
     @apply bg-background text-foreground antialiased;
   }
+  /* Browsers give fieldsets min-width: min-content, so one long word typed by a restaurant or a
+     customer would widen the whole form or sheet instead of wrapping. */
+  fieldset {
+    min-width: 0;
+  }
   @media (prefers-reduced-motion: reduce) {
     *,
     ::before,

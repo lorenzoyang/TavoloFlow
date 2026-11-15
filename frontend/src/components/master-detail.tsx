@@ -45,7 +45,7 @@ export function MasterDetail({
             className="sticky top-6 max-h-[calc(100dvh-3rem)] overflow-y-auto rounded-2xl border bg-card p-5 shadow-xs"
           >
             <div className="mb-4 flex items-start justify-between gap-3">
-              <h2 className="text-lg font-semibold wrap-break-word">{title}</h2>
+              <h2 className="min-w-0 text-lg font-semibold wrap-break-word">{title}</h2>
               <Button
                 variant="ghost"
                 size="icon"
@@ -77,7 +77,9 @@ export function MasterDetail({
           className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-lg"
         >
           <SheetHeader className="flex-row items-start justify-between gap-3 border-b pt-[max(1rem,env(safe-area-inset-top))]">
-            <SheetTitle className="text-lg font-semibold wrap-break-word">{title}</SheetTitle>
+            <SheetTitle className="min-w-0 text-lg font-semibold wrap-break-word">
+              {title}
+            </SheetTitle>
             <SheetClose
               ref={close}
               render={

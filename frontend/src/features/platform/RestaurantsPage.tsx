@@ -350,7 +350,7 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
         {query.data?.items.map((r) => (
           <article
             key={r.id}
-            className="flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-xs"
+            className="flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4 shadow-xs"
           >
             <h2 className="text-lg font-semibold wrap-break-word">{r.name}</h2>
             <div className="flex flex-wrap gap-2">
@@ -370,7 +370,7 @@ function Restaurants({ account }: { account: PlatformIdentity }) {
                 params={{ restaurantId: r.id }}
                 className={buttonVariants({ variant: "outline", className: "flex-1" })}
               >
-                {m.manage(r.name)}
+                <span className="min-w-0 wrap-break-word">{m.manage(r.name)}</span>
               </Link>
               {r.googleMapsUrl && <MapLink url={r.googleMapsUrl} name={r.name} />}
             </div>

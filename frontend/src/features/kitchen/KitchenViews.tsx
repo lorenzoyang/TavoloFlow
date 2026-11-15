@@ -109,7 +109,7 @@ export function DishCard({ group, controls }: { group: DishGroup; controls: Line
   const first = group.lines[0];
   const name = displayName(first.line, first.order.defaultLanguage, language);
   return (
-    <article className="flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-xs">
+    <article className="flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4 shadow-xs">
       {/* The total keeps its own column, so a long name never pushes it onto a line of its own. */}
       <header className="space-y-2">
         <h2 className="flex items-start justify-between gap-3 text-2xl font-bold">

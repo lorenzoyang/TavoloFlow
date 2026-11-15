@@ -203,7 +203,7 @@ function ActiveCard({ order }: { order: OnlineActiveOrder }) {
   const m = onlineOrdersMessages[language];
   const progress = activeProgress(order);
   return (
-    <article className="space-y-2 rounded-2xl border bg-card p-4 shadow-xs">
+    <article className="min-w-0 space-y-2 rounded-2xl border bg-card p-4 shadow-xs">
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="flex items-center gap-2 text-xl font-bold">

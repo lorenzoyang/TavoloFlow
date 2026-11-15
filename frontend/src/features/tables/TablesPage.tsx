@@ -192,12 +192,14 @@ function TablesContent({ account }: { account: CurrentAccount }) {
             <article
               key={table.id}
               className={cn(
-                "flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-xs",
+                "flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4 shadow-xs",
                 !table.isEnabled && "border-dashed bg-muted/60",
               )}
             >
               <div className="flex items-start justify-between gap-3">
-                <h2 className="text-xl font-semibold wrap-break-word">{table.tableLabel}</h2>
+                <h2 className="min-w-0 text-xl font-semibold wrap-break-word">
+                  {table.tableLabel}
+                </h2>
                 <Badge variant={table.activeSessionId ? "default" : "outline"}>
                   {table.activeSessionId ? m.dining : m.free}
                 </Badge>

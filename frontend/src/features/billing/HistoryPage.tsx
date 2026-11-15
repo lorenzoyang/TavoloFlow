@@ -181,7 +181,7 @@ function HistoryContent({ account, search, navigate }: Props & { account: Curren
             >
               <span className="min-w-0 flex-1 space-y-1">
                 <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-lg font-semibold wrap-break-word">
+                  <span className="min-w-0 text-lg font-semibold wrap-break-word">
                     {sessionTitle(row, language)}
                   </span>
                   <Badge variant={closeBadges[row.closeReason!]}>

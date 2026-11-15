@@ -42,7 +42,7 @@ export function OptionGroups({
         return (
           <li
             key={group.id}
-            className="flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-xs"
+            className="flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4 shadow-xs"
           >
             <div className="space-y-1">
               <h3 className="font-semibold wrap-break-word">{name}</h3>

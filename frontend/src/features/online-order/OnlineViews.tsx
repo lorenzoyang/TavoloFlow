@@ -390,7 +390,7 @@ export function OnlineCartPanel({
               {m.back}
             </Button>
           </div>
-          <p className="text-xs leading-5 text-muted-foreground">
+          <p className="text-xs leading-5 wrap-break-word text-muted-foreground">
             {(delivery ? m.privacyLineDelivery : m.privacyLine)(data.restaurant.name)}{" "}
             <Link to="/r/$slug/privacy" params={{ slug }} className="underline">
               {m.privacy}

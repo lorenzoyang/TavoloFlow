@@ -44,7 +44,7 @@ function PrivacyContent({ slug, data }: { slug: string; data: OnlineMenu }) {
         {m.privacySections(data.restaurant.name, data.restaurant.publicPhone).map((section) => (
           <section key={section.heading} className="space-y-2">
             <h3 className="font-semibold">{section.heading}</h3>
-            <p className="leading-7">{section.body}</p>
+            <p className="leading-7 wrap-break-word">{section.body}</p>
           </section>
         ))}
         <footer className="border-t pt-5">

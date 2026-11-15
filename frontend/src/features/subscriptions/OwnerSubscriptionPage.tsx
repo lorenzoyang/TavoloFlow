@@ -58,7 +58,7 @@ function OwnerSubscription({ account }: { account: CurrentAccount }) {
                     : formatMoney(summary.defaultAnnualFeeCents, language)}
                 </dd>
                 <dt className="text-muted-foreground">{m.contact}</dt>
-                <dd className="font-medium whitespace-pre-wrap wrap-break-word">
+                <dd className="min-w-0 font-medium whitespace-pre-wrap wrap-break-word">
                   {summary.ownerContact || m.notRegistered}
                 </dd>
               </dl>

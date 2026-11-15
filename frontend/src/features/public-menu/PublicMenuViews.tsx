@@ -180,7 +180,7 @@ function DishRow({
     </Button>
   );
   return (
-    <li className="flex gap-3 rounded-2xl border bg-card p-4 shadow-xs">
+    <li className="flex min-w-0 gap-3 rounded-2xl border bg-card p-4 shadow-xs">
       <div className="min-w-0 flex-1 space-y-1.5">
         {item.itemCode && (
           <p className="text-xs text-muted-foreground wrap-break-word">{item.itemCode}</p>

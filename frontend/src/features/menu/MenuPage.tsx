@@ -289,7 +289,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
             />
             {selected && owner && (
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-lg font-semibold wrap-break-word">
+                <h2 className="min-w-0 text-lg font-semibold wrap-break-word">
                   {displayName(selected, menu.defaultLanguage, language).text}
                 </h2>
                 <div className="flex flex-wrap gap-2">
