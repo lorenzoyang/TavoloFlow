@@ -31,6 +31,7 @@ import {
   createOnlineIntent,
   emptyCheckoutForm,
   emptyOnlineCart,
+  onlineCartAmounts,
   onlineCartKey,
   restoreOnlineCart,
   saveOrderToken,
@@ -292,6 +293,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
 
   return {
     cart,
+    amounts: onlineCartAmounts(cart, review, form),
     busy,
     message,
     review,

@@ -286,7 +286,10 @@ as-soon-as-possible note and a one-line privacy notice linking to the privacy pa
 in the field, which never places the order) trims and uppercases the code, asks the coupon check and,
 on success, keeps `{ code, percentOff }` in the checkout form: the totals then show the subtotal, the
 coupon line with its discount (`couponDiscountCents`, rounded down like the server) and the discounted
-total, and "Remove" drops it. An unusable code says so without touching the cart. With delivery on, the header says "pickup or delivery" and
+total, and "Remove" drops it. The panel and mobile cart bar share `onlineCartAmounts`: a coupon counts
+while confirming, and an unresolved submission keeps the coupon saved in its intent, including after a
+reload. Returning to ordinary cart editing shows the item total before the coupon. An unusable code says so
+without touching the cart. With delivery on, the header says "pickup or delivery" and
 the confirmation starts with a pickup/delivery choice; delivery adds the address and the optional
 doorbell/floor notes, the restaurant's note in the customer's language (falling back to the default
 language, then Italian, Chinese and English; `deliveryNote` in `state.ts`) and a line saying the
@@ -544,7 +547,10 @@ and open actions, and its QR PNG, generated in the browser with the table QR opt
 resume; OWNER also edits the phone, the week, delivery (a switch and three note fields, with a
 warning while delivery is on without any note) and coupons (a list with the percentage, last day or
 an expired badge, a delete button behind `ConfirmDialog`, and a create form with code, percentage and
-an optional date input). A missing phone or week is explained in one warning.
+an optional date input). A partial date is refused with a translated field message; only a genuinely
+empty control means no expiry. Submission reads the date control's current value and `validity.badInput`
+again, because partial native date edits can leave the value empty without firing React's `onChange`.
+A missing phone or week is explained in one warning.
 Time inputs cannot hold 24:00, so 00:00 as a closing time means midnight. The query key is
 `["online-settings", restaurantId, userId]`; the visible page rereads it every 60 seconds because
 slots and pauses change with the clock. Local form edits survive background refreshes until saved or

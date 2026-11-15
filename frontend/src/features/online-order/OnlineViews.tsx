@@ -13,13 +13,11 @@ import type { Language } from "@/lib/language";
 import { cn } from "@/lib/utils";
 import { LanguageToggle } from "@/features/public-menu/PublicMenuViews";
 import { CartLines } from "@/features/orders/OrderViews";
-import { totalCents } from "@/features/orders/state";
 import { onlineOrderQuery, type OnlineMenu } from "./api";
 import { onlineOrderMessages, type OnlineOrderMessage } from "./messages";
 import {
   checkoutProblems,
   clearOrderToken,
-  couponDiscountCents,
   deliveryNote,
   MAX_ADDRESS_LENGTH,
   MAX_DELIVERY_NOTES_LENGTH,
@@ -164,10 +162,7 @@ export function OnlineCartPanel({
   const offersDelivery = data.restaurant.deliveryEnabled || form.fulfillment === "DELIVERY";
   const delivery = form.fulfillment === "DELIVERY";
   const note = delivery ? deliveryNote(data.restaurant, language) : null;
-  // The coupon the pending request carries, or the one confirmed for this checkout.
-  const coupon = pending ? pending.coupon : model.review ? form.coupon : null;
-  const itemsCents = lines.length ? totalCents(lines) : 0;
-  const discountCents = coupon ? couponDiscountCents(itemsCents, coupon.percentOff) : 0;
+  const { coupon, itemsCents, discountCents, totalCents } = model.amounts;
   function applyCoupon() {
     void model.applyCoupon(couponText);
   }
@@ -265,9 +260,7 @@ export function OnlineCartPanel({
           )}
           <p className="flex items-baseline justify-between gap-3 text-lg font-semibold">
             <span>{model.review && delivery ? m.itemsTotal : m.total}</span>
-            <span className="text-xl tabular-nums">
-              {formatMoney(itemsCents - discountCents, language)}
-            </span>
+            <span className="text-xl tabular-nums">{formatMoney(totalCents, language)}</span>
           </p>
         </div>
       )}

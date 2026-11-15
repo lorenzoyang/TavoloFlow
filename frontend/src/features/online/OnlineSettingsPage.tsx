@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Download, ExternalLink, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -624,22 +624,30 @@ function CouponsCard({
 }) {
   const m = onlineMessages[useStaffLanguage()];
   const [draft, setDraft] = useState<CouponDraft>(emptyCouponDraft);
+  const dateRef = useRef<HTMLInputElement>(null);
+  const [dateBadInput, setDateBadInput] = useState(false);
   const [tried, setTried] = useState(false);
   const [deleting, setDeleting] = useState<OnlineCoupon | null>(null);
-  const parsed = couponInput(draft);
+  const parsed = couponInput(draft, dateBadInput);
   const problem = (kind: CouponProblem) => tried && !parsed.ok && parsed.problems.includes(kind);
   const hint = (kind: CouponProblem) =>
     cn("text-sm", problem(kind) ? "text-destructive" : "text-muted-foreground");
   function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
+    const date = dateRef.current;
+    if (!date) return;
+    // Read the control again: partial edits can leave value empty without React firing onChange.
+    const checked = couponInput({ ...draft, validUntil: date.value }, date.validity.badInput);
+    setDateBadInput(date.validity.badInput);
     setTried(true);
-    if (!parsed.ok) return;
-    const input = parsed.input;
+    if (!checked.ok) return;
+    const input = checked.input;
     send(
       (signal) => createCoupon(input, signal),
       () => {
         setDraft(emptyCouponDraft);
+        setDateBadInput(false);
         setTried(false);
       },
     );
@@ -731,14 +739,17 @@ function CouponsCard({
               <Label htmlFor="coupon-valid-until">{m.couponValidUntil}</Label>
               <Input
                 id="coupon-valid-until"
+                ref={dateRef}
                 type="date"
                 value={draft.validUntil}
                 disabled={busy}
+                aria-invalid={problem("date")}
                 aria-describedby="coupon-valid-until-hint"
+                onInput={(event) => setDateBadInput(event.currentTarget.validity.badInput)}
                 onChange={(event) => setDraft({ ...draft, validUntil: event.target.value })}
               />
-              <p id="coupon-valid-until-hint" className="text-sm text-muted-foreground">
-                {m.couponValidUntilHint}
+              <p id="coupon-valid-until-hint" className={hint("date")}>
+                {problem("date") ? m.couponDateProblem : m.couponValidUntilHint}
               </p>
             </div>
           </div>

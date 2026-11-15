@@ -269,3 +269,21 @@ test("the coupon form sends a whole percentage of 1-50 and an optional last day"
     problems: ["code", "percent"],
   });
 });
+
+test("an incomplete date cannot create a coupon with no expiry; clearing or completing it can", () => {
+  const draft = { code: "ESTATE", percent: "15", validUntil: "" };
+  // Native date inputs expose the same empty value for a partial date and an intentional blank.
+  assert.deepEqual(couponInput(draft, true), { ok: false, problems: ["date"] });
+  assert.deepEqual(couponInput(draft, false), {
+    ok: true,
+    input: { code: "ESTATE", percentOff: 15, validUntil: null },
+  });
+  assert.deepEqual(couponInput({ ...draft, validUntil: "2026-12-31" }, false), {
+    ok: true,
+    input: { code: "ESTATE", percentOff: 15, validUntil: "2026-12-31" },
+  });
+  assert.deepEqual(couponInput({ ...draft, code: "x", percent: "0" }, true), {
+    ok: false,
+    problems: ["code", "percent", "date"],
+  });
+});

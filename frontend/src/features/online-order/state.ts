@@ -9,6 +9,7 @@ import {
   cartKey,
   intentItems,
   restoreLines,
+  totalCents,
   validateCart,
   type CartLine,
   type OrderLineInput,
@@ -76,6 +77,19 @@ export const emptyCheckoutForm: CheckoutForm = {
 // The server's rounding (OnlineCoupons.DiscountCents): the percentage of the dishes, down to the cent.
 export const couponDiscountCents = (itemsCents: number, percentOff: number) =>
   Number((BigInt(itemsCents) * BigInt(percentOff)) / 100n);
+
+// The checkout panel and mobile bar share these amounts. A pending intent keeps its own coupon,
+// including null; a form's coupon counts only while reviewing the order.
+export function onlineCartAmounts(
+  cart: OnlineCart,
+  review: OnlineCart | null,
+  form: Pick<CheckoutForm, "coupon">,
+) {
+  const itemsCents = totalCents(review?.lines ?? cart.lines);
+  const coupon = cart.pending ? cart.pending.coupon : review ? form.coupon : null;
+  const discountCents = coupon ? couponDiscountCents(itemsCents, coupon.percentOff) : 0;
+  return { itemsCents, coupon, discountCents, totalCents: itemsCents - discountCents };
+}
 
 const validCoupon = (coupon: CouponPreview | null) =>
   coupon === null ||

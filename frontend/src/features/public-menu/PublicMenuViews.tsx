@@ -334,10 +334,13 @@ export function MenuList({
 // Phones only: the cart lives in a bottom sheet this bar opens.
 export function CartBar({
   cart,
+  amountCents,
   language,
   open,
 }: {
   cart: Pick<MenuCart, "cart" | "review">;
+  // Online checkout supplies its discounted total; QR carts use the sum of their lines.
+  amountCents?: number;
   language: Language;
   open: () => void;
 }) {
@@ -362,7 +365,7 @@ export function CartBar({
           </span>
         </span>
         <span className="text-lg font-semibold tabular-nums">
-          {formatMoney(totalCents(cart.cart.lines), language)}
+          {formatMoney(amountCents ?? totalCents(cart.cart.lines), language)}
         </span>
         <ChevronUp aria-hidden="true" className="size-5 shrink-0" />
       </button>

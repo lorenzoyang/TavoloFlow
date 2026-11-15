@@ -7,6 +7,7 @@ import {
   createOnlineIntent,
   deliveryNote,
   emptyOnlineCart,
+  onlineCartAmounts,
   onlineCartKey,
   orderEnded,
   orderTokenKey,
@@ -412,4 +413,54 @@ test("the coupon discount rounds down to the cent like the server", () => {
     couponDiscountCents(Number.MAX_SAFE_INTEGER, 50),
     Math.floor(Number.MAX_SAFE_INTEGER / 2),
   );
+});
+
+test("the panel and bar apply a coupon only during checkout, using the reviewed sale price", () => {
+  const cart = addItem(emptyOnlineCart(restaurant), item);
+  const review = addItem(emptyOnlineCart(restaurant), { ...item, salePriceCents: 990 });
+  const coupon = { code: "ESTATE15", percentOff: 15 };
+  const checkout = { ...form, coupon };
+
+  // A coupon retained in the form does not discount the ordinary cart or a cart returned for editing.
+  assert.deepEqual(onlineCartAmounts(cart, null, checkout), {
+    itemsCents: 1200,
+    coupon: null,
+    discountCents: 0,
+    totalCents: 1200,
+  });
+  assert.deepEqual(onlineCartAmounts(cart, review, checkout), {
+    itemsCents: 990,
+    coupon,
+    discountCents: 148,
+    totalCents: 842,
+  });
+  assert.deepEqual(onlineCartAmounts(cart, review, form), {
+    itemsCents: 990,
+    coupon: null,
+    discountCents: 0,
+    totalCents: 990,
+  });
+});
+
+test("an unknown submission keeps its saved coupon amount after reload, ahead of the form", () => {
+  const cart = addItem(emptyOnlineCart(restaurant), { ...item, salePriceCents: 990 });
+  const coupon = { code: "ESTATE15", percentOff: 15 };
+  const pending = createOnlineIntent(cart, { ...form, coupon }, requestId);
+  const restored = restoreOnlineCart(JSON.stringify({ ...cart, pending }), restaurant);
+  const expected = { itemsCents: 990, coupon, discountCents: 148, totalCents: 842 };
+
+  assert.deepEqual(onlineCartAmounts(restored, null, form), expected);
+  assert.deepEqual(
+    onlineCartAmounts(restored, cart, { coupon: { code: "ALTRO50", percentOff: 50 } }),
+    expected,
+  );
+
+  // An explicit null in the saved intent must not fall back to a coupon in the checkout form.
+  const withoutCoupon = { ...cart, pending: createOnlineIntent(cart, form, requestId) };
+  assert.deepEqual(onlineCartAmounts(withoutCoupon, cart, { coupon }), {
+    itemsCents: 990,
+    coupon: null,
+    discountCents: 0,
+    totalCents: 990,
+  });
 });

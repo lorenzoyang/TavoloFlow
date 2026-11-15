@@ -161,7 +161,7 @@ export type OnlineCoupon = {
 };
 export type CouponDraft = { code: string; percent: string; validUntil: string };
 export type CouponInput = { code: string; percentOff: number; validUntil: string | null };
-export type CouponProblem = "code" | "percent";
+export type CouponProblem = "code" | "percent" | "date";
 export const emptyCouponDraft: CouponDraft = { code: "", percent: "", validUntil: "" };
 
 // Trimmed and uppercased like the server; null when it cannot be a code.
@@ -173,15 +173,18 @@ export function normalizeCouponCode(value: string): string | null {
 export const validCouponPercent = (value: number) =>
   Number.isInteger(value) && value >= COUPON_MIN_PERCENT && value <= COUPON_MAX_PERCENT;
 
-// The last day comes from a date input (yyyy-mm-dd or empty); the server rejects a day before today.
+// An incomplete native date input also has an empty value; badInput keeps it apart from an intentional
+// blank. The server checks the last day against the restaurant's local today.
 export function couponInput(
   draft: CouponDraft,
+  dateBadInput = false,
 ): { ok: true; input: CouponInput } | { ok: false; problems: CouponProblem[] } {
   const code = normalizeCouponCode(draft.code);
   const percent = /^\d{1,2}$/.test(draft.percent.trim()) ? Number(draft.percent.trim()) : NaN;
   const problems: CouponProblem[] = [
     ...(code === null ? (["code"] as const) : []),
     ...(validCouponPercent(percent) ? [] : (["percent"] as const)),
+    ...(dateBadInput ? (["date"] as const) : []),
   ];
   if (problems.length || code === null) return { ok: false, problems };
   return {
