@@ -140,6 +140,9 @@ const zh = {
     deliveryFee: "配送费",
     feeNotCounted: "菜品全部取消，配送费不计入",
     confirmFee: (amount: string) => `其中配送费：${amount}`,
+    coupon: (code: string, percent: number) => `优惠券 ${code}（−${percent}%）`,
+    confirmCoupon: (code: string, amount: string) =>
+      `已减优惠券 ${code}：${amount}，收银时请给出同样的折扣`,
     editFee: "修改配送费",
     editFeeHint: "改正接单时填写的配送费。保存后账单会更新，结账时按新金额核对。",
     feeLabel: "配送费（€）",
@@ -315,6 +318,9 @@ export const billingMessages: Record<Language, typeof zh> = {
       deliveryFee: "Consegna",
       feeNotCounted: "Tutti i piatti annullati: la consegna non si conta",
       confirmFee: (amount) => `Di cui consegna: ${amount}`,
+      coupon: (code, percent) => `Codice ${code} (−${percent}%)`,
+      confirmCoupon: (code, amount) =>
+        `Già scontato con il codice ${code}: ${amount}. Applica lo stesso sconto in cassa`,
       editFee: "Modifica costo di consegna",
       editFeeHint:
         "Correggi il costo inserito all’accettazione. Il conto si aggiorna e l’incasso va confermato sul nuovo importo.",
@@ -483,6 +489,9 @@ export const billingMessages: Record<Language, typeof zh> = {
       deliveryFee: "Delivery fee",
       feeNotCounted: "Every dish cancelled: the fee isn’t charged",
       confirmFee: (amount) => `Including delivery fee: ${amount}`,
+      coupon: (code, percent) => `Coupon ${code} (−${percent}%)`,
+      confirmCoupon: (code, amount) =>
+        `Coupon ${code} already taken off: ${amount}. Give the same discount on the till`,
       editFee: "Edit delivery fee",
       editFeeHint:
         "Correct the fee entered when the order was accepted. The bill updates and checkout confirms the new amount.",

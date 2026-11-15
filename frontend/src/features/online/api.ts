@@ -2,7 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 import type { AccountScope } from "@/features/accounts/api";
 import { request, write } from "@/lib/api";
 import { storeKey } from "@/lib/store-views";
-import type { OnlineOrder } from "@/features/online-order/api";
+import type { CouponDiscount, OnlineOrder } from "@/features/online-order/api";
 import type { Language } from "@/lib/language";
 import type {
   CouponInput,
@@ -76,7 +76,9 @@ export type OnlinePendingRequest = {
   defaultLanguage: Language;
   // The submitted snapshot (status null), the same lines as the customer's status page.
   items: OnlineOrder["items"];
+  // Before the coupon; its discount comes off this, and acceptance adds any delivery fee.
   itemsTotalCents: number;
+  coupon: CouponDiscount | null;
 };
 export type OnlinePendingPage = { items: OnlinePendingRequest[]; now: string; receivedAt: number };
 
@@ -94,7 +96,9 @@ export type OnlineActiveOrder = {
   itemCount: number;
   newItemCount: number;
   readyItemCount: number;
-  // Delivery only. The total is the bill's amount to collect, with the fee while it counts.
+  coupon: CouponDiscount | null;
+  // Delivery only. The total is the bill's amount to collect, with the fee while it counts and less the
+  // coupon.
   deliveryFeeCents: number | null;
   totalAmountCents: number;
 };

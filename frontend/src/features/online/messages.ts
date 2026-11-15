@@ -369,6 +369,11 @@ const ordersZh = {
   doorbell: (notes: string) => `门铃、楼层：${notes}`,
   toCollect: (amount: string) => `应收 ${amount}`,
   feeIncluded: (amount: string) => `含配送费 ${amount}`,
+  coupon: (code: string, percent: number, amount: string) =>
+    `优惠券 ${code}（−${percent}%）：−${amount}`,
+  deliveryTotalWithCoupon: (subtotal: string, discount: string, fee: string, total: string) =>
+    `小计 ${subtotal} − 优惠 ${discount} + 配送费 ${fee} = 合计 ${total}`,
+  couponIncluded: (code: string, percent: number) => `已减优惠券 ${code}（−${percent}%）`,
   reject: "拒单",
   rejectTitle: (number: number) => `拒绝订单 #${number}`,
   rejectHint: "拒单后不能撤销，顾客的订单页会显示餐厅无法接单。可以选择一个原因：",
@@ -430,6 +435,10 @@ export const onlineOrdersMessages: Record<Language, typeof ordersZh> = {
     doorbell: (notes) => `Citofono, piano: ${notes}`,
     toCollect: (amount) => `Da incassare ${amount}`,
     feeIncluded: (amount) => `consegna inclusa ${amount}`,
+    coupon: (code, percent, amount) => `Codice ${code} (−${percent}%): −${amount}`,
+    deliveryTotalWithCoupon: (subtotal, discount, fee, total) =>
+      `Subtotale ${subtotal} − sconto ${discount} + consegna ${fee} = totale ${total}`,
+    couponIncluded: (code, percent) => `Scontato con il codice ${code} (−${percent}%)`,
     reject: "Rifiuta",
     rejectTitle: (number) => `Rifiuta l’ordine #${number}`,
     rejectHint:
@@ -489,6 +498,10 @@ export const onlineOrdersMessages: Record<Language, typeof ordersZh> = {
     doorbell: (notes) => `Doorbell, floor: ${notes}`,
     toCollect: (amount) => `To collect ${amount}`,
     feeIncluded: (amount) => `incl. delivery ${amount}`,
+    coupon: (code, percent, amount) => `Coupon ${code} (−${percent}%): −${amount}`,
+    deliveryTotalWithCoupon: (subtotal, discount, fee, total) =>
+      `Subtotal ${subtotal} − discount ${discount} + delivery ${fee} = total ${total}`,
+    couponIncluded: (code, percent) => `Coupon ${code} taken off (−${percent}%)`,
     reject: "Reject",
     rejectTitle: (number) => `Reject order #${number}`,
     rejectHint:

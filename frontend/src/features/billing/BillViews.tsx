@@ -156,21 +156,37 @@ function BillTotal({ bill, timeZone }: { bill: BillSummary; timeZone: string }) 
       <p className="text-3xl font-semibold tabular-nums">
         {formatMoney(bill.totalAmountCents, language)}
       </p>
-      {amounts.fee !== null && (
-        <dl className="grid grid-cols-[1fr_auto] gap-x-3 text-sm">
+      {(amounts.fee !== null || amounts.coupon) && (
+        <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 text-sm">
           <dt className="text-muted-foreground">{m.online.itemsAmount}</dt>
           <dd className="text-right tabular-nums">{formatMoney(amounts.items, language)}</dd>
-          <dt className="text-muted-foreground">{m.online.deliveryFee}</dt>
-          <dd
-            className={cn(
-              "text-right tabular-nums",
-              !amounts.feeCounted && "text-muted-foreground line-through",
-            )}
-          >
-            {formatMoney(amounts.fee, language)}
-          </dd>
-          {!amounts.feeCounted && (
-            <dd className="col-span-2 text-xs text-muted-foreground">{m.online.feeNotCounted}</dd>
+          {amounts.coupon && (
+            <>
+              <dt className="text-muted-foreground wrap-break-word">
+                {m.online.coupon(amounts.coupon.code, amounts.coupon.percentOff)}
+              </dt>
+              <dd className="text-right tabular-nums">
+                −{formatMoney(amounts.discount, language)}
+              </dd>
+            </>
+          )}
+          {amounts.fee !== null && (
+            <>
+              <dt className="text-muted-foreground">{m.online.deliveryFee}</dt>
+              <dd
+                className={cn(
+                  "text-right tabular-nums",
+                  !amounts.feeCounted && "text-muted-foreground line-through",
+                )}
+              >
+                {formatMoney(amounts.fee, language)}
+              </dd>
+              {!amounts.feeCounted && (
+                <dd className="col-span-2 text-xs text-muted-foreground">
+                  {m.online.feeNotCounted}
+                </dd>
+              )}
+            </>
           )}
         </dl>
       )}
@@ -516,6 +532,16 @@ export function ActiveBillPanel({
                     <p className="text-sm text-muted-foreground tabular-nums">
                       {m.online.confirmFee(
                         formatMoney(confirmation.bill.deliveryFeeCents, language),
+                      )}
+                    </p>
+                  )}
+                {/* The till issues the receipt, so staff repeat the discount there. */}
+                {confirmation.bill.online?.coupon &&
+                  confirmation.bill.online.coupon.discountCents > 0 && (
+                    <p className="text-sm text-muted-foreground tabular-nums wrap-break-word">
+                      {m.online.confirmCoupon(
+                        confirmation.bill.online.coupon.code,
+                        formatMoney(confirmation.bill.online.coupon.discountCents, language),
                       )}
                     </p>
                   )}

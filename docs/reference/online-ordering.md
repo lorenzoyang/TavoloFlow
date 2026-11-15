@@ -240,7 +240,8 @@ unknown token). It returns `restaurant { name, slug, currencyCode, defaultLangua
 `deliveryFeeCents` (once a delivery is accepted) and `totalAmountCents`. Before acceptance the items are
 the submitted snapshot (`status` null) and the total is the submitted item total less the coupon's
 discount (`OnlineCoupons.DiscountCents`, rounded down); after acceptance they are the order items with their status and the
-total is the session's bill amount (`SessionSummaries`, with the fee while any dish counts). It
+total is the session's bill amount (`SessionSummaries`, with the fee while any dish counts and the
+bill's own coupon discount, which follows cancellations). It
 never returns the customer's phone, an address or any request or session ID. From 24 hours after the
 order ended (`OnlineOrderStatusService.LinkLifetime`) the link returns `ONLINE_ORDER_NOT_FOUND`: the
 end is the expiry, the rejection or the accepted order's session closure (`OnlineRequestState.EndedAt`),
@@ -353,12 +354,14 @@ The pending list reads `OnlineRequestState.Waiting` with the time from `TimeProv
 ten-minute window keep it small, so it has no paging and no limit, and `now` is the server's clock for
 the page's countdown. Each pending item carries the number, fulfillment, name, phone, delivery address
 and notes, submission and expiry times, the default language, the submitted lines (the status page's
-line shape) and the item total. Active orders come from `dining_sessions` through the partial index
+line shape), the item total and `coupon` (`{ code, percentOff, discountCents }` on that total, or
+null). Active orders come from `dining_sessions` through the partial index
 `ix_dining_sessions_active` (`restaurant_id, opened_at` where ACTIVE), never a history scan. They are
 built from the sessions' bill summaries (`SessionSummaries.Project`), so their amount is the bill's
 own, and carry the number, channel, contact and address, acceptance (the session's opening) and
-estimated times, line counts (`itemCount`, `newItemCount`, `readyItemCount`), `deliveryFeeCents`
-(delivery only) and `totalAmountCents`, the amount to collect.
+estimated times, line counts (`itemCount`, `newItemCount`, `readyItemCount`), `coupon` (the bill's,
+discount on the dishes still charged), `deliveryFeeCents` (delivery only) and `totalAmountCents`, the
+amount to collect.
 
 Acceptance locks restaurant SHARE, then the request row UPDATE (`RowLocks.OnlineRequestAsync`; global
 order restaurant → online request), and requires the request to be still waiting at the current time,
@@ -402,15 +405,17 @@ until then it says "tap the page to turn on the ringing".
 `/staff/online` (from 首页, with a back link) lists the pending requests, each with its number,
 fulfillment badge, name, a `tel:` call button, for delivery the address as a plain Google Maps search
 link (`mapsUrl`) with the doorbell notes, waited and remaining time on the server's clock
-(`requestTimes`, red under three minutes), the lines with options and remarks, and the subtotal. One
-tap on 10, 20, 30 or 45 minutes accepts a pickup. A delivery first takes the fee (a decimal amount, 0
-when free; `acceptFee`), shows "subtotal + delivery fee = total", and only then enables 30, 45, 60 and
+(`requestTimes`, red under three minutes), the lines with options and remarks, and the subtotal; with a
+coupon, its line and discount, and for pickup the amount to collect. One tap on 10, 20, 30 or 45
+minutes accepts a pickup. A delivery first takes the fee (a decimal amount, 0 when free; `acceptFee`),
+shows "subtotal + delivery fee = total" ("subtotal − discount + delivery fee = total" with a coupon), and only then enables 30, 45, 60 and
 90 minutes. Reject opens `ConfirmDialog` with an optional reason; "outside the delivery area" is
 offered for delivery only (`rejectReasons`). Writes are blocked while
 the list is failed, stale or not refreshed since resume (`syncIsFresh`); every outcome rereads the
 pending, active, kitchen, pass and bills views, and an unknown result says to check the refreshed list.
 Below, the read-only In progress list shows each accepted order's number, name, estimated time, the
-amount to collect (with the delivery fee it includes, while it counts), call button, delivery address
+amount to collect (with the delivery fee it includes, while it counts, and a "coupon taken off" line),
+call button, delivery address
 link and progress (cooking, ready or all cancelled): the only place STAFF see an accepted customer's
 phone and address, and what a rider collects, since the kitchen and pass never show them and STAFF have
 no bills page.
@@ -420,7 +425,8 @@ no bills page.
 Kitchen orders, pass items and bill summaries carry `channel` (`DINE_IN`, `PICKUP`, `DELIVERY`) and a
 nullable `tableLabel`. Kitchen and pass add `online: { number, customerName, estimatedAt }` (never the
 phone or address); bill summaries add `online: { number, customerName, customerPhone, estimatedAt,
-deliveryAddress, deliveryNotes }` and `deliveryFeeCents`.
+deliveryAddress, deliveryNotes, coupon }` and `deliveryFeeCents`; the bill total already takes the
+coupon off (see the billing reference).
 `lib/session-label.ts` names every session in one place: "Table 5", or "Pickup #12" with the customer
 name and estimated time (`SessionName` puts them on a second, truncated line, and the cards holding it
 take `min-w-0` so a long name never widens a 360px grid). The kitchen
@@ -566,7 +572,9 @@ discarded.
   restaurant, the 50-coupon limit, `ONLINE_NOT_OFFERED` and the coupon check constraints; the coupon
   check (case-insensitive, per restaurant, expiry, rate limit); submissions snapshotting the coupon, the
   status page discount, a repeat answered after the coupon's deletion, and `COUPON_INVALID` for unknown,
-  expired or re-created codes without using a number.
+  expired or re-created codes without using a number; the pending, active, bill, status and history
+  amounts through acceptance, a cancellation (rounding down), PAID, the fee correction and a fully
+  cancelled delivery voided at zero.
 - `OnlineSettingsTests`: OWNER-only phone, hours and delivery (trimmed notes, blank as null, 500
   characters, notes kept when off), validation, whole-week replacement, both pauses
   lapsing with `TestClock.Set`, `ONLINE_CLOSED`, `ONLINE_NOT_OFFERED`, `SUSPENDED`, the database

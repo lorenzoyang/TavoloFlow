@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
+using TavoloFlow.Api.Billing;
 using TavoloFlow.Api.Entities;
 using TavoloFlow.Api.Online;
 using TavoloFlow.Api.Ordering;
@@ -422,6 +423,231 @@ public sealed class OnlineCouponTests(PostgreSqlFixture database) : IClassFixtur
             await db.OnlineRequests.CountAsync(r => r.RestaurantId == shop.RestaurantId)
         );
     }
+
+    [Fact]
+    public async Task Bill_CouponFollowsTheChargedDishesThroughAcceptanceCancellationAndPayment()
+    {
+        using var host = new AccountTestHost(database);
+        host.Clock.Set(MondayNoon);
+        var shop = await OnlineTestData.SeedShopAsync(database);
+        var request = await SeedRequestAsync(
+            shop,
+            "ESTATE15",
+            15,
+            OnlineTestData.Line(shop.Dish.Id, 1999, 1),
+            OnlineTestData.Line(shop.Spicy.Id, 1001, 1)
+        );
+        using var owner = await OnlineTestData.LoginAsync(host, shop.Owner);
+
+        var pending = (
+            await owner.GetFromJsonAsync<OnlinePendingPage>("/api/staff/online/pending")
+        )!.Items.Single();
+        Assert.Equal(
+            (3000L, new CouponDiscountResponse("ESTATE15", 15, 450)),
+            (pending.ItemsTotalCents, pending.Coupon)
+        );
+        var accepted = await AcceptAsync(owner, request.Id, new { estimatedMinutes = 20 });
+        Assert.Equal(
+            (new CouponDiscountResponse("ESTATE15", 15, 450), 2550L),
+            (accepted.Coupon, accepted.TotalAmountCents)
+        );
+        var bill = await BillAsync(owner, accepted.SessionId);
+        Assert.Equal(
+            (2550L, 450L),
+            (bill.Summary.TotalAmountCents, bill.Summary.Online!.Coupon!.DiscountCents)
+        );
+
+        // Cancelling a dish takes the discount off the remaining 19.99 €: 15% is 2.9985 €, rounded down.
+        var order = bill.Orders.Single();
+        var spicy = order.Items.Single(i => i.UnitPriceCents == 1001);
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (
+                await PostAsync(
+                    owner,
+                    $"/api/staff/orders/{order.Id}/items/{spicy.Id}/cancel",
+                    new { }
+                )
+            ).StatusCode
+        );
+        bill = await BillAsync(owner, accepted.SessionId);
+        Assert.Equal(
+            (1700L, 299L),
+            (bill.Summary.TotalAmountCents, bill.Summary.Online!.Coupon!.DiscountCents)
+        );
+        var status = (
+            await owner.GetFromJsonAsync<OnlineOrderStatusResponse>(
+                $"/api/public/online-orders/{request.StatusToken}"
+            )
+        )!;
+        Assert.Equal((1700L, 299L), (status.TotalAmountCents, status.Coupon!.DiscountCents));
+
+        // PAID records the discounted amount, and history keeps showing the coupon.
+        var dish = order.Items.Single(i => i.UnitPriceCents == 1999);
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (
+                await PostAsync(
+                    owner,
+                    $"/api/staff/orders/{order.Id}/items/{dish.Id}/ready",
+                    new { }
+                )
+            ).StatusCode
+        );
+        await AssertErrorAsync(
+            await PostAsync(
+                owner,
+                $"/api/owner/sessions/{accepted.SessionId}/checkout",
+                new { expectedBillVersion = bill.Summary.BillVersion, confirmedTotalCents = 2550 }
+            ),
+            HttpStatusCode.Conflict,
+            "BILL_CHANGED"
+        );
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (
+                await PostAsync(
+                    owner,
+                    $"/api/owner/sessions/{accepted.SessionId}/checkout",
+                    new
+                    {
+                        expectedBillVersion = bill.Summary.BillVersion,
+                        confirmedTotalCents = 1700,
+                    }
+                )
+            ).StatusCode
+        );
+        var closed = (
+            await owner.GetFromJsonAsync<BillPage>($"/api/owner/history/{accepted.SessionId}")
+        )!.Summary;
+        Assert.Equal(
+            ("PAID", 1700L, 299L),
+            (closed.CloseReason, closed.TotalAmountCents, closed.Online!.Coupon!.DiscountCents)
+        );
+        await using var db = database.CreateContext();
+        Assert.Equal(
+            1700,
+            (await db.DiningSessions.SingleAsync(x => x.Id == accepted.SessionId)).ClosedTotalCents
+        );
+    }
+
+    [Fact]
+    public async Task Bill_DeliveryCoupon_SparesTheFeeAndAFullyCancelledOrderVoidsAtZero()
+    {
+        using var host = new AccountTestHost(database);
+        host.Clock.Set(MondayNoon);
+        var shop = await OnlineTestData.SeedShopAsync(database);
+        var request = await SeedRequestAsync(
+            shop,
+            "ESTATE10",
+            10,
+            delivery: true,
+            OnlineTestData.Line(shop.Dish.Id, 1200, 2)
+        );
+        using var owner = await OnlineTestData.LoginAsync(host, shop.Owner);
+        var accepted = await AcceptAsync(
+            owner,
+            request.Id,
+            new { estimatedMinutes = 30, deliveryFeeCents = 300 }
+        );
+        Assert.Equal(
+            (240L, 2400L - 240 + 300),
+            (accepted.Coupon!.DiscountCents, accepted.TotalAmountCents)
+        );
+
+        using (
+            var fee = new HttpRequestMessage(
+                HttpMethod.Patch,
+                $"/api/owner/sessions/{accepted.SessionId}/delivery-fee"
+            )
+        )
+        {
+            fee.Content = JsonContent.Create(
+                new { expectedBillVersion = 1, deliveryFeeCents = 500 }
+            );
+            fee.Headers.Add("X-CSRF-TOKEN", await CsrfAsync(owner));
+            Assert.Equal(HttpStatusCode.OK, (await owner.SendAsync(fee)).StatusCode);
+        }
+        var bill = await BillAsync(owner, accepted.SessionId);
+        Assert.Equal(2400 - 240 + 500, bill.Summary.TotalAmountCents);
+
+        var order = bill.Orders.Single();
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (
+                await PostAsync(
+                    owner,
+                    $"/api/staff/orders/{order.Id}/items/{order.Items.Single().Id}/cancel",
+                    new { }
+                )
+            ).StatusCode
+        );
+        bill = await BillAsync(owner, accepted.SessionId);
+        Assert.Equal(
+            (0L, 0L),
+            (bill.Summary.TotalAmountCents, bill.Summary.Online!.Coupon!.DiscountCents)
+        );
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (
+                await PostAsync(
+                    owner,
+                    $"/api/staff/sessions/{accepted.SessionId}/close-void",
+                    new
+                    {
+                        expectedBillVersion = bill.Summary.BillVersion,
+                        confirmedTotalCents = 0,
+                        guestsLeftConfirmed = true,
+                    }
+                )
+            ).StatusCode
+        );
+    }
+
+    private async Task<OnlineRequest> SeedRequestAsync(
+        OnlineShop shop,
+        string code,
+        int percent,
+        params OrderLineSnapshot[] lines
+    ) => await SeedRequestAsync(shop, code, percent, false, lines);
+
+    private async Task<OnlineRequest> SeedRequestAsync(
+        OnlineShop shop,
+        string code,
+        int percent,
+        bool delivery,
+        params OrderLineSnapshot[] lines
+    )
+    {
+        await using var db = database.CreateContext();
+        var request = OnlineTestData.Request(shop.RestaurantId, MondayNoon.UtcDateTime, 1);
+        request.Lines = [.. lines];
+        request.ItemsTotalCents = lines.Sum(l => l.UnitPriceCents * l.Quantity);
+        request.CouponCode = code;
+        request.CouponPercentOff = percent;
+        if (delivery)
+        {
+            request.Fulfillment = OnlineFulfillment.Delivery;
+            request.DeliveryAddress = "Via Roma 1, Milano";
+        }
+        db.OnlineRequests.Add(request);
+        await db.SaveChangesAsync();
+        return request;
+    }
+
+    private static async Task<OnlineActiveOrderResponse> AcceptAsync(
+        HttpClient client,
+        Guid id,
+        object body
+    )
+    {
+        var response = await PostAsync(client, $"/api/staff/online/requests/{id}/accept", body);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<OnlineActiveOrderResponse>())!;
+    }
+
+    private static async Task<BillPage> BillAsync(HttpClient client, Guid sessionId) =>
+        (await client.GetFromJsonAsync<BillPage>($"/api/staff/sessions/{sessionId}/bill"))!;
 
     private static string Preview(OnlineShop shop, string code) =>
         $"/api/public/r/{shop.Slug}/coupons/{Uri.EscapeDataString(code)}";
