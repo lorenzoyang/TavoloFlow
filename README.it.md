@@ -65,10 +65,10 @@ del ristorante, lo staff la accetta con il costo di consegna e un orario, poi cu
 
 ![Una consegna online: il cliente ordina, lo staff accetta, cucina, pass e conto](docs/images/walkthrough-online-it.webp)
 
-**Clienti online**: il menu online del ristorante, la conferma con ritiro o consegna e la pagina dello
-stato dell'ordine.
+**Clienti online**: il menu online del ristorante, la conferma con un codice sconto e la scelta tra
+ritiro e consegna, e la pagina dello stato dell'ordine.
 
-![Menu online, conferma con consegna e stato dell'ordine su un telefono](docs/images/online-it.webp)
+![Menu online, conferma con codice sconto e consegna e stato dell'ordine su un telefono](docs/images/online-it.webp)
 
 **Staff e titolare**: Ordini online, Pass, Conto e modifica di un piatto su un tablet.
 

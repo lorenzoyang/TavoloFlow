@@ -62,10 +62,10 @@ restaurant's link, staff accept it with the fee and a time, then the kitchen, th
 
 ![An online delivery: the customer orders, staff accept it, kitchen, pass and bill](docs/images/walkthrough-online-en.webp)
 
-**Online customers**: the restaurant's online menu, checkout with pickup or delivery, and the order
-status page.
+**Online customers**: the restaurant's online menu, checkout with a coupon code and pickup or
+delivery, and the order status page.
 
-![Online menu, delivery checkout and order status on a phone](docs/images/online-en.webp)
+![Online menu, delivery checkout with a coupon and order status on a phone](docs/images/online-en.webp)
 
 **Staff and owner**: Online orders, Pass, Bill and dish editing on a tablet.
 
