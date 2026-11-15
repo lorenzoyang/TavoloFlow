@@ -24,7 +24,7 @@ Then, as if that weren't enough, after discovering that practically all potentia
 
 ## What it does
 
-TavoloFlow is a QR-code table ordering system. Every table has a fixed QR code: the guest scans it with their phone, orders from the menu and the order arrives in the kitchen. Payment stays the same as always, at the till: the app only records that the bill has been paid. There are four kinds of users, and each has its own part of the app.
+TavoloFlow is a QR-code table ordering system that also takes online orders. Every table has a fixed QR code: the guest scans it with their phone, orders from the menu and the order arrives in the kitchen. Customers who aren't at the restaurant order from its online link instead, to collect in store or, if the restaurant delivers, to receive at home; an online order reaches the kitchen only after the staff accept it. These are two separate services: the platform administrator turns them on for each restaurant, even just one of the two. Payment stays the same as always, at the till, at pickup or on delivery: the app only records that the bill has been paid. There are four kinds of users, and each has its own part of the app.
 
 **Guest**, from their own phone, without installing anything and without signing up:
 
@@ -32,14 +32,19 @@ TavoloFlow is a QR-code table ordering system. Every table has a fixed QR code: 
 - joins the table's visit opened by the staff, entering the table code (four characters) if the restaurant requires it;
 - for dishes with options (size, sugar, toppings, spice level…) first chooses them in a panel: required choices are never preselected, and extras are added to the price;
 - builds a cart, with a note for each dish, and sends the order; they can order several times during the meal;
-- sees the orders of the whole table and the status of each dish: received, ready, cancelled.
+- sees the orders of the whole table and the status of each dish: received, ready, cancelled;
+- if the restaurant offers online ordering, also orders from home, from the restaurant's link (`/r/{link}`): same menu and same options, then "Checkout", where they choose pickup or delivery and enter name, phone and, for delivery, the address. They can't choose a time: the order is made as soon as possible;
+- follows the online order on a status page (`/o/{token}`): waiting for confirmation, accepted with the expected time, ready, collected or delivered. If the restaurant doesn't answer within 10 minutes, the order expires and the page puts the restaurant's phone first.
 
 **Staff**, from a phone or tablet; the staff area can be installed as an app (PWA):
 
-- **Floor**: sees the tables and their bills, opens a table when guests arrive and tells them the code; pauses or resumes new orders; closes without payment a table with no orders or with every dish cancelled;
-- **Kitchen**: receives new orders with an alert sound, refreshed every 10 seconds; sees them in the Dishes (grouped by dish), Orders and Done views; in the Dishes view each screen can show only some menu categories (for example a screen just for drinks); sees the options the guest chose under each dish; marks each dish as ready or cancels it;
+- **Floor** (only with QR dine-in, like Tables): sees the tables and their bills, opens a table when guests arrive and tells them the code; pauses or resumes new orders; closes without payment a table with no orders or with every dish cancelled;
+- **Kitchen**: receives new orders with an alert sound, refreshed every 10 seconds; sees them in the Dishes (grouped by dish), Orders and Done views; in the Dishes view each screen can show only some menu categories (for example a screen just for drinks); sees the options the guest chose under each dish; marks each dish as ready or cancels it; accepted online orders appear together with the tables' ones, as "Pickup #12" or "Delivery #12";
 - **Pass**: on a tablet at the counter, shows the ready dishes to take to the tables; when a dish reaches the table, you tap "Served";
 - **Menu**: marks a dish, or a single option (for example a topping that ran out), as sold out or available again;
+- **Online orders**: accepts an order by choosing when it will be ready (for a delivery, after entering the fee) or rejects it, with an optional reason. While an order waits for acceptance, every staff page shows a banner at the top that rings. Here they also see the accepted orders not yet closed, with the customer's phone and address;
+- in **Online ordering** settings pauses online orders, until the end of the slot or for the rest of the day;
+- from Home turns on the **lock-screen notifications** of new online orders on each device;
 - the interface is in Chinese, Italian or English, chosen per device; until someone chooses, it follows the browser language.
 
 **Owner**: everything the staff does, plus:
@@ -47,12 +52,15 @@ TavoloFlow is a QR-code table ordering system. Every table has a fixed QR code: 
 - manages the menu: categories, dishes in three languages, prices, allergens, photos, and the option groups shared by dishes (size, sugar, toppings, spice level…), with extra prices, their own allergens and templates already translated into the three languages;
 - manages the tables and downloads their QR code and the printable table card;
 - in the Bill section closes the visit after payment, and in Bill history browses closed bills;
+- in Bill also closes online orders: "Collected, check payment" or "Delivered, check payment" after payment, or "Customer didn't come" or "Not delivered"; while the order is open they can correct the delivery fee;
+- in **Online ordering** settings sets the public phone, the weekly hours (at most two slots a day) and delivery, with a note in three languages on areas and fees;
 - resets the staff account's password and sees the status of their own subscription.
 
 **Platform administrator**, that is whoever offers the service to restaurants:
 
 - creates a restaurant together with its two accounts (owner and staff), with temporary passwords; later can deactivate these accounts or reset their password;
 - suspends or reactivates a restaurant, chooses its color theme, decides whether the table code is required, permanently deletes a suspended restaurant;
+- for each restaurant turns on QR dine-in, online ordering or both, and sets the online link (`/r/…`);
 - manages the owner's contact, the annual fee and the subscription periods, and records the payment of each period, received outside the app;
 - their interface is also in Chinese, Italian or English, with the same per-device choice as the staff.
 
@@ -61,10 +69,10 @@ TavoloFlow is a QR-code table ordering system. Every table has a fixed QR code: 
 - **Online payments.** Handling payments means fees, payment data security and refunds: too much for a first version.
 - **Fiscal receipts.** TavoloFlow replaces neither the till nor the fiscal register: the receipt is still issued by the restaurant's point-of-sale system.
 - **Printing kitchen tickets.** For the reasons explained above: it needs a compatible cloud printer, and I didn't have one to try it on.
-- **Push notifications.** Kitchen, pass and bills update by asking the server at regular intervals (polling). For a small restaurant it is enough, and much simpler.
+- **Push notifications for kitchen, pass and bills.** These pages update by asking the server at regular intervals (polling). For a small restaurant it is enough, and much simpler. The only push notification is the one for new online orders, which must arrive even when the phone is locked (see "A PWA for staff").
 - **Offline operation.** The app doesn't store pages or data on the device to use them without a network: orders and bills must always be up to date. If the connection drops, an already open page shows the latest data with a warning, but blocks operations (for example closing a bill) until a refresh succeeds; if a page is opened without a network, the staff area only shows a page saying so.
 - **Personal accounts for every waiter.** Each restaurant has a single, shared staff account, plus the owner's. For a small restaurant that is enough, and there is no need to know who did what.
-- **Takeaway and delivery.** Table orders only. A version with pickup orders was developed and then removed, to keep the first version simple.
+- **Delivery through external platforms.** Online orders exist, with pickup in store or delivery by the restaurant itself, but without platforms like Glovo or Deliveroo, without online payment and without a booked time: the customer pays at pickup or on delivery, and whoever accepts the order enters the delivery fee. A first version of takeaway had been developed and then removed, to keep the first version simple; today's one was redesigned from scratch.
 - **Split bills and sales statistics.** Each visit has a single bill, and apart from the history of closed bills there are no reports.
 - **All you can eat.** No ordering rounds or per-person limits: the restaurants I had in mind (ramen, Chinese food, bubble tea) work à la carte.
 
@@ -72,7 +80,7 @@ TavoloFlow is a QR-code table ordering system. Every table has a fixed QR code: 
 
 At first, actually, I built a prototype of this idea with TypeScript, Hono and a React SPA, all on Cloudflare, without a database of my own but with the one Cloudflare offers (D1), under the illusion of keeping maintenance costs to a minimum. With a detailed prompt I had the AI generate the project, but the result was completely incomprehensible to me. Never having built a project, I didn't know the problems and difficulties you run into, and so I didn't know which problems all the tools, libraries and frameworks the AI had introduced were solving. I immediately had a cognitive overload and gave up; I only used it to get an overview of what my project was supposed to become.
 
-So I moved to something more stable. Thinking about stability and about value on the job market, Java and C# came to mind. I know both, but C# is more expressive and has a more uniform ecosystem, a lower barrier to entry and a more "batteries-included" framework. In the end I chose C# with .NET, so ASP.NET Core as the web framework for the backend and EF Core as the ORM, with Npgsql as the PostgreSQL provider. "Batteries-included" really shows here: cookie authentication, policy-based authorization, data protection (Data Protection, used among other things to protect cookies and encrypt each visit's code), and dependency injection are all built into the framework, and the backend uses no external library for these things. For rate limiting I instead use `Common/FixedWindowLimiter`, the project’s own in-memory implementation, without ASP.NET Core’s rate limiting middleware. The only third-party library, besides Npgsql, is SkiaSharp, to resize and convert dish photos. EF Core offers no API for row locks (`SELECT ... FOR UPDATE`), so in those places I use hand-written SQL. For tests I use xUnit: in integration classes with `PostgreSqlFixture`, Testcontainers starts a throwaway PostgreSQL in Docker. HTTP tests use `WebApplicationFactory` to start the API in memory and send it requests as a browser would; data-layer tests use the `DbContext` directly. There are also pure tests without a database. I format the C# code with CSharpier, the C# equivalent of Prettier.
+So I moved to something more stable. Thinking about stability and about value on the job market, Java and C# came to mind. I know both, but C# is more expressive and has a more uniform ecosystem, a lower barrier to entry and a more "batteries-included" framework. In the end I chose C# with .NET, so ASP.NET Core as the web framework for the backend and EF Core as the ORM, with Npgsql as the PostgreSQL provider. "Batteries-included" really shows here: cookie authentication, policy-based authorization, data protection (Data Protection, used among other things to protect cookies and encrypt each visit's code), and dependency injection are all built into the framework, and the backend uses no external library for these things. For rate limiting I instead use `Common/FixedWindowLimiter`, the project’s own in-memory implementation, without ASP.NET Core’s rate limiting middleware. Besides Npgsql there are two third-party libraries: SkiaSharp, to resize and convert dish photos, and Lib.Net.Http.WebPush, which signs and encrypts push notifications (see "A PWA for staff"). EF Core offers no API for row locks (`SELECT ... FOR UPDATE`), so in those places I use hand-written SQL. For tests I use xUnit: in integration classes with `PostgreSqlFixture`, Testcontainers starts a throwaway PostgreSQL in Docker. HTTP tests use `WebApplicationFactory` to start the API in memory and send it requests as a browser would; data-layer tests use the `DbContext` directly. There are also pure tests without a database. I format the C# code with CSharpier, the C# equivalent of Prettier.
 
 For the database I chose PostgreSQL simply because it is the most used open-source database, and also one of the most powerful.
 
@@ -96,12 +104,14 @@ In this section I describe how TavoloFlow is built: what the pieces are, where e
 
 ```mermaid
 flowchart LR
-  G["Guest<br>/q/{token}"] --> C
+  G["Table guest<br>/q/{token}"] --> C
+  O["Online customer<br>/r/{slug}, /o/{token}"] --> C
   S["Staff and owner<br>/staff/*"] --> C
   P["Administrator<br>/platform/*"] --> C
   C["Caddy<br>HTTPS and SPA files"] -->|"/api/*"| A["ASP.NET Core API"]
   A --> D[("PostgreSQL")]
   A --> K["Data Protection keys<br>(folder on disk)"]
+  A -.->|"push notifications"| N["Push services<br>Apple, Google, Mozilla, Microsoft"]
 ```
 
 Everything goes through a single address. The browser only talks to Caddy, which does two things:
@@ -115,43 +125,49 @@ A minimal explanation of CORS: it is a browser rule. When a page's JavaScript ma
 
 A few points to keep in mind:
 
-- **One API process, three kinds of users.** The same ASP.NET Core application serves guests, staff and administrators. Each has its own cookie, and the backend understands which one to use by looking at the request URL's path, that is the part after the domain, for example `/api/public/orders` (see "Three identities" below).
+- **One API process, three kinds of users.** The same ASP.NET Core application serves guests (at the table and online), staff and administrators. Each has its own cookie, and the backend understands which one to use by looking at the request URL's path, that is the part after the domain, for example `/api/public/orders` (see "Three identities" below).
 - **Three containers in production:** `db` (PostgreSQL), `api` and `caddy`. Only Caddy exposes ports to the outside (80 and 443): the database and the API can only be reached from Docker's internal network.
+- **One call to the outside.** The API depends on no external service, with one exception: the push notifications of new online orders, which go from the API to Apple's, Google's, Mozilla's or Microsoft's push services. If they don't arrive, the app works anyway.
 - **The Data Protection keys** live in a persistent folder. Data Protection is ASP.NET Core's system for encrypting and signing data, and these are its secret keys. The login cookie, in fact, doesn't point to a session stored on the server: it directly contains the account's "ticket" (see "Three identities"), encrypted and signed with these keys, so the browser can neither read it nor forge it. The same keys also protect the CSRF tokens (explained in "Cookies, CSRF and same-origin") and the table codes stored in the database. If the keys lived only inside the container, they would be lost at every new release: everyone would have to sign in again and the codes of open visits could no longer be read. That is why the folder is set in `DataProtection:KeyRingPath` and lives on a persistent volume.
 
 ### Data model
 
-The database has fourteen tables. The complete schema is in [`er-diagram.dbml`](../reference/er-diagram.dbml), and there is also an [image](../reference/er-diagram.png). Grouped by topic:
+The database has eighteen tables. The complete schema is in [`er-diagram.dbml`](../reference/er-diagram.dbml), and there is also an [image](../reference/er-diagram.png). Grouped by topic:
 
 | Group               | Tables                                                                                                                                                                                                                                                                                |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Accounts            | `platform_users` (administrators), `restaurant_users` (one owner and one staff account per restaurant)                                                                                                                                                                                |
 | Restaurant and menu | `restaurants`, `menu_categories`, `menu_items`, `menu_item_images` (the photo bytes, kept apart so menu reads don't load them), `menu_option_groups` and `menu_options` (the options shared by dishes), `menu_item_option_groups` (which dishes use which group), `restaurant_tables` |
 | Service             | `dining_sessions`, `orders`, `order_items`                                                                                                                                                                                                                                            |
+| Online orders       | `online_hours` (the weekly hours), `online_counters` (the last order number of each day), `online_requests` (customers' orders, to be accepted)                                                                                                                                       |
+| Notifications       | `push_subscriptions` (the devices that receive lock-screen notifications)                                                                                                                                                                                                             |
 | Subscription        | `restaurant_subscription_periods`                                                                                                                                                                                                                                                     |
 
 The central concept is the **visit** (`DiningSession`, table `dining_sessions`). When guests arrive, the staff opens the table from Floor and an `ACTIVE` visit is born, with its own (encrypted) table code and a bill version number, `bill_version`. Guests have no accounts: to the system, a guest is just "a browser that joined this visit".
 
+With online ordering the visit also has a **channel** (`channel`): `DINE_IN` for the table, `PICKUP` and `DELIVERY` for online orders to collect or to deliver. An online visit is born only when the staff accept the order, has neither table nor code, has a single order and, for a delivery, also the delivery fee (`delivery_fee_cents`). Before acceptance the customer's order is only a row of `online_requests` (see "Online orders: a request to accept").
+
 Each order belongs to a visit and has one or more lines (`order_items`), one per dish, with the quantity and an optional note. Each line has its own status: it is born `NEW`, then the kitchen moves it to `READY` or `CANCELLED`; when the dish reaches the table, the Pass fills in `served_at`. The order also has a summary status: `NEW` while at least one line is `NEW`, then `PROCESSED` (that is the difference between the Kitchen's Orders and Done views).
 
-When the visit closes (after payment, or without payment if there were no orders or they were all cancelled), it becomes `CLOSED` and stores the reason (`PAID`, `EMPTY` or `VOIDED`), the total and the closing time. A closed visit never reopens: the next guests get a new visit.
+When the visit closes (after payment, or without payment if there were no orders or they were all cancelled), it becomes `CLOSED` and stores the reason (`PAID`, `EMPTY` or `VOIDED`; for online orders also `NO_SHOW`, when the customer doesn't collect or the delivery fails), the total and the closing time. A closed visit never reopens: the next guests get a new visit.
 
 The frontend makes things more convenient, but guarantees nothing. Some rules, moreover, aren't checked only by the C# code: the database guarantees them directly, so they stay true even if one day the code had a bug.
 
 | Rule                                      | How PostgreSQL guarantees it                                                                                                                                                                                                                                                             |
 | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | A table has at most one open visit        | partial unique index `uq_active_session_per_table` on `table_id`, only for rows with `status = 'ACTIVE'`                                                                                                                                                                                 |
-| A guest request creates at most one order | unique index `uq_order_one_per_request` on `(dining_session_id, client_request_id)`                                                                                                                                                                                                      |
+| A guest request creates at most one order | unique index `uq_order_one_per_request` on `(dining_session_id, client_request_id)`; for online orders `uq_online_request_client_request` on `(restaurant_id, client_request_id)`                                                                                                        |
 | Data of different restaurants never mixes | every business table has `restaurant_id` (except `menu_item_images`, which reaches the restaurant through its dish) and the foreign keys are composite, `(id, restaurant_id)`: an order can only point to a visit of the same restaurant, a line only to an order of the same restaurant |
 | Status and fields are always consistent   | check constraints such as `ck_session_lifecycle`: an `ACTIVE` visit has the encrypted code and no closing data, a `CLOSED` one has time, reason and total, and the code is cleared; `ck_order_item_lifecycle` does the same for lines                                                    |
+| The channel decides the fields            | `ck_session_dine_in` and `ck_session_online`: a table visit always has the table's name (and, while open, the table and the code), an online visit never has a table or a code; `ck_session_delivery_fee`: the delivery fee is always there on deliveries and never on other channels    |
 | Only allowed values                       | enums are stored as uppercase text (`ACTIVE`, `READY`…) and a check constraint lists the valid values                                                                                                                                                                                    |
 
-Order history, on the other hand, is not protected by the database. Each line stores a copy (snapshot) of the dish's name, price and allergens: if the dish later changes price, the line stays as it was. The same goes for the chosen options: the line saves them in `options_snapshot` (a jsonb column), with the group and option names and the extra price. The line's unit price already includes the extras, so the bill is always unit price × quantity, and the saved allergens are the dish's plus those of the chosen options. But PostgreSQL doesn't prevent a direct UPDATE of these copies or of closed bills: that they don't change is guaranteed by the services, which never modify them. Deleting a dish or a table also goes through a service, `CatalogDeletionService`: first it clears the reference (`menu_item_id` in the lines, `table_id` in closed visits), then it deletes, and the copy stays. Here the database only acts as a check: the foreign key doesn't allow deleting a dish or a table that is still referenced.
+Order history, on the other hand, is not protected by the database. Each line stores a copy (snapshot) of the dish's name, price and allergens: if the dish later changes price, the line stays as it was. The same goes for the chosen options: the line saves them in `options_snapshot` (a jsonb column), with the group and option names and the extra price. The line's unit price already includes the extras, so the bill is always unit price × quantity, and the saved allergens are the dish's plus those of the chosen options. An online request also saves its dishes as a copy, in the jsonb column `lines`; when the staff accept it, a single function (`OrderLineSnapshot.ToOrderItem`) turns it into the order's lines. But PostgreSQL doesn't prevent a direct UPDATE of these copies or of closed bills: that they don't change is guaranteed by the services, which never modify them. Deleting a dish or a table also goes through a service, `CatalogDeletionService`: first it clears the reference (`menu_item_id` in the lines, `table_id` in closed visits), then it deletes, and the copy stays. Here the database only acts as a check: the foreign key doesn't allow deleting a dish or a table that is still referenced.
 
 Other conventions:
 
 - **Money in integer cents** (`long`, `*_cents` columns), never decimal numbers. The maximum is the largest integer JavaScript represents exactly (2⁵³ − 1, `InputRules.MaxSafeCents`), so the browser loses no precision.
-- **Times in UTC** (`timestamptz`), shown in the restaurant's time zone (Europe/Rome). Only subscription periods use plain dates (`date`).
+- **Times in UTC** (`timestamptz`), shown in the restaurant's time zone (Europe/Rome). Only subscription periods and the day an online order belongs to (`business_date`) use plain dates (`date`).
 - **snake_case names**, mapped by hand in `Data/Configurations/`, one class per entity.
 - **One database for all restaurants** (multi-tenant): they all live in the same tables, separated by `restaurant_id`. Deleting a restaurant removes all its rows with `ON DELETE CASCADE`.
 - **Migrations** in `Data/Migrations/`, generated by EF Core and forward-only; they never run at startup (see "Choosing the tech stack").
@@ -160,25 +176,27 @@ Other conventions:
 
 The backend is a single project, `backend/TavoloFlow.Api/`, organized by topic rather than by kind of class:
 
-| Folder               | Contents                                                                                                                                                                                                           |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Program.cs`         | the starting point: registers the services and the middleware pipeline. With an option like `--seed-dev-accounts` it becomes a one-off command instead, which runs and exits (`Operations/MaintenanceCommands.cs`) |
-| `Controllers/`       | 16 controller classes in 15 files, all very thin                                                                                                                                                                   |
-| `Common/`            | cross-cutting code: the error format (`ApiError`, `ApiException` and the global filter), identity selection and CSRF (`BrowserSecurity`), cursor paging, enums as text, input rules and the rate limiter           |
-| `Accounts/`          | login, logout and password change for owner and staff                                                                                                                                                              |
-| `Menus/`             | menu management, availability, dish photos, option groups (`MenuOptionService`), reading the public menu; every menu write goes through the same lock (`MenuWrites`)                                               |
-| `Tables/`            | tables and QR tokens                                                                                                                                                                                               |
-| `Dining/`            | opening a table, the Floor, the encrypted table code, the shared bill summary, pausing new orders                                                                                                                  |
-| `Guests/`            | the guest joining the visit, and their cookie                                                                                                                                                                      |
-| `Ordering/`          | idempotent order creation, checking and pricing the chosen options (`OrderOptions`), the table's orders                                                                                                            |
-| `Kitchen/`           | the Kitchen queue, dish ready or cancelled, the Pass                                                                                                                                                               |
-| `Billing/`           | the bill, the three closures (`PAID`, `VOIDED`, `EMPTY`), Bill history                                                                                                                                             |
-| `Platform/`          | administrator area: restaurants, accounts, subscriptions                                                                                                                                                           |
-| `Data/`, `Entities/` | `ApplicationDbContext`, the EF Core mappings and migrations, the row locks (`RowLocks`), the deletion service; the 14 entities                                                                                     |
+| Folder               | Contents                                                                                                                                                                                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Program.cs`         | the starting point: registers the services and the middleware pipeline. With an option like `--seed-dev-accounts` it becomes a one-off command instead, which runs and exits (`Operations/MaintenanceCommands.cs`)                                                       |
+| `Controllers/`       | 20 controller classes in 19 files, all very thin                                                                                                                                                                                                                         |
+| `Common/`            | cross-cutting code: the error format (`ApiError`, `ApiException` and the global filter), identity selection and CSRF (`BrowserSecurity`), cursor paging, enums as text, input rules and the rate limiter                                                                 |
+| `Accounts/`          | login, logout (which also removes the device's notification subscription) and password change for owner and staff                                                                                                                                                        |
+| `Menus/`             | menu management, availability, dish photos, option groups (`MenuOptionService`), reading the public menu; every menu write goes through the same lock (`MenuWrites`)                                                                                                     |
+| `Tables/`            | tables and QR tokens                                                                                                                                                                                                                                                     |
+| `Dining/`            | opening a table, the Floor, the encrypted table code, the shared bill summary, pausing new orders                                                                                                                                                                        |
+| `Guests/`            | the guest joining the visit, and their cookie                                                                                                                                                                                                                            |
+| `Ordering/`          | idempotent order creation, checking and pricing the chosen options (`OrderOptions`), the line check shared with online orders (`OrderLines`), the table's orders                                                                                                         |
+| `Kitchen/`           | the Kitchen queue, dish ready or cancelled, the Pass, with the names of online orders                                                                                                                                                                                    |
+| `Billing/`           | the bill, the four closures (`PAID`, `VOIDED`, `EMPTY` and, online only, `NO_SHOW`), delivery fee correction, Bill history                                                                                                                                               |
+| `Platform/`          | administrator area: restaurants, services and online link, accounts, subscriptions                                                                                                                                                                                       |
+| `Online/`            | online ordering: settings (phone, hours, pause, delivery), the customer's menu and submission, the status page, acceptance and rejection; the single rules `OnlineAvailability` (can customers order now?) and `OnlineRequestState` (is the request waiting or expired?) |
+| `Push/`              | lock-screen notifications: the VAPID key, device subscriptions, the in-memory queue and sending (`PushSender`, the only `BackgroundService`)                                                                                                                             |
+| `Data/`, `Entities/` | `ApplicationDbContext`, the EF Core mappings and migrations, the row locks (`RowLocks`), the deletion service; the 18 entities                                                                                                                                           |
 
 Each module has an `XxxContracts.cs` file with the DTOs (what goes into and comes out of the API) and the error factories, for example `DiningErrors.SessionClosed()`, plus one or more services with the rules and the transactions.
 
-Dependencies between modules go in one direction only and follow the path of a visit: `Guests` uses `Dining`; `Ordering` uses `Guests` and `Dining`; `Kitchen` uses `Ordering` and `Dining`; `Billing` uses `Dining` and `Kitchen` (only to reuse the order format in the bill response); `Platform` uses `Accounts`. `Common/` depends on no business module.
+Dependencies between modules almost always follow the path of a visit: `Guests` uses `Dining`; `Ordering` uses `Guests` and `Dining`; `Kitchen` uses `Ordering` and `Dining`; `Billing` uses `Dining` and `Kitchen` (only to reuse the order format in the bill response); `Platform` uses `Accounts`. Online ordering added two links in both directions. `Online` uses `Ordering` (the same dish and price check), `Menus` and `Dining` (the bill summary), while `Dining` and `Kitchen` use `Online`'s response types to show the number, name and expected time. `Online` queues `Push` notifications, and `Push` uses `Online`'s error when a restaurant has no online ordering. In addition `Accounts` uses `Push` (sign-out removes the device's subscription) and `Platform` uses `Online` (online ordering can't be turned off while an order is still open). `Common/` depends on no business module.
 
 **Thin controllers.** A controller does only three things: it declares who can call the endpoint, takes the trusted identity and calls the service. For example, marking a dish as ready:
 
@@ -214,7 +232,7 @@ flowchart TD
 ```
 
 - **Authentication.** It reads the cookie of the identity the path belongs to and builds `HttpContext.User`. For staff and administrators it also rechecks the account in the database (`ValidatePrincipal`, see "Three identities").
-- **Authorization.** Each controller declares a policy: `StoreStaff`, `StoreOwner`, `StoreAccount` (valid even before the first password change, only for operations on one's own account), `GuestAccess` or `PlatformAdmin`. An endpoint without `[Authorize]` falls into the fallback policy, which is Store Staff: a new endpoint is protected even if you forget to declare one. Login, the public menu, joining the visit and requesting the CSRF token are opened explicitly with `[AllowAnonymous]`. The 401 and 403 responses are written by the cookie events, before the MVC filters, but in the same JSON format.
+- **Authorization.** Each controller declares a policy: `StoreStaff`, `StoreOwner`, `StoreAccount` (valid even before the first password change, only for operations on one's own account), `GuestAccess` or `PlatformAdmin`. An endpoint without `[Authorize]` falls into the fallback policy, which is Store Staff: a new endpoint is protected even if you forget to declare one. Login, the public menu, joining the visit, the online ordering pages and submission and requesting the CSRF token are opened explicitly with `[AllowAnonymous]`. An anonymous controller under `/api/public` must still declare its identity's policy, `GuestAccess`, too: with `[AllowAnonymous]` alone authorization uses the fallback policy, which authenticates with the Store scheme, and in a browser that also holds the staff login the customer's CSRF token no longer matches the identity. A test in `OnlineOrderingTests` checks it with every identity together in the same browser. The 401 and 403 responses are written by the cookie events, before the MVC filters, but in the same JSON format.
 - **CSRF.** `CsrfValidationFilter` is registered on all controllers: every POST, PUT, PATCH and DELETE must carry the `X-CSRF-TOKEN` header obtained by the same identity, otherwise the response is 400 `CSRF_VALIDATION_FAILED` (see "Cookies, CSRF and same-origin").
 - **Errors.** A service rejects a request by throwing an `ApiException` with an HTTP status, a code and a message. The global `ApiExceptionFilter` always turns it into the same JSON:
 
@@ -231,9 +249,9 @@ flowchart TD
 
 ### Frontend: how features are organized
 
-The frontend (`frontend/src/`) is a single SPA with three areas, one per kind of user: `/q/{token}` for the guest, `/staff/*` for owner and staff, `/platform/*` for the administrator.
+The frontend (`frontend/src/`) is a single SPA with one area per kind of user: `/q/{token}` for the table guest, `/r/{slug}` (menu and order) and `/o/{token}` (order status) for the online customer, `/staff/*` for owner and staff, `/platform/*` for the administrator.
 
-**Routes.** With TanStack Router, routes are files in `routes/`, and the file name is the URL: `staff.kitchen.tsx` becomes `/staff/kitchen`, `q.$token.tsx` becomes `/q/{token}` with the `token` parameter. From these files the Vite plugin generates `routeTree.gen.ts`, which is never edited by hand. `staff.tsx` and `platform.tsx` are layout routes: they wrap all the pages of their area (for staff, `StaffLayout` shows the navigation and makes the area installable as a PWA). Route files stay very thin and hand over to the feature right away:
+**Routes.** With TanStack Router, routes are files in `routes/`, and the file name is the URL: `staff.kitchen.tsx` becomes `/staff/kitchen`, `q.$token.tsx` becomes `/q/{token}` with the `token` parameter. From these files the Vite plugin generates `routeTree.gen.ts`, which is never edited by hand. `staff.tsx` and `platform.tsx` are layout routes: they wrap all the pages of their area (for staff, `StaffLayout` shows the navigation, makes the area installable as a PWA and holds the push notification controller). Route files stay very thin and hand over to the feature right away:
 
 ```tsx
 export const Route = createFileRoute("/staff/kitchen")({
@@ -243,20 +261,23 @@ export const Route = createFileRoute("/staff/kitchen")({
 
 **Features.** The real code lives in `features/`, one folder per part of the product:
 
-| Feature         | Pages                                                                                           |
-| --------------- | ----------------------------------------------------------------------------------------------- |
-| `public-menu`   | the guest menu, `/q/{token}`                                                                    |
-| `guests`        | the guest joining the visit, with the table code                                                |
-| `orders`        | option picker, cart, sending the order, the table's orders                                      |
-| `accounts`      | login, password change, Home, navigation, PWA installation                                      |
-| `dining`        | Floor, `/staff/floor`                                                                           |
-| `kitchen`       | Kitchen, `/staff/kitchen`                                                                       |
-| `pass`          | Pass, `/staff/pass`                                                                             |
-| `billing`       | Bill, `/staff/orders`, and Bill history, `/staff/history`                                       |
-| `menu`          | Menu, `/staff/menu`, with the Dishes and Options tabs                                           |
-| `tables`        | Tables & QR, `/staff/tables`                                                                    |
-| `subscriptions` | the owner's Subscription, `/staff/subscription`, and subscription periods for the administrator |
-| `platform`      | administrator area, `/platform/*`, and Staff account, `/staff/settings`                         |
+| Feature         | Pages                                                                                                                             |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `public-menu`   | the guest menu, `/q/{token}`                                                                                                      |
+| `guests`        | the guest joining the visit, with the table code                                                                                  |
+| `orders`        | option picker, cart, sending the order, the table's orders                                                                        |
+| `online-order`  | the online customer's pages: menu and checkout, `/r/{slug}`, privacy notice and order status, `/o/{token}`                        |
+| `accounts`      | login, password change, Home, navigation, PWA installation                                                                        |
+| `dining`        | Floor, `/staff/floor`                                                                                                             |
+| `kitchen`       | Kitchen, `/staff/kitchen`                                                                                                         |
+| `pass`          | Pass, `/staff/pass`                                                                                                               |
+| `online`        | Online orders, `/staff/online`, the banner that rings on every staff page, and Online ordering settings, `/staff/online-settings` |
+| `push`          | Home's "Lock-screen notifications" section and the controller that keeps browser and server aligned                               |
+| `billing`       | Bill, `/staff/orders`, and Bill history, `/staff/history`                                                                         |
+| `menu`          | Menu, `/staff/menu`, with the Dishes and Options tabs                                                                             |
+| `tables`        | Tables & QR, `/staff/tables`                                                                                                      |
+| `subscriptions` | the owner's Subscription, `/staff/subscription`, and subscription periods for the administrator                                   |
+| `platform`      | administrator area, `/platform/*`, and Staff account, `/staff/settings`                                                           |
 
 Each feature has more or less the same shape:
 
@@ -270,11 +291,11 @@ Shared code lives in `lib/` (`api.ts` with the request functions, price and time
 
 **Where data lives.** The frontend has three kinds of state, and each has its own place:
 
-| Kind                 | Where                | Examples                                                |
-| -------------------- | -------------------- | ------------------------------------------------------- |
-| Server data          | TanStack Query cache | menu, Floor, Kitchen queue, bills                       |
-| Tab-local intentions | `sessionStorage`     | cart, identifiers of operations awaiting confirmation   |
-| Device preferences   | `localStorage`       | interface language, Kitchen sound and hidden categories |
+| Kind                 | Where                | Examples                                                                                                 |
+| -------------------- | -------------------- | -------------------------------------------------------------------------------------------------------- |
+| Server data          | TanStack Query cache | menu, Floor, Kitchen queue, bills                                                                        |
+| Tab-local intentions | `sessionStorage`     | cart (the online one too), identifiers of operations awaiting confirmation                               |
+| Device data          | `localStorage`       | interface language, Kitchen sound and hidden categories, the token of the customer's latest online order |
 
 The first piece of each query key says which identity the data belongs to: `public` (anonymous menu), `guest`, `platform`, `["auth", "me"]` (the staff identity); everything else counts as private restaurant data. When the staff signs in or out, `lib/query-scope.ts` clears only the staff cache, and the guest's or administrator's data open in the same tab stays.
 
@@ -310,7 +331,9 @@ Cookie paths help too: the browser sends the Guest cookie only to requests under
 - Store and Platform: the cookie contains the account ID, the role and the credential version (`credential_version`), plus the restaurant ID for staff. On every request `ValidatePrincipal` rereads the account from the database: if it has been deactivated or the version has changed (password change or reset), the cookie is rejected. So changing a password signs out all other devices immediately.
 - Guest: the cookie contains restaurant, table and visit, plus a random identifier generated at every join, to which the CSRF token is bound. It only proves that "this browser joined this visit"; whether the visit is still open is checked by every guest service, on every request. After closing, the cookie stays in the browser, but every request answers `SESSION_CLOSED`.
 
-**In the frontend**, `lib/api.ts` has a family of functions for each identity: `request`/`write` for staff, `publicRequest` for anonymous reads (without cookies, like the public menu), `guestRequest`/`guestWrite` for the guest and `platformRequest`/`platformWrite` for the administrator. Each write first asks its own identity's `csrf` endpoint for a fresh CSRF token and sends it in the `X-CSRF-TOKEN` header.
+**The online customer has no identity.** The `/r/{slug}` and `/o/{token}` pages use no login cookie: to find their order again, two random values known only to that device are enough, the `clientRequestId` for recovery after a network error and the status page token. Submitting, however, is a write, so it needs its CSRF token, requested from `/api/public/csrf` and bound to the Guest scope.
+
+**In the frontend**, `lib/api.ts` has a family of functions for each identity: `request`/`write` for staff, `publicRequest` for anonymous reads (without cookies, like the public menu), `publicWrite` for the anonymous online order submission (it sends only the CSRF cookie), `guestRequest`/`guestWrite` for the table guest and `platformRequest`/`platformWrite` for the administrator. Each write first asks its own identity's `csrf` endpoint for a fresh CSRF token and sends it in the `X-CSRF-TOKEN` header.
 
 Why cookies and not JWT tokens, and how the CSRF protection works, I explain in "Cookies, CSRF and same-origin".
 
@@ -364,6 +387,44 @@ sequenceDiagram
 
 The details of each step (why exactly those locks, why `clientRequestId`, why `bill_version`, why polling) are in "Design decisions".
 
+### The flow of an online order
+
+An online order takes another road until acceptance; from then on it is a visit like the others, with a single order:
+
+```mermaid
+sequenceDiagram
+  actor C as Online customer
+  actor S as Staff (Online orders, Kitchen, Pass)
+  actor T as Owner (Bill)
+  participant A as API
+  participant D as PostgreSQL
+  participant P as Push services
+
+  C->>A: GET /api/public/r/{slug}/bootstrap (anonymous)
+  A-->>C: restaurant, menu and online ordering status
+  C->>A: POST /api/public/r/{slug}/requests (clientRequestId, name, phone, lines)
+  A->>D: lock restaurant (SHARE), the restaurant's submission lock, the day's counter
+  A->>D: if clientRequestId already exists returns that request, otherwise saves it, waiting for 10 minutes
+  A-->>C: number, expiry and status page token
+  A-)P: after the commit, "New online order" to the subscribed devices
+  loop every 10 seconds
+    S->>A: GET /api/staff/online/pending (banner and Online orders)
+  end
+  S->>A: POST /api/staff/online/requests/{id}/accept (minutes and, for delivery, fee)
+  A->>D: lock restaurant (SHARE) and request (UPDATE), new PICKUP or DELIVERY visit with its order
+  loop every 10 seconds
+    C->>A: GET /api/public/online-orders/{token}
+  end
+  S->>A: Kitchen and Pass, as for tables
+  T->>A: POST /api/owner/sessions/{id}/checkout (or close-no-show)
+```
+
+1. **Menu.** The `/r/{slug}` page reads without cookies the restaurant, the menu and the online ordering status, computed by a single rule (`OnlineAvailability`): service suspended, online ordering off or phone missing, paused, outside hours, too many waiting orders, or open. If it isn't open, the customer can browse the menu but not check out.
+2. **Submission.** As at the table, the frontend saves the whole intention with a `clientRequestId` in `sessionStorage`, and only then sends the POST. The backend takes the locks, assigns the day's number and first of all looks for a request with the same ID: if there is one, it returns it and rolls back the transaction, so the number isn't used up. Otherwise it checks the status, delivery, dishes and prices again and saves the request, which waits for 10 minutes. The customer moves to the status page.
+3. **Alert.** Only after the commit does the order number enter an in-memory queue, and a background service sends the push notifications. Staff with the app open see it anyway from the banner, which asks the server every 10 seconds and rings while an order waits for acceptance.
+4. **Acceptance.** The staff choose when it will be ready (for delivery, the fee first). The backend locks the request, checks that it is still waiting and, in the same transaction, creates the visit (`PICKUP` or `DELIVERY`), its only order and the lines, copied from the request. The order is born at that moment, so for the Kitchen it is a new order like the others, and it rings. If the staff reject it instead, or nobody answers in time, nothing is born: the request stays rejected or expired.
+5. **Kitchen, Pass and bill.** From here everything goes as for a table: dishes ready or cancelled, "Served" from the Pass (for a delivery it means handed to whoever delivers), and the owner closes the bill at pickup or on delivery; if the customer doesn't show up, they close it as `NO_SHOW`. The customer's status page refreshes every 10 seconds until the order ends.
+
 ## Design decisions
 
 In this section I explain the reasons behind the most important technical choices. Almost all of them answer two questions: what happens when two people do something at the same moment, and what happens when the network drops halfway through an operation? In a restaurant both happen all the time: several waiters and several guests use the app together, and the Wi-Fi is not always good.
@@ -379,7 +440,7 @@ In this section I explain the reasons behind the most important technical choice
 
 Normal reads, without locks, are not blocked: thanks to MVCC, PostgreSQL shows them the latest already-committed version of the row.
 
-EF Core has no LINQ API for these locks, so I write them in SQL with `FromSql`, which turns interpolated values into parameters and is therefore safe against SQL injection. The ones on restaurant, table, visit and dish are collected in a single file, `Data/RowLocks.cs`, with the lock order written at the top of the file, so they are easy to check (the few locks on accounts live directly in the platform services):
+EF Core has no LINQ API for these locks, so I write them in SQL with `FromSql`, which turns interpolated values into parameters and is therefore safe against SQL injection. The ones on restaurant, table, visit, dish and online request are collected in a single file, `Data/RowLocks.cs`, with the lock order written at the top of the file, so they are easy to check (the few locks on accounts live directly in the platform services):
 
 ```csharp
 db.DiningSessions.FromSql(
@@ -393,22 +454,28 @@ A lock stays active until the end of the transaction: that is why each service o
 
 ```
 restaurant → table → visit          restaurant → dish
+restaurant → online request         restaurant → submission lock → the day's counter
 ```
 
-Each operation takes only a stretch of this chain, always in this direction: whoever starts from the visit never goes back to the table or the restaurant.
+Each operation takes only a stretch of this chain, always in this direction: whoever starts from the visit never goes back to the table or the restaurant. The submission lock doesn't lock a row: it is a PostgreSQL advisory lock (`pg_advisory_xact_lock`), that is a named lock, here derived from the restaurant ID, that is released by itself at the end of the transaction.
 
-| Operation                                                   | Locks, in order                                                     |
-| ----------------------------------------------------------- | ------------------------------------------------------------------- |
-| Opening a table                                             | restaurant SHARE → table UPDATE                                     |
-| Joining the visit (guest)                                   | restaurant SHARE → table SHARE → visit SHARE                        |
-| Sending an order                                            | restaurant SHARE → table SHARE → visit UPDATE                       |
-| Reading the table's orders or the bill                      | visit SHARE                                                         |
-| Dish ready or cancelled, "Served", closing the bill         | visit UPDATE only                                                   |
-| Changing the menu, options and their availability included  | restaurant UPDATE (when deleting a dish, then also the dish UPDATE) |
-| Pausing new orders, suspending the restaurant, subscription | restaurant UPDATE                                                   |
-| Renaming, enabling or deleting a table                      | table UPDATE                                                        |
+| Operation                                                                                              | Locks, in order                                                     |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| Opening a table                                                                                        | restaurant SHARE → table UPDATE                                     |
+| Joining the visit (guest)                                                                              | restaurant SHARE → table SHARE → visit SHARE                        |
+| Sending an order                                                                                       | restaurant SHARE → table SHARE → visit UPDATE                       |
+| Sending an online order                                                                                | restaurant SHARE → submission lock → the day's counter              |
+| Accepting an online order                                                                              | restaurant SHARE → online request UPDATE                            |
+| Rejecting an online order                                                                              | online request UPDATE only                                          |
+| Reading the table's orders or the bill                                                                 | visit SHARE                                                         |
+| Dish ready or cancelled, "Served", closing the bill, delivery fee                                      | visit UPDATE only                                                   |
+| Changing the menu, options and their availability included                                             | restaurant UPDATE (when deleting a dish, then also the dish UPDATE) |
+| Pausing new orders, suspending the restaurant, subscription, online ordering settings, active services | restaurant UPDATE                                                   |
+| Renaming, enabling or deleting a table                                                                 | table UPDATE                                                        |
 
 Why does the order take the restaurant in SHARE? Whoever changes the menu takes the restaurant in UPDATE, so while an order is in progress nobody can change prices, availability or options, and the prices and options copied into the order are exactly the ones just checked. Two orders from different tables, instead, both take a SHARE lock: they are compatible and run in parallel.
+
+The same goes for online orders: submission and acceptance take the restaurant in SHARE, so menu and prices don't change halfway. Whoever turns online ordering off from the administrator area takes the restaurant in UPDATE instead, and so waits for the submissions in progress to finish: between the check "are there still open online orders?" and turning it off, no new request can arrive.
 
 Order, Kitchen and bill closing all take the same visit in UPDATE, so on the same visit they queue up. If the order arrives first, the closing finds the bill changed (`BILL_CHANGED`, see below); if the closing arrives first, the order finds the visit closed (`SESSION_CLOSED`).
 
@@ -433,7 +500,7 @@ The alternatives were the Serializable isolation level, with transactions to ret
 
 **The problem.** The owner opens a table's Bill, sees €45 and goes to the till. Meanwhile a guest orders another drink, or the Kitchen cancels a dish. When the owner confirms, the closed bill must be exactly the one they saw and collected. A lock is not enough here: I can't keep a database row locked for as long as a person looks at the screen.
 
-**The choice: an optimistic version.** Each visit has `bill_version`, which starts at 1 and goes up by 1 for everything that changes the amount: a new order or the cancellation of a dish. It doesn't change when a dish becomes ready or served, when the same order is repeated with the same `clientRequestId`, or with the closing.
+**The choice: an optimistic version.** Each visit has `bill_version`, which starts at 1 and goes up by 1 for everything that changes the amount: a new order, the cancellation of a dish or, for a delivery, the correction of the delivery fee. An online visit is born already with its order and version 1. It doesn't change when a dish becomes ready or served, when the same order is repeated with the same `clientRequestId`, or with the closing.
 
 The frontend freezes the version and the total shown in the confirmation (polling updates the screen, but doesn't silently replace the values to confirm) and sends them with the checkout:
 
@@ -473,11 +540,28 @@ The two techniques complement each other: the pessimistic lock protects the mill
 
 The frontend never resends the POST by itself. After an unknown result it looks for the order with a GET (`/api/public/sessions/{id}/orders/by-request/{requestId}`); the guest can check again with "Check order result" or tap "Retry original order", which resends the same ID with exactly the same content. It is always the guest who decides.
 
+Online orders use the same idea, with a few differences. The `clientRequestId` is unique per restaurant (`uq_online_request_client_request`), and the backend looks for it after taking the day's number: a repeat returns the original request and rolls back the transaction, so numbers have no gaps. Recovery is a GET by ID (`/api/public/r/{slug}/requests/by-client-id/{id}`): only that phone knows the random ID, and it is the credential. Then there is a deliberate difference. If a retry after an unknown result is rejected for a reason the backend checks only after looking up the ID (for example orders paused, outside hours, too many waiting orders, delivery off or the menu changed), that rejection proves the first request doesn't exist, and the cart is released. For table orders the rule stays the cautious one described above.
+
+### Online orders: a request to accept
+
+**The problem.** An online order comes from someone who isn't at the restaurant: it may be a prank, the restaurant may be unable to make it, and the customer isn't there to be told. Once accepted, though, the order must go through Kitchen, Pass and Bill like all the others, without duplicating those parts.
+
+**The choice: a separate request, which becomes a visit only if it is accepted.**
+
+- **A table of its own.** Submission saves only a row of `online_requests`, with the dishes copied into a jsonb column. Kitchen, Pass, Bill and History don't see it, because they read `dining_sessions` and `orders` as before: a suspicious order can't reach the kitchen by mistake. Only acceptance creates, in the same transaction, the visit (`PICKUP` or `DELIVERY`), its order and the lines. A rejected or expired order stays just a row: no visits open forever, no dishes `NEW` forever.
+- **No status column.** A request is accepted if it has `accepted_at`, rejected if it has `rejected_at`, otherwise it waits until `expires_at` (10 minutes after submission) and is expired from that moment. Nobody writes the expiry: it is derived from the time, so no background job is needed, and in tests it is enough to move time with `TestClock`. The rule is written only once, in `OnlineRequestState`, and whoever reads waiting requests always uses it with the time from `TimeProvider`, never with SQL's `now()`. If one place forgot it, twenty expired requests would be enough to block new orders forever.
+- **The order is born at acceptance.** So its creation time is the moment it enters the kitchen: the Kitchen's sorting, the grouping by dish and the sound work without any change.
+- **One number a day.** Each restaurant numbers its online orders from 1 every day (`online_counters`): a number that is easy to say on the phone or write on the bag. Submission locks the day's counter with an `INSERT ... ON CONFLICT DO UPDATE`, but at midnight that isn't enough: two close submissions, or the retry of the same order, could lock the counters of two different days without waiting for each other. That is why submission first takes the restaurant's submission lock, so the duplicate check and the limit of waiting orders never overlap. Different restaurants don't wait for each other.
+- **A limit, and a single rule for "can customers order?".** With 20 waiting requests the restaurant is `BUSY` and accepts no more submissions. The status (`OnlineAvailability`) is computed in a single place, used by the customer's menu, the submission and the settings page.
+- **A person decides the delivery fee.** No calculation from the distance: it would need a paid maps service, and the customer's address would have to be sent to another company. The owner writes their rules in a note (by area, by amount…), and whoever accepts the order enters the fee, which goes into the bill. If it is wrong, the owner corrects it before closing, with the bill version.
+
+The price: the staff must answer within 10 minutes, even at peak times, and an expired order is lost: the customer has to call or order again. That is why there is the banner that rings on every page and, for locked phones, push notifications (see "A PWA for staff").
+
 ### Writes with an unknown result: recovery by GET only
 
-The order problem applies to every write: opening a table, marking a dish ready, closing a bill, creating a restaurant. When the network drops, or the timeout expires, the result is unknown: the write may or may not have succeeded. The timeout isn't automatic: only operations that use `withTimeout` (`lib/api.ts`) stop waiting after 15 seconds (`REQUEST_TIMEOUT_MS`), that is those of Floor, Kitchen, Pass, Bill, subscriptions and the guest (orders and joining the visit); menu changes and the administrator's operations on restaurants and accounts don't use it.
+The order problem applies to every write: opening a table, marking a dish ready, closing a bill, creating a restaurant. When the network drops, or the timeout expires, the result is unknown: the write may or may not have succeeded. The timeout isn't automatic: only operations that use `withTimeout` (`lib/api.ts`) stop waiting after 15 seconds (`REQUEST_TIMEOUT_MS`), that is those of Floor, Kitchen, Pass, Bill, online orders, push notifications, subscriptions and the guest (table and online orders, joining the visit); menu changes and the administrator's operations on restaurants and accounts don't use it.
 
-For the most delicate writes I use the same pattern: opening a table and pausing new orders on Floor, dish ready or cancelled in Kitchen, closing the bill, guest orders and the administrator's operations on restaurants and accounts.
+For the most delicate writes I use the same pattern: opening a table and pausing new orders on Floor, dish ready or cancelled in Kitchen, closing the bill, guest orders (at the table and online) and the administrator's operations on restaurants and accounts.
 
 ```mermaid
 flowchart TD
@@ -501,11 +585,15 @@ The minimal intention contains identifiers, the kind of action and, when needed,
 
 **Why `sessionStorage`.** It is valid for a single tab and disappears when the tab closes, so two tabs don't confuse each other. Markers contain only the operation’s minimum data; the complete order remains the cart’s exception. Never passwords or codes.
 
-There are three exceptions to the pattern:
+There are seven exceptions to the pattern:
 
 - the guest's order, which can be retried by hand with the same ID because the backend is idempotent (see above);
 - subscription writes in the administrator area, which save nothing: each write carries the subscription version read earlier, so each version can be consumed by at most one write that changes state. Saves without changes can succeed several times without incrementing it. After an unknown result you reread and confirm again;
-- "Served" on the Pass, which saves nothing: the UPDATE applies only to a dish that is ready and not yet served, so repeating it does no harm, and the refreshed list shows by itself whether the write went through.
+- "Served" on the Pass, which saves nothing: the UPDATE applies only to a dish that is ready and not yet served, so repeating it does no harm, and the refreshed list shows by itself whether the write went through;
+- accepting or rejecting an online order, which save nothing for the same reason: they apply only to a request still waiting, a repeat gets `ONLINE_REQUEST_CHANGED`, and the refreshed list shows what happened;
+- the online ordering settings, which send the final value: the form is locked during the save, and after an unknown result the reread the page does every 60 seconds anyway is enough;
+- the delivery fee correction, which carries the bill version, so it applies at most once; after any result the bill is reread;
+- the push notification subscription and its removal, which can be repeated harmlessly: Home shows "on" only after the server confirms, and the next check, or the next sign-in, registers the device again.
 
 The other writes (menu and photos, tables, login and passwords) save no intention. In the menu and tables, for example, if the response gets lost the form stays filled in and the page asks you to reread the list and check before retrying.
 
@@ -513,13 +601,14 @@ In Kitchen and during bill closure, when the page is hidden, the network drops o
 
 ### Polling instead of WebSocket
 
-**The choice.** Kitchen, Pass, Floor and Bill receive no notifications from the server: they ask it at regular intervals with TanStack Query's `refetchInterval`.
+**The choice.** Kitchen, Pass, Floor and Bill receive no notifications from the server: they ask it at regular intervals with TanStack Query's `refetchInterval`. The only thing the server sends on its own is the push notifications of new online orders, an extra reminder for locked phones (see "A PWA for staff"): the pages are still based on polling.
 
-| Page                                    | Interval   |
-| --------------------------------------- | ---------- |
-| Kitchen, Pass                           | 10 seconds |
-| Floor, Bill, the table's orders (guest) | 30 seconds |
-| Subscription reminders                  | 60 seconds |
+| Page                                                           | Interval   |
+| -------------------------------------------------------------- | ---------- |
+| Kitchen, Pass, the online orders banner and page               | 10 seconds |
+| Online order status (customer), until the order ends           | 10 seconds |
+| Floor, Bill, the table's orders and the online menu (customer) | 30 seconds |
+| Subscription reminders, Online ordering settings               | 60 seconds |
 
 Polling stops when the page is hidden or the device is offline, and restarts when it becomes visible again.
 
@@ -527,9 +616,9 @@ Polling stops when the page is hidden or the device is offline, and restarts whe
 
 **Lightweight reads.** Since these requests repeat constantly, they read only open visits and never count or scan a restaurant's history. To know whether something new has arrived, a "watermark" is enough: the time of the newest order (`latestCreatedAt`) or of the newest ready dish (`latestReadyAt`), read from the end of an index. When the watermark moves forward compared to the previous read, Kitchen or Pass plays a sound (`watermarkAdvanced` in `lib/live-view.ts`). On first load and when the page becomes visible again, the read only serves as a baseline, without a sound.
 
-**Fresh data before writing.** A page that hasn’t refreshed for a while shows old data, and deciding on old data is dangerous, for example closing a bill that has changed in the meantime. In Kitchen, Pass and bill confirmation, writes are blocked if the last successful refresh is at least 30 seconds old or predates the page’s last return to the foreground (`syncIsFresh`). The warning, though, appears only if the block lasts at least 3 seconds, or immediately if you are offline or the last request failed (`syncIsStalled`): that way a normal refresh doesn’t make warnings flash. Subscription pages, which refresh every 60 seconds, instead use a freshness threshold of 90 seconds. These checks are specific to each feature: Floor does not use `syncIsFresh` to authorize opening and accepting orders.
+**Fresh data before writing.** A page that hasn’t refreshed for a while shows old data, and deciding on old data is dangerous, for example closing a bill that has changed in the meantime. In Kitchen, Pass, Online orders and bill confirmation, writes are blocked if the last successful refresh is at least 30 seconds old or predates the page’s last return to the foreground (`syncIsFresh`). The warning, though, appears only if the block lasts at least 3 seconds, or immediately if you are offline or the last request failed (`syncIsStalled`): that way a normal refresh doesn’t make warnings flash. Subscription pages, which refresh every 60 seconds, instead use a freshness threshold of 90 seconds. These checks are specific to each feature: Floor does not use `syncIsFresh` to authorize opening and accepting orders. The online orders banner uses the same rule to decide whether to ring: with old data or a failed read it stops ringing, but keeps showing the number.
 
-For Kitchen and Pass the cost is a delay of up to 10 seconds, and the number of requests grows with the number of devices switched on (see "Current limits").
+For Kitchen, Pass and online orders the cost is a delay of up to 10 seconds (with the phone locked, online orders have push notifications), and the number of requests grows with the number of devices switched on (see "Current limits").
 
 ### Cookies, CSRF and same-origin
 
@@ -544,7 +633,7 @@ The fixed lifetime, without automatic renewal (see the table in "Three identitie
 **The price of cookies: CSRF.** Precisely because the browser attaches cookies by itself, another site could take advantage of it: a malicious page opened by the owner could contain a hidden form that sends a POST to `https://app.example.com/api/...`, and the browser would attach the owner's login cookie. This is called Cross-Site Request Forgery (CSRF). There are two defenses:
 
 1. `SameSite=Lax` on the login cookies: the browser doesn't attach them to POSTs coming from another site.
-2. ASP.NET Core's antiforgery token. Before every write the frontend asks its own identity's `csrf` endpoint for a fresh token and sends it back in the `X-CSRF-TOKEN` header: it costs one extra request, but avoids using an old token after a login, a logout or a change of identity. The server compares it with the antiforgery cookie (`TavoloFlow.Csrf`, `HttpOnly` and `SameSite=Strict`) and with the current user. Another site can't read the response containing the token, because the browser's same-origin policy prevents it, so it can't build a valid request. In addition, each token is valid only for the identity it was requested for (`BrowserCsrfScope`, see "Three identities").
+2. ASP.NET Core's antiforgery token. Before every write the frontend asks its own identity's `csrf` endpoint for a fresh token and sends it back in the `X-CSRF-TOKEN` header: it costs one extra request, but avoids using an old token after a login, a logout or a change of identity. The server compares it with the antiforgery cookie (`TavoloFlow.Csrf`, `HttpOnly` and `SameSite=Strict`) and with the current user. Another site can't read the response containing the token, because the browser's same-origin policy prevents it, so it can't build a valid request. In addition, each token is valid only for the identity it was requested for (`BrowserCsrfScope`, see "Three identities"). This also applies to the anonymous submission of an online order: the token is requested from `/api/public/csrf`, in the Guest scope, and that is why the online ordering controller declares the `GuestAccess` policy in addition to `[AllowAnonymous]` (see "Backend: modules and the path of a request").
 
 The check is done by `CsrfValidationFilter`, registered globally because `AddControllers` alone doesn't validate the token for JSON requests: that way even a new endpoint is protected without doing anything.
 
@@ -552,7 +641,7 @@ The check is done by `CsrfValidationFilter`, registered globally because `AddCon
 
 **Why a PWA and not a native app.** Staff use phones and tablets, often already in the restaurant. A native app would mean more code (Android and iOS), publishing in the stores and updates to install on every device. With a PWA the same React code becomes an installable app: an icon on the home screen, a full-screen window, and updates reach everyone without going through the stores, the next time the app is opened or reloaded. An already open page, instead, keeps using the previous version: that is why the server keeps the JavaScript and CSS files of every version (see [self-hosting](self-hosting.md#releasing-a-new-version)).
 
-**Only `/staff`.** The manifest (`/staff.webmanifest`) is not linked in `index.html`: only `StaffLayout` links it, and it also registers the service worker `/sw.js` with scope `/staff`. So guests on `/q/*`, who scan the QR code only once, are never offered to install the app. The manifest's `id`, `start_url` and `scope` are `/staff` without a trailing slash, because the router removes the trailing slash from URLs and the page must stay within the scope.
+**Only `/staff`.** The manifest (`/staff.webmanifest`) is not linked in `index.html`: only `StaffLayout` links it, and it also registers the service worker `/sw.js` with scope `/staff`. So guests on `/q/*`, `/r/*` and `/o/*`, who don't need to install anything, are never offered the installation. The manifest's `id`, `start_url` and `scope` are `/staff` without a trailing slash, because the router removes the trailing slash from URLs and the page must stay within the scope.
 
 **A service worker that caches nothing.** The service worker handles only page loads: it always tries the network first, and only if the load fails does it show an offline page written inside it. It doesn't use Cache Storage and leaves all other requests to the browser, including those to `/api`. I give up offline operation, but I never have to worry about old data or an old version of the app stuck in a cache, one of the most common PWA problems. I keep it for the offline page: without a service worker, whoever opens the app without a network would see only the browser's error page. For installation, instead, it is no longer needed today: [Chrome's current criteria](https://web.dev/articles/install-criteria) for offering it don't require a service worker.
 
@@ -562,32 +651,34 @@ The check is done by `CsrfValidationFilter`, registered globally because `AddCon
 - a switch keeps the screen on (Screen Wake Lock API), useful for the kitchen tablet;
 - on iOS the installed app has no browser Back button, so pages outside the tabs have a link to go back (`PageHeader`).
 
-**Lock-screen notifications, only for online orders.** Foreground polling pauses while the phone is locked. A new online order waits up to ten minutes for acceptance, so Web Push supplies an extra system notification to devices that have enabled it.
+**Lock-screen notifications, only for online orders.** Polling stops when the phone is locked or the app is in the background. For the kitchen that is fine, because whoever is working has the page open; an online order, instead, waits for someone to accept it, and expires after 10 minutes. For this, and only for this, the app uses Web Push: when a new online order arrives, the devices that turned them on receive a system notification with a sound, even when locked.
 
-- **Minimal content.** Only the order number and the device language, encrypted for that device; no customer name, phone or address. The service worker writes the notification in Chinese, Italian or English.
-- **One key.** The server derives the public VAPID key from `VAPID_PRIVATE_KEY`, a separate 64-character hexadecimal secret kept across releases.
-- **One subscription per device.** Home asks permission from a tap. The server records the account, credential version and sign-in expiry; `PushTargets` removes devices with expired or invalid credentials.
-- **Sign-out and sign-in.** The device endpoint travels with logout. The server deletes its subscription before clearing the cookie. Without a staff service-worker registration or Push API, logout proceeds without a device endpoint. An actual browser-read or deletion failure leaves you signed in with a retry action; a lost response is checked with a GET identity read. The browser keeps its subscription for the next sign-in. Already-sent notifications can still arrive. Only turning notifications off also unsubscribes the browser.
-- **Confirmation and recovery.** One controller in `StaffLayout` coordinates Home, logout and automatic registration. “On” requires server confirmation; a failed sync retains the browser subscription and offers retry. Checks run on sign-in, language/password changes, foreground return, focus and reconnect. A changed browser endpoint is registered at the next check. Operations do not overlap and obsolete identity results are discarded. There are no retry timers or service-worker background registrations.
-- **Reminders.** Only a committed first order enters the in-memory queue. Sending has no retries, and restart loses queued reminders. The page banner and ringing remain the primary mechanism.
-- **Known services and safe logs.** Endpoints are restricted to the browser vendors' HTTPS push services, with no redirects. The HTTP client's default loggers are disabled because paths contain device tokens; failures log only status or exception type.
-- **iPhone.** Push requires the Home Screen app on iOS 16.4 or later. A notification uses the system sound once; it does not ring continuously.
+- **What it contains.** Only the order number and the device language: "New online order #12". No customer name, phone or address, because the notification goes through Apple's, Google's or Mozilla's servers: the content is encrypted for the single device, but the less data leaves, the better. The service worker writes the text in the three languages, like the offline page.
+- **A single key.** The server signs every push with a VAPID key. `.env` needs only one, the private key (`VAPID_PRIVATE_KEY`, 64 hexadecimal characters like the database password): the API derives the public key, the one the browser subscribes with, from it.
+- **One subscription per device.** Each device turns them on from Home with a tap, which asks for the notification permission. The subscription (`push_subscriptions`) remembers the account, its `credential_version` and the sign-in expiry: if the password changes, the account is deactivated or the sign-in expires, that device receives nothing more. The check is a single rule (`PushTargets`), used before every send and every new subscription: that way the password change and the other places that touch credentials don't need to know anything about notifications.
+- **Sign-out and new sign-in.** The device's address travels in the sign-out request: the server deletes the subscription before removing the cookie. If the staff service worker or the Push API is missing, you sign out without sending a device address. An actual browser read error or deletion error leaves you signed in and you can retry; if the response gets lost, you check the identity with a GET. The browser keeps the subscription for the next sign-in. Notifications already sent can still arrive. Only "Turn off for this device" also removes the browser's subscription.
+- **Confirmation and recovery.** A single controller in `StaffLayout` coordinates Home, sign-out and automatic registration. "On" appears only after the server confirms; an error keeps the browser's subscription and offers "Retry sync". The check runs again at sign-in, on a language or password change, when returning to the app, on focus and on reconnection. If the browser changes the address, it is registered at the next check. Operations don't overlap and responses from an old identity are discarded; there are no retry timers or background subscriptions in the service worker.
+- **Only a reminder.** The backend puts the order number in an in-memory queue only after saving the order, and a `BackgroundService` sends it without retrying. If a notification gets lost, or the server restarts while it is still queued, nothing serious happens: the banner and the sound on the page remain the main mechanism.
+- **Logs without secrets.** The notifications' HTTP client disables the default loggers: they would also write the address's path, which contains the device token. Only the response code or the error type remain.
+- **Only known services.** The browser chooses the address to send to, so the server accepts only those of the known notification services (Apple, Google, Mozilla, Microsoft) and doesn't follow redirects: otherwise an account could make the server call internal addresses.
+- **iPhone.** On iOS notifications exist only in the app added to the Home Screen (iOS 16.4 or later), not in Safari. With the screen locked one notification arrives with one sound, not continuous ringing.
 
 ### Other trade-offs
 
 - **Opening a table is not idempotent.** Unlike the order, opening has no request ID. If the response gets lost, the frontend rereads the Floor and the staff decide whether to open again; a second opening on the same table gets `SESSION_ALREADY_ACTIVE`, and the unique index guarantees a single open visit per table anyway. One risk remains, which I accepted consciously for the first version: an old request arriving very late, when the table has already been closed, opening a visit nobody wanted, to be closed later without payment. If it happened often in real use, I would add a request ID to opening too. For an order or a bill such a risk wouldn't be acceptable, and that is why `clientRequestId` and `bill_version` exist there.
 - **Menu: the last change wins.** If the owner edits the same dish from two devices, the last save wins, without conflict warnings. It isn't serious, because what matters is checked by the order: the backend always rechecks prices, availability and options and, if something changed, answers `MENU_CHANGED` with the list of changes (for an option that is sold out or no longer valid the reason is `OPTIONS_CHANGED`).
 - **An error format of my own instead of ProblemDetails.** ASP.NET Core supports a standard error format (ProblemDetails, RFC 9457), but the frontend was already built around the `code` field. Generating everything from a single filter cost less than switching to the standard format, which for a public API would still be the more correct choice.
+- **Contact details deleted only by a new order.** Customers' name, phone and address are deleted after 30 days, but without a background job: the next online order of the same restaurant deletes them, in its own transaction. If a restaurant gets no more online orders, the data stays. The privacy notice, on the other hand, promises a fixed 30 days: before real use one of the two must be fixed.
 - **Subscriptions without history.** The initial design had a subscription events table, with the history of changes, notices to the owner and an ID for each operation against duplicates. I removed it when it became clear that `subscription_version` alone was enough to prevent two changes from consuming the same version. I lost the history, but for a first version it wasn't needed.
 
 ## Limits and what I would do differently
 
 ### Current limits
 
-- **Designed for a single instance.** The rate limiter (`FixedWindowLimiter`) keeps its counters in memory: they reset at every restart and, with several API instances, each would have its own. To scale you would need a shared store, for example Redis or PostgreSQL itself.
+- **Designed for a single instance.** The rate limiter (`FixedWindowLimiter`) keeps its counters in memory: they reset at every restart and, with several API instances, each would have its own. To scale you would need a shared store, for example Redis or PostgreSQL itself. The same goes for the push notification queue, which lives in memory.
 - **The table code is short.** Four characters from an alphabet of 32 make about a million combinations (2²⁰). Against someone trying to guess it, only the rate limit protects it, per IP and per visit: before real public use it should be reconsidered, perhaps with a longer code.
 - **Polling.** The load on the server grows with the number of devices switched on: with many restaurants it would be worth moving to WebSocket or Server-Sent Events.
-- **Tests.** The backend has over 300 integration tests, which run on a real PostgreSQL in Docker; the frontend has only pure-logic tests with `node --test`. The repository lacks component tests and end-to-end tests. All the existing tests run on every push in CI (`.github/workflows/ci.yml`).
+- **Tests.** The backend has almost 500 tests, mostly integration tests, which run on a real PostgreSQL in Docker; the frontend has only pure-logic tests with `node --test`. The repository lacks component tests and end-to-end tests. All the existing tests run on every push in CI (`.github/workflows/ci.yml`).
 - **Error codes kept in sync by hand.** The table the frontend uses to translate error codes into the three languages (`lib/api-messages.ts`, see "Backend: modules and the path of a request") has to be kept in sync with the backend by hand: TypeScript flags a missing translation, but not a new backend code.
 - **Hand-made release process.** A single VPS, release scripts run by hand, backups left to a systemd timer, no monitoring or alerting system: if the server stops, I only notice when someone complains.
 - **A complex frontend in places.** Handling unknown results (for example in `useCart`) is very robust, but also heavy to read and maintain for a first version.

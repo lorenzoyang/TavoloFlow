@@ -24,7 +24,7 @@ Poi, come se non bastasse, dopo aver scoperto che praticamente tutti i potenzial
 
 ## Cosa fa
 
-TavoloFlow è un sistema di ordinazione al tavolo tramite codice QR. Ogni tavolo ha un QR fisso: il cliente lo scansiona con il telefono, ordina dal menu e l'ordine arriva in cucina. Il pagamento resta quello di sempre, alla cassa: l'app registra solo che il conto è stato incassato. Ci sono quattro tipi di utenti, e ognuno ha la sua parte dell'app.
+TavoloFlow è un sistema di ordinazione al tavolo tramite codice QR, che accetta anche ordini online. Ogni tavolo ha un QR fisso: il cliente lo scansiona con il telefono, ordina dal menu e l'ordine arriva in cucina. Chi non è al ristorante, invece, ordina dal link online del locale, da ritirare in negozio o, se il ristorante consegna, da ricevere a casa; l'ordine online arriva in cucina solo dopo che lo staff l'ha accettato. Sono due servizi separati: l'amministratore della piattaforma li attiva per ogni ristorante, anche uno solo dei due. Il pagamento resta quello di sempre, alla cassa, al ritiro o alla consegna: l'app registra solo che il conto è stato incassato. Ci sono quattro tipi di utenti, e ognuno ha la sua parte dell'app.
 
 **Cliente**, dal proprio telefono, senza installare nulla e senza registrarsi:
 
@@ -32,14 +32,19 @@ TavoloFlow è un sistema di ordinazione al tavolo tramite codice QR. Ogni tavolo
 - entra nella visita del tavolo aperta dal personale, inserendo il codice del tavolo (quattro caratteri) se il ristorante lo richiede;
 - per i piatti con opzioni (formato, zucchero, topping, piccantezza…) sceglie prima le opzioni in un pannello: quelle obbligatorie non sono mai preselezionate, e i supplementi si sommano al prezzo;
 - compone il carrello, con una nota per ogni piatto, e invia l'ordine; può ordinare più volte durante il pasto;
-- vede gli ordini di tutto il tavolo e lo stato di ogni piatto: ricevuto, pronto in cucina, annullato.
+- vede gli ordini di tutto il tavolo e lo stato di ogni piatto: ricevuto, pronto in cucina, annullato;
+- se il ristorante offre gli ordini online, ordina anche da casa, dal link del ristorante (`/r/{link}`): stesso menu e stesse opzioni, poi «Vai alla cassa», dove sceglie ritiro o consegna e inserisce nome, telefono ed eventualmente l'indirizzo. Non può scegliere un orario: l'ordine si prepara appena possibile;
+- segue l'ordine online da una pagina di stato (`/o/{token}`): in attesa di conferma, accettato con l'orario previsto, pronto, ritirato o consegnato. Se il ristorante non risponde entro 10 minuti, l'ordine scade e la pagina mette in evidenza il telefono del ristorante.
 
 **Staff**, da telefono o tablet; l'area staff si può installare come app (PWA):
 
-- **Sala**: vede i tavoli e i loro conti, apre un tavolo quando arrivano i clienti e comunica il codice; mette in pausa o riattiva i nuovi ordini; chiude senza incasso un tavolo senza ordini o con tutti i piatti annullati;
-- **Cucina**: riceve i nuovi ordini con un avviso sonoro, aggiornati ogni 10 secondi; li vede nelle viste Piatti (raggruppati per piatto), Ordini ed Evasi; nella vista Piatti ogni schermo può mostrare solo alcune categorie del menu (per esempio uno schermo solo per le bevande); sotto ogni piatto vede le opzioni scelte dal cliente; segna ogni piatto come pronto o lo annulla;
+- **Sala** (solo con il QR al tavolo, come i Tavoli): vede i tavoli e i loro conti, apre un tavolo quando arrivano i clienti e comunica il codice; mette in pausa o riattiva i nuovi ordini; chiude senza incasso un tavolo senza ordini o con tutti i piatti annullati;
+- **Cucina**: riceve i nuovi ordini con un avviso sonoro, aggiornati ogni 10 secondi; li vede nelle viste Piatti (raggruppati per piatto), Ordini ed Evasi; nella vista Piatti ogni schermo può mostrare solo alcune categorie del menu (per esempio uno schermo solo per le bevande); sotto ogni piatto vede le opzioni scelte dal cliente; segna ogni piatto come pronto o lo annulla; gli ordini online accettati compaiono insieme a quelli dei tavoli, come «Ritiro #12» o «Consegna #12»;
 - **Pass**: su un tablet al bancone, mostra i piatti pronti da portare ai tavoli; quando un piatto arriva al tavolo si tocca «Servito»;
 - **Menu**: segna un piatto, o una singola opzione (per esempio un topping finito), come esaurito o di nuovo disponibile;
+- **Ordini online**: accetta un ordine scegliendo tra quanto sarà pronto (per una consegna prima inserisce il costo) oppure lo rifiuta, con un motivo facoltativo. Finché c'è un ordine da accettare, ogni pagina dello staff mostra in alto un banner che suona. Qui vede anche gli ordini accettati e non ancora chiusi, con telefono e indirizzo del cliente;
+- in **Impostazioni ordini online** mette in pausa gli ordini online, fino a fine fascia o per il resto della giornata;
+- dalla Home attiva su ogni dispositivo le **notifiche a schermo bloccato** dei nuovi ordini online;
 - l'interfaccia è in cinese, italiano o inglese, scelta per ogni dispositivo; finché nessuno la sceglie, segue la lingua del browser.
 
 **Titolare**: tutto quello che fa lo staff, e in più:
@@ -47,12 +52,15 @@ TavoloFlow è un sistema di ordinazione al tavolo tramite codice QR. Ogni tavolo
 - gestisce il menu: categorie, piatti in tre lingue, prezzi, allergeni, foto, e i gruppi di opzioni condivisi tra i piatti (formato, zucchero, topping, piccantezza…), con supplementi, allergeni propri e modelli già tradotti nelle tre lingue;
 - gestisce i tavoli e ne scarica il QR e il segnatavolo da stampare;
 - nella sezione Conto chiude la visita dopo l'incasso, e nello Storico conti consulta i conti chiusi;
+- nel Conto chiude anche gli ordini online: «Ritirato, verifica incasso» o «Consegnato, verifica incasso» dopo l'incasso, oppure «Cliente non venuto» o «Non consegnato»; finché l'ordine è aperto può correggere il costo di consegna;
+- in **Impostazioni ordini online** imposta il telefono pubblico, gli orari della settimana (al massimo due fasce al giorno) e la consegna, con una nota in tre lingue su zone e costi;
 - reimposta la password dell'account staff e vede lo stato del proprio abbonamento.
 
 **Amministratore della piattaforma**, cioè chi offre il servizio ai ristoranti:
 
 - crea un ristorante insieme ai suoi due account (titolare e staff), con password temporanee; in seguito può disattivare questi account o reimpostarne la password;
 - sospende o riattiva un ristorante, ne sceglie il tema di colori, decide se serve il codice del tavolo, elimina definitivamente un ristorante sospeso;
+- per ogni ristorante attiva il QR al tavolo, gli ordini online o tutti e due, e imposta il link online (`/r/…`);
 - gestisce il contatto del titolare, la tariffa annuale e i periodi di abbonamento, e registra il pagamento di ogni periodo, ricevuto fuori dall'app;
 - anche la sua interfaccia è in cinese, italiano o inglese, con la stessa scelta per dispositivo dello staff.
 
@@ -72,7 +80,7 @@ TavoloFlow è un sistema di ordinazione al tavolo tramite codice QR. Ogni tavolo
 
 All'inizio, in realtà, ho fatto un prototipo di questa idea con TypeScript, Hono e una SPA React, tutto su Cloudflare, senza un database mio ma con quello offerto da Cloudflare (D1), con l'illusione di ridurre al minimo i costi di manutenzione. Con un prompt dettagliato ho fatto generare il progetto all'AI, ma il risultato era per me completamente incomprensibile. Non avendo mai fatto un progetto, non conoscevo i problemi e le difficoltà che si incontrano, e quindi non sapevo quali problemi risolvessero tutti gli strumenti, le librerie e i framework che l'AI aveva introdotto. Ho avuto subito un sovraccarico cognitivo e ho rinunciato; l'ho usato solo per avere una panoramica di quello che sarebbe dovuto diventare il mio progetto.
 
-Sono passato quindi a qualcosa di più stabile. Pensando alla stabilità e alla spendibilità sul mercato del lavoro, mi sono venuti in mente Java e C#. Li conosco entrambi, ma C# è più espressivo e ha un ecosistema più uniforme, una barriera d'ingresso più bassa e un framework più "batteries-included". Alla fine ho scelto C# con .NET, quindi ASP.NET Core come framework web per il backend ed EF Core come ORM, con Npgsql come provider per PostgreSQL. "Batteries-included" qui si vede davvero: autenticazione con cookie, autorizzazione con policy, protezione dei dati (Data Protection, usata, tra l'altro, per proteggere i cookie e cifrare il codice di ogni visita) e dependency injection sono tutti integrati nel framework, e il backend non usa nessuna libreria esterna per queste cose. Per il rate limiting uso invece `Common/FixedWindowLimiter`, un’implementazione del progetto in memoria, senza il middleware di rate limiting di ASP.NET Core. L'unica libreria di terze parti, oltre a Npgsql, è SkiaSharp, per ridimensionare e convertire le foto dei piatti. EF Core non offre un'API per i lock di riga (`SELECT ... FOR UPDATE`), quindi in quei punti uso SQL scritto a mano. Per i test uso xUnit: nelle classi di integrazione con `PostgreSqlFixture`, Testcontainers avvia un PostgreSQL usa e getta in Docker. I test HTTP usano `WebApplicationFactory` per avviare l’API in memoria e mandarle richieste come farebbe un browser; quelli del livello dati usano direttamente il `DbContext`. Ci sono anche test puri senza database. Il codice C# lo formatto con CSharpier, l'equivalente di Prettier per C#.
+Sono passato quindi a qualcosa di più stabile. Pensando alla stabilità e alla spendibilità sul mercato del lavoro, mi sono venuti in mente Java e C#. Li conosco entrambi, ma C# è più espressivo e ha un ecosistema più uniforme, una barriera d'ingresso più bassa e un framework più "batteries-included". Alla fine ho scelto C# con .NET, quindi ASP.NET Core come framework web per il backend ed EF Core come ORM, con Npgsql come provider per PostgreSQL. "Batteries-included" qui si vede davvero: autenticazione con cookie, autorizzazione con policy, protezione dei dati (Data Protection, usata, tra l'altro, per proteggere i cookie e cifrare il codice di ogni visita) e dependency injection sono tutti integrati nel framework, e il backend non usa nessuna libreria esterna per queste cose. Per il rate limiting uso invece `Common/FixedWindowLimiter`, un’implementazione del progetto in memoria, senza il middleware di rate limiting di ASP.NET Core. Le librerie di terze parti, oltre a Npgsql, sono due: SkiaSharp, per ridimensionare e convertire le foto dei piatti, e Lib.Net.Http.WebPush, che firma e cifra le notifiche push (vedi «PWA per lo staff»). EF Core non offre un'API per i lock di riga (`SELECT ... FOR UPDATE`), quindi in quei punti uso SQL scritto a mano. Per i test uso xUnit: nelle classi di integrazione con `PostgreSqlFixture`, Testcontainers avvia un PostgreSQL usa e getta in Docker. I test HTTP usano `WebApplicationFactory` per avviare l’API in memoria e mandarle richieste come farebbe un browser; quelli del livello dati usano direttamente il `DbContext`. Ci sono anche test puri senza database. Il codice C# lo formatto con CSharpier, l'equivalente di Prettier per C#.
 
 Per il database ho scelto PostgreSQL semplicemente perché è il database open source più utilizzato, e anche uno dei più potenti.
 
@@ -96,12 +104,14 @@ In questa sezione descrivo com'è fatto TavoloFlow: quali sono i pezzi, dove si 
 
 ```mermaid
 flowchart LR
-  G["Cliente<br>/q/{token}"] --> C
+  G["Cliente al tavolo<br>/q/{token}"] --> C
+  O["Cliente online<br>/r/{slug}, /o/{token}"] --> C
   S["Staff e titolare<br>/staff/*"] --> C
   P["Amministratore<br>/platform/*"] --> C
   C["Caddy<br>HTTPS e file della SPA"] -->|"/api/*"| A["API ASP.NET Core"]
   A --> D[("PostgreSQL")]
   A --> K["Chiavi di Data Protection<br>(cartella su disco)"]
+  A -.->|"notifiche push"| N["Servizi push<br>Apple, Google, Mozilla, Microsoft"]
 ```
 
 Tutto passa da un solo indirizzo. Il browser parla solo con Caddy, che fa due cose:
@@ -115,43 +125,49 @@ Una spiegazione minima di CORS: è una regola del browser. Quando il JavaScript 
 
 Alcuni punti da tenere a mente:
 
-- **Un solo processo API, tre tipi di utenti.** La stessa applicazione ASP.NET Core serve clienti, staff e amministratori. Ognuno ha il suo cookie, e il backend capisce quale usare guardando il path dell'URL della richiesta, cioè la parte dopo il dominio, per esempio `/api/public/orders` (vedi «Tre identità» più sotto).
+- **Un solo processo API, tre tipi di utenti.** La stessa applicazione ASP.NET Core serve clienti (al tavolo e online), staff e amministratori. Ognuno ha il suo cookie, e il backend capisce quale usare guardando il path dell'URL della richiesta, cioè la parte dopo il dominio, per esempio `/api/public/orders` (vedi «Tre identità» più sotto).
 - **Tre container in produzione:** `db` (PostgreSQL), `api` e `caddy`. Solo Caddy espone porte verso l'esterno (80 e 443): il database e l'API sono raggiungibili solo dalla rete interna di Docker.
+- **Una sola chiamata verso l'esterno.** L'API non dipende da servizi esterni, con un'eccezione: le notifiche push dei nuovi ordini online, che partono dall'API verso i servizi push di Apple, Google, Mozilla o Microsoft. Se non arrivano, l'app funziona lo stesso.
 - **Le chiavi di Data Protection** stanno in una cartella persistente. Data Protection è il sistema di ASP.NET Core per cifrare e firmare dati, e queste sono le sue chiavi segrete. Il cookie di login, infatti, non punta a una sessione salvata sul server: contiene direttamente il "biglietto" dell'account (vedi «Tre identità»), cifrato e firmato con queste chiavi, così il browser non può né leggerlo né falsificarlo. Con le stesse chiavi vengono protetti anche i token CSRF (spiegati in «Cookie, CSRF e same-origin») e i codici del tavolo salvati nel database. Se le chiavi stessero solo dentro il container, si perderebbero a ogni nuovo rilascio: tutti dovrebbero rifare il login e i codici delle visite aperte non si potrebbero più leggere. Per questo la cartella è indicata in `DataProtection:KeyRingPath` e sta su un volume persistente.
 
 ### Modello dei dati
 
-Il database ha quattordici tabelle. Lo schema completo è in [`er-diagram.dbml`](../reference/er-diagram.dbml), e c'è anche un'[immagine](../reference/er-diagram.png). Divise per argomento:
+Il database ha diciotto tabelle. Lo schema completo è in [`er-diagram.dbml`](../reference/er-diagram.dbml), e c'è anche un'[immagine](../reference/er-diagram.png). Divise per argomento:
 
 | Gruppo            | Tabelle                                                                                                                                                                                                                                                                                                |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Account           | `platform_users` (amministratori), `restaurant_users` (per ogni ristorante un account titolare e uno staff)                                                                                                                                                                                            |
 | Ristorante e menu | `restaurants`, `menu_categories`, `menu_items`, `menu_item_images` (i byte delle foto, separati così le letture del menu non li caricano), `menu_option_groups` e `menu_options` (le opzioni condivise tra i piatti), `menu_item_option_groups` (quali piatti usano quale gruppo), `restaurant_tables` |
 | Servizio          | `dining_sessions`, `orders`, `order_items`                                                                                                                                                                                                                                                             |
+| Ordini online     | `online_hours` (gli orari della settimana), `online_counters` (l'ultimo numero d'ordine di ogni giorno), `online_requests` (gli ordini dei clienti, da accettare)                                                                                                                                      |
+| Notifiche         | `push_subscriptions` (i dispositivi che ricevono le notifiche a schermo bloccato)                                                                                                                                                                                                                      |
 | Abbonamento       | `restaurant_subscription_periods`                                                                                                                                                                                                                                                                      |
 
 Il concetto centrale è la **visita** (`DiningSession`, tabella `dining_sessions`). Quando arrivano i clienti, lo staff apre il tavolo dalla Sala e nasce una visita `ACTIVE`, con il suo codice del tavolo (cifrato) e un numero di versione del conto, `bill_version`. I clienti non hanno account: per il sistema un cliente è solo "un browser che è entrato in questa visita".
 
+Con gli ordini online la visita ha anche un **canale** (`channel`): `DINE_IN` per il tavolo, `PICKUP` e `DELIVERY` per gli ordini online da ritirare o da consegnare. Una visita online nasce solo quando lo staff accetta l'ordine, non ha né tavolo né codice, ha un solo ordine e, se è una consegna, anche il costo di consegna (`delivery_fee_cents`). Prima dell'accettazione l'ordine del cliente è soltanto una riga di `online_requests` (vedi «Ordini online: una richiesta da accettare»).
+
 Ogni ordine appartiene a una visita e ha una o più righe (`order_items`), una per piatto, con la quantità e una nota facoltativa. Ogni riga ha il suo stato: nasce `NEW`, poi la cucina la porta a `READY` (pronta) o a `CANCELLED` (annullata); quando il piatto arriva al tavolo, dal Pass si compila `served_at`. L'ordine ha anche uno stato riassuntivo: `NEW` finché almeno una riga è `NEW`, poi `PROCESSED` (è la differenza tra le viste Ordini ed Evasi della Cucina).
 
-Quando la visita si chiude (dopo l'incasso, oppure senza incasso se non c'erano ordini o se erano tutti annullati), diventa `CLOSED` e salva il motivo (`PAID`, `EMPTY` o `VOIDED`), il totale e l'ora di chiusura. Una visita chiusa non si riapre mai: i clienti successivi avranno una visita nuova.
+Quando la visita si chiude (dopo l'incasso, oppure senza incasso se non c'erano ordini o se erano tutti annullati), diventa `CLOSED` e salva il motivo (`PAID`, `EMPTY` o `VOIDED`; per gli ordini online anche `NO_SHOW`, se il cliente non ritira o la consegna non riesce), il totale e l'ora di chiusura. Una visita chiusa non si riapre mai: i clienti successivi avranno una visita nuova.
 
 Il frontend rende l'uso più comodo, ma non garantisce niente. Alcune regole, poi, non le controlla solo il codice C#: le garantisce direttamente il database, così restano vere anche se un giorno il codice avesse un bug.
 
 | Regola                                              | Come la garantisce PostgreSQL                                                                                                                                                                                                                                                                           |
 | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Un tavolo ha al massimo una visita aperta           | indice unico parziale `uq_active_session_per_table` su `table_id`, solo per le righe con `status = 'ACTIVE'`                                                                                                                                                                                            |
-| Una richiesta del cliente crea al massimo un ordine | indice unico `uq_order_one_per_request` su `(dining_session_id, client_request_id)`                                                                                                                                                                                                                     |
+| Una richiesta del cliente crea al massimo un ordine | indice unico `uq_order_one_per_request` su `(dining_session_id, client_request_id)`; per gli ordini online `uq_online_request_client_request` su `(restaurant_id, client_request_id)`                                                                                                                   |
 | I dati di ristoranti diversi non si mescolano       | ogni tabella di business ha `restaurant_id` (tranne `menu_item_images`, che arriva al ristorante attraverso il suo piatto) e le chiavi esterne sono composte, `(id, restaurant_id)`: un ordine può puntare solo a una visita dello stesso ristorante, una riga solo a un ordine dello stesso ristorante |
 | Stato e campi sono sempre coerenti                  | check constraint come `ck_session_lifecycle`: una visita `ACTIVE` ha il codice cifrato e nessun dato di chiusura, una `CLOSED` ha ora, motivo e totale, e il codice è cancellato; `ck_order_item_lifecycle` fa lo stesso per le righe                                                                   |
+| Il canale decide i campi                            | `ck_session_dine_in` e `ck_session_online`: una visita al tavolo ha sempre il nome del tavolo (e, finché è aperta, il tavolo e il codice), una visita online non ha mai tavolo né codice; `ck_session_delivery_fee`: il costo di consegna c'è sempre nelle consegne e mai negli altri canali            |
 | Solo valori ammessi                                 | gli enum sono salvati come testo maiuscolo (`ACTIVE`, `READY`…) e un check constraint elenca i valori validi                                                                                                                                                                                            |
 
-La storia degli ordini, invece, non la protegge il database. Ogni riga salva una copia (snapshot) di nome, prezzo e allergeni del piatto: se poi il piatto cambia prezzo, la riga resta com'era. Lo stesso vale per le opzioni scelte: la riga le salva in `options_snapshot` (una colonna jsonb), con i nomi del gruppo e dell'opzione e il supplemento. Il prezzo unitario della riga comprende già i supplementi, quindi il conto resta sempre prezzo unitario × quantità, e gli allergeni salvati sono quelli del piatto più quelli delle opzioni scelte. Ma PostgreSQL non impedisce un UPDATE diretto su queste copie o sui conti chiusi: che non cambino lo garantiscono i service, che non li modificano mai. Anche l'eliminazione di un piatto o di un tavolo passa da un service, `CatalogDeletionService`: prima azzera il riferimento (`menu_item_id` nelle righe, `table_id` nelle visite chiuse), poi elimina, e la copia resta. Qui il database fa solo da controllo: la chiave esterna non permette di eliminare un piatto o un tavolo ancora collegati.
+La storia degli ordini, invece, non la protegge il database. Ogni riga salva una copia (snapshot) di nome, prezzo e allergeni del piatto: se poi il piatto cambia prezzo, la riga resta com'era. Lo stesso vale per le opzioni scelte: la riga le salva in `options_snapshot` (una colonna jsonb), con i nomi del gruppo e dell'opzione e il supplemento. Il prezzo unitario della riga comprende già i supplementi, quindi il conto resta sempre prezzo unitario × quantità, e gli allergeni salvati sono quelli del piatto più quelli delle opzioni scelte. Anche una richiesta online salva i suoi piatti come copia, nella colonna jsonb `lines`; quando lo staff l'accetta, una sola funzione (`OrderLineSnapshot.ToOrderItem`) la trasforma nelle righe dell'ordine. Ma PostgreSQL non impedisce un UPDATE diretto su queste copie o sui conti chiusi: che non cambino lo garantiscono i service, che non li modificano mai. Anche l'eliminazione di un piatto o di un tavolo passa da un service, `CatalogDeletionService`: prima azzera il riferimento (`menu_item_id` nelle righe, `table_id` nelle visite chiuse), poi elimina, e la copia resta. Qui il database fa solo da controllo: la chiave esterna non permette di eliminare un piatto o un tavolo ancora collegati.
 
 Altre convenzioni:
 
 - **Soldi in centesimi interi** (`long`, colonne `*_cents`), mai numeri decimali. Il massimo è il più grande intero che JavaScript rappresenta esattamente (2⁵³ − 1, `InputRules.MaxSafeCents`), così il browser non perde precisione.
-- **Orari in UTC** (`timestamptz`), mostrati nel fuso orario del ristorante (Europe/Rome). Solo i periodi di abbonamento usano date semplici (`date`).
+- **Orari in UTC** (`timestamptz`), mostrati nel fuso orario del ristorante (Europe/Rome). Solo i periodi di abbonamento e il giorno a cui appartiene un ordine online (`business_date`) usano date semplici (`date`).
 - **Nomi in snake_case**, mappati a mano in `Data/Configurations/`, una classe per entità.
 - **Un solo database per tutti i ristoranti** (multi-tenant): stanno tutti nelle stesse tabelle, separati da `restaurant_id`. Eliminare un ristorante cancella tutte le sue righe con `ON DELETE CASCADE`.
 - **Migrazioni** in `Data/Migrations/`, generate da EF Core e solo in avanti; non partono mai all'avvio (vedi «Scelta dello stack tecnologico»).
@@ -160,25 +176,27 @@ Altre convenzioni:
 
 Il backend è un solo progetto, `backend/TavoloFlow.Api/`, organizzato per argomento invece che per tipo di classe:
 
-| Cartella             | Cosa contiene                                                                                                                                                                                                                              |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Program.cs`         | il punto di partenza: registra i servizi e la pipeline dei middleware. Con un'opzione come `--seed-dev-accounts` diventa invece un comando una tantum, che esegue e termina (`Operations/MaintenanceCommands.cs`)                          |
-| `Controllers/`       | 16 classi controller in 15 file, tutte molto sottili                                                                                                                                                                                       |
-| `Common/`            | codice trasversale: il formato degli errori (`ApiError`, `ApiException` e il filtro globale), la scelta dell'identità e il CSRF (`BrowserSecurity`), la paginazione con cursore, gli enum come testo, le regole di input e il rate limiter |
-| `Accounts/`          | login, logout e cambio password di titolare e staff                                                                                                                                                                                        |
-| `Menus/`             | gestione del menu, disponibilità, foto dei piatti, gruppi di opzioni (`MenuOptionService`), lettura del menu pubblico; tutte le scritture del menu passano dallo stesso lock (`MenuWrites`)                                                |
-| `Tables/`            | tavoli e token dei QR                                                                                                                                                                                                                      |
-| `Dining/`            | apertura del tavolo, la Sala, il codice del tavolo cifrato, il riepilogo del conto condiviso, la pausa dei nuovi ordini                                                                                                                    |
-| `Guests/`            | ingresso del cliente nella visita e il suo cookie                                                                                                                                                                                          |
-| `Ordering/`          | creazione idempotente degli ordini, controllo e prezzo delle opzioni scelte (`OrderOptions`), ordini del tavolo                                                                                                                            |
-| `Kitchen/`           | coda della Cucina, piatto pronto o annullato, il Pass                                                                                                                                                                                      |
-| `Billing/`           | conto, le tre chiusure (`PAID`, `VOIDED`, `EMPTY`), Storico conti                                                                                                                                                                          |
-| `Platform/`          | area amministratore: ristoranti, account, abbonamenti                                                                                                                                                                                      |
-| `Data/`, `Entities/` | `ApplicationDbContext`, le mappature e le migrazioni di EF Core, i lock di riga (`RowLocks`), il servizio di eliminazione; le 14 entità                                                                                                    |
+| Cartella             | Cosa contiene                                                                                                                                                                                                                                                   |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Program.cs`         | il punto di partenza: registra i servizi e la pipeline dei middleware. Con un'opzione come `--seed-dev-accounts` diventa invece un comando una tantum, che esegue e termina (`Operations/MaintenanceCommands.cs`)                                               |
+| `Controllers/`       | 20 classi controller in 19 file, tutte molto sottili                                                                                                                                                                                                            |
+| `Common/`            | codice trasversale: il formato degli errori (`ApiError`, `ApiException` e il filtro globale), la scelta dell'identità e il CSRF (`BrowserSecurity`), la paginazione con cursore, gli enum come testo, le regole di input e il rate limiter                      |
+| `Accounts/`          | login, logout (che cancella anche l'iscrizione alle notifiche del dispositivo) e cambio password di titolare e staff                                                                                                                                            |
+| `Menus/`             | gestione del menu, disponibilità, foto dei piatti, gruppi di opzioni (`MenuOptionService`), lettura del menu pubblico; tutte le scritture del menu passano dallo stesso lock (`MenuWrites`)                                                                     |
+| `Tables/`            | tavoli e token dei QR                                                                                                                                                                                                                                           |
+| `Dining/`            | apertura del tavolo, la Sala, il codice del tavolo cifrato, il riepilogo del conto condiviso, la pausa dei nuovi ordini                                                                                                                                         |
+| `Guests/`            | ingresso del cliente nella visita e il suo cookie                                                                                                                                                                                                               |
+| `Ordering/`          | creazione idempotente degli ordini, controllo e prezzo delle opzioni scelte (`OrderOptions`), il controllo delle righe condiviso con gli ordini online (`OrderLines`), ordini del tavolo                                                                        |
+| `Kitchen/`           | coda della Cucina, piatto pronto o annullato, il Pass, con i nomi degli ordini online                                                                                                                                                                           |
+| `Billing/`           | conto, le quattro chiusure (`PAID`, `VOIDED`, `EMPTY` e, solo online, `NO_SHOW`), correzione del costo di consegna, Storico conti                                                                                                                               |
+| `Platform/`          | area amministratore: ristoranti, servizi attivi e link online, account, abbonamenti                                                                                                                                                                             |
+| `Online/`            | ordini online: impostazioni (telefono, orari, pausa, consegna), menu e invio del cliente, pagina di stato, accettazione e rifiuto; le regole uniche `OnlineAvailability` (si può ordinare adesso?) e `OnlineRequestState` (la richiesta è in attesa o scaduta?) |
+| `Push/`              | notifiche a schermo bloccato: la chiave VAPID, le iscrizioni dei dispositivi, la coda in memoria e l'invio (`PushSender`, l'unico `BackgroundService`)                                                                                                          |     |
+| `Data/`, `Entities/` | `ApplicationDbContext`, le mappature e le migrazioni di EF Core, i lock di riga (`RowLocks`), il servizio di eliminazione; le 18 entità                                                                                                                         |
 
 Ogni modulo ha un file `XxxContracts.cs` con i DTO (cosa entra e cosa esce dall'API) e le fabbriche degli errori, per esempio `DiningErrors.SessionClosed()`, più uno o più service con le regole e le transazioni.
 
-Le dipendenze tra moduli vanno in una sola direzione e seguono il percorso di una visita: `Guests` usa `Dining`; `Ordering` usa `Guests` e `Dining`; `Kitchen` usa `Ordering` e `Dining`; `Billing` usa `Dining` e `Kitchen` (solo per riusare il formato degli ordini nella risposta del conto); `Platform` usa `Accounts`. `Common/` non dipende da nessun modulo di business.
+Le dipendenze tra moduli seguono quasi sempre il percorso di una visita: `Guests` usa `Dining`; `Ordering` usa `Guests` e `Dining`; `Kitchen` usa `Ordering` e `Dining`; `Billing` usa `Dining` e `Kitchen` (solo per riusare il formato degli ordini nella risposta del conto); `Platform` usa `Accounts`. Gli ordini online hanno aggiunto due legami nei due sensi. `Online` usa `Ordering` (lo stesso controllo di piatti e prezzi), `Menus` e `Dining` (il riepilogo del conto), mentre `Dining` e `Kitchen` usano i tipi di risposta di `Online` per mostrare numero, nome e orario previsto. `Online` mette in coda le notifiche di `Push`, e `Push` usa l'errore di `Online` quando un ristorante non ha gli ordini online. Inoltre `Accounts` usa `Push` (l'uscita cancella l'iscrizione del dispositivo) e `Platform` usa `Online` (non si spengono gli ordini online finché ce n'è uno aperto). `Common/` non dipende da nessun modulo di business.
 
 **Controller sottili.** Un controller fa solo tre cose: dichiara chi può chiamare l'endpoint, prende l'identità affidabile e chiama il service. Per esempio, segnare un piatto come pronto:
 
@@ -214,7 +232,7 @@ flowchart TD
 ```
 
 - **Autenticazione.** Legge il cookie dell'identità a cui appartiene il percorso e costruisce `HttpContext.User`. Per staff e amministratori ricontrolla anche l'account nel database (`ValidatePrincipal`, vedi «Tre identità»).
-- **Autorizzazione.** Ogni controller dichiara una policy: `StoreStaff`, `StoreOwner`, `StoreAccount` (valida anche prima del primo cambio password, solo per le operazioni sul proprio account), `GuestAccess` o `PlatformAdmin`. Un endpoint senza `[Authorize]` cade nella policy di fallback, che è Store Staff: un endpoint nuovo è protetto anche se ci si dimentica di dichiararla. Login, menu pubblico, ingresso nella visita e richiesta del token CSRF si aprono esplicitamente con `[AllowAnonymous]`. Le risposte 401 e 403 le scrivono gli eventi del cookie, prima dei filtri MVC, ma con lo stesso formato JSON.
+- **Autorizzazione.** Ogni controller dichiara una policy: `StoreStaff`, `StoreOwner`, `StoreAccount` (valida anche prima del primo cambio password, solo per le operazioni sul proprio account), `GuestAccess` o `PlatformAdmin`. Un endpoint senza `[Authorize]` cade nella policy di fallback, che è Store Staff: un endpoint nuovo è protetto anche se ci si dimentica di dichiararla. Login, menu pubblico, ingresso nella visita, pagine e invio degli ordini online e richiesta del token CSRF si aprono esplicitamente con `[AllowAnonymous]`. Un controller anonimo sotto `/api/public` deve però dichiarare anche la policy della sua identità, `GuestAccess`: con il solo `[AllowAnonymous]` l'autorizzazione usa la policy di fallback, che autentica con lo schema Store, e in un browser dove c'è anche il login dello staff il token CSRF del cliente non corrisponde più all'identità. Un test di `OnlineOrderingTests` lo verifica con tutte le identità insieme nello stesso browser. Le risposte 401 e 403 le scrivono gli eventi del cookie, prima dei filtri MVC, ma con lo stesso formato JSON.
 - **CSRF.** `CsrfValidationFilter` è registrato su tutti i controller: ogni POST, PUT, PATCH e DELETE deve avere l'header `X-CSRF-TOKEN` ottenuto dalla stessa identità, altrimenti la risposta è 400 `CSRF_VALIDATION_FAILED` (vedi «Cookie, CSRF e same-origin»).
 - **Errori.** Un service rifiuta una richiesta lanciando un'`ApiException` con stato HTTP, codice e messaggio. Il filtro globale `ApiExceptionFilter` la trasforma sempre nello stesso JSON:
 
@@ -231,9 +249,9 @@ flowchart TD
 
 ### Frontend: organizzazione delle feature
 
-Il frontend (`frontend/src/`) è una sola SPA con tre aree, una per tipo di utente: `/q/{token}` per il cliente, `/staff/*` per titolare e staff, `/platform/*` per l'amministratore.
+Il frontend (`frontend/src/`) è una sola SPA con un'area per ogni tipo di utente: `/q/{token}` per il cliente al tavolo, `/r/{slug}` (menu e ordine) e `/o/{token}` (stato dell'ordine) per il cliente online, `/staff/*` per titolare e staff, `/platform/*` per l'amministratore.
 
-**Route.** Con TanStack Router le route sono file in `routes/`, e il nome del file è l'URL: `staff.kitchen.tsx` diventa `/staff/kitchen`, `q.$token.tsx` diventa `/q/{token}` con il parametro `token`. Da questi file il plugin di Vite genera `routeTree.gen.ts`, che non si modifica a mano. `staff.tsx` e `platform.tsx` sono route di layout: avvolgono tutte le pagine della loro area (per lo staff, `StaffLayout` mostra la navigazione e rende l'area installabile come PWA). I file delle route restano sottilissimi e passano subito alla feature:
+**Route.** Con TanStack Router le route sono file in `routes/`, e il nome del file è l'URL: `staff.kitchen.tsx` diventa `/staff/kitchen`, `q.$token.tsx` diventa `/q/{token}` con il parametro `token`. Da questi file il plugin di Vite genera `routeTree.gen.ts`, che non si modifica a mano. `staff.tsx` e `platform.tsx` sono route di layout: avvolgono tutte le pagine della loro area (per lo staff, `StaffLayout` mostra la navigazione, rende l'area installabile come PWA e tiene il controller delle notifiche push). I file delle route restano sottilissimi e passano subito alla feature:
 
 ```tsx
 export const Route = createFileRoute("/staff/kitchen")({
@@ -243,20 +261,23 @@ export const Route = createFileRoute("/staff/kitchen")({
 
 **Feature.** Il codice vero sta in `features/`, una cartella per parte del prodotto:
 
-| Feature         | Pagine                                                                                             |
-| --------------- | -------------------------------------------------------------------------------------------------- |
-| `public-menu`   | menu del cliente, `/q/{token}`                                                                     |
-| `guests`        | ingresso del cliente nella visita, con il codice del tavolo                                        |
-| `orders`        | pannello delle opzioni, carrello, invio dell'ordine, ordini del tavolo                             |
-| `accounts`      | login, cambio password, Home, navigazione, installazione della PWA                                 |
-| `dining`        | Sala, `/staff/floor`                                                                               |
-| `kitchen`       | Cucina, `/staff/kitchen`                                                                           |
-| `pass`          | Pass, `/staff/pass`                                                                                |
-| `billing`       | Conto, `/staff/orders`, e Storico conti, `/staff/history`                                          |
-| `menu`          | Menu, `/staff/menu`, con le schede Piatti e Opzioni                                                |
-| `tables`        | Tavoli e QR, `/staff/tables`                                                                       |
-| `subscriptions` | Abbonamento del titolare, `/staff/subscription`, e periodi di abbonamento nell'area amministratore |
-| `platform`      | area amministratore, `/platform/*`, e Account staff, `/staff/settings`                             |
+| Feature         | Pagine                                                                                                                                 |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `public-menu`   | menu del cliente, `/q/{token}`                                                                                                         |
+| `guests`        | ingresso del cliente nella visita, con il codice del tavolo                                                                            |
+| `orders`        | pannello delle opzioni, carrello, invio dell'ordine, ordini del tavolo                                                                 |
+| `online-order`  | pagine del cliente online: menu e cassa, `/r/{slug}`, informativa privacy e stato dell'ordine, `/o/{token}`                            |
+| `accounts`      | login, cambio password, Home, navigazione, installazione della PWA                                                                     |
+| `dining`        | Sala, `/staff/floor`                                                                                                                   |
+| `kitchen`       | Cucina, `/staff/kitchen`                                                                                                               |
+| `pass`          | Pass, `/staff/pass`                                                                                                                    |
+| `online`        | Ordini online, `/staff/online`, il banner che suona in ogni pagina dello staff, e Impostazioni ordini online, `/staff/online-settings` |
+| `push`          | la sezione «Notifiche a schermo bloccato» della Home e il controller che tiene allineati browser e server                              |
+| `billing`       | Conto, `/staff/orders`, e Storico conti, `/staff/history`                                                                              |
+| `menu`          | Menu, `/staff/menu`, con le schede Piatti e Opzioni                                                                                    |
+| `tables`        | Tavoli e QR, `/staff/tables`                                                                                                           |
+| `subscriptions` | Abbonamento del titolare, `/staff/subscription`, e periodi di abbonamento nell'area amministratore                                     |
+| `platform`      | area amministratore, `/platform/*`, e Account staff, `/staff/settings`                                                                 |
 
 Ogni feature ha più o meno la stessa forma:
 
@@ -270,11 +291,11 @@ Il codice condiviso sta in `lib/` (`api.ts` con le funzioni di richiesta, format
 
 **Dove stanno i dati.** Nel frontend ci sono tre tipi di stato, e ognuno ha il suo posto:
 
-| Tipo                           | Dove                    | Esempi                                                           |
-| ------------------------------ | ----------------------- | ---------------------------------------------------------------- |
-| Dati del server                | cache di TanStack Query | menu, Sala, coda della Cucina, conti                             |
-| Intenzioni locali della scheda | `sessionStorage`        | carrello, identificativi delle operazioni in attesa di conferma  |
-| Preferenze del dispositivo     | `localStorage`          | lingua dell'interfaccia, suono e categorie nascoste della Cucina |
+| Tipo                           | Dove                    | Esempi                                                                                                        |
+| ------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Dati del server                | cache di TanStack Query | menu, Sala, coda della Cucina, conti                                                                          |
+| Intenzioni locali della scheda | `sessionStorage`        | carrello (anche quello online), identificativi delle operazioni in attesa di conferma                         |
+| Dati del dispositivo           | `localStorage`          | lingua dell'interfaccia, suono e categorie nascoste della Cucina, token dell'ultimo ordine online del cliente |
 
 Il primo pezzo della chiave di ogni query dice a quale identità appartengono i dati: `public` (menu anonimo), `guest`, `platform`, `["auth", "me"]` (l'identità dello staff); tutto il resto conta come dato privato del ristorante. Quando lo staff fa login o logout, `lib/query-scope.ts` svuota solo la cache dello staff, e i dati del cliente o dell'amministratore aperti nella stessa scheda restano.
 
@@ -310,7 +331,9 @@ Anche il path dei cookie aiuta: il browser manda il cookie Guest solo alle richi
 - Store e Platform: il cookie contiene l'ID dell'account, il ruolo e la versione delle credenziali (`credential_version`), più l'ID del ristorante per lo staff. A ogni richiesta `ValidatePrincipal` rilegge l'account dal database: se è stato disattivato o se la versione è cambiata (cambio o reset della password), il cookie viene rifiutato. Così cambiare password fa uscire subito tutti gli altri dispositivi.
 - Guest: il cookie contiene ristorante, tavolo e visita, più un identificativo casuale generato a ogni ingresso, a cui viene legato il token CSRF. Dimostra soltanto che "questo browser è entrato in questa visita"; che la visita sia ancora aperta lo controlla ogni service del cliente, a ogni richiesta. Dopo la chiusura il cookie resta nel browser, ma ogni richiesta risponde `SESSION_CLOSED`.
 
-**Nel frontend** `lib/api.ts` ha una famiglia di funzioni per ogni identità: `request`/`write` per lo staff, `publicRequest` per le letture anonime (senza cookie, come il menu pubblico), `guestRequest`/`guestWrite` per il cliente e `platformRequest`/`platformWrite` per l'amministratore. Ogni scrittura chiede prima un token CSRF nuovo all'endpoint `csrf` della propria identità e lo manda nell'header `X-CSRF-TOKEN`.
+**Il cliente online non ha un'identità.** Le pagine `/r/{slug}` e `/o/{token}` non usano cookie di login: per ritrovare il proprio ordine bastano due valori casuali che conosce solo quel dispositivo, il `clientRequestId` per il recupero dopo un errore di rete e il token della pagina di stato. L'invio, però, è una scrittura, quindi vuole il suo token CSRF, chiesto a `/api/public/csrf` e legato all'ambito Guest.
+
+**Nel frontend** `lib/api.ts` ha una famiglia di funzioni per ogni identità: `request`/`write` per lo staff, `publicRequest` per le letture anonime (senza cookie, come il menu pubblico), `publicWrite` per l'invio anonimo degli ordini online (manda solo il cookie del CSRF), `guestRequest`/`guestWrite` per il cliente al tavolo e `platformRequest`/`platformWrite` per l'amministratore. Ogni scrittura chiede prima un token CSRF nuovo all'endpoint `csrf` della propria identità e lo manda nell'header `X-CSRF-TOKEN`.
 
 Perché cookie e non token JWT, e come funziona la protezione CSRF, lo spiego in «Cookie, CSRF e same-origin».
 
@@ -364,6 +387,44 @@ sequenceDiagram
 
 I dettagli di ogni passaggio (perché proprio quei lock, perché `clientRequestId`, perché `bill_version`, perché il polling) li spiego in «Decisioni di progettazione».
 
+### Il flusso di un ordine online
+
+Un ordine online fa un'altra strada fino all'accettazione; da lì in poi è una visita come le altre, con un solo ordine:
+
+```mermaid
+sequenceDiagram
+  actor C as Cliente online
+  actor S as Staff (Ordini online, Cucina, Pass)
+  actor T as Titolare (Conto)
+  participant A as API
+  participant D as PostgreSQL
+  participant P as Servizi push
+
+  C->>A: GET /api/public/r/{slug}/bootstrap (anonimo)
+  A-->>C: ristorante, menu e stato degli ordini online
+  C->>A: POST /api/public/r/{slug}/requests (clientRequestId, nome, telefono, righe)
+  A->>D: lock ristorante (SHARE), lock d'invio del ristorante, contatore del giorno
+  A->>D: se clientRequestId esiste già restituisce quella richiesta, altrimenti la salva in attesa per 10 minuti
+  A-->>C: numero, scadenza e token della pagina di stato
+  A-)P: dopo il commit, «Nuovo ordine online» ai dispositivi iscritti
+  loop ogni 10 secondi
+    S->>A: GET /api/staff/online/pending (banner e Ordini online)
+  end
+  S->>A: POST /api/staff/online/requests/{id}/accept (minuti e, per la consegna, costo)
+  A->>D: lock ristorante (SHARE) e richiesta (UPDATE), nuova visita PICKUP o DELIVERY con il suo ordine
+  loop ogni 10 secondi
+    C->>A: GET /api/public/online-orders/{token}
+  end
+  S->>A: Cucina e Pass, come per i tavoli
+  T->>A: POST /api/owner/sessions/{id}/checkout (oppure close-no-show)
+```
+
+1. **Menu.** La pagina `/r/{slug}` legge senza cookie il ristorante, il menu e lo stato degli ordini online, calcolato da una sola regola (`OnlineAvailability`): servizio sospeso, ordini online non attivi o telefono mancante, in pausa, fuori orario, troppi ordini in attesa, oppure aperto. Se non è aperto, il cliente può guardare il menu, ma non andare alla cassa.
+2. **Invio.** Come al tavolo, il frontend salva in `sessionStorage` l'intenzione completa con un `clientRequestId`, e solo dopo manda la POST. Il backend prende i lock, assegna il numero del giorno e cerca prima di tutto una richiesta con lo stesso ID: se c'è, la restituisce e annulla la transazione, così il numero non si consuma. Altrimenti controlla di nuovo lo stato, la consegna, i piatti e i prezzi e salva la richiesta, che resta in attesa per 10 minuti. Il cliente passa alla pagina di stato.
+3. **Avviso.** Solo dopo il commit il numero dell'ordine entra in una coda in memoria, e un servizio in background manda le notifiche push. Lo staff con l'app aperta lo vede comunque dal banner, che interroga il server ogni 10 secondi e suona finché c'è un ordine da accettare.
+4. **Accettazione.** Lo staff sceglie tra quanto sarà pronto (per la consegna, prima il costo). Il backend blocca la richiesta, controlla che sia ancora in attesa e, nella stessa transazione, crea la visita (`PICKUP` o `DELIVERY`), il suo unico ordine e le righe, copiate dalla richiesta. L'ordine nasce in quel momento, quindi per la Cucina è un ordine nuovo come gli altri, e suona. Se invece lo staff rifiuta, o nessuno risponde in tempo, non nasce niente: la richiesta resta rifiutata o scaduta.
+5. **Cucina, Pass e conto.** Da qui tutto va come per un tavolo: piatti pronti o annullati, «Servito» dal Pass (per una consegna vuol dire affidato a chi consegna), e il titolare chiude il conto al ritiro o alla consegna; se il cliente non si presenta, lo chiude come `NO_SHOW`. La pagina di stato del cliente si aggiorna ogni 10 secondi finché l'ordine non finisce.
+
 ## Decisioni di progettazione
 
 In questa sezione spiego il perché delle scelte tecniche più importanti. Quasi tutte rispondono a due domande: cosa succede quando due persone fanno qualcosa nello stesso momento, e cosa succede quando la rete si interrompe a metà di un'operazione? In un ristorante capitano entrambe di continuo: più camerieri e più clienti usano l'app insieme, e il Wi-Fi non è sempre buono.
@@ -379,7 +440,7 @@ In questa sezione spiego il perché delle scelte tecniche più importanti. Quasi
 
 Le letture normali, senza lock, non vengono bloccate: grazie a MVCC, PostgreSQL mostra loro l'ultima versione già confermata della riga.
 
-EF Core non ha un'API LINQ per questi lock, quindi li scrivo in SQL con `FromSql`, che trasforma i valori interpolati in parametri e quindi è sicuro contro la SQL injection. Quelli su ristorante, tavolo, visita e piatto li ho raccolti in un solo file, `Data/RowLocks.cs`, con l'ordine dei lock scritto in cima al file, così sono facili da controllare (i pochi lock sugli account stanno direttamente nei service della piattaforma):
+EF Core non ha un'API LINQ per questi lock, quindi li scrivo in SQL con `FromSql`, che trasforma i valori interpolati in parametri e quindi è sicuro contro la SQL injection. Quelli su ristorante, tavolo, visita, piatto e richiesta online li ho raccolti in un solo file, `Data/RowLocks.cs`, con l'ordine dei lock scritto in cima al file, così sono facili da controllare (i pochi lock sugli account stanno direttamente nei service della piattaforma):
 
 ```csharp
 db.DiningSessions.FromSql(
@@ -393,22 +454,28 @@ Un lock resta attivo fino alla fine della transazione: per questo ogni service a
 
 ```
 ristorante → tavolo → visita          ristorante → piatto
+ristorante → richiesta online         ristorante → lock d'invio → contatore del giorno
 ```
 
-Ogni operazione prende solo un tratto di questa catena, sempre in questa direzione: chi parte dalla visita non torna mai indietro al tavolo o al ristorante.
+Ogni operazione prende solo un tratto di questa catena, sempre in questa direzione: chi parte dalla visita non torna mai indietro al tavolo o al ristorante. Il lock d'invio non blocca una riga: è un advisory lock di PostgreSQL (`pg_advisory_xact_lock`), cioè un lucchetto con un nome, qui ricavato dall'ID del ristorante, che si libera da solo alla fine della transazione.
 
-| Operazione                                                      | Lock, in ordine                                                      |
-| --------------------------------------------------------------- | -------------------------------------------------------------------- |
-| Aprire un tavolo                                                | ristorante SHARE → tavolo UPDATE                                     |
-| Entrare nella visita (cliente)                                  | ristorante SHARE → tavolo SHARE → visita SHARE                       |
-| Inviare un ordine                                               | ristorante SHARE → tavolo SHARE → visita UPDATE                      |
-| Leggere gli ordini del tavolo o il conto                        | visita SHARE                                                         |
-| Piatto pronto o annullato, «Servito», chiusura del conto        | solo visita UPDATE                                                   |
-| Modificare il menu, comprese le opzioni e la loro disponibilità | ristorante UPDATE (eliminando un piatto, poi anche il piatto UPDATE) |
-| Pausa dei nuovi ordini, sospensione del ristorante, abbonamento | ristorante UPDATE                                                    |
-| Rinominare, attivare o eliminare un tavolo                      | tavolo UPDATE                                                        |
+| Operazione                                                                                                        | Lock, in ordine                                                      |
+| ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Aprire un tavolo                                                                                                  | ristorante SHARE → tavolo UPDATE                                     |
+| Entrare nella visita (cliente)                                                                                    | ristorante SHARE → tavolo SHARE → visita SHARE                       |
+| Inviare un ordine                                                                                                 | ristorante SHARE → tavolo SHARE → visita UPDATE                      |
+| Inviare un ordine online                                                                                          | ristorante SHARE → lock d'invio → contatore del giorno               |
+| Accettare un ordine online                                                                                        | ristorante SHARE → richiesta online UPDATE                           |
+| Rifiutare un ordine online                                                                                        | solo richiesta online UPDATE                                         |
+| Leggere gli ordini del tavolo o il conto                                                                          | visita SHARE                                                         |
+| Piatto pronto o annullato, «Servito», chiusura del conto, costo di consegna                                       | solo visita UPDATE                                                   |
+| Modificare il menu, comprese le opzioni e la loro disponibilità                                                   | ristorante UPDATE (eliminando un piatto, poi anche il piatto UPDATE) |
+| Pausa dei nuovi ordini, sospensione del ristorante, abbonamento, impostazioni degli ordini online, servizi attivi | ristorante UPDATE                                                    |
+| Rinominare, attivare o eliminare un tavolo                                                                        | tavolo UPDATE                                                        |
 
 Perché l'ordine prende il ristorante in SHARE? Chi modifica il menu prende il ristorante in UPDATE, quindi mentre un ordine è in corso nessuno può cambiare prezzi, disponibilità o opzioni, e i prezzi e le opzioni copiati nell'ordine sono proprio quelli appena controllati. Due ordini da tavoli diversi, invece, prendono entrambi un lock SHARE: sono compatibili e vanno in parallelo.
+
+Lo stesso vale per gli ordini online: invio e accettazione prendono il ristorante in SHARE, quindi menu e prezzi non cambiano a metà. Chi spegne gli ordini online dall'area amministratore prende invece il ristorante in UPDATE, e quindi aspetta che finiscano gli invii in corso: tra il controllo «ci sono ancora ordini online aperti?» e lo spegnimento non può arrivare una richiesta nuova.
 
 Ordine, Cucina e chiusura del conto prendono tutti la stessa visita in UPDATE, quindi sulla stessa visita si mettono in fila. Se l'ordine arriva per primo, la chiusura trova il conto cambiato (`BILL_CHANGED`, vedi più sotto); se arriva prima la chiusura, l'ordine trova la visita chiusa (`SESSION_CLOSED`).
 
@@ -433,7 +500,7 @@ Le alternative erano il livello di isolamento Serializable, con transazioni da r
 
 **Il problema.** Il titolare apre il Conto di un tavolo, vede 45 € e va alla cassa. Nel frattempo un cliente ordina un'altra bibita, oppure la Cucina annulla un piatto. Quando il titolare conferma, il conto chiuso deve essere esattamente quello che ha visto e incassato. Qui un lock non basta: non posso tenere bloccata una riga del database per tutto il tempo in cui una persona guarda lo schermo.
 
-**La scelta: una versione ottimistica.** Ogni visita ha `bill_version`, che parte da 1 e aumenta di 1 per ogni cosa che cambia l'importo: un nuovo ordine o l'annullamento di un piatto. Non cambia quando un piatto diventa pronto o servito, quando lo stesso ordine viene ripetuto con lo stesso `clientRequestId`, né con la chiusura.
+**La scelta: una versione ottimistica.** Ogni visita ha `bill_version`, che parte da 1 e aumenta di 1 per ogni cosa che cambia l'importo: un nuovo ordine, l'annullamento di un piatto o, per una consegna, la correzione del costo di consegna. Una visita online nasce già con il suo ordine e la versione 1. Non cambia quando un piatto diventa pronto o servito, quando lo stesso ordine viene ripetuto con lo stesso `clientRequestId`, né con la chiusura.
 
 Il frontend congela la versione e il totale mostrati nella conferma (il polling aggiorna lo schermo, ma non sostituisce in silenzio i valori da confermare) e li manda con il checkout:
 
@@ -473,11 +540,28 @@ Le due tecniche si completano: il lock pessimistico protegge i millisecondi dell
 
 Il frontend non rimanda mai la POST da solo. Dopo un risultato sconosciuto cerca l'ordine con una GET (`/api/public/sessions/{id}/orders/by-request/{requestId}`); il cliente può ricontrollare con «Verifica esito ordine» oppure toccare «Riprova ordine originale», che rimanda lo stesso ID con lo stesso identico contenuto. È sempre il cliente a decidere.
 
+Gli ordini online usano la stessa idea, con qualche differenza. Il `clientRequestId` è unico per ristorante (`uq_online_request_client_request`), e il backend lo cerca dopo aver preso il numero del giorno: una ripetizione restituisce la richiesta originale e annulla la transazione, quindi i numeri non hanno buchi. Il recupero è una GET per ID (`/api/public/r/{slug}/requests/by-client-id/{id}`): l'ID casuale lo conosce solo quel telefono, ed è lui la credenziale. C'è poi una differenza voluta. Se una riprova, dopo un risultato sconosciuto, viene rifiutata per un motivo che il backend controlla solo dopo aver cercato l'ID (per esempio ordini in pausa, fuori orario, troppi ordini in attesa, consegna non attiva o menu cambiato), quel rifiuto dimostra che la prima richiesta non esiste, e il carrello si sblocca. Per gli ordini al tavolo la regola resta quella prudente descritta sopra.
+
+### Ordini online: una richiesta da accettare
+
+**Il problema.** Un ordine online arriva da qualcuno che non è nel locale: può essere uno scherzo, il ristorante può non riuscire a prepararlo, e il cliente non è lì per sentirselo dire. Una volta accettato, però, l'ordine deve passare da Cucina, Pass e Conto come tutti gli altri, senza duplicare queste parti.
+
+**La scelta: una richiesta separata, che diventa una visita solo se viene accettata.**
+
+- **Una tabella a parte.** L'invio salva solo una riga di `online_requests`, con i piatti copiati in una colonna jsonb. Cucina, Pass, Conto e Storico non la vedono, perché leggono `dining_sessions` e `orders` come prima: un ordine sospetto non può arrivare in cucina per errore. Solo l'accettazione crea, nella stessa transazione, la visita (`PICKUP` o `DELIVERY`), il suo ordine e le righe. Un ordine rifiutato o scaduto resta una riga e basta: niente visite aperte per sempre, né piatti per sempre `NEW`.
+- **Nessuna colonna di stato.** Una richiesta è accettata se ha `accepted_at`, rifiutata se ha `rejected_at`, altrimenti è in attesa fino a `expires_at` (10 minuti dopo l'invio) e scaduta da quel momento. La scadenza non la scrive nessuno: si ricava dall'ora, quindi non serve un lavoro in background, e nei test basta spostare il tempo con `TestClock`. La regola è scritta una volta sola, in `OnlineRequestState`, e chi legge le richieste in attesa la usa sempre con l'ora di `TimeProvider`, mai con `now()` di SQL. Se un punto se ne dimenticasse, venti richieste scadute basterebbero a bloccare per sempre i nuovi ordini.
+- **L'ordine nasce all'accettazione.** Così la sua ora di creazione è quella in cui entra in cucina: l'ordinamento della Cucina, il raggruppamento per piatto e il suono funzionano senza nessuna modifica.
+- **Un numero al giorno.** Ogni ristorante numera gli ordini online da 1 ogni giorno (`online_counters`): un numero facile da dire al telefono o da scrivere sul sacchetto. L'invio blocca il contatore del giorno con un `INSERT ... ON CONFLICT DO UPDATE`, ma a mezzanotte non basta: due invii vicini, o la riprova di uno stesso ordine, potrebbero bloccare i contatori di due giorni diversi senza aspettarsi. Per questo l'invio prende prima il lock d'invio del ristorante, così il controllo dei duplicati e il limite degli ordini in attesa non si sovrappongono mai. Ristoranti diversi non si aspettano.
+- **Un limite, e una sola regola per «si può ordinare?».** Con 20 richieste in attesa il ristorante risulta `BUSY` e non accetta altri invii. Lo stato (`OnlineAvailability`) si calcola in un solo punto, usato dal menu del cliente, dall'invio e dalla pagina delle impostazioni.
+- **Il costo di consegna lo decide una persona.** Niente calcolo in base alla distanza: servirebbe un servizio di mappe a pagamento, e l'indirizzo del cliente andrebbe mandato a un'altra azienda. Il titolare scrive le sue regole in una nota (per zona, per importo…), e chi accetta l'ordine inserisce il costo, che entra nel conto. Se è sbagliato, il titolare lo corregge prima di chiudere, con la versione del conto.
+
+Il prezzo da pagare: lo staff deve rispondere entro 10 minuti, anche nei momenti di punta, e un ordine scaduto è perso: il cliente deve chiamare o ordinare di nuovo. Per questo c'è il banner che suona su ogni pagina e, per i telefoni bloccati, le notifiche push (vedi «PWA per lo staff»).
+
 ### Scritture con risultato sconosciuto: recupero solo con GET
 
-Il problema degli ordini vale per ogni scrittura: aprire un tavolo, segnare un piatto pronto, chiudere un conto, creare un ristorante. Quando la rete cade, o quando scade il timeout, il risultato è sconosciuto: la scrittura può essere andata a buon fine oppure no. Il timeout non è automatico: solo le operazioni che usano `withTimeout` (`lib/api.ts`) interrompono l'attesa dopo 15 secondi (`REQUEST_TIMEOUT_MS`), cioè quelle di Sala, Cucina, Pass, Conto, abbonamenti e del cliente (ordini e ingresso nella visita); le modifiche al menu e le operazioni dell'amministratore su ristoranti e account non lo usano.
+Il problema degli ordini vale per ogni scrittura: aprire un tavolo, segnare un piatto pronto, chiudere un conto, creare un ristorante. Quando la rete cade, o quando scade il timeout, il risultato è sconosciuto: la scrittura può essere andata a buon fine oppure no. Il timeout non è automatico: solo le operazioni che usano `withTimeout` (`lib/api.ts`) interrompono l'attesa dopo 15 secondi (`REQUEST_TIMEOUT_MS`), cioè quelle di Sala, Cucina, Pass, Conto, ordini online, notifiche push, abbonamenti e del cliente (ordini al tavolo e online, ingresso nella visita); le modifiche al menu e le operazioni dell'amministratore su ristoranti e account non lo usano.
 
-Per le scritture più delicate uso lo stesso schema: apertura del tavolo e pausa dei nuovi ordini in Sala, piatto pronto o annullato in Cucina, chiusura del conto, ordini del cliente e operazioni dell'amministratore su ristoranti e account.
+Per le scritture più delicate uso lo stesso schema: apertura del tavolo e pausa dei nuovi ordini in Sala, piatto pronto o annullato in Cucina, chiusura del conto, ordini del cliente (al tavolo e online) e operazioni dell'amministratore su ristoranti e account.
 
 ```mermaid
 flowchart TD
@@ -501,11 +585,15 @@ L’intenzione minima contiene identificativi, tipo di azione e, quando serve, i
 
 **Perché `sessionStorage`.** Vale per una sola scheda e sparisce quando la scheda si chiude, così due schede non si confondono a vicenda. I marcatori contengono solo i dati minimi dell’operazione; l’ordine completo resta l’eccezione del carrello. Mai password o codici.
 
-Le eccezioni allo schema sono tre:
+Le eccezioni allo schema sono sette:
 
 - l'ordine del cliente, che si può riprovare a mano con lo stesso ID perché il backend è idempotente (vedi sopra);
 - le scritture degli abbonamenti nell'area amministratore, che non salvano niente: ogni scrittura porta la versione dell'abbonamento letta prima, quindi ogni versione può essere consumata al massimo da una scrittura che modifica lo stato. I salvataggi senza cambiamenti possono riuscire più volte senza incrementarla. Dopo un risultato sconosciuto si rilegge e si conferma di nuovo;
-- «Servito» sul Pass, che non salva niente: l'UPDATE vale solo per un piatto pronto e non ancora servito, quindi ripeterlo non fa danni, e la lista aggiornata mostra da sola se la scrittura è passata.
+- «Servito» sul Pass, che non salva niente: l'UPDATE vale solo per un piatto pronto e non ancora servito, quindi ripeterlo non fa danni, e la lista aggiornata mostra da sola se la scrittura è passata;
+- accettare o rifiutare un ordine online, che non salvano niente per lo stesso motivo: valgono solo per una richiesta ancora in attesa, una ripetizione riceve `ONLINE_REQUEST_CHANGED`, e la lista aggiornata mostra cosa è successo;
+- le impostazioni degli ordini online, che mandano il valore finale: durante il salvataggio il modulo è bloccato, e dopo un risultato sconosciuto basta la rilettura che la pagina fa comunque ogni 60 secondi;
+- la correzione del costo di consegna, che porta con sé la versione del conto, quindi vale al massimo una volta; dopo qualsiasi risultato si rilegge il conto;
+- l'iscrizione alle notifiche push e la sua cancellazione, che si possono ripetere senza danni: la Home mostra «attive» solo dopo la conferma del server, e la verifica successiva, o il prossimo accesso, registra di nuovo il dispositivo.
 
 Le altre scritture (menu e foto, tavoli, login e password) non salvano nessuna intenzione. Nel menu e nei tavoli, per esempio, se la risposta si perde il form resta compilato e la pagina chiede di rileggere la lista e controllare prima di riprovare.
 
@@ -515,11 +603,12 @@ In Cucina e durante la chiusura del conto, quando la pagina viene nascosta, la r
 
 **La scelta.** Cucina, Pass, Sala e Conto non ricevono notifiche dal server: lo interrogano a intervalli regolari con il `refetchInterval` di TanStack Query. L'unica cosa che il server manda di sua iniziativa sono le notifiche push dei nuovi ordini online, un promemoria in più per i telefoni bloccati (vedi «PWA per lo staff»): le pagine restano comunque basate sul polling.
 
-| Pagina                                   | Intervallo |
-| ---------------------------------------- | ---------- |
-| Cucina, Pass                             | 10 secondi |
-| Sala, Conto, ordini del tavolo (cliente) | 30 secondi |
-| Promemoria dell'abbonamento              | 60 secondi |
+| Pagina                                                          | Intervallo |
+| --------------------------------------------------------------- | ---------- |
+| Cucina, Pass, banner e pagina degli ordini online               | 10 secondi |
+| Stato dell'ordine online (cliente), finché l'ordine non finisce | 10 secondi |
+| Sala, Conto, ordini del tavolo e menu online (cliente)          | 30 secondi |
+| Promemoria dell'abbonamento, Impostazioni ordini online         | 60 secondi |
 
 Il polling si ferma quando la pagina è nascosta o il dispositivo è offline, e riparte quando torna visibile.
 
@@ -527,9 +616,9 @@ Il polling si ferma quando la pagina è nascosta o il dispositivo è offline, e 
 
 **Letture leggere.** Visto che queste richieste si ripetono di continuo, leggono solo le visite aperte e non contano né scorrono mai lo storico di un ristorante. Per capire se è arrivato qualcosa di nuovo basta un "watermark": l'ora dell'ordine più recente (`latestCreatedAt`) o del piatto pronto più recente (`latestReadyAt`), letta dall'estremità di un indice. Quando il watermark avanza rispetto alla lettura precedente, la Cucina o il Pass suonano (`watermarkAdvanced` in `lib/live-view.ts`). Al primo caricamento e quando la pagina torna visibile, la lettura fa solo da riferimento, senza suonare.
 
-**Dati freschi prima di scrivere.** Una pagina che non si aggiorna da un po’ mostra dati vecchi, e decidere su dati vecchi è pericoloso, per esempio chiudere un conto che nel frattempo è cambiato. In Cucina, Pass e nella conferma del conto, le scritture sono bloccate se l’ultimo aggiornamento riuscito ha almeno 30 secondi o è precedente all’ultimo ritorno in primo piano della pagina (`syncIsFresh`). L’avviso però compare solo se il blocco dura almeno 3 secondi, oppure subito se si è offline o l’ultima richiesta è fallita (`syncIsStalled`): così un aggiornamento normale non fa lampeggiare avvisi. Le pagine degli abbonamenti, che si aggiornano ogni 60 secondi, usano invece una soglia di freschezza di 90 secondi. Questi controlli sono specifici delle singole funzionalità: la Sala non usa `syncIsFresh` per autorizzare apertura e ricezione degli ordini.
+**Dati freschi prima di scrivere.** Una pagina che non si aggiorna da un po’ mostra dati vecchi, e decidere su dati vecchi è pericoloso, per esempio chiudere un conto che nel frattempo è cambiato. In Cucina, Pass, Ordini online e nella conferma del conto, le scritture sono bloccate se l’ultimo aggiornamento riuscito ha almeno 30 secondi o è precedente all’ultimo ritorno in primo piano della pagina (`syncIsFresh`). L’avviso però compare solo se il blocco dura almeno 3 secondi, oppure subito se si è offline o l’ultima richiesta è fallita (`syncIsStalled`): così un aggiornamento normale non fa lampeggiare avvisi. Le pagine degli abbonamenti, che si aggiornano ogni 60 secondi, usano invece una soglia di freschezza di 90 secondi. Questi controlli sono specifici delle singole funzionalità: la Sala non usa `syncIsFresh` per autorizzare apertura e ricezione degli ordini. Il banner degli ordini online usa la stessa regola per decidere se suonare: con dati vecchi o una lettura fallita smette di suonare, ma continua a mostrare il numero.
 
-Per Cucina e Pass il costo è un ritardo fino a 10 secondi, e il numero di richieste cresce con il numero di dispositivi accesi (vedi «Limiti attuali»).
+Per Cucina, Pass e ordini online il costo è un ritardo fino a 10 secondi (a telefono bloccato, per gli ordini online, ci sono le notifiche push), e il numero di richieste cresce con il numero di dispositivi accesi (vedi «Limiti attuali»).
 
 ### Cookie, CSRF e same-origin
 
@@ -544,7 +633,7 @@ La durata fissa, senza rinnovo automatico (vedi la tabella in «Tre identità»)
 **Il prezzo dei cookie: il CSRF.** Proprio perché il browser allega i cookie da solo, un altro sito potrebbe approfittarne: una pagina malevola aperta dal titolare potrebbe contenere un form nascosto che fa una POST verso `https://app.esempio.it/api/...`, e il browser allegherebbe il cookie di login del titolare. Si chiama Cross-Site Request Forgery (CSRF). Le difese sono due:
 
 1. `SameSite=Lax` sui cookie di login: il browser non li allega alle POST che partono da un altro sito.
-2. Il token antiforgery di ASP.NET Core. Prima di ogni scrittura il frontend chiede un token nuovo all'endpoint `csrf` della propria identità e lo rimanda nell'header `X-CSRF-TOKEN`: costa una richiesta in più, ma evita di usare un token vecchio dopo un login, un logout o un cambio di identità. Il server lo confronta con il cookie antiforgery (`TavoloFlow.Csrf`, `HttpOnly` e `SameSite=Strict`) e con l'utente corrente. Un altro sito non può leggere la risposta che contiene il token, perché la same-origin policy del browser glielo impedisce, quindi non può costruire una richiesta valida. In più ogni token vale solo per l'identità per cui è stato chiesto (`BrowserCsrfScope`, vedi «Tre identità»).
+2. Il token antiforgery di ASP.NET Core. Prima di ogni scrittura il frontend chiede un token nuovo all'endpoint `csrf` della propria identità e lo rimanda nell'header `X-CSRF-TOKEN`: costa una richiesta in più, ma evita di usare un token vecchio dopo un login, un logout o un cambio di identità. Il server lo confronta con il cookie antiforgery (`TavoloFlow.Csrf`, `HttpOnly` e `SameSite=Strict`) e con l'utente corrente. Un altro sito non può leggere la risposta che contiene il token, perché la same-origin policy del browser glielo impedisce, quindi non può costruire una richiesta valida. In più ogni token vale solo per l'identità per cui è stato chiesto (`BrowserCsrfScope`, vedi «Tre identità»). Vale anche per l'invio anonimo di un ordine online: il token si chiede a `/api/public/csrf`, nell'ambito Guest, e per questo il controller degli ordini online dichiara la policy `GuestAccess` oltre ad `[AllowAnonymous]` (vedi «Backend: moduli e percorso di una richiesta»).
 
 Il controllo lo fa `CsrfValidationFilter`, registrato in modo globale perché `AddControllers` da solo non valida il token per le richieste JSON: così anche un endpoint nuovo è protetto senza fare niente.
 
@@ -552,7 +641,7 @@ Il controllo lo fa `CsrfValidationFilter`, registrato in modo globale perché `A
 
 **Perché una PWA e non un'app nativa.** Lo staff usa telefoni e tablet, spesso già presenti nel ristorante. Un'app nativa vorrebbe dire altro codice (Android e iOS), la pubblicazione negli store e aggiornamenti da far installare a ogni dispositivo. Con una PWA lo stesso codice React diventa un'app installabile: icona nella schermata Home, finestra a schermo intero, e gli aggiornamenti arrivano a tutti senza passare dagli store, alla successiva apertura o ricarica dell'app. Una pagina già aperta continua invece a usare la versione precedente: per questo il server conserva i file JavaScript e CSS di tutte le versioni (vedi [self-hosting](self-hosting.md#rilasciare-una-nuova-versione)).
 
-**Solo `/staff`.** Il manifest (`/staff.webmanifest`) non è collegato in `index.html`: lo collega solo `StaffLayout`, che registra anche il service worker `/sw.js` con scope `/staff`. Così ai clienti su `/q/*`, che scansionano il QR una volta sola, il browser non propone mai di installare l'app. `id`, `start_url` e `scope` del manifest sono `/staff` senza barra finale, perché il router toglie la barra finale dagli URL e la pagina deve restare dentro lo scope.
+**Solo `/staff`.** Il manifest (`/staff.webmanifest`) non è collegato in `index.html`: lo collega solo `StaffLayout`, che registra anche il service worker `/sw.js` con scope `/staff`. Così ai clienti su `/q/*`, `/r/*` e `/o/*`, che non hanno bisogno di installare niente, il browser non propone mai l'installazione. `id`, `start_url` e `scope` del manifest sono `/staff` senza barra finale, perché il router toglie la barra finale dagli URL e la pagina deve restare dentro lo scope.
 
 **Un service worker che non mette niente in cache.** Il service worker gestisce solo il caricamento delle pagine: prova sempre prima la rete, e solo se il caricamento fallisce mostra una pagina offline scritta al suo interno. Non usa Cache Storage e lascia al browser tutte le altre richieste, comprese quelle a `/api`. Rinuncio al funzionamento offline, ma non devo mai preoccuparmi di dati vecchi o di una versione vecchia dell'app rimasta in cache, uno dei problemi più comuni delle PWA. Lo tengo per la pagina offline: senza service worker, chi apre l'app senza rete vedrebbe solo la pagina di errore del browser. Per l'installazione, invece, oggi non serve più: i [criteri attuali di Chrome](https://web.dev/articles/install-criteria) per proporla non chiedono un service worker.
 
@@ -579,6 +668,7 @@ Il controllo lo fa `CsrfValidationFilter`, registrato in modo globale perché `A
 - **Aprire un tavolo non è idempotente.** A differenza dell'ordine, l'apertura non ha un ID di richiesta. Se la risposta si perde, il frontend rilegge la Sala e lo staff decide se riaprire; una seconda apertura sullo stesso tavolo riceve `SESSION_ALREADY_ACTIVE`, e l'indice unico garantisce comunque una sola visita aperta per tavolo. Resta un rischio, che ho accettato consapevolmente per la prima versione: una richiesta vecchia che arriva in grande ritardo, quando il tavolo è già stato chiuso, e apre una visita che nessuno voleva, da chiudere poi senza incasso. Se nell'uso reale succedesse spesso, aggiungerei un ID di richiesta anche all'apertura. Per un ordine o un conto un rischio del genere non sarebbe accettabile, ed è per questo che lì ci sono `clientRequestId` e `bill_version`.
 - **Menu: l'ultima modifica vince.** Se il titolare modifica lo stesso piatto da due dispositivi, vale l'ultimo salvataggio, senza avvisi di conflitto. Non è grave, perché quello che conta lo controlla l'ordine: il backend ricontrolla sempre prezzi, disponibilità e opzioni e, se qualcosa è cambiato, risponde `MENU_CHANGED` con l'elenco delle modifiche (per un'opzione esaurita o non più valida il motivo è `OPTIONS_CHANGED`).
 - **Un formato di errore mio invece di ProblemDetails.** ASP.NET Core supporta un formato standard per gli errori (ProblemDetails, RFC 9457), ma il frontend era già costruito attorno al campo `code`. Generare tutto da un solo filtro costava meno che passare al formato standard, che per un'API pubblica resterebbe comunque la scelta più corretta.
+- **Contatti cancellati solo con un nuovo ordine.** Nome, telefono e indirizzo dei clienti online si cancellano dopo 30 giorni, ma senza un lavoro in background: li cancella il successivo ordine online dello stesso ristorante, nella sua transazione. Se un ristorante non riceve più ordini online, i dati restano. L'informativa privacy, invece, promette 30 giorni fissi: prima dell'uso reale va sistemata una delle due cose.
 - **Abbonamenti senza storico.** Nel progetto iniziale c'era una tabella di eventi degli abbonamenti, con lo storico delle modifiche, gli avvisi al titolare e un ID per ogni operazione contro i duplicati. L'ho eliminata quando è stato chiaro che la sola `subscription_version` bastava a impedire che due modifiche consumassero la stessa versione. Ho perso lo storico, ma per una prima versione non serviva.
 
 ## Limiti e cosa farei diversamente
@@ -588,7 +678,7 @@ Il controllo lo fa `CsrfValidationFilter`, registrato in modo globale perché `A
 - **Pensato per una sola istanza.** Il rate limiter (`FixedWindowLimiter`) tiene i contatori in memoria: si azzerano a ogni riavvio e, con più istanze dell'API, ognuna avrebbe i suoi. Per scalare servirebbe un archivio condiviso, per esempio Redis o lo stesso PostgreSQL. Lo stesso vale per la coda delle notifiche push, che sta in memoria.
 - **Il codice del tavolo è corto.** Quattro caratteri da un alfabeto di 32 fanno circa un milione di combinazioni (2²⁰). Contro chi prova a indovinarlo lo protegge solo il rate limit, per IP e per visita: prima di un uso pubblico vero andrebbe rivalutato, magari con un codice più lungo.
 - **Polling.** Il carico sul server cresce con il numero di dispositivi accesi: con molti ristoranti varrebbe la pena passare a WebSocket o a Server-Sent Events.
-- **Test.** Il backend ha oltre 300 test di integrazione, che girano su un PostgreSQL vero in Docker; il frontend ha solo test della logica pura con `node --test`. Nel repository mancano test dei componenti e test end-to-end. Tutti i test che ci sono girano a ogni push nella CI (`.github/workflows/ci.yml`).
+- **Test.** Il backend ha quasi 500 test, in gran parte di integrazione, che girano su un PostgreSQL vero in Docker; il frontend ha solo test della logica pura con `node --test`. Nel repository mancano test dei componenti e test end-to-end. Tutti i test che ci sono girano a ogni push nella CI (`.github/workflows/ci.yml`).
 - **Codici di errore allineati a mano.** La tabella con cui il frontend traduce i codici di errore nelle tre lingue (`lib/api-messages.ts`, vedi «Backend: moduli e percorso di una richiesta») va tenuta allineata a mano con il backend: TypeScript segnala una traduzione mancante, ma non un codice nuovo del backend.
 - **Rilascio artigianale.** Una sola VPS, script di rilascio lanciati a mano, backup affidati a un timer di systemd, nessun sistema di monitoraggio o di allarme: se il server si ferma, me ne accorgo solo quando qualcuno se ne lamenta.
 - **Frontend complesso in alcuni punti.** La gestione dei risultati sconosciuti (per esempio in `useCart`) è molto robusta, ma anche pesante da leggere e da mantenere per una prima versione.
