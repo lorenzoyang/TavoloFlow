@@ -23,13 +23,11 @@ internal static class MenuReader
         var items = await context
             .MenuItems.AsNoTracking()
             .Where(x => x.RestaurantId == restaurantId)
-            .OrderBy(x => x.CategoryId)
+            .OrderBy(x => x.Category.Position)
+            .ThenBy(x => x.CategoryId)
             .ThenBy(x => x.Position)
             .ThenBy(x => x.Id)
             .ToArrayAsync(ct);
-        var categoryRank = categories
-            .Select((category, index) => (category.Id, index))
-            .ToDictionary();
         // Each name array follows InputRules.Languages order: zh, it, en. This is a content statistic only;
         // it never restricts the default language or the guest's language choice.
         string?[][] names =
@@ -66,7 +64,6 @@ internal static class MenuReader
             languages,
             categories.Select(CategoryResponse.From).ToArray(),
             items
-                .OrderBy(x => categoryRank[x.CategoryId])
                 .Select(x =>
                     MenuItemResponse.From(x, links[x.Id].OrderBy(id => rank[id]).ToArray())
                 )
