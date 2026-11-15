@@ -2,18 +2,21 @@
 
 The store area `/staff` can be installed on a phone, tablet or desktop. The business entry is
 `/staff` on the deployment's public origin, for example `https://app.example.com/staff`. Guest `/q/*`
-and Platform `/platform` do not link the staff manifest. This implementation has no push notifications
-or offline business operations.
+and Platform `/platform` do not link the staff manifest. The only push notifications are lock-screen
+reminders of new online orders; there are no offline business operations.
 
 ## Files and installation scope
 
 | File                                                                  | Responsibility                                                        |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | [Manifest](../../frontend/public/staff.webmanifest)                   | App identity, launch URL, scope and icons                             |
-| [Service worker](../../frontend/public/sw.js)                         | Navigation network fallback and built-in offline page                 |
+| [Service worker](../../frontend/public/sw.js)                         | Navigation network fallback, offline page, push and notification taps |
+| [Push switch](../../frontend/src/features/push/PushSection.tsx)       | Home page lock-screen notification switch for this device             |
+| [Push sync](../../frontend/src/features/push/usePushSync.ts)          | Owns shared registration state and foreground reconciliation           |
 | [Install hook](../../frontend/src/features/accounts/useInstallApp.ts) | Manifest link, worker registration and Chromium install offer         |
 | [Home page](../../frontend/src/features/accounts/AccountPage.tsx)     | Install action or device-specific instructions                        |
-| [PWA tests](../../frontend/tests/pwa.test.ts)                         | Manifest scope, icon dimensions and absence of a global manifest link |
+| [PWA tests](../../frontend/tests/pwa.test.ts)                         | Manifest, icons, offline page, push and notification-tap handlers     |
+| [Push tests](../../frontend/tests/push.test.ts)                       | Support, confirmation, recovery, operation races and registration body     |
 
 StaffLayout inserts the manifest link when mounted and removes it on unmount. The shared `index.html`
 must not link a manifest: that would also advertise the staff app from a guest page. Staff sign-in is
@@ -45,6 +48,48 @@ rule: a valid saved device preference, then the first supported primary language
 page sets its HTML language and all three text labels together, without importing app assets or
 fetching translations. The manifest retains its fixed Chinese installation metadata separately.
 
+## Lock-screen push
+
+New online orders reach staff devices as system notifications even when the device is locked or the app
+is in the background. They are reminders only: nothing depends on delivery, and the page's own polling
+and ringing are unchanged. Server contracts, the VAPID key and the sending rules are in
+[online ordering](online-ordering.md#lock-screen-push).
+
+- **Support.** Push needs a secure context, the registered staff worker (production builds only, so
+  development shows "not supported"), `PushManager` and `Notification`. iPhone and iPad (iOS 16.4+)
+  expose push only to the app opened from the Home Screen, so Safari shows "add to the Home Screen
+  first"; Android Chrome and desktop Chrome, Edge and Firefox work in the browser too.
+- **Turning on and confirmation.** Home (首页) shows the switch while online ordering is on and the
+  server has a key, including installation guidance on unsupported devices. A tap requests permission
+  immediately, subscribes with `userVisibleOnly` and PUTs the device with the interface language.
+  Only a successful PUT for the current account, endpoint, key and language shows "on". A failed
+  registration retains the browser subscription and shows a retry action; turning off remains available.
+- **One controller.** `StaffLayout` provides one push controller through React Context. Automatic
+  registration, the home controls, password changes and logout share its state and operation tracker.
+  It reconciles at startup, identity/language changes, the account's own password change, foreground
+  return, window focus and reconnect. Concurrent events share one operation; obsolete results are
+  discarded. There are no retry timers, durable markers or service-worker background registrations.
+  A rotated browser subscription is uploaded on the next foreground check; old endpoints retain the
+  server's 404/410 and sign-in-expiry cleanup. An older VAPID key is unsubscribed and requires a new tap.
+- **Sign-out.** The controller pauses automatic registration and lets an in-flight operation settle.
+  It reads the browser endpoint and passes it as `pushEndpoint` to `POST /api/auth/logout`. The server
+  removes that restaurant's row before clearing the cookie. If the Service Worker API, staff worker
+  registration or PushManager is absent, logout proceeds without an endpoint. Actual registration or
+  subscription read failures, or server revocation failures, leave the user signed in with an error
+  and manual retry/identity-check actions. A lost response uses the existing GET identity check, never
+  an automatic logout retry. The browser keeps its subscription for registration at the next sign-in;
+  only "turn off for this device" unsubscribes it, after a best-effort DELETE. Already-dispatched
+  notifications may still arrive after sign-out.
+- **Notifications.** `sw.js` turns `{ number, language }` into "新线上订单 #12", "Nuovo ordine online
+  #12" or "New online order #12" with a short body, tag `online-order-{number}` (one notification and
+  one system sound per order; `renotify` for a repeated number) and the app icon. A malformed payload
+  still shows a generic notification, because browsers require one per push and Safari revokes
+  subscriptions that show none. A tap focuses an open `/staff` window and navigates it to
+  `/staff/online`, or opens a new window there. Opening the online orders page, or returning to it,
+  closes this device's online-order notifications.
+- **Lock screen.** The system shows one notification and plays its own sound once; it never rings
+  continuously. Do-not-disturb, focus modes and battery savers may delay or silence it.
+
 ## Browser installation and audio
 
 Chrome's [install-promotion criteria](https://web.dev/articles/install-criteria) require secure serving,
@@ -68,8 +113,8 @@ Chrome documents an installed-app exception in its
 [autoplay policy](https://developer.chrome.com/blog/autoplay). The application still observes
 AudioContext state and offers tap-to-enable guidance rather than assuming sound worked. Kitchen plays
 two rising tones; Pass plays three high beeps. First load/resume establishes a silent arrival baseline.
-Locking the device or backgrounding the app pauses foreground polling; installation is not background
-notification delivery.
+Locking the device or backgrounding the app pauses foreground polling and ringing; only the online
+order push above reaches a locked device.
 
 For a counter tablet, enable keep-screen-on and set system volume. Wake lock needs browser support,
 a secure context and a visible page; the operating system may release it. Use iPad Guided Access or
@@ -117,5 +162,15 @@ Android USB port forwarding can expose computer port 4173 as phone localhost for
 Use HTTPS for iPhone/iPad device checks. Verify actual sound, safe areas, navigation, sheets and external
 menu links on real installed apps; desktop mobile emulation cannot establish those results.
 Run the [PWA tests](../../frontend/tests/pwa.test.ts) for static invariants and actual offline-script
-execution with saved/browser languages, blocked storage and reconnect behavior. These Node tests do
-not verify operating-system installation or audio permissions.
+execution with saved/browser languages, blocked storage and reconnect behavior, and the push and
+notification-tap handlers with stubbed worker APIs. These Node tests do not verify operating-system
+installation, audio permissions or real push delivery.
+
+Push needs a real push service, which automated browsers do not provide; backend integration tests
+capture and decrypt what would be sent. To see a real notification locally, set `WebPush:PrivateKey`
+(`openssl rand -hex 32`) and `WebPush:Subject` (for example `mailto:you@example.com`) as user secrets,
+run the API with the `http` profile and `npm run build && npm run preview`, open
+`http://localhost:4173/staff` in desktop Chrome or in Android Chrome through USB port forwarding, sign in
+and turn notifications on from Home. Lock the phone or background the browser, submit an online order
+from another device, and check the notification, its sound and that a tap opens the online orders page.
+Test iPhone and iPad on an HTTPS deployment, from the app added to the Home Screen.

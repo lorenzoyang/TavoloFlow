@@ -29,7 +29,8 @@ uses automatic route code splitting.
 - `src/features/`: feature APIs/query keys/types, pure `state.ts`, lifecycle hooks and page/view components.
 - `src/components/`: shared page composites; `ui/` holds generated/adapted shadcn controls.
 - `src/lib/`: scoped HTTP/CSRF, formatting, languages, query lifecycle and device preferences.
-- `public/`: favicon, app icons, staff manifest and navigation-only service worker.
+- `public/`: favicon, app icons, staff manifest and the service worker (navigation fallback, online order
+  push notifications).
 
 Store, Guest, Platform and anonymous requests use separate helpers in `lib/api.ts`. Anonymous menu
 reads omit credentials. Protected query keys isolate identities and restaurant/account/visit data;

@@ -1,7 +1,8 @@
 # Billing and closed history
 
-OWNER confirms offline collection in `/staff/orders` or the selected Floor visit. STAFF can read an
-active bill on Floor and close qualifying EMPTY/VOIDED visits. Closed history at `/staff/history` is
+OWNER confirms offline collection in `/staff/orders` or the selected Floor visit. The bills page lists
+every ACTIVE session: dine-in visits and accepted online orders. STAFF can read an active bill on Floor
+and close qualifying EMPTY/VOIDED visits. Closed history at `/staff/history` is
 OWNER-only. The system records confirmation of offline payment, not a payment transaction.
 
 ## APIs and permissions
@@ -9,15 +10,18 @@ OWNER-only. The system records confirmation of offline payment, not a payment tr
 Store endpoints use trusted restaurant identity, require the first password change and return
 `Cache-Control: no-store`. Writes need Store CSRF; request DTOs reject unknown fields.
 
-| Method and path                             | Role        | Input / success                                                 |
-| ------------------------------------------- | ----------- | --------------------------------------------------------------- |
-| `GET /api/staff/sessions/{id}/bill`         | STAFF/OWNER | Active bill; cursor, limit default 50/max 100                   |
-| `POST /api/owner/sessions/{id}/checkout`    | OWNER       | `{ expectedBillVersion, confirmedTotalCents }` → closed summary |
-| `POST /api/staff/sessions/{id}/close-empty` | STAFF/OWNER | Zero-bill input → closed summary                                |
-| `POST /api/staff/sessions/{id}/close-void`  | STAFF/OWNER | Zero-bill input → closed summary                                |
-| `GET /api/owner/history`                    | OWNER       | Resolved filters and paged closed summaries                     |
-| `GET /api/owner/history/{id}`               | OWNER       | Closed bill; cursor, limit default 50/max 100                   |
-| `GET /api/staff/sessions/{id}`              | STAFF/OWNER | Summary of the original active/closed visit for recovery        |
+| Method and path                               | Role        | Input / success                                                                        |
+| --------------------------------------------- | ----------- | -------------------------------------------------------------------------------------- |
+| `GET /api/staff/sessions/active`              | STAFF/OWNER | `{ items }`: every ACTIVE session's summary, oldest first                              |
+| `GET /api/staff/sessions/{id}/bill`           | STAFF/OWNER | Active bill; cursor, limit default 50/max 100                                          |
+| `POST /api/owner/sessions/{id}/checkout`      | OWNER       | `{ expectedBillVersion, confirmedTotalCents }` → closed summary                        |
+| `POST /api/owner/sessions/{id}/close-no-show` | OWNER       | `{ expectedBillVersion, confirmedTotalCents, noShowConfirmed: true }` → closed summary |
+| `PATCH /api/owner/sessions/{id}/delivery-fee` | OWNER       | `{ expectedBillVersion, deliveryFeeCents }` → active summary                           |
+| `POST /api/staff/sessions/{id}/close-empty`   | STAFF/OWNER | Zero-bill input → closed summary                                                       |
+| `POST /api/staff/sessions/{id}/close-void`    | STAFF/OWNER | Zero-bill input → closed summary                                                       |
+| `GET /api/owner/history`                      | OWNER       | Resolved filters and paged closed summaries                                            |
+| `GET /api/owner/history/{id}`                 | OWNER       | Closed bill; cursor, limit default 50/max 100                                          |
+| `GET /api/staff/sessions/{id}`                | STAFF/OWNER | Summary of the original active/closed visit for recovery                               |
 
 Zero-bill input is `{ expectedBillVersion, confirmedTotalCents: 0, guestsLeftConfirmed: true }`.
 Closing succeeds with 200 and the shared summary. It never returns codes, credentials or client request
@@ -28,13 +32,22 @@ IDs. Platform identity cannot perform these operations.
 A bill is `{ summary, orders, nextCursor }`. The shared summary has:
 
 ```text
-sessionId, tableId, tableLabel, status, openedAt, closedAt, closeReason,
-billVersion, orderCount, itemCount, newItemCount, cancelledItemCount, totalAmountCents
+sessionId, channel, tableId, tableLabel, online, status, openedAt, closedAt, closeReason,
+deliveryFeeCents, billVersion, orderCount, itemCount, newItemCount, cancelledItemCount,
+totalAmountCents
 ```
 
-`tableId`, `closedAt` and `closeReason` may be null as appropriate. Item counts count lines, not
-portions. Active totals sum uncancelled unit-price × quantity across the entire visit; closed totals
-come from stored `closed_total_cents`. Neither is a page subtotal.
+`tableId`, `closedAt` and `closeReason` may be null as appropriate. `channel` is `DINE_IN`, `PICKUP` or
+`DELIVERY`. Dine-in visits have `tableLabel` and a null `online`; accepted online orders have no table
+and `online: { number, customerName, customerPhone, estimatedAt, deliveryAddress, deliveryNotes }`
+(contact and address become null once contact data is cleared). `deliveryFeeCents` is set on delivery
+sessions only: the fee whoever accepted the order entered. The active list reads only open sessions through the partial index
+`ix_dining_sessions_active`, in one statement, ordered by opening time (for online orders, acceptance). Item counts count lines, not
+portions. Active totals sum uncancelled unit-price × quantity across the entire visit, plus the
+delivery fee while any line is not cancelled (a fully cancelled delivery is a zero bill that closes as
+VOIDED); `SessionSummaries.Project` is the only place that computes a bill amount. Closed totals come
+from stored `closed_total_cents`, so PAID and NO_SHOW record the fee. Neither is a page subtotal; an
+order's own amounts never include the fee, which belongs to the session.
 
 Orders reuse the [kitchen DTO](kitchen-pass.md#kitchen-apis-and-transactions): original amount,
 remaining payable amount, status and immutable line snapshots with READY/cancellation timestamps.
@@ -50,13 +63,20 @@ reading totals/counts/orders, but multiple page requests are not one frozen data
 
 ## Closure conditions and transaction
 
-| Reason | Preconditions                                                                                           | Actor       |
-| ------ | ------------------------------------------------------------------------------------------------------- | ----------- |
-| PAID   | Positive receivable, no NEW lines, matching version/amount, confirmed offline collection                | OWNER       |
-| EMPTY  | No orders of any status, zero amount, matching version and guests-left confirmation                     | STAFF/OWNER |
-| VOIDED | At least one order and every line CANCELLED, zero amount, matching version and guests-left confirmation | STAFF/OWNER |
+| Reason  | Preconditions                                                                                                                                              | Actor       |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| PAID    | Positive receivable, no NEW lines, matching version/amount, confirmed offline collection                                                                   | OWNER       |
+| EMPTY   | No orders of any status, zero amount, matching version and guests-left confirmation                                                                        | STAFF/OWNER |
+| VOIDED  | At least one order and every line CANCELLED, zero amount, matching version and guests-left confirmation                                                    | STAFF/OWNER |
+| NO_SHOW | Online sessions only (`SESSION_NOT_ONLINE` otherwise); PAID's conditions and the customer-did-not-collect confirmation; records the uncollected receivable | OWNER       |
 
-A zero amount alone is insufficient for VOIDED. A visit that ever received an order cannot use EMPTY.
+A zero amount alone is insufficient for VOIDED. A visit that ever received an order cannot use EMPTY,
+so an online session, which always has its order, never closes as EMPTY, and a zero online bill closes
+as VOIDED, not NO_SHOW (`SESSION_NOT_PAYABLE`). For online orders the page words PAID as "collected,
+check payment" and VOIDED as closing after telling the customer, and offers "customer didn't come"
+(NO_SHOW) beside checkout whenever checkout is possible. Like every closure, NO_SHOW stamps the remaining
+READY lines served, so the pass index keeps only open visits; the history filter keeps NO_SHOW
+available even after online ordering is turned off.
 The owner confirms money received outside the app; no payment provider verifies it.
 
 All reasons share `BillingService.CloseAsync`:
@@ -72,7 +92,10 @@ All reasons share `BillingService.CloseAsync`:
 4. Atomically store CLOSED, reason, final amount/time and null code ciphertext. Do not increment
    BillVersion or modify order snapshots.
 5. Stamp still-unserved READY lines served in the same transaction and commit. Existing serving times
-   are preserved. Closure does not require staff to tap every delivery first.
+   are preserved. This applies to every closure reason, including VOIDED and NO_SHOW; a closure-stamped
+   `served_at` does not prove actual delivery to the customer. VOIDED currently requires every line
+   cancelled, so it normally has no READY lines to stamp. Closure does not require staff to tap every
+   delivery first.
 
 Closing time is clamped to visit opening, the latest order `processedAt ?? createdAt`, and the latest
 already recorded `servedAt` in this restaurant and visit. These reads share the existing session lock;
@@ -85,6 +108,23 @@ A new order/cancellation committed first invalidates the old confirmation; closu
 rejects later writes. Any intermediate failure rolls back the entire closure and delivery stamping.
 Service suspension, disabled tables and paused ordering do not block closure. Closed visits never
 reopen, and guest access is rejected through the existing live visit checks.
+
+## Delivery fee correction
+
+OWNER corrects an ACTIVE delivery's fee before closing it, for example a fee typed wrongly at
+acceptance. The write takes only the session UPDATE lock, like closures and cancellations. It returns
+`SESSION_NOT_FOUND`, `SESSION_CLOSED`, `BILL_CHANGED` (with `currentBill`) for a version other than the
+current one, and `SESSION_NOT_DELIVERY` (409, with `currentBill`) for pickup and dine-in sessions. The
+fee is whole cents, 0 for free, and every ordered item plus the fee stays a safe integer
+(`VALIDATION_FAILED`). A changed fee increments `bill_version`, so a confirmation frozen before it can
+no longer close the bill; the same fee writes nothing and keeps the version.
+
+The bills page offers "Edit delivery fee" on an ACTIVE delivery for OWNER, as a `ConfirmDialog` holding
+the fee field (prefilled, with the new amount due) and frozen with the bill it was read from; a newer
+bill invalidates it. The version is the write's only duplicate guard: a lost or repeated request just
+gets `BILL_CHANGED`, so the browser persists no marker. Every outcome rereads the bill, and an unknown
+result asks the owner to check the current fee before trying again. A fee correction and a closure of
+the same bill never run together.
 
 ## Confirmation and unknown results
 
@@ -125,7 +165,10 @@ DST transitions can therefore produce 23- or 25-hour days.
 Response: `{ items, nextCursor, totalCount, fromDate, toDate, timeZone }`. Order is `(closedAt, id)`
 descending, default 50/max 100. Cursors retain resolved date bounds across midnight and bind restaurant,
 historical table label and closure reason. Labels match trimmed, case-sensitive snapshots exactly.
-PAID, EMPTY and VOIDED are all queryable. Detail lookup by session ID is independent of list filters.
+PAID, EMPTY, VOIDED and NO_SHOW are all queryable regardless of currently enabled services.
+Rows and bills name `NO_SHOW` by channel ("not collected" for pickup, "not delivered" for delivery,
+`closeLabel`); the filter keeps one combined label. Detail
+lookup by session ID is independent of list filters.
 
 Catalog deletion detaches nullable references, preserving original labels/names/prices and final totals.
 There is no routine reopen/edit/delete-history business endpoint. Platform deletion of an entire
@@ -138,10 +181,12 @@ Sources: [BillingController](../../backend/TavoloFlow.Api/Controllers/BillingCon
 [summary projection](../../backend/TavoloFlow.Api/Dining/SessionSummaries.cs),
 [bill hook](../../frontend/src/features/billing/useBill.ts),
 [closure hook](../../frontend/src/features/billing/useClosure.ts),
+[delivery fee hook](../../frontend/src/features/billing/useDeliveryFee.ts),
 [pending markers](../../frontend/src/lib/usePendingMarkers.ts).
 
-Tests: [billing integration](../../backend/TavoloFlow.Api.Tests/BillingTests.cs) and
-[frontend confirmation/recovery](../../frontend/tests/billing.test.ts).
+Tests: [billing integration](../../backend/TavoloFlow.Api.Tests/BillingTests.cs),
+[online bills and the delivery fee](../../backend/TavoloFlow.Api.Tests/OnlineStaffTests.cs) and
+[frontend confirmation/recovery and delivery amounts](../../frontend/tests/billing.test.ts).
 Manual checks: NEW blocks checkout; a concurrent addition invalidates a frozen amount; distinct zero
 closures; lost checkout response followed by GET-only recovery; guest invalidation; multi-page bills;
 DST/history filters; catalog deletion preserving snapshots; two owners confirming the same closure.

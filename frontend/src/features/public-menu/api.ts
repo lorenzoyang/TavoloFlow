@@ -11,6 +11,8 @@ export type PublicMenu = {
     currencyCode: string;
     defaultLanguage: Language;
     serviceStatus: "ACTIVE" | "SUSPENDED";
+    // False when the platform has not turned on QR dine-in: guests browse but cannot join or order.
+    dineInEnabled: boolean;
     orderingEnabled: boolean;
     joinCodeRequired: boolean;
     theme: RestaurantTheme;

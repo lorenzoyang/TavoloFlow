@@ -8,6 +8,8 @@ export type CurrentAccount = {
   restaurantId: string;
   restaurantName: string;
   restaurantTheme: RestaurantTheme;
+  // The services the platform turned on; they decide the navigation and which pages work.
+  services: { dineIn: boolean; online: boolean };
   mustChangePassword: boolean;
 };
 
@@ -29,9 +31,9 @@ export const login = (username: string, password: string) =>
 export const changePassword = (currentPassword: string, newPassword: string) =>
   write<CurrentAccount>("/api/auth/change-password", "POST", { currentPassword, newPassword });
 
-export async function logout() {
+export async function logout(pushEndpoint: string | null, signal: AbortSignal) {
   try {
-    await write<void>("/api/auth/logout", "POST", {});
+    await write<void>("/api/auth/logout", "POST", { pushEndpoint }, signal);
   } catch (error) {
     // An expired credential already means the current browser is signed out.
     if (!(error instanceof ApiError && error.status === 401)) throw error;

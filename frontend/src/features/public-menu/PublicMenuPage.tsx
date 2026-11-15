@@ -65,8 +65,9 @@ function MenuContent({
   const focusJoin = useRef(false);
   const m = messages[language];
   const om = orderMessages[language];
+  // Guests need no difference between a suspended restaurant and one without QR dine-in.
   const serviceNotice =
-    data.restaurant.serviceStatus === "SUSPENDED"
+    data.restaurant.serviceStatus === "SUSPENDED" || !data.restaurant.dineInEnabled
       ? m.suspended
       : !data.table.isEnabled
         ? m.disabled

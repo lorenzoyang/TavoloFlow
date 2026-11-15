@@ -4,75 +4,70 @@ import {
   BookOpen,
   CalendarClock,
   ChefHat,
+  Globe,
   HandPlatter,
   History,
   House,
   LayoutGrid,
   QrCode,
   Receipt,
+  ShoppingBag,
   UserCog,
 } from "lucide-react";
-import type { CurrentAccount } from "./api";
+import { staffManagementRoutes, staffNavRoutes, type NavAccount, type StaffRoute } from "./state";
 import { accountMessages } from "./messages";
 
-type Role = CurrentAccount["role"];
 export type StaffDestination = {
-  to:
-    | "/staff"
-    | "/staff/floor"
-    | "/staff/kitchen"
-    | "/staff/pass"
-    | "/staff/orders"
-    | "/staff/menu"
-    | "/staff/tables"
-    | "/staff/history"
-    | "/staff/settings"
-    | "/staff/subscription";
+  to: StaffRoute;
   label: string;
   description: string;
   icon: LucideIcon;
 };
 
-// The daily workspaces: the phone tab bar and the tablet/desktop rail show exactly these, in this order.
-// Everything else is reached from the home page, so a device never needs more than five tabs.
-// The fourth tab is each role's own service job: OWNER settles bills, STAFF carry ready dishes.
-// Every other tab keeps its place, so a shared tablet that switches accounts looks the same.
-export function staffNavItems(role: Role, language: Language): StaffDestination[] {
+function destination(to: StaffRoute, account: NavAccount, language: Language): StaffDestination {
   const nav = accountMessages[language].nav;
-  const job: StaffDestination =
-    role === "OWNER"
-      ? { to: "/staff/orders", ...nav.orders, icon: Receipt }
-      : { to: "/staff/pass", ...nav.pass, icon: HandPlatter };
-  return [
-    { to: "/staff", ...nav.home, icon: House },
-    { to: "/staff/floor", ...nav.floor, icon: LayoutGrid },
-    { to: "/staff/kitchen", ...nav.kitchen, icon: ChefHat },
-    job,
-    {
-      to: "/staff/menu",
-      label: nav.menu.label,
-      description: role === "OWNER" ? nav.menu.ownerDescription : nav.menu.staffDescription,
-      icon: BookOpen,
-    },
-  ];
+  const owner = account.role === "OWNER";
+  switch (to) {
+    case "/staff":
+      return { to, ...nav.home, icon: House };
+    case "/staff/floor":
+      return { to, ...nav.floor, icon: LayoutGrid };
+    case "/staff/kitchen":
+      return { to, ...nav.kitchen, icon: ChefHat };
+    case "/staff/orders":
+      return { to, ...nav.orders, icon: Receipt };
+    case "/staff/pass":
+      return { to, ...nav.pass, icon: HandPlatter };
+    case "/staff/menu":
+      return {
+        to,
+        label: nav.menu.label,
+        description: owner ? nav.menu.ownerDescription : nav.menu.staffDescription,
+        icon: BookOpen,
+      };
+    case "/staff/tables":
+      return {
+        to,
+        label: nav.tables.label,
+        description: owner ? nav.tables.ownerDescription : nav.tables.staffDescription,
+        icon: QrCode,
+      };
+    case "/staff/online":
+      return { to, ...nav.onlineOrders, icon: ShoppingBag };
+    case "/staff/online-settings":
+      return { to, ...nav.online, icon: Globe };
+    case "/staff/history":
+      return { to, ...nav.history, icon: History };
+    case "/staff/settings":
+      return { to, ...nav.settings, icon: UserCog };
+    case "/staff/subscription":
+      return { to, ...nav.subscription, icon: CalendarClock };
+  }
 }
 
-// Less frequent pages, listed on the home page only.
-export function staffManagementItems(role: Role, language: Language): StaffDestination[] {
-  const nav = accountMessages[language].nav;
-  const tables: StaffDestination = {
-    to: "/staff/tables",
-    label: nav.tables.label,
-    description: role === "OWNER" ? nav.tables.ownerDescription : nav.tables.staffDescription,
-    icon: QrCode,
-  };
-  if (role !== "OWNER") return [tables];
-  return [
-    tables,
-    // STAFF have Pass as a tab; OWNER's fourth tab is Bill, so Pass stays here for them.
-    { to: "/staff/pass", ...nav.pass, icon: HandPlatter },
-    { to: "/staff/history", ...nav.history, icon: History },
-    { to: "/staff/settings", ...nav.settings, icon: UserCog },
-    { to: "/staff/subscription", ...nav.subscription, icon: CalendarClock },
-  ];
-}
+// The tabs and home entries; state.ts decides which pages the role and services allow.
+export const staffNavItems = (account: NavAccount, language: Language) =>
+  staffNavRoutes(account).map((to) => destination(to, account, language));
+
+export const staffManagementItems = (account: NavAccount, language: Language) =>
+  staffManagementRoutes(account).map((to) => destination(to, account, language));

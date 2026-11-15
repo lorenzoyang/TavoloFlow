@@ -7,6 +7,8 @@ const zh = {
     "餐厅服务尚未由平台启用或已被暂停，暂不能开新桌；已有用餐仍可核对并关闭空桌。如需启用，请联系平台管理员。",
   suspendedHome:
     "餐厅服务尚未由平台启用或已被暂停：暂不能开桌，顾客扫码只能浏览菜单、不能点餐。如需启用，请联系平台管理员。",
+  suspendedHomeOnline:
+    "餐厅服务尚未由平台启用或已被暂停：顾客只能浏览菜单、不能下单。如需启用，请联系平台管理员。",
   readError: "无法更新状态，请检查连接后重新读取。",
   verify: "核对操作结果",
   pending: (kind: "accepting" | "open") =>
@@ -70,6 +72,8 @@ export const diningMessages: Record<Language, typeof zh> = {
       "Il servizio del ristorante non è ancora attivo o è sospeso: non si possono aprire tavoli, ma le visite in corso restano consultabili e chiudibili. Per attivarlo contatta l’amministratore della piattaforma.",
     suspendedHome:
       "Il servizio del ristorante non è ancora attivo o è sospeso: non si possono aprire tavoli e i clienti possono solo consultare il menu. Per attivarlo contatta l’amministratore della piattaforma.",
+    suspendedHomeOnline:
+      "Il servizio del ristorante non è ancora attivo o è sospeso: i clienti possono solo consultare il menu. Per attivarlo contatta l’amministratore della piattaforma.",
     readError: "Impossibile aggiornare lo stato. Controlla la connessione e ricarica.",
     verify: "Verifica esito",
     pending: (kind) =>
@@ -131,6 +135,8 @@ export const diningMessages: Record<Language, typeof zh> = {
       "The restaurant’s service isn’t active yet or is suspended: tables can’t be opened, but open visits can still be viewed and closed. To activate it, contact the platform administrator.",
     suspendedHome:
       "The restaurant’s service isn’t active yet or is suspended: tables can’t be opened and guests can only browse the menu. To activate it, contact the platform administrator.",
+    suspendedHomeOnline:
+      "The restaurant’s service isn’t active yet or is suspended: customers can only browse the menu. To activate it, contact the platform administrator.",
     readError: "Can’t update the status. Check the connection and reload.",
     verify: "Check result",
     pending: (kind) =>

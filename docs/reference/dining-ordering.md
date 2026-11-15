@@ -6,6 +6,13 @@ payment confirmation is OWNER-only. All closures are specified in [billing](bill
 
 ## Visit identity and entrance rules
 
+Every row of `dining_sessions` is a session; its `channel` says which kind. This document covers
+`DINE_IN` visits at a table. Accepted online orders are `PICKUP` or `DELIVERY` sessions without a
+table, table label or join code ([online ordering](online-ordering.md#data-model)); the table and
+join-code rules below never apply to them. Session-derived `tableLabel` fields (kitchen, pass, bills)
+are therefore nullable on the server, though only acceptance, still to be built, can create such a
+session.
+
 | Value        | Purpose                                                                     |
 | ------------ | --------------------------------------------------------------------------- |
 | QR token     | Stable public table entrance; no order-reading or submission permission     |
@@ -31,11 +38,12 @@ The normal request omits the code. Code-free joining ignores the supplied value 
 32-character input limit; code format and matching are checked only when the restaurant requires it.
 The Session ID, JSON shape, entrance checks and rate limits still apply in either mode.
 
-| State change                        | Opening / guest joining / guest code read | Existing guest order reads / staff work                                  |
-| ----------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------ |
-| Ordering paused                     | Allowed                                   | Allowed; new submissions refused                                         |
-| Service suspended or table disabled | Refused                                   | Existing valid grants may read orders; staff may finish work/close bills |
-| Visit CLOSED                        | Refused for that visit                    | Guest protected reads/writes refused; staff may reconcile its summary    |
+| State change                        | Opening / guest joining / guest code read | Existing guest order reads / staff work                                    |
+| ----------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------- |
+| Ordering paused                     | Allowed                                   | Allowed; new submissions refused                                           |
+| Service suspended or table disabled | Refused                                   | Existing valid grants may read orders; staff may finish work/close bills   |
+| Dine-in not offered                 | Refused (`DINE_IN_NOT_OFFERED`)           | Cannot coexist with an ACTIVE visit: the platform switch refuses open work |
+| Visit CLOSED                        | Refused for that visit                    | Guest protected reads/writes refused; staff may reconcile its summary      |
 
 Anonymous menu browsing stays available through pauses. Staff code reading needs an ACTIVE visit but
 is not blocked by service/table pauses. One browser has one Guest cookie; joining a second visit
@@ -207,7 +215,7 @@ and visit changes. Abort requests and discard late results on identity/lifecycle
 
 Important errors: `GUEST_AUTH_REQUIRED` and `JOIN_CODE_INCORRECT` (401), `GUEST_SESSION_MISMATCH` (403),
 `QR_NOT_FOUND`, `TABLE_NOT_FOUND`, `SESSION_NOT_FOUND`, `ORDER_NOT_FOUND` (404), and
-`SESSION_ALREADY_ACTIVE`, `SESSION_CLOSED`, `SERVICE_SUSPENDED`, `TABLE_DISABLED`, `ORDERING_PAUSED`,
+`SESSION_ALREADY_ACTIVE`, `SESSION_CLOSED`, `SERVICE_SUSPENDED`, `DINE_IN_NOT_OFFERED`, `TABLE_DISABLED`, `ORDERING_PAUSED`,
 `MENU_CHANGED` (reasons above), `BILL_LIMIT_REACHED` (409). `RATE_LIMITED` includes Retry-After. A mismatch never changes
 the intended target or deletes another tab's valid guest cookie.
 

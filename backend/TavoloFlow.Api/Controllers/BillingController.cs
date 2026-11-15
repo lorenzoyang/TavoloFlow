@@ -12,6 +12,10 @@ public sealed class BillingController(BillingService billing, CurrentAccount cur
 {
     private Guid RestaurantId => current.RequireUser().RestaurantId;
 
+    [HttpGet("api/staff/sessions/active")]
+    public async Task<IActionResult> Active(CancellationToken ct) =>
+        Ok(await billing.ActiveAsync(RestaurantId, ct));
+
     [HttpGet("api/staff/sessions/{id:guid}/bill")]
     public async Task<IActionResult> Bill(
         Guid id,
@@ -24,6 +28,22 @@ public sealed class BillingController(BillingService billing, CurrentAccount cur
     [HttpPost("api/owner/sessions/{id:guid}/checkout")]
     public async Task<IActionResult> Checkout(Guid id, CheckoutInput input, CancellationToken ct) =>
         Ok(await billing.CheckoutAsync(RestaurantId, id, input, ct));
+
+    [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
+    [HttpPost("api/owner/sessions/{id:guid}/close-no-show")]
+    public async Task<IActionResult> CloseNoShow(
+        Guid id,
+        CloseNoShowInput input,
+        CancellationToken ct
+    ) => Ok(await billing.CloseNoShowAsync(RestaurantId, id, input, ct));
+
+    [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
+    [HttpPatch("api/owner/sessions/{id:guid}/delivery-fee")]
+    public async Task<IActionResult> DeliveryFee(
+        Guid id,
+        DeliveryFeeInput input,
+        CancellationToken ct
+    ) => Ok(await billing.SetDeliveryFeeAsync(RestaurantId, id, input, ct));
 
     [HttpPost("api/staff/sessions/{id:guid}/close-empty")]
     public async Task<IActionResult> CloseEmpty(

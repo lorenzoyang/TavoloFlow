@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Common;
+using TavoloFlow.Api.Push;
 
 namespace TavoloFlow.Api.Controllers;
 
@@ -15,7 +16,8 @@ public sealed class AuthController(
     CurrentAccount current,
     IAntiforgery antiforgery,
     AccountRateLimiter rateLimiter,
-    TimeProvider timeProvider
+    TimeProvider timeProvider,
+    PushSubscriptionService push
 ) : ControllerBase
 {
     [AllowAnonymous]
@@ -73,8 +75,12 @@ public sealed class AuthController(
     }
 
     [HttpPost("logout")]
-    public async Task<IActionResult> Logout()
+    public async Task<IActionResult> Logout(LogoutRequest request, CancellationToken ct)
     {
+        // Revoke this device before clearing its cookie. A failed revocation leaves it signed in
+        // so the caller can retry; the browser keeps its subscription for the next sign-in.
+        if (request.PushEndpoint is not null)
+            await push.RemoveAsync(current.RequireUser().RestaurantId, request.PushEndpoint, ct);
         await HttpContext.SignOutAsync(StoreAuthentication.Scheme);
 
         return NoContent();

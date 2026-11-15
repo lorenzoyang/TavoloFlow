@@ -27,6 +27,25 @@ public sealed class Restaurant
     public bool OrderingEnabled { get; set; }
     public bool JoinCodeRequired { get; set; } = true;
     public RestaurantTheme Theme { get; set; } = RestaurantTheme.Terracotta;
+
+    // The platform turns each service on per restaurant; at least one stays on.
+    public bool DineInEnabled { get; set; } = true;
+    public bool OnlineEnabled { get; set; }
+
+    // The readable online ordering link /r/{slug}; required while online ordering is on.
+    public string? Slug { get; set; }
+
+    // Online ordering settings: the public phone (OWNER) and a pause that lapses on its own (STAFF, OWNER).
+    public string? PublicPhone { get; set; }
+    public DateTime? OnlinePausedUntil { get; set; }
+
+    // Restaurant-run delivery (OWNER): the switch and an optional zh/it/en note shown at checkout with
+    // the delivery area and fee rules. Whoever accepts a delivery order enters its fee.
+    public bool DeliveryEnabled { get; set; }
+    public string? DeliveryNoteZh { get; set; }
+    public string? DeliveryNoteIt { get; set; }
+    public string? DeliveryNoteEn { get; set; }
+
     public DateTime CreatedAt { get; set; }
     public string? GoogleMapsUrl { get; set; }
     public string? OwnerContact { get; set; }

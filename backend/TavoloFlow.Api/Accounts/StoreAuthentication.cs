@@ -120,6 +120,7 @@ public sealed class StoreCookieEvents(ApplicationDbContext context, CurrentAccou
         );
 
         currentAccount.User = user;
+        currentAccount.TicketExpiresAt = cookieContext.Properties.ExpiresUtc?.UtcDateTime;
     }
 
     // Rewrite to return JSON; the default is to return a redirect (302).

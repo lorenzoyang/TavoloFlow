@@ -61,6 +61,14 @@ public sealed class PlatformRestaurantsController(
         CancellationToken ct
     ) => Ok(await service.SetJoinCodeRequiredAsync(id, input.JoinCodeRequired!.Value, Actor, ct));
 
+    [HttpPatch("{id:guid}/services")]
+    public async Task<IActionResult> Services(Guid id, ServicesInput input, CancellationToken ct) =>
+        Ok(await service.SetServicesAsync(id, input, Actor, ct));
+
+    [HttpPatch("{id:guid}/slug")]
+    public async Task<IActionResult> Slug(Guid id, SlugInput input, CancellationToken ct) =>
+        Ok(await service.SetSlugAsync(id, input.Slug, Actor, ct));
+
     [HttpPatch("{id:guid}/theme")]
     public async Task<IActionResult> Theme(Guid id, ThemeInput input, CancellationToken ct) =>
         Ok(await service.SetThemeAsync(id, input.Theme, Actor, ct));

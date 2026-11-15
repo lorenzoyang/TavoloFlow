@@ -1,3 +1,4 @@
+import { queryOptions } from "@tanstack/react-query";
 import type { AccountScope } from "@/features/accounts/api";
 import type { KitchenOrder } from "@/features/kitchen/api";
 import { request } from "@/lib/api";
@@ -20,6 +21,13 @@ type HistoryPage = {
 };
 export const billingKey = (account: AccountScope) => storeKey("billing", account);
 export const historyKey = (account: AccountScope) => storeKey("history", account);
+// Every ACTIVE session in all channels, for the bills page list.
+export const activeSessionsQuery = (account: AccountScope) =>
+  queryOptions({
+    queryKey: [...billingKey(account), "list"],
+    queryFn: ({ signal }) =>
+      request<{ items: BillSummary[] }>("/api/staff/sessions/active", { signal }),
+  });
 export async function readBill(
   id: string,
   history: boolean,

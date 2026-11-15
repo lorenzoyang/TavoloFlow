@@ -20,7 +20,8 @@ public sealed class PlatformManagementTests(PostgreSqlFixture database)
             "测试餐厅",
             "it",
             $"owner.{Guid.NewGuid():N}",
-            $"staff.{Guid.NewGuid():N}"
+            $"staff.{Guid.NewGuid():N}",
+            new(true, false)
         );
 
     private static async Task<CreatedRestaurant> Create(

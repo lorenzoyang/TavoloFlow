@@ -66,7 +66,7 @@ L'interfaccia segue la lingua del browser. Per averla in italiano scegli «Itali
 
 ### Cosa contiene
 
-Il ristorante **Demo Ramen**: tema LACQUER, euro e fuso orario di Roma, menu predefinito in inglese con nomi e descrizioni in tre lingue. Servizio e ordini sono attivi, e i clienti devono inserire il codice del tavolo.
+Il ristorante **Demo Ramen**: tema LACQUER, euro e fuso orario di Roma, menu predefinito in inglese con nomi e descrizioni in tre lingue. Servizio e ordini sono attivi, e i clienti devono inserire il codice del tavolo. Il ristorante usa solo il QR al tavolo: gli ordini online sono spenti, ma si accendono in pochi passaggi (vedi «Provare gli ordini online»).
 
 - 8 tavoli, da T01 a T08, tutti liberi; i token dei QR vengono generati a caso durante l'inizializzazione;
 - 4 categorie e 12 piatti, con prezzi, descrizioni, allergeni di esempio e una foto ciascuno;
@@ -88,6 +88,18 @@ Il ristorante e i piatti sono inventati, allergeni compresi, e le foto sono gene
 8. Se vuoi, entra anche come amministratore da `/platform/login`, nello stesso browser: le identità di cliente, staff e amministratore hanno cookie separati e non si disturbano (vedi [«Tre identità»](development-notes.md#tre-identità-staff-cliente-piattaforma)).
 
 Tutte le schede normali di un browser condividono lo stesso login dell'area staff: per usare insieme titolare e staff serve un altro profilo, un altro browser o una finestra anonima.
+
+### Provare gli ordini online
+
+Nella demo gli ordini online sono spenti. Per accenderli bastano un paio di minuti, con gli account della demo:
+
+1. Entra come **amministratore** da `/platform/login` e apri **Demo Ramen**. Tocca **«Imposta link online»**, scrivi per esempio `demo-ramen`, salva con **«Salva link»** e conferma. Poi tocca **«Modifica servizi»**, attiva **«Ordini online»** accanto a «QR al tavolo», salva con **«Salva servizi»** e conferma. Il link va impostato prima: senza, gli ordini online non si possono attivare.
+2. Entra come **titolare**. Dalla Home apri **Impostazioni ordini online**: inserisci il telefono e tocca **«Salva telefono»**; poi, in **Orari**, aggiungi per oggi una fascia che comprenda l'ora attuale (la fine è l'ultimo momento in cui si può ordinare) e tocca **«Salva orari»**. In alto lo stato deve diventare **«Aperti»**; altrimenti, lì sotto c'è il motivo. Per provare anche la consegna, attiva **«Offri la consegna»** e tocca **«Salva consegna»**.
+3. In una finestra anonima o in un altro profilo, così non c'è il login dello staff, apri il link che compare in **Link online**, per esempio <http://127.0.0.1:8080/r/demo-ramen>. Aggiungi qualche piatto, apri il carrello e tocca **«Vai alla cassa»**, inserisci nome e telefono e invia con **«Invia l’ordine»**. Si apre la pagina di stato dell'ordine.
+4. Torna all'area staff: in alto in ogni pagina compare il banner con l'ordine da accettare (anche qui, per il suono il browser vuole prima un tocco sulla pagina). Tocca **«Apri»**, oppure dalla Home **Ordini online**, e accetta toccando uno dei tempi (10, 20, 30 o 45 min). La pagina di stato del cliente mostra l'ordine accettato con l'orario previsto.
+5. Ora l'ordine è in **Cucina** come «Ritiro #1»: segna i piatti con **«Pronto»** e, dal **Pass**, con **«Servito»**. Infine, come titolare, apri **Conto**, scegli «Ritiro #1» e tocca **«Ritirato, verifica incasso»**; spunta la conferma e chiudi con **«Ritirato e incassato»**.
+
+Se passano più di 10 minuti prima dell'accettazione, l'ordine scade: la pagina di stato lo dice e mostra il telefono del ristorante. Gli orari seguono il fuso orario del ristorante (Roma), non quello del computer.
 
 ### Com'è fatta
 
@@ -262,6 +274,16 @@ Poi apri <http://localhost:5173/staff/login>, oppure `/platform/login`.
 
 - **Ripartire da zero.** `docker compose down -v` cancella il volume del database di sviluppo, e solo quello: la demo ha un progetto Compose suo. Poi si ricomincia da `docker compose up -d db` e dal passo 3.
 - **La PWA.** Con `npm run dev` il service worker non viene registrato, per non disturbare l'aggiornamento automatico. Per provare l'installazione e la pagina offline serve una build: `npm run build && npm run preview`, su <http://localhost:4173>, con l'API avviata (i dettagli sono in [`pwa.md`](../reference/pwa.md), in inglese).
+- **Le notifiche push.** In sviluppo sono spente, e nella demo anche: senza chiave l'API non le offre e la Home non mostra la sezione «Notifiche a schermo bloccato». Per provarle, aggiungi la chiave e un contatto ai segreti locali e riavvia l'API:
+
+  ```bash
+  dotnet user-secrets set 'WebPush:PrivateKey' "$(openssl rand -hex 32)" --project backend/TavoloFlow.Api
+  dotnet user-secrets set 'WebPush:Subject' 'mailto:tu@esempio.it' --project backend/TavoloFlow.Api
+  ```
+
+  Servono tutti e due: con uno solo l'API non parte. Le notifiche passano dal service worker, quindi anche qui serve la build (`npm run build && npm run preview`). In Chrome sul computer apri <http://localhost:4173/staff>, attiva le notifiche dalla Home, metti il browser in background e fai un ordine online da un'altra finestra (prima accendi gli ordini online come in «Provare gli ordini online»): deve arrivare «Nuovo ordine online #N». I servizi di notifica sono veri (Google per Chrome), quindi il computer deve essere online.
+
+- **Verifica del recupero push.** Dopo aver attivato le notifiche, simula un errore alla PUT dell'iscrizione: la Home deve mostrare il fallimento, non «attive». Ripristina la rete e torna all'app: deve confermare la sincronizzazione senza un nuovo permesso. Se la cancellazione dell'iscrizione fallisce durante l'uscita, devi restare collegato e poter riprovare. Dopo un'uscita riuscita un nuovo ordine deve notificare gli altri dispositivi; accedendo di nuovo su questo dispositivo le notifiche riprendono. Quelle già inviate possono ancora arrivare.
 
 ## Parte 3: test e controlli
 
@@ -347,7 +369,7 @@ cd frontend
 npm run dev -- --host 0.0.0.0
 ```
 
-Senza `VITE_PUBLIC_BASE_URL`, i QR usano l'indirizzo della pagina in cui li generi, cioè `localhost`, e il telefono non saprebbe dove andare: l'interfaccia lo segnala con «Questo link usa un indirizzo locale che i telefoni non raggiungono». Vite legge la variabile all'avvio e la scrive nel codice del frontend. Quando salvi `.env.local` si riavvia da solo, ma la pagina aperta va ricaricata.
+Senza `VITE_PUBLIC_BASE_URL`, i QR usano l'indirizzo della pagina in cui li generi, cioè `localhost`, e il telefono non saprebbe dove andare: l'interfaccia lo segnala con «Questo link usa un indirizzo locale che i telefoni non raggiungono». Lo stesso vale per il link e il QR degli ordini online, in «Impostazioni ordini online». Vite legge la variabile all'avvio e la scrive nel codice del frontend. Quando salvi `.env.local` si riavvia da solo, ma la pagina aperta va ricaricata.
 
 ### 3. Solo su WSL: port forwarding e firewall
 
@@ -385,18 +407,19 @@ La regola apre la porta 5173 solo sulle reti private e solo ai dispositivi della
 1. Sul computer apri `http://localhost:5173/staff/login`, entra come titolare (con i dati della demo è già tutto pronto) e apri un tavolo in **Sala**.
 2. In **Tavoli e QR** tocca **«QR»** sullo stesso tavolo: il link sotto il QR deve cominciare con `http://192.168.1.36:5173`.
 3. Scansiona il QR con il telefono, inserisci il codice del tavolo e manda un ordine. Se vuoi ripartire senza cookie vecchi, apri il link in una finestra anonima.
+4. Se hai acceso gli ordini online, scansiona dal telefono anche il QR di «Impostazioni ordini online» e prova un ordine da ritirare.
 
 ### Cosa non si può provare così
 
 Un indirizzo come `http://192.168.1.36:5173` non è HTTPS, quindi per il browser del telefono non è un contesto sicuro. Alcune funzioni del browser ne hanno bisogno:
 
-- **l'installazione della PWA** e il service worker;
+- **l'installazione della PWA** e il service worker, e quindi anche **le notifiche push**;
 - **lo schermo sempre acceso** di Cucina e Pass (Screen Wake Lock);
 - **la copia automatica** di link e codici: l'app se ne accorge e chiede di copiarli a mano.
 
 Tutto il resto funziona. Per esempio, gli ID degli ordini sono generati con `crypto.getRandomValues` proprio perché, a differenza di `crypto.randomUUID`, funziona anche senza HTTPS ([`lib/ids.ts`](../../frontend/src/lib/ids.ts)).
 
-Per provare la PWA su un telefono Android c'è un trucco: con il debug USB e il port forwarding di `chrome://inspect`, il telefono apre `localhost:4173` della build di preview, e `localhost` conta come contesto sicuro (vedi [`pwa.md`](../reference/pwa.md)). Per l'iPhone, e per la prova finale, serve l'HTTPS vero del [self-hosting](self-hosting.md).
+Per provare la PWA su un telefono Android c'è un trucco: con il debug USB e il port forwarding di `chrome://inspect`, il telefono apre `localhost:4173` della build di preview, e `localhost` conta come contesto sicuro (vedi [`pwa.md`](../reference/pwa.md)). Così si provano anche le notifiche push a telefono bloccato, con la chiave configurata come in «Cose utili». Per l'iPhone, che le notifiche le offre solo all'app aggiunta alla schermata Home, e per la prova finale serve l'HTTPS vero del [self-hosting](self-hosting.md).
 
 ### Pulizia
 
@@ -426,5 +449,7 @@ Remove-NetFirewallRule -DisplayName "TavoloFlow Dev 5173"
 | Logout continui, errori CSRF                                                 | demo e sviluppo aperti tutti e due da `localhost`: apri la demo da `127.0.0.1`                                                                                                                                                                        |
 | In Sala compare «Il servizio del ristorante non è ancora attivo o è sospeso» | il ristorante è sospeso: l'amministratore lo attiva con «Attiva servizio»                                                                                                                                                                             |
 | Il cliente vede il menu ma non può ordinare                                  | gli ordini sono in pausa: in Sala, «Ordini dal QR»                                                                                                                                                                                                    |
+| Nella Home non ci sono «Ordini online» e «Impostazioni ordini online»        | il ristorante non ha gli ordini online: l'amministratore imposta il link e poi li attiva con «Modifica servizi» (vedi «Provare gli ordini online»)                                                                                                    |
+| La pagina degli ordini online fa solo guardare il menu                       | lo stato in «Impostazioni ordini online» dice perché: manca il telefono o gli orari, pausa, fuori orario o troppi ordini in attesa; gli orari seguono il fuso del ristorante                                                                          |
 | I QR contengono `localhost`                                                  | `VITE_PUBLIC_BASE_URL` in `frontend/.env.local`, poi ricarica la pagina (Vite si riavvia da solo)                                                                                                                                                     |
 | Il telefono non apre la pagina                                               | stessa rete Wi-Fi e Vite avviato con `--host 0.0.0.0`; su Linux e macOS il firewall del sistema; su WSL profilo di rete privato, regola del firewall e IP di WSL ancora uguale a quello del port forwarding (`netsh interface portproxy show v4tov4`) |

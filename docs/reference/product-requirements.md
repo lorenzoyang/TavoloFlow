@@ -15,12 +15,12 @@ The technical project name, namespaces and internal identifiers remain TavoloFlo
 
 ## Roles and permissions
 
-| Role                   | Capabilities                                                                                                                            |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Guest                  | Browse without an account; join the current visit; order and view that table's submitted orders                                         |
-| STAFF                  | Open visits, manage incoming work, mark dishes served, toggle availability/ordering, read active bills and close qualifying zero bills  |
-| OWNER                  | All staff capabilities plus menu/table maintenance, payment confirmation, closed history, staff password reset and subscription reading |
-| Platform administrator | Create/manage restaurants and store accounts, select themes/join-code policy, manage service periods and record fee collection          |
+| Role                   | Capabilities                                                                                                                              |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Guest                  | Browse without an account; join the current visit; order and view that table's submitted orders                                           |
+| STAFF                  | Open visits, manage incoming work, mark dishes served, toggle availability/ordering, read active bills and close qualifying zero bills    |
+| OWNER                  | All staff capabilities plus menu/table maintenance, payment confirmation, closed history, staff password reset and subscription reading   |
+| Platform administrator | Create/manage restaurants and store accounts, turn services on, select themes/join-code policy, manage service periods and fee collection |
 
 Each restaurant has at most one shared OWNER and one shared STAFF account.
 Multiple devices may use the same account; individual employee/device sessions are not managed.
@@ -32,7 +32,12 @@ Their language is a shared device preference; guests choose separately for each 
 
 ### 1. Restaurant preparation
 
-The platform creates a suspended restaurant with ordering off and both store accounts atomically.
+The platform creates a suspended restaurant with ordering off and both store accounts atomically,
+choosing its services: QR dine-in, online ordering or both, with a readable online link
+when online ordering is on. Restaurants without dine-in have no floor or tables. Online ordering covers
+pickup and restaurant-run delivery, paid on collection or delivery; staff accept each order first,
+and staff devices can turn on lock-screen notifications of new orders
+(see [online ordering](online-ordering.md)).
 Temporary passwords are shown only in the successful response.
 The owner changes the initial password, prepares menu/allergens and creates tables with fixed QR codes.
 The platform activates service; staff explicitly enable ordering.
@@ -154,9 +159,11 @@ Permanent deletion requires a suspended restaurant and removes all its tenant da
 
 ## Out of scope
 
-Online payments/refunds, fiscal receipts, order printers, stock, takeaway/delivery, reservations,
+Online payments/refunds, fiscal receipts, order printers, stock, third-party delivery platforms,
+distance-based delivery fees, reservations,
 membership, all-you-can-eat rules, discounts, split bills and sales reports are outside this MVP.
-There is no shared cart, WebSocket delivery, push notification or offline business operation queue.
+There is no shared cart, WebSocket delivery or offline business operation queue; push notifications
+exist only as best-effort reminders of new online orders.
 There is no QR/code rotation, device-specific grant revocation, menu publishing workflow,
 manual menu ordering or complete audit-event history.
 The staff area is installable; guest and platform pages remain websites.

@@ -1,13 +1,16 @@
 import type { Language } from "@/lib/language";
+import type { SessionChannel } from "@/lib/session-label";
 import type { CloseKind } from "./state";
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
 const zh = {
-  close: { PAID: "已收款", EMPTY: "空桌关闭", VOIDED: "全部取消后关闭" } as Record<
-    CloseKind,
-    string
-  >,
+  close: {
+    PAID: "已收款",
+    EMPTY: "空桌关闭",
+    VOIDED: "全部取消后关闭",
+    NO_SHOW: "未取或未送达",
+  } as Record<CloseKind, string>,
   // One order inside a bill.
   orderNew: "待处理",
   orderProcessed: "已处理",
@@ -53,12 +56,14 @@ const zh = {
     PAID: "核对收款并清桌",
     EMPTY: "关闭空桌",
     VOIDED: "关闭全部取消的零账单",
+    NO_SHOW: "顾客未取餐",
   } as Record<CloseKind, string>,
   ownerCollects: "本轮仍有应收，请由老板核对收款。",
   confirmTitle: {
     PAID: "确认线下收款并清桌",
     EMPTY: "确认关闭空桌",
     VOIDED: "确认全部取消后关闭",
+    NO_SHOW: "确认顾客未取餐",
   } as Record<CloseKind, string>,
   confirmPaid: "请完成线下收款，再确认关闭本轮用餐。",
   confirmZero: "此操作不记录收款。请核对订单并确认顾客已离桌。",
@@ -85,14 +90,65 @@ const zh = {
   ownerOnly: "此页面仅老板可访问。",
   toFloor: "返回桌台",
   title: "结账",
-  description: "核对整桌账单，在线下收款后结束本轮用餐。",
-  refreshTables: "刷新桌位",
-  tablesError: "桌位列表暂时无法更新，请恢复连接后刷新。",
-  loadingTables: "正在读取活动桌位…",
-  noVisits: "当前没有活动用餐",
-  noVisitsHint: "开桌后，用餐中的桌会出现在这里。",
+  description: "核对账单，线下收款后关闭。",
+  refreshTables: "刷新列表",
+  tablesError: "账单列表暂时无法更新，请恢复连接后刷新。",
+  loadingTables: "正在读取进行中的账单…",
+  noVisits: "当前没有进行中的账单",
+  noVisitsHint: (dineIn: boolean, online: boolean): string =>
+    dineIn && online
+      ? "开桌或接受线上订单后，会出现在这里。"
+      : online
+        ? "接受线上订单后，会出现在这里。"
+        : "开桌后，用餐中的桌会出现在这里。",
   pendingBadge: (count: number) => `待处理 ${count}`,
   tableSummary: (orders: number, time: string) => `共 ${orders} 笔 · ${time} 开桌`,
+  // Accepted online orders (pickup): the same bill, worded for a customer who collects.
+  online: {
+    totalDue: "应收",
+    active: "进行中",
+    times: (accepted: string, closed: string | null) =>
+      `接单：${accepted}${closed ? ` · 关闭：${closed}` : ""}`,
+    estimated: (time: string) => `预计 ${time}`,
+    call: (phone: string) => `拨打 ${phone}`,
+    closedHint: "这一单已结束，顾客的订单页会显示结果。",
+    summary: (time: string) => `${time} 接单`,
+    paidButton: "已取餐，核对收款",
+    paidTitle: "确认已取餐并收款",
+    confirmPaid: "请确认顾客已取餐并完成线下收款，再关闭这一单。",
+    confirmPaidLabel: "已取餐并收款",
+    checkedPaid: "已核对单号和金额，顾客已取餐并付款",
+    confirmZero: "此操作不记录收款。请核对订单，并确认已通知顾客。",
+    checkedZero: "已核对零账单，并已通知顾客",
+    confirmNoShow: "这一单按「未取」关闭：记录没收到的应收款，不记录收款。请先打电话联系顾客。",
+    confirmNoShowLabel: "按未取关闭",
+    checkedNoShow: "已核对单号和金额，顾客没有来取餐",
+    notCollected: "未取",
+    notDelivered: "未送达",
+    deliveredButton: "已送达，核对收款",
+    deliveredTitle: "确认已送达并收款",
+    confirmDelivered: "请确认已送到顾客手中并完成收款，再关闭这一单。",
+    confirmDeliveredLabel: "已送达并收款",
+    checkedDelivered: "已核对单号和金额，已送达并收款",
+    notDeliveredButton: "未送达",
+    notDeliveredTitle: "确认未送达",
+    confirmNotDelivered:
+      "这一单按「未送达」关闭：记录没收到的应收款，不记录收款。请先打电话联系顾客。",
+    confirmNotDeliveredLabel: "按未送达关闭",
+    checkedNotDelivered: "已核对单号和金额，顾客拒收或无法送达",
+    itemsAmount: "菜品",
+    deliveryFee: "配送费",
+    feeNotCounted: "菜品全部取消，配送费不计入",
+    confirmFee: (amount: string) => `其中配送费：${amount}`,
+    editFee: "修改配送费",
+    editFeeHint: "改正接单时填写的配送费。保存后账单会更新，结账时按新金额核对。",
+    feeLabel: "配送费（€）",
+    feeInvalid: "请填写配送费，例如 2 或 2.50；免费填 0。",
+    newTotal: (amount: string) => `新的应收：${amount}`,
+    saveFee: "保存配送费",
+    feeSaved: (fee: string, total: string) => `配送费已改为 ${fee}，应收 ${total}。`,
+    feeUnknown: "配送费是否已修改待确认，账单已刷新：请核对当前配送费再决定。",
+  },
   // History.
   historyTitle: "历史账单",
   historyDescription: "默认查看餐厅当天关闭的用餐。按关桌日期查询，保留原始账单快照。",
@@ -118,7 +174,12 @@ const zh = {
 export const billingMessages: Record<Language, typeof zh> = {
   zh,
   it: {
-    close: { PAID: "Pagato", EMPTY: "Chiuso vuoto", VOIDED: "Tutto annullato" },
+    close: {
+      PAID: "Pagato",
+      EMPTY: "Chiuso vuoto",
+      VOIDED: "Tutto annullato",
+      NO_SHOW: "Non ritirato o non consegnato",
+    },
     orderNew: "Da fare",
     orderProcessed: "Evaso",
     payable: (amount) => `Da incassare ${amount}`,
@@ -165,12 +226,14 @@ export const billingMessages: Record<Language, typeof zh> = {
       PAID: "Incassa e libera il tavolo",
       EMPTY: "Chiudi tavolo vuoto",
       VOIDED: "Chiudi conto a zero",
+      NO_SHOW: "Cliente non venuto",
     },
     ownerCollects: "C’è ancora da incassare: il titolare deve verificare il pagamento.",
     confirmTitle: {
       PAID: "Incasso e tavolo libero",
       EMPTY: "Chiudi tavolo vuoto",
       VOIDED: "Chiudi dopo l’annullamento",
+      NO_SHOW: "Conferma ordine non ritirato",
     },
     confirmPaid: "Prima incassa il pagamento, poi conferma la chiusura della visita.",
     confirmZero:
@@ -201,14 +264,68 @@ export const billingMessages: Record<Language, typeof zh> = {
     ownerOnly: "Questa pagina è riservata al titolare.",
     toFloor: "Torna alla sala",
     title: "Conto",
-    description: "Controlla il conto del tavolo e chiudi la visita dopo l’incasso.",
-    refreshTables: "Aggiorna tavoli",
-    tablesError: "Impossibile aggiornare i tavoli: aggiorna quando torna la connessione.",
-    loadingTables: "Caricamento dei tavoli occupati…",
-    noVisits: "Nessuna visita in corso",
-    noVisitsHint: "I tavoli aperti compaiono qui.",
+    description: "Controlla il conto e chiudilo dopo l’incasso.",
+    refreshTables: "Aggiorna elenco",
+    tablesError: "Impossibile aggiornare l’elenco: aggiorna quando torna la connessione.",
+    loadingTables: "Caricamento dei conti aperti…",
+    noVisits: "Nessun conto aperto",
+    noVisitsHint: (dineIn, online) =>
+      dineIn && online
+        ? "I tavoli aperti e gli ordini online accettati compaiono qui."
+        : online
+          ? "Gli ordini online accettati compaiono qui."
+          : "I tavoli aperti compaiono qui.",
     pendingBadge: (count) => `Da fare ${count}`,
     tableSummary: (orders, time) => `${plural(orders, "ordine", "ordini")} · aperto ${time}`,
+    online: {
+      totalDue: "Da incassare",
+      active: "In corso",
+      times: (accepted, closed) => `Accettato: ${accepted}${closed ? ` · Chiuso: ${closed}` : ""}`,
+      estimated: (time) => `Previsto ${time}`,
+      call: (phone) => `Chiama ${phone}`,
+      closedHint: "Ordine concluso: la pagina del cliente mostra l’esito.",
+      summary: (time) => `accettato ${time}`,
+      paidButton: "Ritirato, verifica incasso",
+      paidTitle: "Conferma ritiro e incasso",
+      confirmPaid: "Conferma che il cliente ha ritirato l’ordine e hai incassato, poi chiudilo.",
+      confirmPaidLabel: "Ritirato e incassato",
+      checkedPaid: "Ho controllato numero e importo: il cliente ha ritirato e pagato",
+      confirmZero:
+        "Non viene registrato alcun incasso. Controlla l’ordine e conferma di aver avvisato il cliente.",
+      checkedZero: "Ho controllato il conto a zero e ho avvisato il cliente",
+      confirmNoShow:
+        "L’ordine si chiude come non ritirato: registra l’importo non incassato, nessun pagamento. Prima prova a chiamare il cliente.",
+      confirmNoShowLabel: "Chiudi come non ritirato",
+      checkedNoShow: "Ho controllato numero e importo: il cliente non è venuto a ritirare",
+      notCollected: "Non ritirato",
+      notDelivered: "Non consegnato",
+      deliveredButton: "Consegnato, verifica incasso",
+      deliveredTitle: "Conferma consegna e incasso",
+      confirmDelivered: "Conferma che l’ordine è stato consegnato e incassato, poi chiudilo.",
+      confirmDeliveredLabel: "Consegnato e incassato",
+      checkedDelivered: "Ho controllato numero e importo: consegnato e pagato",
+      notDeliveredButton: "Non consegnato",
+      notDeliveredTitle: "Conferma ordine non consegnato",
+      confirmNotDelivered:
+        "L’ordine si chiude come non consegnato: registra l’importo non incassato, nessun pagamento. Prima prova a chiamare il cliente.",
+      confirmNotDeliveredLabel: "Chiudi come non consegnato",
+      checkedNotDelivered:
+        "Ho controllato numero e importo: il cliente ha rifiutato o non era raggiungibile",
+      itemsAmount: "Piatti",
+      deliveryFee: "Consegna",
+      feeNotCounted: "Tutti i piatti annullati: la consegna non si conta",
+      confirmFee: (amount) => `Di cui consegna: ${amount}`,
+      editFee: "Modifica costo di consegna",
+      editFeeHint:
+        "Correggi il costo inserito all’accettazione. Il conto si aggiorna e l’incasso va confermato sul nuovo importo.",
+      feeLabel: "Costo di consegna (€)",
+      feeInvalid: "Inserisci il costo di consegna, ad es. 2 o 2,50; 0 se gratis.",
+      newTotal: (amount) => `Nuovo importo: ${amount}`,
+      saveFee: "Salva costo",
+      feeSaved: (fee, total) => `Consegna ${fee}, da incassare ${total}.`,
+      feeUnknown:
+        "Esito da verificare, conto aggiornato: controlla il costo di consegna attuale prima di riprovare.",
+    },
     historyTitle: "Storico conti",
     historyDescription:
       "Mostra le visite chiuse oggi. Cerca per data di chiusura; i conti restano come al momento della chiusura.",
@@ -231,7 +348,12 @@ export const billingMessages: Record<Language, typeof zh> = {
     loadMoreHistory: "Carica altri conti",
   },
   en: {
-    close: { PAID: "Paid", EMPTY: "Closed empty", VOIDED: "All cancelled" },
+    close: {
+      PAID: "Paid",
+      EMPTY: "Closed empty",
+      VOIDED: "All cancelled",
+      NO_SHOW: "Not collected or delivered",
+    },
     orderNew: "To do",
     orderProcessed: "Done",
     payable: (amount) => `Due ${amount}`,
@@ -276,12 +398,14 @@ export const billingMessages: Record<Language, typeof zh> = {
       PAID: "Take payment, free table",
       EMPTY: "Close empty table",
       VOIDED: "Close zero bill",
+      NO_SHOW: "Customer didn’t come",
     },
     ownerCollects: "There’s still money due: the owner must check the payment.",
     confirmTitle: {
       PAID: "Payment taken, table free",
       EMPTY: "Close empty table",
       VOIDED: "Close after cancellation",
+      NO_SHOW: "Confirm order not collected",
     },
     confirmPaid: "Take the payment first, then confirm closing the visit.",
     confirmZero: "No payment is recorded. Check the orders and confirm the guests have left.",
@@ -309,14 +433,67 @@ export const billingMessages: Record<Language, typeof zh> = {
     ownerOnly: "This page is for the owner only.",
     toFloor: "Back to floor",
     title: "Bill",
-    description: "Check the table’s bill and close the visit after payment.",
-    refreshTables: "Refresh tables",
-    tablesError: "Can’t update the tables: refresh when the connection is back.",
-    loadingTables: "Loading occupied tables…",
-    noVisits: "No open visits",
-    noVisitsHint: "Open tables show up here.",
+    description: "Check the bill and close it after payment.",
+    refreshTables: "Refresh list",
+    tablesError: "Can’t update the list: refresh when the connection is back.",
+    loadingTables: "Loading open bills…",
+    noVisits: "No open bills",
+    noVisitsHint: (dineIn, online) =>
+      dineIn && online
+        ? "Open tables and accepted online orders show up here."
+        : online
+          ? "Accepted online orders show up here."
+          : "Open tables show up here.",
     pendingBadge: (count) => `To do ${count}`,
     tableSummary: (orders, time) => `${plural(orders, "order", "orders")} · opened ${time}`,
+    online: {
+      totalDue: "Due",
+      active: "In progress",
+      times: (accepted, closed) => `Accepted: ${accepted}${closed ? ` · Closed: ${closed}` : ""}`,
+      estimated: (time) => `Expected ${time}`,
+      call: (phone) => `Call ${phone}`,
+      closedHint: "This order is closed: the customer’s order page shows the outcome.",
+      summary: (time) => `accepted ${time}`,
+      paidButton: "Collected, check payment",
+      paidTitle: "Confirm collection and payment",
+      confirmPaid: "Confirm the customer collected the order and paid, then close it.",
+      confirmPaidLabel: "Collected and paid",
+      checkedPaid: "I checked the number and amount; the customer collected and paid",
+      confirmZero: "No payment is recorded. Check the order and confirm you told the customer.",
+      checkedZero: "I checked the zero bill and told the customer",
+      confirmNoShow:
+        "The order closes as not collected: it records the amount not received, no payment. Try calling the customer first.",
+      confirmNoShowLabel: "Close as not collected",
+      checkedNoShow: "I checked the number and amount; the customer didn’t collect",
+      notCollected: "Not collected",
+      notDelivered: "Not delivered",
+      deliveredButton: "Delivered, check payment",
+      deliveredTitle: "Confirm delivery and payment",
+      confirmDelivered: "Confirm the order was delivered and paid, then close it.",
+      confirmDeliveredLabel: "Delivered and paid",
+      checkedDelivered: "I checked the number and amount; delivered and paid",
+      notDeliveredButton: "Not delivered",
+      notDeliveredTitle: "Confirm order not delivered",
+      confirmNotDelivered:
+        "The order closes as not delivered: it records the amount not received, no payment. Try calling the customer first.",
+      confirmNotDeliveredLabel: "Close as not delivered",
+      checkedNotDelivered:
+        "I checked the number and amount; the customer refused it or couldn’t be reached",
+      itemsAmount: "Dishes",
+      deliveryFee: "Delivery fee",
+      feeNotCounted: "Every dish cancelled: the fee isn’t charged",
+      confirmFee: (amount) => `Including delivery fee: ${amount}`,
+      editFee: "Edit delivery fee",
+      editFeeHint:
+        "Correct the fee entered when the order was accepted. The bill updates and checkout confirms the new amount.",
+      feeLabel: "Delivery fee (€)",
+      feeInvalid: "Enter the delivery fee, e.g. 2 or 2.50; 0 if free.",
+      newTotal: (amount) => `New amount due: ${amount}`,
+      saveFee: "Save fee",
+      feeSaved: (fee, total) => `Delivery fee now ${fee}, ${total} due.`,
+      feeUnknown:
+        "Result unconfirmed, bill refreshed: check the current delivery fee before trying again.",
+    },
     historyTitle: "Bill history",
     historyDescription:
       "Shows visits closed today. Search by closing date; bills stay as they were when closed.",
@@ -339,3 +516,11 @@ export const billingMessages: Record<Language, typeof zh> = {
     loadMoreHistory: "Load more bills",
   },
 };
+
+// A closure as staff read it on one bill: NO_SHOW is "not collected" for pickup and "not delivered" for
+// delivery; the history filter keeps the combined label.
+export function closeLabel(language: Language, reason: CloseKind, channel: SessionChannel) {
+  const m = billingMessages[language];
+  if (reason !== "NO_SHOW") return m.close[reason];
+  return channel === "DELIVERY" ? m.online.notDelivered : m.online.notCollected;
+}

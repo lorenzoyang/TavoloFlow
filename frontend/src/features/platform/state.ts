@@ -23,12 +23,25 @@ export type Restaurant = {
   googleMapsUrl: string | null;
   joinCodeRequired: boolean;
   theme: RestaurantTheme;
+  services: RestaurantServices;
+  slug: string | null;
   subscription?: SubscriptionSummary | null;
 };
+export type RestaurantServices = { dineIn: boolean; online: boolean };
 export type RestaurantDetail = { restaurant: Restaurant; accounts: ManagedAccount[] };
 export type TemporaryCredential = { account: ManagedAccount; temporaryPassword: string };
 export type PendingManagement = {
-  kind: "create" | "status" | "maps" | "joinCode" | "theme" | "delete" | "active" | "reset";
+  kind:
+    | "create"
+    | "status"
+    | "maps"
+    | "joinCode"
+    | "theme"
+    | "services"
+    | "slug"
+    | "delete"
+    | "active"
+    | "reset";
   restaurantId: string;
   userId?: string;
   expectedVersion?: number;
@@ -41,9 +54,18 @@ export function readPending(raw: string | null): PendingManagement | null {
   if (!raw) return null;
   const p = JSON.parse(raw) as Partial<PendingManagement>;
   if (
-    !["create", "status", "maps", "joinCode", "theme", "delete", "active", "reset"].includes(
-      p.kind ?? "",
-    ) ||
+    ![
+      "create",
+      "status",
+      "maps",
+      "joinCode",
+      "theme",
+      "services",
+      "slug",
+      "delete",
+      "active",
+      "reset",
+    ].includes(p.kind ?? "") ||
     !isUuid(p.restaurantId) ||
     (p.userId !== undefined && !isUuid(p.userId)) ||
     ((p.kind === "active" || p.kind === "reset") &&
@@ -68,3 +90,10 @@ export function credentialsChanged(p: PendingManagement, account: ManagedAccount
     throw new Error("The target account cannot be checked");
   return account.credentialVersion > p.expectedVersion;
 }
+
+// The online ordering link /r/{slug}, the same rule as the server's InputRules.IsSlug.
+export const isSlug = (value: string) => /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(value);
+
+// At least one service stays on, and online ordering needs its link.
+export const servicesValid = (services: RestaurantServices, slug: string | null) =>
+  (services.dineIn || services.online) && (!services.online || !!slug);

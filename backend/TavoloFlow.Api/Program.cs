@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.Extensions.Options;
 using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Billing;
 using TavoloFlow.Api.Common;
@@ -8,9 +9,11 @@ using TavoloFlow.Api.Dining;
 using TavoloFlow.Api.Guests;
 using TavoloFlow.Api.Kitchen;
 using TavoloFlow.Api.Menus;
+using TavoloFlow.Api.Online;
 using TavoloFlow.Api.Operations;
 using TavoloFlow.Api.Ordering;
 using TavoloFlow.Api.Platform;
+using TavoloFlow.Api.Push;
 using TavoloFlow.Api.Tables;
 
 var command = MaintenanceCommands.Parse(args, out var hostArgs);
@@ -53,6 +56,38 @@ builder.Services.AddScoped<KitchenService>();
 builder.Services.AddScoped<BillingService>();
 builder.Services.AddScoped<RestaurantAdministration>();
 builder.Services.AddScoped<SubscriptionService>();
+builder.Services.AddScoped<OnlineSettingsService>();
+builder.Services.AddScoped<OnlineMenuService>();
+builder.Services.AddScoped<OnlineRequestService>();
+builder.Services.AddScoped<OnlineOrderStatusService>();
+builder.Services.AddScoped<OnlineStaffService>();
+builder
+    .Services.AddOptions<OnlineRateLimitOptions>()
+    .Bind(builder.Configuration.GetSection("OnlineRateLimits"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddSingleton<OnlineRateLimiter>();
+
+// Lock-screen push: off unless the VAPID key is configured.
+builder
+    .Services.AddOptions<PushOptions>()
+    .Bind(builder.Configuration.GetSection(PushOptions.Section))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<PushOptions>, PushOptionsValidator>();
+builder.Services.AddSingleton<PushKeys>();
+builder.Services.AddScoped<PushSubscriptionService>();
+builder.Services.AddSingleton<PushQueue>();
+
+// Push services are external: never follow a redirect away from the registered endpoint.
+builder
+    .Services.AddHttpClient(
+        PushSender.HttpClientName,
+        client => client.Timeout = TimeSpan.FromSeconds(10)
+    )
+    // Default HttpClient logs include the endpoint's secret path, even with URI query redaction.
+    .RemoveAllLoggers()
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+builder.Services.AddHostedService<PushSender>();
 builder.Services.AddScoped<DemoSeeder>();
 
 var app = builder.Build();

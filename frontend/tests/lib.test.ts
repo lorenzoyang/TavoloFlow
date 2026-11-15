@@ -5,6 +5,7 @@ import {
   formatDateTime,
   formatMoney,
   formatTime,
+  formatWeekdayTime,
   parsePrice,
   shortId,
 } from "../src/lib/format.ts";
@@ -70,6 +71,13 @@ test("compact times use the restaurant clock in 24-hour form", () => {
   assert.equal(formatTime("2026-07-01T17:05:00Z"), "19:05");
   assert.equal(formatTime("2026-12-01T17:05:00Z", "it"), "18:05");
   assert.equal(formatTime("2026-12-01T17:05:00Z", "en"), "18:05");
+});
+
+test("moments within the week show the restaurant's weekday and 24-hour time", () => {
+  // Wednesday 18 November 2026, 11:00 UTC is 12:00 in Rome.
+  assert.equal(formatWeekdayTime("2026-11-18T11:00:00Z", "zh"), "周三 12:00");
+  assert.equal(formatWeekdayTime("2026-11-18T11:00:00Z", "it"), "mer 12:00");
+  assert.equal(formatWeekdayTime("2026-11-18T11:00:00Z", "en"), "Wed 12:00");
 });
 
 test("short references come from the random tail, so records created together stay distinct", () => {

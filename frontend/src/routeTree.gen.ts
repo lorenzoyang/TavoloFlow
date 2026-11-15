@@ -12,11 +12,13 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PlatformRouteImport } from './routes/platform'
 import { Route as StaffRouteImport } from './routes/staff'
+import { Route as OTokenRouteImport } from './routes/o.$token'
 import { Route as PlatformIndexRouteImport } from './routes/platform.index'
 import { Route as PlatformChangePasswordRouteImport } from './routes/platform.change-password'
 import { Route as PlatformLoginRouteImport } from './routes/platform.login'
 import { Route as PlatformRestaurantsRouteImport } from './routes/platform.restaurants'
 import { Route as QTokenRouteImport } from './routes/q.$token'
+import { Route as RSlugRouteImport } from './routes/r.$slug'
 import { Route as StaffIndexRouteImport } from './routes/staff.index'
 import { Route as StaffChangePasswordRouteImport } from './routes/staff.change-password'
 import { Route as StaffFloorRouteImport } from './routes/staff.floor'
@@ -24,6 +26,8 @@ import { Route as StaffHistoryRouteImport } from './routes/staff.history'
 import { Route as StaffKitchenRouteImport } from './routes/staff.kitchen'
 import { Route as StaffLoginRouteImport } from './routes/staff.login'
 import { Route as StaffMenuRouteImport } from './routes/staff.menu'
+import { Route as StaffOnlineRouteImport } from './routes/staff.online'
+import { Route as StaffOnlineSettingsRouteImport } from './routes/staff.online-settings'
 import { Route as StaffOrdersRouteImport } from './routes/staff.orders'
 import { Route as StaffPassRouteImport } from './routes/staff.pass'
 import { Route as StaffSettingsRouteImport } from './routes/staff.settings'
@@ -31,6 +35,7 @@ import { Route as StaffSubscriptionRouteImport } from './routes/staff.subscripti
 import { Route as StaffTablesRouteImport } from './routes/staff.tables'
 import { Route as PlatformRestaurantsIndexRouteImport } from './routes/platform.restaurants.index'
 import { Route as PlatformRestaurantsRestaurantIdRouteImport } from './routes/platform.restaurants.$restaurantId'
+import { Route as RSlugPrivacyRouteImport } from './routes/r.$slug_.privacy'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -45,6 +50,11 @@ const PlatformRoute = PlatformRouteImport.update({
 const StaffRoute = StaffRouteImport.update({
   id: '/staff',
   path: '/staff',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OTokenRoute = OTokenRouteImport.update({
+  id: '/o/$token',
+  path: '/o/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PlatformIndexRoute = PlatformIndexRouteImport.update({
@@ -70,6 +80,11 @@ const PlatformRestaurantsRoute = PlatformRestaurantsRouteImport.update({
 const QTokenRoute = QTokenRouteImport.update({
   id: '/q/$token',
   path: '/q/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RSlugRoute = RSlugRouteImport.update({
+  id: '/r/$slug',
+  path: '/r/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StaffIndexRoute = StaffIndexRouteImport.update({
@@ -105,6 +120,16 @@ const StaffLoginRoute = StaffLoginRouteImport.update({
 const StaffMenuRoute = StaffMenuRouteImport.update({
   id: '/menu',
   path: '/menu',
+  getParentRoute: () => StaffRoute,
+} as any)
+const StaffOnlineRoute = StaffOnlineRouteImport.update({
+  id: '/online',
+  path: '/online',
+  getParentRoute: () => StaffRoute,
+} as any)
+const StaffOnlineSettingsRoute = StaffOnlineSettingsRouteImport.update({
+  id: '/online-settings',
+  path: '/online-settings',
   getParentRoute: () => StaffRoute,
 } as any)
 const StaffOrdersRoute = StaffOrdersRouteImport.update({
@@ -144,21 +169,30 @@ const PlatformRestaurantsRestaurantIdRoute =
     path: '/$restaurantId',
     getParentRoute: () => PlatformRestaurantsRoute,
   } as any)
+const RSlugPrivacyRoute = RSlugPrivacyRouteImport.update({
+  id: '/r/$slug_/privacy',
+  path: '/r/$slug/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/platform': typeof PlatformRouteWithChildren
   '/staff': typeof StaffRouteWithChildren
+  '/o/$token': typeof OTokenRoute
   '/platform/change-password': typeof PlatformChangePasswordRoute
   '/platform/login': typeof PlatformLoginRoute
   '/platform/restaurants': typeof PlatformRestaurantsRouteWithChildren
   '/q/$token': typeof QTokenRoute
+  '/r/$slug': typeof RSlugRoute
   '/staff/change-password': typeof StaffChangePasswordRoute
   '/staff/floor': typeof StaffFloorRoute
   '/staff/history': typeof StaffHistoryRoute
   '/staff/kitchen': typeof StaffKitchenRoute
   '/staff/login': typeof StaffLoginRoute
   '/staff/menu': typeof StaffMenuRoute
+  '/staff/online': typeof StaffOnlineRoute
+  '/staff/online-settings': typeof StaffOnlineSettingsRoute
   '/staff/orders': typeof StaffOrdersRoute
   '/staff/pass': typeof StaffPassRoute
   '/staff/settings': typeof StaffSettingsRoute
@@ -167,19 +201,24 @@ export interface FileRoutesByFullPath {
   '/platform/': typeof PlatformIndexRoute
   '/staff/': typeof StaffIndexRoute
   '/platform/restaurants/$restaurantId': typeof PlatformRestaurantsRestaurantIdRoute
+  '/r/$slug/privacy': typeof RSlugPrivacyRoute
   '/platform/restaurants/': typeof PlatformRestaurantsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/o/$token': typeof OTokenRoute
   '/platform/change-password': typeof PlatformChangePasswordRoute
   '/platform/login': typeof PlatformLoginRoute
   '/q/$token': typeof QTokenRoute
+  '/r/$slug': typeof RSlugRoute
   '/staff/change-password': typeof StaffChangePasswordRoute
   '/staff/floor': typeof StaffFloorRoute
   '/staff/history': typeof StaffHistoryRoute
   '/staff/kitchen': typeof StaffKitchenRoute
   '/staff/login': typeof StaffLoginRoute
   '/staff/menu': typeof StaffMenuRoute
+  '/staff/online': typeof StaffOnlineRoute
+  '/staff/online-settings': typeof StaffOnlineSettingsRoute
   '/staff/orders': typeof StaffOrdersRoute
   '/staff/pass': typeof StaffPassRoute
   '/staff/settings': typeof StaffSettingsRoute
@@ -188,6 +227,7 @@ export interface FileRoutesByTo {
   '/platform': typeof PlatformIndexRoute
   '/staff': typeof StaffIndexRoute
   '/platform/restaurants/$restaurantId': typeof PlatformRestaurantsRestaurantIdRoute
+  '/r/$slug/privacy': typeof RSlugPrivacyRoute
   '/platform/restaurants': typeof PlatformRestaurantsIndexRoute
 }
 export interface FileRoutesById {
@@ -195,16 +235,20 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/platform': typeof PlatformRouteWithChildren
   '/staff': typeof StaffRouteWithChildren
+  '/o/$token': typeof OTokenRoute
   '/platform/change-password': typeof PlatformChangePasswordRoute
   '/platform/login': typeof PlatformLoginRoute
   '/platform/restaurants': typeof PlatformRestaurantsRouteWithChildren
   '/q/$token': typeof QTokenRoute
+  '/r/$slug': typeof RSlugRoute
   '/staff/change-password': typeof StaffChangePasswordRoute
   '/staff/floor': typeof StaffFloorRoute
   '/staff/history': typeof StaffHistoryRoute
   '/staff/kitchen': typeof StaffKitchenRoute
   '/staff/login': typeof StaffLoginRoute
   '/staff/menu': typeof StaffMenuRoute
+  '/staff/online': typeof StaffOnlineRoute
+  '/staff/online-settings': typeof StaffOnlineSettingsRoute
   '/staff/orders': typeof StaffOrdersRoute
   '/staff/pass': typeof StaffPassRoute
   '/staff/settings': typeof StaffSettingsRoute
@@ -213,6 +257,7 @@ export interface FileRoutesById {
   '/platform/': typeof PlatformIndexRoute
   '/staff/': typeof StaffIndexRoute
   '/platform/restaurants/$restaurantId': typeof PlatformRestaurantsRestaurantIdRoute
+  '/r/$slug_/privacy': typeof RSlugPrivacyRoute
   '/platform/restaurants/': typeof PlatformRestaurantsIndexRoute
 }
 export interface FileRouteTypes {
@@ -221,16 +266,20 @@ export interface FileRouteTypes {
     | '/'
     | '/platform'
     | '/staff'
+    | '/o/$token'
     | '/platform/change-password'
     | '/platform/login'
     | '/platform/restaurants'
     | '/q/$token'
+    | '/r/$slug'
     | '/staff/change-password'
     | '/staff/floor'
     | '/staff/history'
     | '/staff/kitchen'
     | '/staff/login'
     | '/staff/menu'
+    | '/staff/online'
+    | '/staff/online-settings'
     | '/staff/orders'
     | '/staff/pass'
     | '/staff/settings'
@@ -239,19 +288,24 @@ export interface FileRouteTypes {
     | '/platform/'
     | '/staff/'
     | '/platform/restaurants/$restaurantId'
+    | '/r/$slug/privacy'
     | '/platform/restaurants/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/o/$token'
     | '/platform/change-password'
     | '/platform/login'
     | '/q/$token'
+    | '/r/$slug'
     | '/staff/change-password'
     | '/staff/floor'
     | '/staff/history'
     | '/staff/kitchen'
     | '/staff/login'
     | '/staff/menu'
+    | '/staff/online'
+    | '/staff/online-settings'
     | '/staff/orders'
     | '/staff/pass'
     | '/staff/settings'
@@ -260,22 +314,27 @@ export interface FileRouteTypes {
     | '/platform'
     | '/staff'
     | '/platform/restaurants/$restaurantId'
+    | '/r/$slug/privacy'
     | '/platform/restaurants'
   id:
     | '__root__'
     | '/'
     | '/platform'
     | '/staff'
+    | '/o/$token'
     | '/platform/change-password'
     | '/platform/login'
     | '/platform/restaurants'
     | '/q/$token'
+    | '/r/$slug'
     | '/staff/change-password'
     | '/staff/floor'
     | '/staff/history'
     | '/staff/kitchen'
     | '/staff/login'
     | '/staff/menu'
+    | '/staff/online'
+    | '/staff/online-settings'
     | '/staff/orders'
     | '/staff/pass'
     | '/staff/settings'
@@ -284,6 +343,7 @@ export interface FileRouteTypes {
     | '/platform/'
     | '/staff/'
     | '/platform/restaurants/$restaurantId'
+    | '/r/$slug_/privacy'
     | '/platform/restaurants/'
   fileRoutesById: FileRoutesById
 }
@@ -291,7 +351,10 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   PlatformRoute: typeof PlatformRouteWithChildren
   StaffRoute: typeof StaffRouteWithChildren
+  OTokenRoute: typeof OTokenRoute
   QTokenRoute: typeof QTokenRoute
+  RSlugRoute: typeof RSlugRoute
+  RSlugPrivacyRoute: typeof RSlugPrivacyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -315,6 +378,13 @@ declare module '@tanstack/react-router' {
       path: '/staff'
       fullPath: '/staff'
       preLoaderRoute: typeof StaffRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/o/$token': {
+      id: '/o/$token'
+      path: '/o/$token'
+      fullPath: '/o/$token'
+      preLoaderRoute: typeof OTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/platform/': {
@@ -350,6 +420,13 @@ declare module '@tanstack/react-router' {
       path: '/q/$token'
       fullPath: '/q/$token'
       preLoaderRoute: typeof QTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/r/$slug': {
+      id: '/r/$slug'
+      path: '/r/$slug'
+      fullPath: '/r/$slug'
+      preLoaderRoute: typeof RSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/staff/': {
@@ -401,6 +478,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StaffMenuRouteImport
       parentRoute: typeof StaffRoute
     }
+    '/staff/online': {
+      id: '/staff/online'
+      path: '/online'
+      fullPath: '/staff/online'
+      preLoaderRoute: typeof StaffOnlineRouteImport
+      parentRoute: typeof StaffRoute
+    }
+    '/staff/online-settings': {
+      id: '/staff/online-settings'
+      path: '/online-settings'
+      fullPath: '/staff/online-settings'
+      preLoaderRoute: typeof StaffOnlineSettingsRouteImport
+      parentRoute: typeof StaffRoute
+    }
     '/staff/orders': {
       id: '/staff/orders'
       path: '/orders'
@@ -450,6 +541,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlatformRestaurantsRestaurantIdRouteImport
       parentRoute: typeof PlatformRestaurantsRoute
     }
+    '/r/$slug_/privacy': {
+      id: '/r/$slug_/privacy'
+      path: '/r/$slug/privacy'
+      fullPath: '/r/$slug/privacy'
+      preLoaderRoute: typeof RSlugPrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -491,6 +589,8 @@ interface StaffRouteChildren {
   StaffKitchenRoute: typeof StaffKitchenRoute
   StaffLoginRoute: typeof StaffLoginRoute
   StaffMenuRoute: typeof StaffMenuRoute
+  StaffOnlineRoute: typeof StaffOnlineRoute
+  StaffOnlineSettingsRoute: typeof StaffOnlineSettingsRoute
   StaffOrdersRoute: typeof StaffOrdersRoute
   StaffPassRoute: typeof StaffPassRoute
   StaffSettingsRoute: typeof StaffSettingsRoute
@@ -506,6 +606,8 @@ const StaffRouteChildren: StaffRouteChildren = {
   StaffKitchenRoute: StaffKitchenRoute,
   StaffLoginRoute: StaffLoginRoute,
   StaffMenuRoute: StaffMenuRoute,
+  StaffOnlineRoute: StaffOnlineRoute,
+  StaffOnlineSettingsRoute: StaffOnlineSettingsRoute,
   StaffOrdersRoute: StaffOrdersRoute,
   StaffPassRoute: StaffPassRoute,
   StaffSettingsRoute: StaffSettingsRoute,
@@ -520,7 +622,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   PlatformRoute: PlatformRouteWithChildren,
   StaffRoute: StaffRouteWithChildren,
+  OTokenRoute: OTokenRoute,
   QTokenRoute: QTokenRoute,
+  RSlugRoute: RSlugRoute,
+  RSlugPrivacyRoute: RSlugPrivacyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

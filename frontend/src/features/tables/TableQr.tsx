@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import QRCode from "qrcode";
 import { Copy, Download, ExternalLink, Printer } from "lucide-react";
 import { LoadingState } from "@/components/loading-state";
 import { Notice } from "@/components/notice";
@@ -10,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import type { RestaurantTable } from "./api";
 import { tableMessages } from "./messages";
+import { qrPng } from "./qr-image";
 import { isLocalOnlyUrl, publicMenuUrl } from "./qr-url";
 import { renderTableCard } from "./table-card";
 
@@ -49,13 +49,7 @@ export function TableQr({
   useEffect(() => {
     if (!url) return;
     let cancelled = false;
-    void QRCode.toDataURL(url, {
-      width: 1024,
-      margin: 4,
-      errorCorrectionLevel: "M",
-      type: "image/png",
-      color: { dark: "#000000ff", light: "#ffffffff" },
-    })
+    void qrPng(url)
       .then((data) => {
         if (!cancelled) setImage({ url, data });
       })

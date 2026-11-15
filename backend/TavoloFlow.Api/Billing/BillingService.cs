@@ -45,6 +45,7 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
             .Orders.AsNoTracking()
             .Include(o => o.Items)
             .Include(o => o.DiningSession)
+                .ThenInclude(s => s.OnlineRequest)
             .Where(o => o.RestaurantId == restaurantId && o.DiningSessionId == sessionId);
         if (after is not null)
             query = query.Where(o =>
@@ -73,6 +74,22 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         await tx.CommitAsync(ct);
         return new(summary, page.Select(KitchenOrderResponse.From).ToArray(), next);
     }
+
+    // Every ACTIVE session in all channels, oldest first: the bills page. Reads only open visits
+    // (ix_dining_sessions_active) in one statement, so the summaries come from one snapshot.
+    public async Task<ActiveSessionsPage> ActiveAsync(Guid restaurantId, CancellationToken ct) =>
+        new(
+            await SessionSummaries
+                .Project(
+                    db.DiningSessions.AsNoTracking()
+                        .Where(s =>
+                            s.RestaurantId == restaurantId && s.Status == DiningSessionStatus.Active
+                        )
+                        .OrderBy(s => s.OpenedAt)
+                        .ThenBy(s => s.Id)
+                )
+                .ToArrayAsync(ct)
+        );
 
     public Task<BillSummaryResponse> CheckoutAsync(
         Guid restaurantId,
@@ -103,6 +120,85 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         CancellationToken ct
     ) => CloseZeroBillAsync(restaurantId, id, SessionCloseReason.Voided, input, ct);
 
+    // Online orders only, OWNER only (the controller), like PAID: positive receivable and no NEW dishes.
+    public Task<BillSummaryResponse> CloseNoShowAsync(
+        Guid restaurantId,
+        Guid id,
+        CloseNoShowInput input,
+        CancellationToken ct
+    )
+    {
+        if (input.NoShowConfirmed != true)
+            throw ApiException.Validation("Confirm that the customer didn't collect the order.");
+        return CloseAsync(
+            restaurantId,
+            id,
+            SessionCloseReason.NoShow,
+            input.ExpectedBillVersion,
+            input.ConfirmedTotalCents,
+            ct
+        );
+    }
+
+    // OWNER corrects a delivery fee before closure. Like a cancellation it changes the bill, so it takes
+    // only the session UPDATE lock, requires the confirmed version and increments it; the version alone
+    // makes a lost or repeated request harmless, so the browser persists no marker. An unchanged fee
+    // writes nothing and keeps the version.
+    public async Task<BillSummaryResponse> SetDeliveryFeeAsync(
+        Guid restaurantId,
+        Guid id,
+        DeliveryFeeInput input,
+        CancellationToken ct
+    )
+    {
+        if (input.DeliveryFeeCents is not { } fee || fee < 0 || fee > InputRules.MaxSafeCents)
+            throw InvalidDeliveryFee();
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var session =
+            await RowLocks.SessionAsync(db, restaurantId, id, RowLock.Update, ct)
+            ?? throw DiningErrors.SessionNotFound();
+        if (session.Status == DiningSessionStatus.Closed)
+            throw DiningErrors.SessionClosed();
+        var bill = await SessionSummaries.ReadAsync(db, restaurantId, id, ct);
+        if (bill.BillVersion != input.ExpectedBillVersion)
+            throw BillingErrors.Changed(bill);
+        if (session.Channel != SessionChannel.Delivery)
+            throw BillingErrors.Conflict(
+                "SESSION_NOT_DELIVERY",
+                "Only delivery orders have a delivery fee.",
+                bill
+            );
+        if (fee == session.DeliveryFeeCents)
+        {
+            await tx.CommitAsync(ct);
+            return bill;
+        }
+        // Like acceptance: every ordered item plus the fee stays a safe integer.
+        var items = await db
+            .OrderItems.Where(i => i.RestaurantId == restaurantId && i.Order.DiningSessionId == id)
+            .SumAsync(i => i.UnitPriceCents * i.Quantity, ct);
+        if (fee > InputRules.MaxSafeCents - items)
+            throw InvalidDeliveryFee();
+        await db
+            .DiningSessions.Where(s => s.RestaurantId == restaurantId && s.Id == id)
+            .ExecuteUpdateAsync(
+                u =>
+                    u.SetProperty(s => s.DeliveryFeeCents, fee)
+                        .SetProperty(s => s.BillVersion, s => s.BillVersion + 1),
+                ct
+            );
+        var result = await SessionSummaries.ReadAsync(db, restaurantId, id, ct);
+        await tx.CommitAsync(ct);
+        return result;
+    }
+
+    private static ApiException InvalidDeliveryFee() =>
+        ApiException.Validation(
+            "Enter the delivery fee in whole cents, 0 for free delivery.",
+            "deliveryFeeCents",
+            "Invalid fee."
+        );
+
     private Task<BillSummaryResponse> CloseZeroBillAsync(
         Guid restaurantId,
         Guid id,
@@ -123,7 +219,7 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         );
     }
 
-    // PAID, VOIDED and EMPTY share one path. Order creation, kitchen transitions and closure all serialize
+    // PAID, VOIDED, EMPTY and NO_SHOW share one path. Order creation, kitchen transitions and closure all serialize
     // on this session's UPDATE lock, so the bill checked here is exactly the bill that gets closed.
     private async Task<BillSummaryResponse> CloseAsync(
         Guid restaurantId,
@@ -158,6 +254,12 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         }
         if (bill.BillVersion != version)
             throw BillingErrors.Changed(bill);
+        if (reason == SessionCloseReason.NoShow && session.Channel == SessionChannel.DineIn)
+            throw BillingErrors.Conflict(
+                "SESSION_NOT_ONLINE",
+                "Only online orders close as not collected.",
+                bill
+            );
         // EMPTY means no order was ever placed, not even a cancelled one; that check precedes the amount.
         if (reason == SessionCloseReason.Empty && bill.OrderCount > 0)
             throw BillingErrors.Conflict(
@@ -173,10 +275,13 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
                 "Some dishes are still waiting: finish them in the kitchen or cancel them.",
                 bill
             );
-        if (reason == SessionCloseReason.Paid && bill.TotalAmountCents <= 0)
+        if (
+            reason is SessionCloseReason.Paid or SessionCloseReason.NoShow
+            && bill.TotalAmountCents <= 0
+        )
             throw BillingErrors.Conflict(
                 "SESSION_NOT_PAYABLE",
-                "A zero bill closes as an empty or voided table, not as paid.",
+                "A zero bill closes as empty or voided, not as paid or not collected.",
                 bill
             );
         if (
@@ -224,7 +329,8 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
             );
         if (changed != 1)
             throw DiningErrors.SessionClosed();
-        // A settled bill means every ready dish reached the table, whether or not someone tapped it at the pass.
+        // Every closure removes remaining READY dishes from the pass, including VOIDED and NO_SHOW.
+        // A closure-stamped ServedAt is not evidence that a dish actually reached the customer.
         // Closing time includes processed and existing served times; the clamp also guards ck_order_item_served.
         await db
             .OrderItems.Where(i =>
@@ -261,7 +367,9 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         if (closeReason is not null)
         {
             if (!ApiEnum.TryParse(closeReason, out SessionCloseReason parsed))
-                throw ApiException.Validation("The closure reason must be PAID, EMPTY or VOIDED.");
+                throw ApiException.Validation(
+                    "The closure reason must be PAID, EMPTY, VOIDED or NO_SHOW."
+                );
             reason = parsed;
         }
         var after = Paging.Decode<HistoryCursor>(cursor);

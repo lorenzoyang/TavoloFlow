@@ -16,8 +16,9 @@ export function publicMenuUrl(
       "VITE_PUBLIC_BASE_URL must be an HTTP(S) origin, without path, credentials, query or fragment.",
     );
   }
-  if (!/^\/q\/[A-Za-z0-9_-]{1,128}$/.test(path))
-    throw new Error("Invalid QR path. Reload the tables.");
+  // A table's /q/{token} or the restaurant's online link /r/{slug}.
+  if (!/^\/(q\/[A-Za-z0-9_-]{1,128}|r\/[a-z0-9][a-z0-9-]{1,38}[a-z0-9])$/.test(path))
+    throw new Error("Invalid public path. Reload the page.");
   return new URL(path, base.origin).href;
 }
 

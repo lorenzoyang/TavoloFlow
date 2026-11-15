@@ -216,12 +216,12 @@ Phone/LAN setup, including Windows/WSL forwarding, is in the
 
 `GET /api/public/qr/{token}/bootstrap` returns:
 
-| Field             | Content                                                                                                          |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `restaurant`      | `id`, `name`, `currencyCode`, `defaultLanguage`, `serviceStatus`, `orderingEnabled`, `joinCodeRequired`, `theme` |
-| `table`           | `id`, `tableLabel`, `isEnabled`                                                                                  |
-| `activeSessionId` | Nullable ACTIVE visit ID; not a credential                                                                       |
-| `menu`            | `availableLanguages`, `categories`, `items`, `optionGroups` using the menu DTOs, including `imageId`             |
+| Field             | Content                                                                                                                           |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `restaurant`      | `id`, `name`, `currencyCode`, `defaultLanguage`, `serviceStatus`, `dineInEnabled`, `orderingEnabled`, `joinCodeRequired`, `theme` |
+| `table`           | `id`, `tableLabel`, `isEnabled`                                                                                                   |
+| `activeSessionId` | Nullable ACTIVE visit ID; not a credential                                                                                        |
+| `menu`            | `availableLanguages`, `categories`, `items`, `optionGroups` using the menu DTOs, including `imageId`                              |
 
 Ownership comes only from the QR token. `PublicMenuService` reads entrance and menu in one Repeatable
 Read transaction; `MenuReader` does not start another. Bootstrap creates no visit and exposes no code,
@@ -232,8 +232,9 @@ AuthBoundary and never fetches store `/me`. The anonymous query key is `["public
 survives store login/logout. Bootstrap refreshes every 30 seconds while foreground polling is allowed,
 and on focus/reconnect or manual refresh. Access and ordering use separate guest-scoped requests.
 
-Suspended service, disabled table and paused ordering still permit menu browsing. The primary entrance
-notice prioritizes service suspension, disabled table, paused ordering, then no open visit. Guests can
+Suspended service, dine-in that the platform has not turned on (`dineInEnabled: false`), disabled table
+and paused ordering still permit menu browsing. The primary entrance notice prioritizes service
+suspension or missing dine-in (the same guest copy), disabled table, paused ordering, then no open visit. Guests can
 always select zh/it/en: explicit choices persist per restaurant; otherwise use the owner's default,
 not browser language. Blocked storage retains the current in-memory choice.
 

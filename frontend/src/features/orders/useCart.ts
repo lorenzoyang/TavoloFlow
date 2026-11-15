@@ -234,14 +234,9 @@ export function useCart(token: string, data: PublicMenu, guest: Guest, confirmed
       }
       const access = await readGuestAccess(latest.activeSessionId, work.signal);
       if (!work.active()) return;
-      if (access.serviceStatus !== "ACTIVE" || !access.isTableEnabled || !access.orderingEnabled) {
-        setMessage(
-          access.serviceStatus !== "ACTIVE"
-            ? "suspended"
-            : !access.isTableEnabled
-              ? "disabled"
-              : "paused",
-        );
+      const suspended = access.serviceStatus !== "ACTIVE" || !latest.restaurant.dineInEnabled;
+      if (suspended || !access.isTableEnabled || !access.orderingEnabled) {
+        setMessage(suspended ? "suspended" : !access.isTableEnabled ? "disabled" : "paused");
         return;
       }
       const next = refreshCart(current.current, latest.menu.items, latest.menu.optionGroups);

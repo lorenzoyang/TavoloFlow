@@ -376,6 +376,7 @@ public sealed class TableAndPublicMenuTests(PostgreSqlFixture database)
             {
                 "currencyCode",
                 "defaultLanguage",
+                "dineInEnabled",
                 "id",
                 "joinCodeRequired",
                 "name",

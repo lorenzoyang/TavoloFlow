@@ -2,9 +2,11 @@
 
 # Qiao TavoloFlow
 
-Un'app di ordinazione al tavolo tramite QR per piccoli ristoranti, da installare sul proprio server. I
-clienti scansionano il QR del tavolo e ordinano dal telefono; cucina e pass vedono i piatti appena
-arrivano; il titolare chiude il conto dopo aver incassato alla cassa.
+Un'app di ordinazione al tavolo tramite QR per piccoli ristoranti, da installare sul proprio server,
+che accetta anche ordini online da ritirare o da consegnare. I clienti scansionano il QR del tavolo e
+ordinano dal telefono; chi non è al ristorante ordina dal link del locale, e lo staff accetta ogni
+ordine online prima che arrivi in cucina. Cucina e pass vedono i piatti appena arrivano; il titolare
+chiude il conto dopo aver incassato alla cassa, al ritiro o alla consegna.
 
 [![CI](https://github.com/lorenzoyang/TavoloFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/lorenzoyang/TavoloFlow/actions/workflows/ci.yml)
 [![Licenza: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
@@ -15,25 +17,35 @@ arrivano; il titolare chiude il conto dopo aver incassato alla cassa.
 ![Lo schermo Cucina su un tablet, con il menu del cliente su un telefono](docs/images/hero-it.webp)
 
 Tutte le interfacce (cliente, staff, amministratore) sono in italiano, inglese e cinese. L'area staff
-si installa come PWA su telefoni e tablet della cucina. L'app non gestisce pagamenti online e non
-sostituisce il registratore di cassa.
+si installa come PWA su telefoni e tablet della cucina, e può ricevere le notifiche a schermo
+bloccato dei nuovi ordini online. L'app non gestisce pagamenti online e non sostituisce il
+registratore di cassa.
 
 ## Cosa fa
 
 - **I clienti** scansionano il QR fisso del tavolo, consultano il menu con foto e allergeni, entrano
   nella visita del tavolo con un codice di quattro caratteri e ordinano tutte le volte che vogliono
   durante il pasto.
+- **I clienti online** ordinano dal link del ristorante, per il ritiro o, se il ristorante consegna,
+  per la consegna. Pagano al ritiro o alla consegna e seguono l'ordine da una pagina di stato.
 - **Lo staff** apre i tavoli in Sala, segue gli ordini in Cucina (raggruppati per piatto o per ordine,
-  con un avviso sonoro e le categorie filtrate per schermo) e segna i piatti serviti dal Pass.
+  con un avviso sonoro e le categorie filtrate per schermo) e segna i piatti serviti dal Pass. Accetta
+  o rifiuta gli ordini online, scegliendo il tempo previsto e, per la consegna, il costo; finché ci sono
+  ordini da accettare un banner suona in ogni pagina dello staff, e i dispositivi che le attivano
+  ricevono anche le notifiche a schermo bloccato.
 - **Il titolare** gestisce il menu, con opzioni condivise come formato, zucchero, topping o
   piccantezza che possono avere un supplemento, e i tavoli, scarica i QR e i segnatavolo da stampare,
-  chiude il conto dopo l'incasso e consulta lo storico dei conti.
+  chiude il conto dopo l'incasso e consulta lo storico dei conti. Per gli ordini online imposta
+  telefono, orari e note sulla consegna, corregge il costo di consegna e chiude gli ordini ritirati o
+  consegnati.
 - **L'amministratore della piattaforma** crea i ristoranti e i loro account, sceglie il tema di colori
-  di ogni ristorante e registra i periodi di abbonamento e le tariffe pagate fuori dall'app.
+  di ogni ristorante, attiva per ognuno l'ordinazione al tavolo con QR e gli ordini online con il loro
+  link, e registra i periodi di abbonamento e le tariffe pagate fuori dall'app.
 
-Non ci sono stampa delle comande, pagamenti online, divisione del conto, gestione del magazzino,
-asporto o notifiche push. I [requisiti del prodotto](docs/reference/product-requirements.md), in
-inglese, descrivono tutto il perimetro.
+Non ci sono stampa delle comande, pagamenti online, divisione del conto, gestione del magazzino né
+piattaforme di consegna esterne, e il cliente non può prenotare un orario di ritiro o di consegna. I
+[requisiti del prodotto](docs/reference/product-requirements.md), in inglese, descrivono tutto il
+perimetro.
 
 ## Schermate
 
@@ -46,9 +58,19 @@ cucina, pass e conto.
 
 ![Menu, opzioni del piatto e carrello su un telefono](docs/images/guest-it.webp)
 
-**Staff e titolare**: Sala, Pass, Conto e modifica di un piatto su un tablet.
+**Un ordine online dall'inizio alla fine** (circa 20 secondi): un cliente ordina una consegna dal link
+del ristorante, lo staff la accetta con il costo di consegna e un orario, poi cucina, pass e conto.
 
-![Sala, Pass, Conto e modifica di un piatto su un tablet](docs/images/staff-it.webp)
+![Una consegna online: il cliente ordina, lo staff accetta, cucina, pass e conto](docs/images/walkthrough-online-it.webp)
+
+**Clienti online**: il menu online del ristorante, la conferma con ritiro o consegna e la pagina dello
+stato dell'ordine.
+
+![Menu online, conferma con consegna e stato dell'ordine su un telefono](docs/images/online-it.webp)
+
+**Staff e titolare**: Ordini online, Pass, Conto e modifica di un piatto su un tablet.
+
+![Ordini online, Pass, Conto e modifica di un piatto su un tablet](docs/images/staff-it.webp)
 
 **Temi**: cinque palette di colori, scelte per ogni ristorante dall'amministratore della piattaforma.
 

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Spinner } from "@/components/ui/spinner";
 import { FieldSet } from "@/components/ui/field";
+import { usePushSubscription } from "@/features/push/usePushSubscription";
 import { ApiError, errorMessage } from "@/lib/api";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { changePassword, type CurrentAccount } from "./api";
@@ -23,6 +24,7 @@ type PasswordValidationError = { field: "newPassword" | "confirmPassword"; messa
 function PasswordForm({ account }: { account: CurrentAccount }) {
   const language = useStaffLanguage();
   const m = accountMessages[language];
+  const push = usePushSubscription();
   const navigate = useNavigate();
   const [validationError, setValidationError] = useState<PasswordValidationError | null>(null);
   const mutation = useMutation({
@@ -35,6 +37,8 @@ function PasswordForm({ account }: { account: CurrentAccount }) {
     }) => {
       const updated = await changePassword(currentPassword, newPassword);
       await replaceAccount(updated);
+      // The new credential version stopped this device's notifications; it keeps them.
+      void push.sync();
       await navigate({ to: "/staff", search: { passwordChanged: true }, replace: true });
     },
   });

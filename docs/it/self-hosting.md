@@ -364,7 +364,9 @@ SHA256SUMS           il checksum di ogni file
 
 Tieni sul tuo computer almeno il pacchetto della versione in produzione e quello precedente: servono per tornare indietro e per ricostruire il server.
 
-**Facoltativo: provare tutto in locale.** [`deploy/smoke-test.sh`](../../deploy/smoke-test.sh) installa il pacchetto dentro un Docker temporaneo e isolato (Docker-in-Docker, con un certificato di prova locale) e controlla installazione, migrazioni, HTTPS, cookie e CSRF delle tre identità, due rilasci di fila, backup, ripristino e rollback, poi cancella tutto quello che ha creato. Usa l'indirizzo scritto nel pacchetto, quindi funziona con qualsiasi `PUBLIC_ORIGIN`:
+**Facoltativo: provare tutto in locale.** [`deploy/smoke-test.sh`](../../deploy/smoke-test.sh) installa il pacchetto dentro un Docker temporaneo e isolato (Docker-in-Docker, con un certificato di prova locale) e controlla installazione, migrazioni, HTTPS, cookie e CSRF delle tre identità, la chiave delle notifiche, due rilasci di fila, backup, ripristino e rollback, poi cancella tutto quello che ha creato. Usa l'indirizzo scritto nel pacchetto, quindi funziona con qualsiasi `PUBLIC_ORIGIN`:
+
+Controlla anche che chiavi VAPID mancanti o invalide siano rifiutate prima di fermare l'API e che la chiave pubblica resti identica dopo aggiornamento, riavvio, ripristino di `production.env` e rollback. Non invia notifiche reali: la consegna e il suono si provano sul telefono al passo 6.
 
 ```bash
 PUBLIC_ORIGIN=https://app.esempio.it bash deploy/build-release.sh
@@ -406,7 +408,9 @@ sudo install -d -o root -g root -m 755 /opt/tavoloflow
 sudo install -o root -g root -m 644 ops/* ops/.env.example /opt/tavoloflow/
 # Il vero .env, leggibile solo da root. SOLO alla prima installazione!
 sudo install -o root -g root -m 600 ops/.env.example /opt/tavoloflow/.env
-# Genera la password del database (copiala) e apri .env
+# Genera POSTGRES_PASSWORD: copia questo primo valore
+openssl rand -hex 32
+# Genera VAPID_PRIVATE_KEY: copia questo secondo valore, diverso dal primo
 openssl rand -hex 32
 sudo nano /opt/tavoloflow/.env
 ```
@@ -422,11 +426,13 @@ Qui `install` non installa pacchetti: copia un file e ne imposta insieme proprie
 | `DOMAIN`            | il sottodominio, per esempio `app.esempio.it`, senza `https://`: `https://` + `DOMAIN` deve essere uguale a `PUBLIC_ORIGIN` |
 | `ACME_EMAIL`        | la tua email vera, per gli avvisi sul certificato                                                                           |
 | `POSTGRES_PASSWORD` | i 64 caratteri esadecimali generati da `openssl rand -hex 32`                                                               |
+| `VAPID_PRIVATE_KEY` | altri 64 caratteri esadecimali, generati a parte con `openssl rand -hex 32`: la chiave delle notifiche push                 |
 
 Il resto lascialo com'è. Niente virgolette e niente spazi attorno a `=`.
 
 - **La password del database vale solo la prima volta.** PostgreSQL crea l'utente con `POSTGRES_PASSWORD` solo quando il volume dei dati è vuoto. Se poi la cambi in `.env`, il database non lo sa, e l'API non riesce più a collegarsi. È in esadecimale perché contiene solo `0-9` e `a-f`: nessun carattere da proteggere né in Compose né nella stringa di connessione.
-- **L'installer controlla tre cose** prima di fare qualsiasi cosa: che la password sia di 64 caratteri esadecimali, che l'email non sia quella del modello, e che `https://` + `DOMAIN` sia uguale a `public-origin.txt` del pacchetto. Così non puoi installare un frontend i cui QR puntano a un altro dominio.
+- **La chiave delle notifiche non va cambiata.** Con `VAPID_PRIVATE_KEY` l'API firma le notifiche a schermo bloccato dei nuovi ordini online, e ne ricava la chiave pubblica con cui ogni dispositivo le attiva. Se la cambi, le notifiche già attivate smettono di arrivare e ogni dispositivo le deve riattivare dalla Home. Anche questa è esadecimale, come la password, ma i due valori devono essere diversi. Come contatto, i servizi di notifica (Apple, Google, Mozilla, Microsoft) vedono `https://` + `DOMAIN`, che il Compose imposta da solo. La chiave è obbligatoria anche se per ora usi solo i QR dei tavoli. Deve essere una chiave privata P-256 valida: l'installer controlla formato e intervallo prima di fermare l'API in servizio.
+- **Prima di fermare l'API, l'installer controlla quattro cose:** password di 64 caratteri esadecimali, chiave delle notifiche di 64 caratteri esadecimali e valida per P-256, email diversa dal modello e `https://` + `DOMAIN` uguale a `public-origin.txt` del pacchetto. Così non puoi installare un frontend i cui QR puntano a un altro dominio.
 - `PROXY_SUBNET`, `PROXY_DYNAMIC_RANGE` e `CADDY_IP` definiscono la rete tra Caddy e API e l'IP fisso di Caddy. Cambiali, tutti e tre insieme e prima del primo avvio, solo se sulla VPS c'è già un'altra rete Docker che usa `172.30.80.0/24`.
 - L'installer controlla già la configurazione con `docker compose config --quiet`; dopo l'installazione puoi farlo tu con `sudo bash /opt/tavoloflow/tf.sh config --quiet`. Senza `--quiet` stampa tutto, password comprese.
 
@@ -467,7 +473,7 @@ Si lancia lo script **del pacchetto nuovo**, così script e pacchetto sono sempr
 1. **controlla**: che sia eseguito come root, che `.env` esista, i checksum del pacchetto;
 2. **ripara i permessi** di `/opt/tavoloflow` prima di leggere o eseguire qualsiasi file al suo interno;
 3. **prende il lucchetto** `.operation.lock`, così rilascio, backup e rollback non si sovrappongono mai;
-4. **controlla `.env`** (le tre regole viste sopra);
+4. **controlla `.env`** (le quattro regole viste sopra);
 5. **carica l'immagine dell'API** con `docker load` e verifica che il suo ID sia quello di `image.id`;
 6. **prepara le cartelle** `state/`, `backups/` (700) e `web/` (755);
 7. se c'è già una versione installata, **ferma l'API e fa un backup**; alla prima installazione salta questo passo;
@@ -536,34 +542,55 @@ sudo bash /opt/tavoloflow/bootstrap-admin.sh
 
 Chiede nome utente e password (6–128 caratteri; mentre scrivi non si vede niente, è normale). Lo script ([`bootstrap-admin.sh`](../../deploy/bootstrap-admin.sh)) avvia un container usa e getta dall'immagine dell'API con il comando `--seed-platform-admin`, che crea l'account e termina senza servire richieste (`Operations/MaintenanceCommands.cs`). La password arriva al container come variabile d'ambiente passata per nome (`-e NOME`): non compare tra gli argomenti dei processi, né nella cronologia della shell, né in `.env`. Il comando crea l'amministratore solo se non ne esiste ancora nessuno: rilanciato con lo stesso nome non cambia niente, con un nome diverso si rifiuta.
 
-#### I tre ingressi
+#### Gli ingressi
 
-| Chi                              | Indirizzo                                             |
-| -------------------------------- | ----------------------------------------------------- |
-| Amministratore della piattaforma | `https://app.esempio.it/platform/login`               |
-| Titolare e staff                 | `https://app.esempio.it/staff/login`                  |
-| Cliente                          | `https://app.esempio.it/q/{token}`, dal QR del tavolo |
+| Chi                                | Indirizzo                                                          |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| Amministratore della piattaforma   | `https://app.esempio.it/platform/login`                            |
+| Titolare e staff                   | `https://app.esempio.it/staff/login`                               |
+| Cliente al tavolo, con servizio QR | `https://app.esempio.it/q/{token}`, dal QR del tavolo              |
+| Cliente online, con ordini online  | `https://app.esempio.it/r/{slug}`; dopo l'invio segue `/o/{token}` |
 
 #### Il primo ristorante
 
-1. Entra in `/platform/login` (la lingua si cambia in alto) e crea il ristorante: nome, lingua predefinita del menu, nomi utente del titolare e dello staff, primo periodo di abbonamento.
+1. Entra in `/platform/login` e crea un ristorante di prova: nome, lingua del menu, nomi utente del titolare e dello staff, ed eventualmente primo periodo di abbonamento. Scegli i servizi: QR ai tavoli, ordini online o entrambi. Il valore iniziale abilita solo i QR; per gli ordini online imposta anche l'identificativo del link (`slug`).
 2. Salva subito le due **password temporanee**: vengono mostrate una sola volta.
-3. Il titolare entra in `/staff/login` e, al primo accesso, deve impostare una nuova password («Imposta la nuova password»). Poi prepara il menu (categorie, piatti, prezzi, allergeni) e i tavoli in «Tavoli e QR».
-4. Lo staff fa lo stesso primo accesso con la sua password temporanea.
-5. Un ristorante nasce **sospeso** e con gli ordini disattivati: dall'area amministratore attiva il servizio, poi dalla Sala il titolare o lo staff accende «Ordini dal QR». Riattivare il servizio non riaccende da solo gli ordini.
-6. Scarica e stampa il QR di un tavolo e controlla che, scansionato, apra `https://app.esempio.it/q/...` e non `localhost` o un indirizzo di casa.
-7. Fai un giro completo: apri il tavolo dalla Sala, scansiona il QR con un telefono, inserisci il codice del tavolo, ordina, segna i piatti pronti in Cucina, chiudi il conto da titolare e ritrovalo nello Storico conti.
+3. Il titolare entra in `/staff/login`, imposta la nuova password e prepara il menu: categorie, piatti, prezzi, allergeni ed eventuali opzioni.
+4. Anche lo staff completa il primo cambio di password.
+5. Il ristorante nasce **sospeso**. Dall'area amministratore attiva il servizio, poi segui i percorsi abilitati qui sotto.
 
-L'amministratore non può chiudere i conti al posto del titolare. E gli ordini di prova restano nello storico: per le prove usa un ristorante chiaramente di prova, non quello vero, invece di cancellare righe a mano con SQL.
+**Con i QR ai tavoli:**
+
+1. Il titolare prepara i tavoli in «Tavoli e QR». Dalla Sala, titolare o staff attiva «Ordini dal QR»: l'attivazione del servizio da parte della piattaforma non accende questo interruttore.
+2. Scarica e stampa il QR di un tavolo. Deve aprire `https://app.esempio.it/q/...`, non `localhost` o un indirizzo di casa.
+3. Apri il tavolo, scansiona il QR con un telefono, inserisci il codice se richiesto e ordina. Porta i piatti da Cucina a Pass, segna il servizio, chiudi il conto da titolare e controlla lo Storico conti.
+
+**Con gli ordini online:**
+
+1. Nella Home del titolare apri «Impostazioni ordini online» (`/staff/online-settings`), imposta telefono pubblico e orari settimanali e copia il link `https://app.esempio.it/r/{slug}`.
+2. Controlla che non ci sia una pausa e che l'orario attuale sia dentro una fascia salvata: la pagina deve indicare che i clienti possono ordinare. Il telefono e gli orari sono necessari; l'interruttore «Ordini dal QR» non regola gli ordini online.
+3. Da un altro telefono apri il link e invia un ordine da ritirare. Da `/staff/online` accettalo indicando il tempo, poi verifica Cucina, Pass, chiusura del conto da titolare e pagina cliente `/o/{token}`.
+
+Un ristorante con soli ordini online salta tutti i passi dei tavoli e della Sala. L'amministratore non può chiudere conti al posto del titolare. Gli ordini di prova restano nello storico: usa un ristorante chiaramente di prova, senza cancellare righe a mano con SQL.
 
 #### La PWA dello staff
 
-Su ogni dispositivo del ristorante apri `https://app.esempio.it/staff` e installa l'app:
+Su ogni dispositivo apri `https://app.esempio.it/staff` e installa l'app:
 
-- **Android, computer (Chrome, Edge):** dalla Home dell'app, sezione «Installa su questo dispositivo», pulsante «Installa app», oppure dal menu del browser;
-- **iPhone e iPad (Safari):** «Condividi» → «Aggiungi alla schermata Home»; alla prima apertura dall'icona bisogna accedere di nuovo.
+- **Android, computer (Chrome, Edge):** dalla Home, «Installa su questo dispositivo» → «Installa app», oppure dal menu del browser;
+- **iPhone e iPad:** «Condividi» → «Aggiungi alla schermata Home»; apri dall'icona e accedi se richiesto.
 
-Aperta dall'icona, controlla Home, Cucina e Conto; in Cucina attiva il suono e lo schermo sempre acceso. Senza rete deve comparire una pagina che lo segnala. I clienti su `/q/...` e l'area amministratore non devono mai proporre l'installazione. I dettagli sono in [`pwa.md`](../reference/pwa.md).
+Controlla le pagine disponibili per il ruolo e i servizi. In Cucina prova suono e schermo sempre acceso. Aprendo o ricaricando una pagina senza rete deve comparire la pagina offline.
+
+**Notifiche dei nuovi ordini online**, dopo aver completato il percorso online sopra:
+
+1. Su iPhone e iPad usa l'app dall'icona della Home, con iOS/iPadOS 16.4 o successivo; su Android e computer funziona anche nel browser. Dalla Home attiva «Notifiche a schermo bloccato», consenti il permesso e **aspetta la conferma «Notifiche attive su questo dispositivo»**. Se la sincronizzazione fallisce, riprova prima di bloccare lo schermo.
+2. Per la prova lascia la rete attiva, consenti la visualizzazione sulla schermata di blocco e il suono nelle impostazioni del sistema, e disattiva le modalità silenziose o Focus che potrebbero interferire. Mostrare o suonare una notifica dipende anche dal dispositivo e dalle sue impostazioni.
+3. Blocca lo schermo e invia un nuovo ordine dal link online con un altro telefono. Controlla il numero nella notifica e che un tocco apra `/staff/online`. Il suono di sistema è singolo; il suono continuo del banner riprende con la pagina aperta.
+4. Prova l'uscita: dopo il successo non si inviano più nuove notifiche a quel dispositivo, ma quelle già spedite possono ancora arrivare. Senza il service worker dello staff o l'API Push, l'uscita deve riuscire senza inviare un indirizzo del dispositivo. Un errore effettivo di lettura nel browser o di revoca ti lascia collegato: riprova o verifica l'identità come propone la pagina.
+5. Accedi di nuovo: l'app registra l'iscrizione conservata e mostra «attive» dopo la conferma del server. Non serve un altro permesso se è ancora concesso. In caso di errore puoi riprovare; tornando all'app o riconnettendoti si ripete la verifica.
+
+I clienti su `/q/...`, `/r/...` e `/o/...` e l'area amministratore non devono proporre l'installazione dello staff. I dettagli sono in [`pwa.md`](../reference/pwa.md).
 
 ### 7. Attivare i backup, prima dei dati veri
 
@@ -605,7 +632,7 @@ Poi scarica subito il primo backup sul tuo computer, come spiegato in Parte 2, �
 
 ### Rilasciare una nuova versione
 
-È lo stesso percorso della prima installazione, senza toccare `.env` e senza creare l'amministratore.
+È lo stesso percorso della prima installazione, senza ricreare l'amministratore o `.env`. Conserva i valori esistenti; aggiungi solo le nuove variabili richieste, come nel punto 6.
 
 **Prima di iniziare:**
 
@@ -621,6 +648,24 @@ Poi scarica subito il primo backup sul tuo computer, come spiegato in Parte 2, �
 
 4. Se ci sono migrazioni, o è un aggiornamento importante, scarica prima l'ultimo backup sul tuo computer.
 5. Scegli un orario di chiusura: mentre l'installer fa backup e migrazioni e riavvia l'API, le pagine si aprono ma ogni richiesta a `/api` fallisce.
+
+6. **Prima versione con push, solo se manca `VAPID_PRIVATE_KEY`:** dal terminale del tuo computer accedi prima alla VPS (sostituisci `VPS_IP` con l'indirizzo IP del server; se hai già una sessione SSH aperta, puoi usarla):
+
+   ```bash
+   ssh -o IdentitiesOnly=yes -i ~/.ssh/tavoloflow deploy@VPS_IP
+   ```
+
+   Dopo l'accesso, esegui le operazioni di configurazione sulla VPS. Controlla `.env` con `sudo nano /opt/tavoloflow/.env`. Se la variabile esiste già, conserva il suo valore e salta i comandi seguenti. Se manca:
+
+   ```bash
+   # Solo sulla VPS, se VAPID_PRIVATE_KEY non è ancora presente
+   openssl rand -hex 32
+   sudo nano /opt/tavoloflow/.env
+   ```
+
+   Aggiungi `VAPID_PRIVATE_KEY=` seguito dai 64 caratteri appena generati. Non modificare `POSTGRES_PASSWORD`, non ricreare `.env` dal modello e non rigenerare la chiave a ogni rilascio. Se il valore manca o è invalido, l'installer rifiuta il rilascio prima di fermare l'API; correggi la configurazione e riprova. Per un valore esistente segnalato come invalido, controlla l'inserimento e il backup prima di sostituirlo.
+
+   Al termine, usa `exit` per tornare al terminale locale oppure apri un altro terminale sul tuo computer, quindi continua con la creazione e il caricamento del pacchetto qui sotto.
 
 **Sul tuo computer:**
 
@@ -665,7 +710,7 @@ ferma l'API → backup → migrazioni → nuova API → sposta web/current → r
 
 **Le pagine già aperte.** Una Cucina rimasta aperta tutto il giorno ha in memoria il frontend vecchio, e quando cambia pagina carica pezzi di codice (il router divide il codice per pagina) che si chiamano come nella versione vecchia. Per questo `web/assets/` conserva i file di **tutte** le versioni: con l'hash nel nome non si sovrascrivono mai, e una pagina vecchia trova sempre i suoi. Il codice nuovo arriva solo quando la pagina viene ricaricata o l'app riaperta. Nel frattempo, però, la pagina vecchia parla con l'API nuova: le modifiche all'API devono restare compatibili con i client della versione precedente, altrimenti bisogna far ricaricare tutti i dispositivi.
 
-**Dopo il rilascio** controlla il login, una lettura (per esempio la Cucina o il Conto) e il cambio di pagina nella PWA. Se una scrittura mostra un esito da verificare, segui l'interfaccia: l'app controlla con una GET, e reinviare alla cieca potrebbe ripetere l'operazione.
+**Dopo il rilascio** ricarica la pagina su ogni dispositivo dello staff, così usa anche la nuova logica delle notifiche e dell'uscita. Controlla login, una lettura (Cucina o Conto) e cambio di pagina nella PWA; sui dispositivi con notifiche attivate aspetta la conferma «attive» e ripeti una prova a schermo bloccato. Se una scrittura mostra un esito da verificare, segui l'interfaccia: l'app controlla con una GET, e reinviare alla cieca potrebbe ripetere l'operazione.
 
 Se il rilascio ha cambiato `tavoloflow-backup.service` o `.timer`, l'installer aggiorna solo le copie in `/opt/tavoloflow`: ripeti le due righe `install` e `daemon-reload` del passo 7 della Parte 1.
 
@@ -714,11 +759,13 @@ Ogni esecuzione di [`backup.sh`](../../deploy/backup.sh) crea un archivio in `/o
 tavoloflow-20261027T023000Z-12345.tar.gz    ora UTC e numero del processo
 ├── database.dump      il database, con pg_dump
 ├── keys.tar.gz        le chiavi di Data Protection
-├── production.env     una copia di .env, password comprese
+├── production.env     una copia di .env, password e chiave VAPID comprese
 ├── compose.yaml, Caddyfile
 ├── state/             le versioni installate in quel momento
 └── SHA256SUMS
 ```
+
+- **Due tipi di chiave, entrambi necessari.** `keys.tar.gz` contiene Data Protection; la chiave VAPID è in `production.env`. Conserva e ripristina anche quest'ultimo per mantenere le iscrizioni alle notifiche. Non generare una nuova VAPID durante il ripristino.
 
 - **`pg_dump` legge tutto da un'unica istantanea:** anche se mentre lavora arriva un ordine, il file è coerente, come fotografato in un solo istante.
 - **Le chiavi vanno sempre con il database.** Cookie di login e codici dei tavoli sono cifrati con quelle chiavi: con il database ma senza le chiavi, tutti i dispositivi devono rifare il login e i codici dei tavoli aperti diventano illeggibili.
@@ -873,7 +920,13 @@ Se il server è perso, ricostruisci tutto su una VPS nuova a partire da un backu
 
 1. Prepara la nuova VPS come nel passo 1 della Parte 1 (sistema, SSH, `deploy`, firewall, Docker). **Non toccare ancora il DNS.**
 2. Carica il backup sulla VPS, estrailo in `/root/tavoloflow-restore` (permessi 700) e controlla il suo `SHA256SUMS`.
-3. In `state/current` del backup trovi la versione installata: carica e prepara quel pacchetto come nei passi 3 e 4, ma **senza creare `.env` dal modello**. Installa invece come `.env` il `production.env` del backup (`root:root`, `600`): contiene la password con cui è stato creato il database.
+3. In `state/current` del backup trovi la versione installata: carica e prepara quel pacchetto come nei passi 3 e 4, **saltando la creazione di `.env` dal modello e la generazione di password e VAPID**. Ripristina il `production.env` salvato: contiene password del database e chiave delle notifiche. Dopo aver preparato `/opt/tavoloflow`, esegui:
+
+   ```bash
+   sudo install -o root -g root -m 600 \
+     /root/tavoloflow-restore/production.env /opt/tavoloflow/.env
+   ```
+
 4. Esegui `install-release.sh` come nel passo 5. Crea un database vuoto e chiavi nuove, che stai per sostituire. **Non creare l'amministratore e non creare ristoranti.** Il DNS punta ancora al vecchio indirizzo, quindi è normale che Caddy non ottenga il certificato.
 5. Sostituisci database e chiavi con quelli del backup:
 
@@ -908,7 +961,7 @@ sudo bash /opt/tavoloflow/tf.sh up -d caddy
 sudo bash /opt/tavoloflow/tf.sh logs --tail 80 caddy
 ```
 
-8. Controlla HTTPS, il login, lo Storico conti e il codice dei tavoli ancora aperti, poi riapri il servizio e riattiva il backup automatico (passo 7 della Parte 1).
+8. Controlla HTTPS, login, Storico conti e codici dei tavoli ancora aperti. Sullo stesso dominio originario, con un login ancora valido e lo stesso VAPID, le iscrizioni alle notifiche si conservano: prova un ordine a schermo bloccato. Se il login è scaduto, accedi di nuovo e attendi «attive». Poi riapri il servizio e riattiva il backup automatico (passo 7 della Parte 1).
 
 Il database torna com'era al momento del backup: quello che è successo dopo va ricontrollato a mano con il ristorante.
 
@@ -971,6 +1024,8 @@ Prima di aprire al pubblico, e dopo ogni cambio di server:
 - [ ] Amministratore, titolare e staff entrano; il primo accesso chiede il cambio della password; le tre identità restano separate.
 - [ ] I QR puntano a `https://app.esempio.it/q/...`; apertura del tavolo, ingresso del cliente, ordine, Cucina, Pass, chiusura del conto e Storico conti funzionano dall'inizio alla fine.
 - [ ] La PWA si installa su Android e su iOS; suono, schermo acceso e pagina offline funzionano.
+- [ ] Con gli ordini online configurati e aperti, ogni dispositivo conferma le notifiche attive; la prova a schermo bloccato su Android e iPhone/iPad installato apre la pagina degli ordini online. Uscita e nuovo accesso seguono i controlli del passo 6.
+- [ ] Dopo ripristino o aggiornamento, VAPID è conservata e i dispositivi dello staff sono ricaricati; le notifiche sono state provate sul dominio originale.
 - [ ] Dopo un riavvio della VPS l'app torna su da sola, con dati e login intatti.
 - [ ] Il backup notturno è attivo, un backup è stato scaricato e ripristinato con successo in un database temporaneo.
 - [ ] Sul tuo computer ci sono il pacchetto della versione attuale e quello precedente, e sai dove trovare log, rollback e reset della password.

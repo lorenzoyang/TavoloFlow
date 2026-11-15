@@ -1,7 +1,7 @@
 Project TavoloFlow_MVP_V1 {
   database_type: 'PostgreSQL'
   Note: '''
-    TavoloFlow: 14 tables, one menu per restaurant, offline service subscriptions.
+    TavoloFlow: 15 tables, one menu per restaurant, offline service subscriptions.
     Credential versions revoke account tickets; subscription_version guards
     service administration and bill_version guards session bill confirmation.
     No join-code/QR reset in V1; closing a session invalidates guest cookies.
@@ -43,11 +43,24 @@ Table restaurants {
   ordering_enabled boolean [not null, default: false]
   join_code_required boolean [not null, default: true, note: 'Platform-only switch; false lets guests join an open table without its join code']
   theme varchar(16) [not null, default: 'TERRACOTTA', note: 'Platform-chosen colour preset for guest and staff pages; colours only']
+  dine_in_enabled boolean [not null, default: true, note: 'Platform switch for QR dine-in; without it the floor and tables are gone and QR pages only browse']
+  online_enabled boolean [not null, default: false, note: 'Platform switch for online ordering through /r/{slug}']
+  slug varchar(40) [note: 'Readable online ordering link /r/{slug}; required while online ordering is on, never cleared']
+  public_phone varchar(16) [note: 'OWNER-set phone shown to online customers; online ordering stays closed without it']
+  online_paused_until timestamptz [note: 'STAFF/OWNER pause of online ordering; lapses on its own once the time passes']
+  delivery_enabled boolean [not null, default: false, note: 'OWNER switch for restaurant-run delivery; off only stops new delivery submissions']
+  delivery_note_zh varchar(500) [note: 'Optional delivery area and fee rules shown at checkout, per language']
+  delivery_note_it varchar(500)
+  delivery_note_en varchar(500)
   owner_contact varchar(500)
   default_annual_fee_cents bigint
   subscription_version int [not null, default: 1]
   created_at timestamptz [not null, default: `now()`]
   google_maps_url varchar(2048) [note: 'Platform-only HTTPS Google Maps link, reserved for a public restaurant list']
+
+  Indexes {
+    slug [unique, name: 'uq_restaurant_slug']
+  }
 
   Checks {
     `default_language IN ('zh', 'it', 'en')` [name: 'ck_restaurant_default_language']
@@ -57,7 +70,97 @@ Table restaurants {
     `default_annual_fee_cents IS NULL OR default_annual_fee_cents BETWEEN 0 AND 9007199254740991` [name: 'ck_restaurant_annual_fee']
     `google_maps_url IS NULL OR google_maps_url LIKE 'https://%'` [name: 'ck_restaurant_google_maps_url']
     `theme IN ('TERRACOTTA', 'LACQUER', 'INDIGO', 'INK', 'TARO')` [name: 'ck_restaurant_theme']
+    `dine_in_enabled OR online_enabled` [name: 'ck_restaurant_services']
+    `NOT online_enabled OR slug IS NOT NULL` [name: 'ck_restaurant_online_slug']
+    `slug IS NULL OR slug ~ '^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$'` [name: 'ck_restaurant_slug']
+    `public_phone IS NULL OR public_phone ~ '^\+?[0-9]{6,15}$'` [name: 'ck_restaurant_public_phone']
   }
+}
+
+Table online_hours {
+  restaurant_id uuid [not null]
+  weekday int [not null, note: 'ISO weekday in the restaurant time zone: Monday 1, Sunday 7']
+  slot int [not null, note: '1 or 2, numbered by opening time within the weekday']
+  opens_minute int [not null]
+  closes_minute int [not null, note: 'Exclusive last moment to order; 1440 is midnight']
+
+  Indexes {
+    (restaurant_id, weekday, slot) [pk]
+  }
+  Checks {
+    `weekday BETWEEN 1 AND 7` [name: 'ck_online_hour_weekday']
+    `slot IN (1, 2)` [name: 'ck_online_hour_slot']
+    `opens_minute >= 0 AND opens_minute < closes_minute AND closes_minute <= 1440` [name: 'ck_online_hour_minutes']
+  }
+  Note: 'Weekly online ordering hours. OWNER saves the whole week under the restaurant UPDATE lock; slots never cross midnight and the second starts no earlier than the first ends.'
+}
+
+Table online_counters {
+  restaurant_id uuid [not null]
+  business_date date [not null, note: 'Restaurant local date']
+  last_number int [not null]
+
+  Indexes {
+    (restaurant_id, business_date) [pk]
+  }
+  Checks {
+    `last_number > 0` [name: 'ck_online_counter_number']
+  }
+  Note: 'The last daily pickup/delivery number. A submission takes the next one with INSERT ... ON CONFLICT DO UPDATE ... RETURNING, which also serializes one restaurant-day of submissions.'
+}
+
+Table online_requests {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  client_request_id uuid [not null]
+  status_token varchar(128) [not null, unique, note: 'Random 32-byte Base64URL secret of the status page /o/{token}']
+  business_date date [not null]
+  number int [not null]
+  fulfillment varchar(10) [not null, note: 'PICKUP or DELIVERY; becomes the session channel on acceptance']
+  customer_name varchar(30) [note: 'Required at submission, cleared after 30 days']
+  customer_phone varchar(16) [note: 'Required at submission, cleared after 30 days']
+  delivery_address varchar(200) [note: 'Delivery only']
+  delivery_notes varchar(100) [note: 'Delivery only']
+  lines jsonb [not null, note: 'OrderLineSnapshot array: the order_items snapshot fields with nested options']
+  items_total_cents bigint [not null]
+  default_language_snapshot varchar(2) [not null]
+  submitted_at timestamptz [not null]
+  expires_at timestamptz [not null, note: 'submitted_at + 10 minutes']
+  accepted_at timestamptz
+  estimated_at timestamptz
+  session_id uuid
+  rejected_at timestamptz
+  reject_reason varchar(12) [note: 'SOLD_OUT, BUSY, CLOSING or OUT_OF_RANGE (delivery only)']
+
+  Indexes {
+    (id, restaurant_id) [unique, name: 'uq_online_requests_id_tenant']
+    (restaurant_id, client_request_id) [unique, name: 'uq_online_request_client_request']
+    (restaurant_id, business_date, number) [unique, name: 'uq_online_request_number']
+    (session_id, restaurant_id) [unique, name: 'uq_online_request_session']
+    (restaurant_id, expires_at) [name: 'ix_online_requests_waiting', note: 'WHERE accepted_at IS NULL AND rejected_at IS NULL']
+    (restaurant_id, submitted_at) [name: 'ix_online_requests_contact', note: 'WHERE customer_phone IS NOT NULL']
+  }
+  Checks {
+    `fulfillment IN ('PICKUP', 'DELIVERY')` [name: 'ck_online_request_fulfillment']
+    `number > 0` [name: 'ck_online_request_number']
+    `items_total_cents > 0` [name: 'ck_online_request_total']
+    `default_language_snapshot IN ('zh', 'it', 'en')` [name: 'ck_online_request_language']
+    `jsonb_typeof(lines) = 'array'` [name: 'ck_online_request_lines']
+    `customer_phone IS NULL OR customer_phone ~ '^\+?[0-9]{6,15}$'` [name: 'ck_online_request_phone']
+    `fulfillment = 'DELIVERY' OR (delivery_address IS NULL AND delivery_notes IS NULL)` [name: 'ck_online_request_pickup_address']
+    `expires_at > submitted_at` [name: 'ck_online_request_expiry']
+    `(accepted_at IS NULL OR rejected_at IS NULL) AND (accepted_at IS NULL OR accepted_at < expires_at) AND (rejected_at IS NULL OR rejected_at < expires_at)` [name: 'ck_online_request_decision']
+    `(accepted_at IS NULL AND estimated_at IS NULL AND session_id IS NULL) OR (accepted_at IS NOT NULL AND estimated_at IS NOT NULL AND estimated_at >= accepted_at AND session_id IS NOT NULL)` [name: 'ck_online_request_accepted']
+    `reject_reason IS NULL OR (rejected_at IS NOT NULL AND (reject_reason IN ('SOLD_OUT', 'BUSY', 'CLOSING') OR (reject_reason = 'OUT_OF_RANGE' AND fulfillment = 'DELIVERY')))` [name: 'ck_online_request_reject_reason']
+  }
+  Note: '''
+    One online submission, with no status column: accepted (accepted_at),
+    rejected (rejected_at), waiting (neither, now < expires_at) or expired
+    (neither, now >= expires_at), always with now from TimeProvider.
+    Only acceptance creates the session, its single order and the order items,
+    copied from lines; expired and rejected requests never do.
+    lines.menuItemId is not a foreign key.
+  '''
 }
 
 Table restaurant_users {
@@ -83,6 +186,37 @@ Table restaurant_users {
   }
 
   Note: 'At most one OWNER and STAFF account per restaurant. Create both in the restaurant bootstrap transaction.'
+}
+
+// Staff devices that receive lock-screen notifications of new online orders.
+Table push_subscriptions {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  user_id uuid [not null]
+  endpoint varchar(2048) [not null, unique, note: 'Browser push service URL; only known services are accepted']
+  p256dh varchar(128) [not null, note: 'Device P-256 public key, base64url']
+  auth varchar(128) [not null, note: 'Device 16-byte auth secret, base64url']
+  credential_version int [not null, note: 'The account version when the device registered']
+  language varchar(2) [not null, note: 'Notification language: zh, it or en']
+  expires_at timestamptz [not null, note: 'Expiry of the sign-in that registered the device']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  Indexes {
+    endpoint [unique, name: 'uq_push_subscription_endpoint']
+    restaurant_id [name: 'ix_push_subscriptions_restaurant']
+  }
+
+  Checks {
+    `credential_version > 0` [name: 'ck_push_subscription_credential_version']
+    `language IN ('zh', 'it', 'en')` [name: 'ck_push_subscription_language']
+  }
+
+  Note: '''
+    One row per device, upserted on endpoint, so signing in on the device moves it to that account.
+    A row stops receiving, and is deleted before sending or registering, once its account is inactive,
+    must change its password or has another credential version, or once expires_at has passed.
+  '''
 }
 
 // Service periods; service state is independent of payment.
@@ -272,12 +406,14 @@ Table menu_item_option_groups {
 Table dining_sessions {
   id uuid [pk]
   restaurant_id uuid [not null]
-  table_id uuid [note: 'Nullable for retained closed history after table deletion']
+  channel varchar(10) [not null, default: 'DINE_IN', note: 'DINE_IN, PICKUP or DELIVERY; fixed at creation']
+  table_id uuid [note: 'Dine-in only; nullable for retained closed history after table deletion']
   status varchar(10) [not null, default: 'ACTIVE']
   join_code_ciphertext text [note: 'Encrypt reversible 4-character join code; NULL after closing']
   bill_version int [not null, default: 1, note: 'Per-session counter. Increment once per successful new order or cancellation']
-  table_label_snapshot varchar(50) [not null]
-  opened_at timestamptz [not null, default: `now()`]
+  table_label_snapshot varchar(50) [note: 'Dine-in only']
+  delivery_fee_cents bigint [note: 'Delivery only, and then required']
+  opened_at timestamptz [not null, default: `now()`, note: 'Online sessions: the acceptance time']
   closed_at timestamptz
   close_reason varchar(10)
   closed_total_cents bigint
@@ -285,19 +421,26 @@ Table dining_sessions {
   Indexes {
     (id, restaurant_id) [unique, name: 'uq_sessions_id_tenant']
     (table_id, status)
+    restaurant_id
+    (restaurant_id, opened_at) [name: 'ix_dining_sessions_active', note: 'Partial: WHERE status = ACTIVE (bills page, online orders in progress)']
   }
 
   Checks {
     `status IN ('ACTIVE', 'CLOSED')` [name: 'ck_session_status']
     `bill_version > 0` [name: 'ck_session_bill_version']
-    `status <> 'ACTIVE' OR table_id IS NOT NULL` [name: 'ck_session_active_table']
-    `close_reason IS NULL OR close_reason IN ('PAID', 'VOIDED', 'EMPTY')` [name: 'ck_session_close_reason']
-    `(status = 'ACTIVE' AND closed_at IS NULL AND close_reason IS NULL AND closed_total_cents IS NULL AND join_code_ciphertext IS NOT NULL) OR (status = 'CLOSED' AND closed_at IS NOT NULL AND close_reason IS NOT NULL AND closed_total_cents IS NOT NULL AND join_code_ciphertext IS NULL)` [name: 'ck_session_lifecycle']
+    `channel IN ('DINE_IN', 'PICKUP', 'DELIVERY')` [name: 'ck_session_channel']
+    `channel <> 'DINE_IN' OR (table_label_snapshot IS NOT NULL AND (status <> 'ACTIVE' OR (table_id IS NOT NULL AND join_code_ciphertext IS NOT NULL)))` [name: 'ck_session_dine_in']
+    `channel = 'DINE_IN' OR (table_id IS NULL AND table_label_snapshot IS NULL AND join_code_ciphertext IS NULL)` [name: 'ck_session_online']
+    `close_reason IS NULL OR close_reason IN ('PAID', 'VOIDED') OR (close_reason = 'EMPTY' AND channel = 'DINE_IN') OR (close_reason = 'NO_SHOW' AND channel <> 'DINE_IN')` [name: 'ck_session_close_reason']
+    `(channel = 'DELIVERY' AND delivery_fee_cents IS NOT NULL AND delivery_fee_cents >= 0) OR (channel <> 'DELIVERY' AND delivery_fee_cents IS NULL)` [name: 'ck_session_delivery_fee']
+    `(status = 'ACTIVE' AND closed_at IS NULL AND close_reason IS NULL AND closed_total_cents IS NULL) OR (status = 'CLOSED' AND closed_at IS NOT NULL AND close_reason IS NOT NULL AND closed_total_cents IS NOT NULL AND join_code_ciphertext IS NULL)` [name: 'ck_session_lifecycle']
     `closed_total_cents IS NULL OR closed_total_cents >= 0` [name: 'ck_session_closed_total']
     `closed_at IS NULL OR closed_at >= opened_at` [name: 'ck_session_close_time']
   }
 
   Note: '''
+    A session is a dine-in visit at a table, or an accepted online order
+    (PICKUP or DELIVERY) with no table, label or join code.
     EF Core filtered unique index: (table_id) WHERE status = 'ACTIVE'.
     Opening/closing timestamps are retained without shared-account attribution.
     No join-code or QR reset in V1. A protected HttpOnly guest cookie
@@ -395,6 +538,10 @@ Table order_items {
 // Restaurant ownership: a permanent restaurant DELETE removes the entire tenant.
 Ref: restaurant_users.restaurant_id > restaurants.id [delete: cascade]
 Ref: restaurant_subscription_periods.restaurant_id > restaurants.id [delete: cascade]
+Ref: online_hours.restaurant_id > restaurants.id [delete: cascade]
+Ref: online_counters.restaurant_id > restaurants.id [delete: cascade]
+Ref: online_requests.restaurant_id > restaurants.id [delete: cascade]
+Ref: push_subscriptions.restaurant_id > restaurants.id [delete: cascade]
 Ref: restaurant_tables.restaurant_id > restaurants.id [delete: cascade]
 Ref: menu_categories.restaurant_id > restaurants.id [delete: cascade]
 Ref: menu_items.restaurant_id > restaurants.id [delete: cascade]
@@ -412,6 +559,8 @@ Ref: menu_item_option_groups.(menu_item_id, restaurant_id) > menu_items.(id, res
 Ref: menu_item_option_groups.(group_id, restaurant_id) > menu_option_groups.(id, restaurant_id) [delete: cascade]
 Ref: dining_sessions.(table_id, restaurant_id) > restaurant_tables.(id, restaurant_id) [delete: no action]
 Ref: orders.(dining_session_id, restaurant_id) > dining_sessions.(id, restaurant_id) [delete: cascade]
+Ref: online_requests.(session_id, restaurant_id) - dining_sessions.(id, restaurant_id) [delete: no action]
+Ref: push_subscriptions.(user_id, restaurant_id) > restaurant_users.(id, restaurant_id) [delete: cascade]
 Ref: order_items.(order_id, restaurant_id) > orders.(id, restaurant_id) [delete: cascade]
 Ref: order_items.(menu_item_id, restaurant_id) > menu_items.(id, restaurant_id) [delete: no action]
 
@@ -420,6 +569,7 @@ TableGroup platform_and_accounts {
   restaurants
   restaurant_users
   restaurant_subscription_periods
+  online_hours
 }
 
 TableGroup tables_and_menu {
@@ -436,4 +586,10 @@ TableGroup dining_and_orders {
   dining_sessions
   orders
   order_items
+}
+
+TableGroup online_ordering {
+  online_counters
+  online_requests
+  push_subscriptions
 }

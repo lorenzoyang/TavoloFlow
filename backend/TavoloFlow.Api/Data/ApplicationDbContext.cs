@@ -21,6 +21,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<DiningSession> DiningSessions => Set<DiningSession>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+    public DbSet<OnlineHour> OnlineHours => Set<OnlineHour>();
+    public DbSet<OnlineCounter> OnlineCounters => Set<OnlineCounter>();
+    public DbSet<OnlineRequest> OnlineRequests => Set<OnlineRequest>();
+    public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

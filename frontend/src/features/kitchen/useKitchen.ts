@@ -7,7 +7,7 @@ import { orderChime } from "@/lib/alert-sound";
 import { ApiError, errorMessage, withTimeout } from "@/lib/api";
 import { displayName } from "@/lib/language";
 import { syncIsFresh, syncIsStalled } from "@/lib/live-view";
-import { staffMessages } from "@/lib/staff-messages";
+import { sessionTitle } from "@/lib/session-label";
 import { invalidateStoreViews } from "@/lib/store-views";
 import { useAlertSound } from "@/lib/useAlertSound";
 import { isLive, onLifecycleChange, useLiveView } from "@/lib/useLiveView";
@@ -46,7 +46,6 @@ export function useKitchen(account: CurrentAccount) {
   const client = useQueryClient();
   const language = useStaffLanguage();
   const m = kitchenMessages[language];
-  const c = staffMessages[language];
   const { restaurantId, userId, role } = account;
   const scope = useMemo(() => kitchenKey({ restaurantId, userId }), [restaurantId, userId]);
   const sameAccount = useCallback(
@@ -197,7 +196,7 @@ export function useKitchen(account: CurrentAccount) {
         action,
         order.items.find((i) => i.id === action.itemId)?.status,
       );
-      setNotice(m.recovered(c.table(order.tableLabel), result));
+      setNotice(m.recovered(sessionTitle(order, language), result));
       setError("");
     } catch (e) {
       if (!current()) return;
@@ -238,7 +237,7 @@ export function useKitchen(account: CurrentAccount) {
       // Feedback is replaced when the result arrives, not cleared on tap, so it does not flicker.
       setError("");
       const dish = displayName(item, order.defaultLanguage, language).text;
-      setNotice(m.done(`${c.table(result.tableLabel)} · ${dish} ×${item.quantity}`, kind));
+      setNotice(m.done(`${sessionTitle(result, language)} · ${dish} ×${item.quantity}`, kind));
       return result;
     } catch (e) {
       if (!current()) return;

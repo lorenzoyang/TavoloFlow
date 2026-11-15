@@ -3,7 +3,7 @@ import { isUuid } from "../../lib/ids.ts";
 import { chosenOptions, selectionIssue, unitPriceCents, type ChosenOption } from "./options.ts";
 
 // expectedUnitPriceCents includes the chosen options' deltas.
-type OrderLineInput = {
+export type OrderLineInput = {
   menuItemId: string;
   quantity: number;
   expectedUnitPriceCents: number;
@@ -22,6 +22,9 @@ export type CartLine = {
   quantity: number;
   remark: string;
 };
+// What the line rules below need from a cart; the QR cart and the online cart both have it. A pending
+// request freezes the lines.
+export type CartDraft = { lines: CartLine[]; pending: unknown };
 // Version 2: every line carries its chosen options. Any other saved version is treated as damaged.
 export type Cart = {
   version: 2;
@@ -74,7 +77,7 @@ export function totalCents(lines: CartLine[]): number {
   return Number(total);
 }
 
-export function validateCart(cart: Cart) {
+export function validateCart<C extends CartDraft>(cart: C): C {
   if (
     cart.lines.length > 30 ||
     cart.lines.some(
@@ -107,12 +110,12 @@ function merge(lines: CartLine[]) {
 }
 
 // The caller passes the menu's groups, so a dish with options is added only with a complete choice.
-export function addItem(
-  cart: Cart,
+export function addItem<C extends CartDraft>(
+  cart: C,
   item: MenuItem,
   groups: readonly OptionGroup[] = [],
   optionIds: readonly string[] = [],
-): Cart {
+): C {
   if (cart.pending) return cart;
   if (!item.isAvailable || !item.allergenReviewed) throw new CartError("unavailable");
   if (selectionIssue(item, groups, optionIds)) throw new CartError("options");
@@ -122,11 +125,11 @@ export function addItem(
     lines: merge([...cart.lines, { item, options, quantity: 1, remark: "" }]),
   });
 }
-export function editLine(
-  cart: Cart,
+export function editLine<C extends CartDraft>(
+  cart: C,
   index: number,
   patch: Partial<Pick<CartLine, "quantity" | "remark">>,
-): Cart {
+): C {
   if (cart.pending) return cart;
   return validateCart({
     ...cart,
@@ -138,11 +141,11 @@ export function editLine(
   });
 }
 // Lines take the current dish and option details; a choice that no longer fits stops the review.
-export function refreshCart(
-  cart: Cart,
+export function refreshCart<C extends CartDraft>(
+  cart: C,
   menu: MenuItem[],
   groups: readonly OptionGroup[] = [],
-): Cart {
+): C {
   const lines = cart.lines.map((line) => {
     const item = menu.find((i) => i.id === line.item.id);
     if (!item || !item.isAvailable || !item.allergenReviewed) throw new CartError("unavailable");
@@ -156,17 +159,18 @@ export function createIntent(cart: Cart, sessionId: string, requestId: string): 
   validateCart(cart);
   if (!cart.lines.length || cart.pending || !isUuid(sessionId) || !isUuid(requestId))
     throw new CartError("limits");
-  return {
-    sessionId,
-    clientRequestId: requestId,
-    items: cart.lines.map((l) => ({
-      menuItemId: l.item.id,
-      quantity: l.quantity,
-      expectedUnitPriceCents: linePrice(l),
-      remark: clean(l.remark) || null,
-      optionIds: l.options.map((option) => option.id),
-    })),
-  };
+  return { sessionId, clientRequestId: requestId, items: intentItems(cart.lines) };
+}
+
+// The order lines a submission sends, with the prices the customer confirmed.
+export function intentItems(lines: CartLine[]): OrderLineInput[] {
+  return lines.map((l) => ({
+    menuItemId: l.item.id,
+    quantity: l.quantity,
+    expectedUnitPriceCents: linePrice(l),
+    remark: clean(l.remark) || null,
+    optionIds: l.options.map((option) => option.id),
+  }));
 }
 
 function validItem(value: unknown): value is MenuItem {
@@ -210,6 +214,36 @@ function validOption(value: unknown): value is ChosenOption {
   );
 }
 
+// Saved lines read back from storage, copied field by field; throws when any line is damaged.
+export function restoreLines(value: unknown): CartLine[] {
+  const lines = value as CartLine[];
+  if (
+    !Array.isArray(lines) ||
+    lines.some(
+      (l) =>
+        !l ||
+        !validItem(l.item) ||
+        typeof l.remark !== "string" ||
+        !Array.isArray(l.options) ||
+        !l.options.every(validOption),
+    )
+  )
+    throw new Error();
+  return lines.map((l) => ({
+    item: l.item,
+    options: l.options.map((o) => ({
+      id: o.id,
+      groupId: o.groupId,
+      nameZh: o.nameZh,
+      nameIt: o.nameIt,
+      nameEn: o.nameEn,
+      priceDeltaCents: o.priceDeltaCents,
+    })),
+    quantity: l.quantity,
+    remark: l.remark,
+  }));
+}
+
 export function restoreCart(raw: string | null, fallback: Cart): Cart {
   if (raw === null) return fallback;
   try {
@@ -218,16 +252,7 @@ export function restoreCart(raw: string | null, fallback: Cart): Cart {
       value.version !== 2 ||
       value.restaurantId !== fallback.restaurantId ||
       value.tableId !== fallback.tableId ||
-      (value.sessionId !== null && !isUuid(value.sessionId)) ||
-      !Array.isArray(value.lines) ||
-      value.lines.some(
-        (l) =>
-          !l ||
-          !validItem(l.item) ||
-          typeof l.remark !== "string" ||
-          !Array.isArray(l.options) ||
-          !l.options.every(validOption),
-      )
+      (value.sessionId !== null && !isUuid(value.sessionId))
     )
       throw new Error();
     const cart: Cart = validateCart({
@@ -235,19 +260,7 @@ export function restoreCart(raw: string | null, fallback: Cart): Cart {
       restaurantId: value.restaurantId,
       tableId: value.tableId,
       sessionId: value.sessionId,
-      lines: value.lines.map((l) => ({
-        item: l.item,
-        options: l.options.map((o) => ({
-          id: o.id,
-          groupId: o.groupId,
-          nameZh: o.nameZh,
-          nameIt: o.nameIt,
-          nameEn: o.nameEn,
-          priceDeltaCents: o.priceDeltaCents,
-        })),
-        quantity: l.quantity,
-        remark: l.remark,
-      })),
+      lines: restoreLines(value.lines),
       pending: null,
     });
     if (value.pending !== null) {
@@ -281,7 +294,7 @@ export function restoreCart(raw: string | null, fallback: Cart): Cart {
 export function persistCart(
   storage: Pick<Storage, "setItem" | "getItem">,
   key: string,
-  cart: Cart,
+  cart: CartDraft,
 ) {
   const raw = JSON.stringify(cart);
   try {
@@ -318,6 +331,7 @@ export function submissionFailure(
     "MENU_CHANGED",
     "ORDERING_PAUSED",
     "SERVICE_SUSPENDED",
+    "DINE_IN_NOT_OFFERED",
     "TABLE_DISABLED",
     "BILL_LIMIT_REACHED",
     "CSRF_VALIDATION_FAILED",

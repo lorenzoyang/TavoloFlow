@@ -51,6 +51,19 @@ export function formatTime(
   });
 }
 
+// "Wed 12:00" in the restaurant's time zone, for moments within the coming week.
+export function formatWeekdayTime(
+  value: string | number,
+  language: Language = "zh",
+  timeZone = RESTAURANT_TIME_ZONE,
+) {
+  const weekday = new Date(value).toLocaleDateString(locales[language], {
+    timeZone,
+    weekday: "short",
+  });
+  return `${weekday} ${formatTime(value, language, timeZone)}`;
+}
+
 // A short reference people can read out. Server IDs are UUIDv7, whose leading digits are a timestamp
 // shared by records created within the same minute, so the reference uses the random tail instead.
 export function shortId(id: string) {

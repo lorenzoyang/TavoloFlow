@@ -29,7 +29,7 @@ function NavItem({ item, rail }: { item: StaffDestination; rail: boolean }) {
 // One list of tabs: a bottom bar on phones, a side rail from tablet width up.
 export function StaffNav({ account }: { account: CurrentAccount }) {
   const language = useStaffLanguage();
-  const items = staffNavItems(account.role, language);
+  const items = staffNavItems(account, language);
   const label = accountMessages[language].mainNav;
   return (
     <>

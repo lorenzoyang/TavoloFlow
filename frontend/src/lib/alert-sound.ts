@@ -31,6 +31,15 @@ export const passChime: Chime = [
   [0.5, 1047],
 ];
 
+// Low-high pairs like a phone ringing, repeated while online orders wait: unlike the kitchen's rising
+// pair and the pass's three equal beeps, it keeps going until someone accepts or rejects.
+export const onlineRing: Chime = [
+  [0, 784],
+  [0.16, 988],
+  [0.32, 784],
+  [0.48, 988],
+];
+
 // Near full scale but below 1, so the decaying tail of one tone plus the next stays unclipped. A page
 // cannot exceed the device volume, which the tablet itself must keep up.
 const peak = 0.85;

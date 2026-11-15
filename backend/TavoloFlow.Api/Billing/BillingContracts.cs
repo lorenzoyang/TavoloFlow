@@ -20,11 +20,28 @@ public sealed record CloseZeroBillInput(
     [Required] bool? GuestsLeftConfirmed
 );
 
+// NO_SHOW: an online order the customer never collected. The amount is the receivable not received.
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record CloseNoShowInput(
+    [Required, Range(1, int.MaxValue)] int? ExpectedBillVersion,
+    [Required] long? ConfirmedTotalCents,
+    [Required] bool? NoShowConfirmed
+);
+
+// OWNER corrects a delivery order's fee before closure, against the bill version it was read at.
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record DeliveryFeeInput(
+    [Required, Range(1, int.MaxValue)] int? ExpectedBillVersion,
+    [Required] long? DeliveryFeeCents
+);
+
 public sealed record BillPage(
     BillSummaryResponse Summary,
     KitchenOrderResponse[] Orders,
     string? NextCursor
 );
+
+public sealed record ActiveSessionsPage(BillSummaryResponse[] Items);
 
 public sealed record HistoryPage(
     BillSummaryResponse[] Items,

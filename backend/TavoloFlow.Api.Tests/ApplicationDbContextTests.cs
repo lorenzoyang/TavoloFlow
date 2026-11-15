@@ -35,9 +35,13 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database)
                 "menu_items",
                 "menu_option_groups",
                 "menu_options",
+                "online_counters",
+                "online_hours",
+                "online_requests",
                 "order_items",
                 "orders",
                 "platform_users",
+                "push_subscriptions",
                 "restaurant_subscription_periods",
                 "restaurant_tables",
                 "restaurant_users",
@@ -325,7 +329,15 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database)
     [InlineData("mixed_case_username", "ck_restaurant_user_username")]
     [InlineData("closed_without_reason", "ck_session_lifecycle")]
     [InlineData("closed_before_open", "ck_session_close_time")]
-    [InlineData("active_without_table", "ck_session_active_table")]
+    [InlineData("active_without_table", "ck_session_dine_in")]
+    [InlineData("dine_in_without_label", "ck_session_dine_in")]
+    [InlineData("active_without_join_code", "ck_session_dine_in")]
+    [InlineData("online_with_table", "ck_session_online")]
+    [InlineData("unknown_channel", "ck_session_channel")]
+    [InlineData("no_show_dine_in", "ck_session_close_reason")]
+    [InlineData("empty_online", "ck_session_close_reason")]
+    [InlineData("pickup_with_fee", "ck_session_delivery_fee")]
+    [InlineData("delivery_without_fee", "ck_session_delivery_fee")]
     [InlineData("processed_without_timestamp", "ck_order_lifecycle")]
     [InlineData("item_ready_without_timestamp", "ck_order_item_lifecycle")]
     [InlineData("item_cancelled_without_timestamp", "ck_order_item_lifecycle")]
@@ -357,6 +369,22 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database)
                 $"UPDATE dining_sessions SET status = 'CLOSED', closed_at = opened_at - interval '1 second', close_reason = 'EMPTY', closed_total_cents = 0, join_code_ciphertext = NULL WHERE id = {visit.SessionId}",
             "active_without_table" =>
                 $"UPDATE dining_sessions SET table_id = NULL WHERE id = {visit.SessionId}",
+            "dine_in_without_label" =>
+                $"UPDATE dining_sessions SET table_label_snapshot = NULL WHERE id = {visit.SessionId}",
+            "active_without_join_code" =>
+                $"UPDATE dining_sessions SET join_code_ciphertext = NULL WHERE id = {visit.SessionId}",
+            "online_with_table" =>
+                $"UPDATE dining_sessions SET channel = 'PICKUP' WHERE id = {visit.SessionId}",
+            "unknown_channel" =>
+                $"UPDATE dining_sessions SET channel = 'TAKEAWAY' WHERE id = {visit.SessionId}",
+            "no_show_dine_in" =>
+                $"UPDATE dining_sessions SET status = 'CLOSED', closed_at = now(), close_reason = 'NO_SHOW', closed_total_cents = 0, join_code_ciphertext = NULL WHERE id = {visit.SessionId}",
+            "empty_online" =>
+                $"UPDATE dining_sessions SET channel = 'PICKUP', table_id = NULL, table_label_snapshot = NULL, join_code_ciphertext = NULL, status = 'CLOSED', closed_at = now(), close_reason = 'EMPTY', closed_total_cents = 0 WHERE id = {visit.SessionId}",
+            "pickup_with_fee" =>
+                $"UPDATE dining_sessions SET channel = 'PICKUP', table_id = NULL, table_label_snapshot = NULL, join_code_ciphertext = NULL, delivery_fee_cents = 0 WHERE id = {visit.SessionId}",
+            "delivery_without_fee" =>
+                $"UPDATE dining_sessions SET channel = 'DELIVERY', table_id = NULL, table_label_snapshot = NULL, join_code_ciphertext = NULL WHERE id = {visit.SessionId}",
             "processed_without_timestamp" =>
                 $"UPDATE orders SET status = 'PROCESSED' WHERE id = {order.Id}",
             "item_ready_without_timestamp" =>
@@ -365,6 +393,66 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database)
                 $"UPDATE order_items SET status = 'CANCELLED' WHERE id = {line.Id}",
             "processed_before_creation" =>
                 $"UPDATE orders SET status = 'PROCESSED', processed_at = created_at - interval '1 second' WHERE id = {order.Id}",
+            _ => throw new ArgumentOutOfRangeException(nameof(scenario)),
+        };
+        var error = await Assert.ThrowsAsync<PostgresException>(() =>
+            context.Database.ExecuteSqlInterpolatedAsync(sql)
+        );
+        Assert.Equal(PostgresErrorCodes.CheckViolation, error.SqlState);
+        Assert.Equal(constraint, error.ConstraintName);
+    }
+
+    [Theory]
+    [InlineData("both_decisions", "ck_online_request_decision")]
+    [InlineData("rejected_after_expiry", "ck_online_request_decision")]
+    [InlineData("accepted_without_session", "ck_online_request_accepted")]
+    [InlineData("estimate_before_acceptance", "ck_online_request_accepted")]
+    [InlineData("accepted_without_estimate", "ck_online_request_accepted")]
+    [InlineData("reason_without_rejection", "ck_online_request_reject_reason")]
+    [InlineData("out_of_range_pickup", "ck_online_request_reject_reason")]
+    [InlineData("pickup_address", "ck_online_request_pickup_address")]
+    [InlineData("invalid_phone", "ck_online_request_phone")]
+    [InlineData("lines_not_array", "ck_online_request_lines")]
+    [InlineData("expires_at_submission", "ck_online_request_expiry")]
+    [InlineData("unknown_fulfillment", "ck_online_request_fulfillment")]
+    [InlineData("zero_number", "ck_online_request_number")]
+    public async Task Update_InvalidOnlineRequest_RejectsCheckConstraint(
+        string scenario,
+        string constraint
+    )
+    {
+        var visit = await SeedVisitAsync();
+        await using var context = database.CreateContext();
+        var request = OnlineTestData.Request(visit.RestaurantId, DateTime.UtcNow, number: 1);
+        context.OnlineRequests.Add(request);
+        await context.SaveChangesAsync();
+        FormattableString sql = scenario switch
+        {
+            "both_decisions" =>
+                $"UPDATE online_requests SET accepted_at = submitted_at, estimated_at = submitted_at, session_id = {visit.SessionId}, rejected_at = submitted_at WHERE id = {request.Id}",
+            "rejected_after_expiry" =>
+                $"UPDATE online_requests SET rejected_at = expires_at WHERE id = {request.Id}",
+            "accepted_without_session" =>
+                $"UPDATE online_requests SET accepted_at = submitted_at, estimated_at = submitted_at WHERE id = {request.Id}",
+            "estimate_before_acceptance" =>
+                $"UPDATE online_requests SET accepted_at = submitted_at, estimated_at = submitted_at - interval '1 minute', session_id = {visit.SessionId} WHERE id = {request.Id}",
+            "accepted_without_estimate" =>
+                $"UPDATE online_requests SET accepted_at = submitted_at, session_id = {visit.SessionId} WHERE id = {request.Id}",
+            "reason_without_rejection" =>
+                $"UPDATE online_requests SET reject_reason = 'BUSY' WHERE id = {request.Id}",
+            "out_of_range_pickup" =>
+                $"UPDATE online_requests SET rejected_at = submitted_at, reject_reason = 'OUT_OF_RANGE' WHERE id = {request.Id}",
+            "pickup_address" =>
+                $"UPDATE online_requests SET delivery_address = 'Via Roma 1' WHERE id = {request.Id}",
+            "invalid_phone" =>
+                $"UPDATE online_requests SET customer_phone = '12ab34' WHERE id = {request.Id}",
+            "lines_not_array" =>
+                $"UPDATE online_requests SET lines = '{{}}'::jsonb WHERE id = {request.Id}",
+            "expires_at_submission" =>
+                $"UPDATE online_requests SET expires_at = submitted_at WHERE id = {request.Id}",
+            "unknown_fulfillment" =>
+                $"UPDATE online_requests SET fulfillment = 'TAKEAWAY' WHERE id = {request.Id}",
+            "zero_number" => $"UPDATE online_requests SET number = 0 WHERE id = {request.Id}",
             _ => throw new ArgumentOutOfRangeException(nameof(scenario)),
         };
         var error = await Assert.ThrowsAsync<PostgresException>(() =>
@@ -483,6 +571,33 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database)
             setup.Add(platformUser);
             foreach (var visit in new[] { deleted, preserved })
             {
+                // A waiting request and an accepted one with its pickup session, order and item.
+                var waiting = OnlineTestData.Request(visit.RestaurantId, DateTime.UtcNow, 1);
+                var accepted = OnlineTestData.Request(
+                    visit.RestaurantId,
+                    DateTime.UtcNow,
+                    2,
+                    visit.MenuItemId
+                );
+                setup.AddRange(
+                    waiting,
+                    accepted,
+                    OnlineTestData.Accept(accepted, DateTime.UtcNow, menuItemExists: true),
+                    new OnlineHour
+                    {
+                        RestaurantId = visit.RestaurantId,
+                        Weekday = 1,
+                        Slot = 1,
+                        OpensMinute = 660,
+                        ClosesMinute = 900,
+                    },
+                    new OnlineCounter
+                    {
+                        RestaurantId = visit.RestaurantId,
+                        BusinessDate = waiting.BusinessDate,
+                        LastNumber = 2,
+                    }
+                );
                 var order = NewOrder(visit);
                 setup.AddRange(
                     order,
@@ -523,14 +638,14 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database)
         Assert.False(
             await context.Restaurants.AnyAsync(restaurant => restaurant.Id == deleted.RestaurantId)
         );
-        Assert.Equal(new int[7], await GetRestaurantRowCountsAsync(context, deleted.RestaurantId));
+        Assert.Equal(new int[10], await GetRestaurantRowCountsAsync(context, deleted.RestaurantId));
         Assert.True(
             await context.Restaurants.AnyAsync(restaurant =>
                 restaurant.Id == preserved.RestaurantId
             )
         );
         Assert.Equal(
-            new[] { 2, 1, 1, 1, 1, 1, 1 },
+            new[] { 2, 1, 1, 1, 2, 2, 2, 1, 1, 2 },
             await GetRestaurantRowCountsAsync(context, preserved.RestaurantId)
         );
         // Photos have no restaurant_id: they cascade through their dish.
@@ -803,6 +918,13 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database)
             ),
             await context.Orders.CountAsync(order => order.RestaurantId == restaurantId),
             await context.OrderItems.CountAsync(item => item.RestaurantId == restaurantId),
+            await context.OnlineHours.CountAsync(hour => hour.RestaurantId == restaurantId),
+            await context.OnlineCounters.CountAsync(counter =>
+                counter.RestaurantId == restaurantId
+            ),
+            await context.OnlineRequests.CountAsync(request =>
+                request.RestaurantId == restaurantId
+            ),
         ];
 
     private sealed record VisitData(

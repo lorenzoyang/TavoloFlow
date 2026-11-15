@@ -74,13 +74,14 @@ test("arrival detection works beyond the displayed page and does not alarm on pr
   assert.equal(watermarkAdvanced(null, "2026-10-29T12:01:00Z", 42_000).advanced, false);
 });
 
-test("stale and resumed views cannot authorize UI writes before a fresh successful poll", () => {
+test("writes and ringing require a fresh successful poll since resume", () => {
   assert.equal(syncIsFresh(1000, 30_999, 1000, true, false), true);
   assert.equal(syncIsFresh(1000, 31_000, 1000, true, false), false);
   assert.equal(syncIsFresh(1000, 2000, 1001, true, false), false);
   assert.equal(syncIsFresh(1000, 2000, 1000, false, false), false);
   assert.equal(syncIsFresh(1000, 2000, 1000, true, true), false);
   assert.equal(syncIsFresh(0, 2000, 0, true, false), false);
+  assert.equal(syncIsFresh(2000, 2000, 2000, true, false), true);
 });
 
 test("a first poll after loading, resuming or switching tabs is not reported until the grace ends", () => {
@@ -139,7 +140,9 @@ const ticket = (id: string, table: string, createdAt: string, items: OrderLine[]
   ({
     id,
     sessionId: action.sessionId,
+    channel: "DINE_IN",
     tableLabel: table,
+    online: null,
     status: "NEW",
     createdAt,
     processedAt: null,

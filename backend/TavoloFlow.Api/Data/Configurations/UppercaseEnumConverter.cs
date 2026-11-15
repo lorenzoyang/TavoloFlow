@@ -7,6 +7,5 @@ internal sealed class UppercaseEnumConverter<TEnum> : ValueConverter<TEnum, stri
     where TEnum : struct, Enum
 {
     public UppercaseEnumConverter()
-        : base(value => ApiEnum.Text(value), value => Enum.Parse<TEnum>(value, ignoreCase: true))
-    { }
+        : base(value => ApiEnum.Text(value), value => ApiEnum.Parse<TEnum>(value)) { }
 }

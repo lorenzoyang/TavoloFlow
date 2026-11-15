@@ -1,0 +1,123 @@
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using TavoloFlow.Api.Common;
+
+namespace TavoloFlow.Api.Online;
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record OnlineHourInput(
+    [Required] int? Weekday,
+    [Required] int? OpensMinute,
+    [Required] int? ClosesMinute
+);
+
+// The whole week at once; an empty list removes every slot.
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record OnlineHoursInput([Required] OnlineHourInput?[]? Slots);
+
+// Blank clears the phone, which stops online orders.
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record PublicPhoneInput(
+    [StringLength(InputRules.MaxPhoneInputLength)] string? PublicPhone
+);
+
+// SLOT pauses until the current slot ends; TODAY until the next local midnight.
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record OnlinePauseInput(
+    [Required, RegularExpression("^(SLOT|TODAY)$")] string? Until
+);
+
+// Delivery: the switch and the optional note per language, replaced together. Blank notes are stored as
+// NULL; turning delivery off keeps the notes for the next time.
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record OnlineDeliveryInput(
+    [Required] bool? Enabled,
+    string? NoteZh,
+    string? NoteIt,
+    string? NoteEn
+);
+
+public sealed record OnlineHourResponse(int Weekday, int OpensMinute, int ClosesMinute);
+
+// Hours are ordered by weekday and opening time. PausedUntil is null once the pause has lapsed.
+// CurrentSlotEndsAt is set while a slot accepts orders, so the page can offer "pause until then".
+// Delivery does not affect Status: pickup stays possible whether or not the restaurant delivers.
+public sealed record OnlineSettingsResponse(
+    string? Slug,
+    string? PublicPhone,
+    OnlineHourResponse[] Hours,
+    DateTime? PausedUntil,
+    string Status,
+    DateTime? NextOpensAt,
+    DateTime? CurrentSlotEndsAt,
+    bool DeliveryEnabled,
+    string? DeliveryNoteZh,
+    string? DeliveryNoteIt,
+    string? DeliveryNoteEn
+);
+
+public static class OnlineErrors
+{
+    public static ApiException NotOffered() =>
+        new(409, "ONLINE_NOT_OFFERED", "This restaurant doesn't offer online ordering.");
+
+    // NextOpensAt (UTC), when the week has another slot, lets the customer page say when to come back.
+    public static ApiException Closed(DateTime? nextOpensAt = null) =>
+        new(409, "ONLINE_CLOSED", "Online ordering is outside its hours right now.")
+        {
+            Extensions = nextOpensAt is { } next ? new() { ["nextOpensAt"] = next } : null,
+        };
+
+    public static ApiException Paused() =>
+        new(409, "ONLINE_PAUSED", "The restaurant has paused online ordering.");
+
+    public static ApiException Busy() =>
+        new(
+            409,
+            "ONLINE_BUSY",
+            "The restaurant has too many orders waiting. Try again shortly or call the restaurant."
+        );
+
+    public static ApiException DeliveryNotOffered() =>
+        new(409, "DELIVERY_NOT_OFFERED", "This restaurant doesn't deliver online orders.");
+
+    public static ApiException Suspended() =>
+        new(409, "SERVICE_SUSPENDED", "The restaurant's service is suspended.");
+
+    public static ApiException LinkNotFound() =>
+        new(404, "ONLINE_LINK_NOT_FOUND", "This online ordering link doesn't exist.");
+
+    public static ApiException RequestNotFound() =>
+        new(
+            404,
+            "ONLINE_REQUEST_NOT_FOUND",
+            "This submission hasn't been found yet. Keep checking, or retry with the original request."
+        );
+
+    // Staff: the request is no longer waiting (accepted or rejected by someone else, or expired).
+    public static ApiException RequestChanged() =>
+        new(
+            409,
+            "ONLINE_REQUEST_CHANGED",
+            "This online request is no longer waiting. Reload the list."
+        );
+
+    // Staff: no such request in this restaurant.
+    public static ApiException RequestMissing() =>
+        new(404, "ONLINE_REQUEST_NOT_FOUND", "This online request doesn't exist.");
+
+    public static ApiException OrderNotFound() =>
+        new(404, "ONLINE_ORDER_NOT_FOUND", "This online order doesn't exist or has ended.");
+
+    // Maps every status but OPEN to the error a submission returns.
+    public static ApiException NotOpen(OnlineAvailabilityResult availability) =>
+        availability.Status switch
+        {
+            OnlineStatus.Suspended => Suspended(),
+            OnlineStatus.NotOffered => NotOffered(),
+            OnlineStatus.Paused => Paused(),
+            OnlineStatus.ClosedHours => Closed(availability.NextOpensAt),
+            OnlineStatus.Busy => Busy(),
+            _ => throw new InvalidOperationException($"{availability.Status} accepts orders."),
+        };
+}

@@ -1,8 +1,15 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Entities;
+using TavoloFlow.Api.Push;
 
 namespace TavoloFlow.Api.Accounts;
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record LogoutRequest(
+    [MaxLength(PushEndpoints.MaxLength)] string? PushEndpoint = null
+);
 
 public sealed record LoginRequest(
     [Required, StringLength(AccountInput.MaxUsernameLength)] string Username,
@@ -25,6 +32,7 @@ public sealed record CurrentAccountResponse(
     Guid RestaurantId,
     string RestaurantName,
     string RestaurantTheme,
+    RestaurantServices Services,
     bool MustChangePassword
 )
 {
@@ -36,8 +44,16 @@ public sealed record CurrentAccountResponse(
             user.RestaurantId,
             user.Restaurant.Name,
             ApiEnum.Text(user.Restaurant.Theme),
+            RestaurantServices.From(user.Restaurant),
             user.MustChangePassword
         );
+}
+
+// The services the platform turned on, which decide the store navigation and the guest entrances.
+public sealed record RestaurantServices(bool DineIn, bool Online)
+{
+    public static RestaurantServices From(Restaurant restaurant) =>
+        new(restaurant.DineInEnabled, restaurant.OnlineEnabled);
 }
 
 public static class AccountInput
@@ -109,6 +125,9 @@ public static class PasswordChangeResults
 public sealed class CurrentAccount
 {
     public RestaurantUser? User { get; internal set; }
+
+    // When this browser's sign-in expires: the fixed ticket lifetime, never renewed.
+    public DateTime? TicketExpiresAt { get; internal set; }
 
     public RestaurantUser RequireUser() =>
         User

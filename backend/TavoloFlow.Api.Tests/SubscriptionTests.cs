@@ -37,6 +37,7 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
                 defaultLanguage = "zh",
                 ownerUsername = $"owner.{Guid.NewGuid():N}",
                 staffUsername = $"staff.{Guid.NewGuid():N}",
+                services = new { dineIn = true, online = false },
                 ownerContact = "  老板 WhatsApp +39 0000000000  ",
                 defaultAnnualFeeCents = 50_000,
                 initialPeriod,
@@ -477,6 +478,7 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
                 defaultLanguage = "zh",
                 ownerUsername,
                 staffUsername = $"staff.{Guid.NewGuid():N}",
+                services = new { dineIn = true, online = false },
                 initialPeriod = Period(Guid.NewGuid(), new(2026, 11, 1), new(2026, 11, 1)),
             }
         );

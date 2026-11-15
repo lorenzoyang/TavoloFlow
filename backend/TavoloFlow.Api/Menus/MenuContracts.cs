@@ -175,6 +175,8 @@ public sealed record PublicRestaurantResponse(
     string CurrencyCode,
     string DefaultLanguage,
     string ServiceStatus,
+    // False when the platform has not turned on QR dine-in: the menu is still shown, with a notice.
+    bool DineInEnabled,
     bool OrderingEnabled,
     bool JoinCodeRequired,
     string Theme

@@ -13,19 +13,37 @@ internal sealed class DiningSessionConfiguration : IEntityTypeConfiguration<Dini
             table =>
             {
                 table.HasCheckConstraint("ck_session_status", "status IN ('ACTIVE', 'CLOSED')");
-                table.HasCheckConstraint("ck_session_bill_version", "bill_version > 0");
                 table.HasCheckConstraint(
-                    "ck_session_active_table",
-                    "status <> 'ACTIVE' OR table_id IS NOT NULL"
+                    "ck_session_channel",
+                    "channel IN ('DINE_IN', 'PICKUP', 'DELIVERY')"
+                );
+                table.HasCheckConstraint("ck_session_bill_version", "bill_version > 0");
+                // A dine-in visit keeps its table label; while active it also has its table and join code.
+                table.HasCheckConstraint(
+                    "ck_session_dine_in",
+                    "channel <> 'DINE_IN' OR (table_label_snapshot IS NOT NULL AND "
+                        + "(status <> 'ACTIVE' OR (table_id IS NOT NULL AND join_code_ciphertext IS NOT NULL)))"
+                );
+                // An online session never has a table, a table label or a join code.
+                table.HasCheckConstraint(
+                    "ck_session_online",
+                    "channel = 'DINE_IN' OR (table_id IS NULL AND table_label_snapshot IS NULL AND join_code_ciphertext IS NULL)"
                 );
                 table.HasCheckConstraint(
                     "ck_session_close_reason",
-                    "close_reason IS NULL OR close_reason IN ('PAID', 'VOIDED', 'EMPTY')"
+                    "close_reason IS NULL OR close_reason IN ('PAID', 'VOIDED') OR "
+                        + "(close_reason = 'EMPTY' AND channel = 'DINE_IN') OR "
+                        + "(close_reason = 'NO_SHOW' AND channel <> 'DINE_IN')"
+                );
+                table.HasCheckConstraint(
+                    "ck_session_delivery_fee",
+                    "(channel = 'DELIVERY' AND delivery_fee_cents IS NOT NULL AND delivery_fee_cents >= 0) OR "
+                        + "(channel <> 'DELIVERY' AND delivery_fee_cents IS NULL)"
                 );
 
                 table.HasCheckConstraint(
                     "ck_session_lifecycle",
-                    "(status = 'ACTIVE' AND closed_at IS NULL AND close_reason IS NULL AND closed_total_cents IS NULL AND join_code_ciphertext IS NOT NULL) OR "
+                    "(status = 'ACTIVE' AND closed_at IS NULL AND close_reason IS NULL AND closed_total_cents IS NULL) OR "
                         + "(status = 'CLOSED' AND closed_at IS NOT NULL AND close_reason IS NOT NULL AND closed_total_cents IS NOT NULL AND join_code_ciphertext IS NULL)"
                 );
 
@@ -49,6 +67,14 @@ internal sealed class DiningSessionConfiguration : IEntityTypeConfiguration<Dini
         builder.Property(session => session.Id).HasColumnName("id");
 
         builder.Property(session => session.RestaurantId).HasColumnName("restaurant_id");
+
+        builder
+            .Property(session => session.Channel)
+            .HasColumnName("channel")
+            .HasMaxLength(10)
+            .HasConversion<UppercaseEnumConverter<SessionChannel>>()
+            .HasDefaultValue(SessionChannel.DineIn)
+            .ValueGeneratedNever();
 
         builder.Property(session => session.TableId).HasColumnName("table_id");
 
@@ -74,8 +100,9 @@ internal sealed class DiningSessionConfiguration : IEntityTypeConfiguration<Dini
         builder
             .Property(session => session.TableLabelSnapshot)
             .HasColumnName("table_label_snapshot")
-            .HasMaxLength(50)
-            .IsRequired();
+            .HasMaxLength(50);
+
+        builder.Property(session => session.DeliveryFeeCents).HasColumnName("delivery_fee_cents");
 
         builder
             .Property(session => session.OpenedAt)
@@ -97,6 +124,19 @@ internal sealed class DiningSessionConfiguration : IEntityTypeConfiguration<Dini
         builder.Property(session => session.ClosedTotalCents).HasColumnName("closed_total_cents");
 
         builder.HasIndex(session => new { session.TableId, session.Status });
+
+        // Kept explicitly: the partial index below starts with restaurant_id, but closed sessions (history,
+        // cascade deletion) still need the full one.
+        builder
+            .HasIndex(session => session.RestaurantId)
+            .HasDatabaseName("IX_dining_sessions_restaurant_id");
+
+        // Every ACTIVE session of a restaurant, all channels (the bills page and the online orders page):
+        // polled reads stay bounded by the open visits and never scan history.
+        builder
+            .HasIndex(session => new { session.RestaurantId, session.OpenedAt })
+            .HasFilter("status = 'ACTIVE'")
+            .HasDatabaseName("ix_dining_sessions_active");
 
         builder
             .HasIndex(session => session.TableId)

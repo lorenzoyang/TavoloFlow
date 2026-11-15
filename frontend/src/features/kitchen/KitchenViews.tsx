@@ -11,6 +11,8 @@ import type { OrderLine } from "@/features/orders/api";
 import { formatDateTime, formatMoney, formatTime, shortId } from "@/lib/format";
 import { displayName } from "@/lib/language";
 import { optionSummary } from "@/lib/options";
+import { sessionTitle } from "@/lib/session-label";
+import { SessionName } from "@/components/session-name";
 import { staffMessages } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
@@ -131,10 +133,22 @@ export function DishCard({ group, controls }: { group: DishGroup; controls: Line
             <div className="flex items-center gap-2">
               <div className="min-w-0 flex-1">
                 <p className="text-lg leading-7 font-semibold wrap-break-word">
-                  {c.table(order.tableLabel)} ×{line.quantity}
+                  {sessionTitle(order, language)} ×{line.quantity}
                 </p>
-                <p className="text-sm text-muted-foreground">
-                  {m.waited(waitedMinutes(controls.now, order))}
+                <p
+                  className={cn(
+                    "text-sm text-muted-foreground",
+                    order.online && "flex gap-1 text-xs",
+                  )}
+                >
+                  <span className={cn(order.online && "min-w-0 truncate")}>
+                    {m.waited(waitedMinutes(controls.now, order), !!order.online)}
+                  </span>
+                  {order.online && (
+                    <span className="shrink-0 tabular-nums">
+                      · {m.estimated(formatTime(order.online.estimatedAt, language))}
+                    </span>
+                  )}
                 </p>
                 {line.options.length > 0 && (
                   <p className="font-medium wrap-break-word">
@@ -146,7 +160,7 @@ export function DishCard({ group, controls }: { group: DishGroup; controls: Line
                 <LineActions
                   order={order}
                   line={line}
-                  label={`${c.table(order.tableLabel)} · ${name.text}`}
+                  label={`${sessionTitle(order, language)} · ${name.text}`}
                   controls={controls}
                 />
               </div>
@@ -173,13 +187,15 @@ export function OrderTicket({ order, controls }: { order: KitchenOrder; controls
   return (
     <article
       className={cn(
-        "flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-xs",
+        "flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4 shadow-xs",
         cancelled && "bg-muted/60",
       )}
     >
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-2xl font-bold wrap-break-word">{c.table(order.tableLabel)}</h2>
+          <h2 className="text-2xl font-bold">
+            <SessionName session={order} />
+          </h2>
           <p className="text-sm text-muted-foreground">
             {m.orderedAt(formatTime(order.createdAt, language))} · #{shortId(order.id)}
           </p>

@@ -3,9 +3,9 @@ import { LogOut } from "lucide-react";
 import { Notice } from "@/components/notice";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { usePushSubscription } from "@/features/push/usePushSubscription";
 import { errorMessage } from "@/lib/api";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
-import { logout } from "./api";
 import { replaceAccount } from "./queries";
 import { accountMessages } from "./messages";
 import { VerifyIdentityButton } from "./AccountFeedback";
@@ -13,9 +13,10 @@ import { VerifyIdentityButton } from "./AccountFeedback";
 export function LogoutButton({ disabled = false }: { disabled?: boolean }) {
   const language = useStaffLanguage();
   const m = accountMessages[language];
+  const push = usePushSubscription();
   const mutation = useMutation({
     mutationFn: async () => {
-      await logout();
+      await push.logout();
       await replaceAccount(null);
     },
   });
@@ -30,7 +31,7 @@ export function LogoutButton({ disabled = false }: { disabled?: boolean }) {
         type="button"
         variant="outline"
         className="w-full"
-        disabled={disabled || mutation.isPending}
+        disabled={disabled || mutation.isPending || push.busy !== null}
         aria-busy={mutation.isPending}
         onClick={() => mutation.mutate()}
       >

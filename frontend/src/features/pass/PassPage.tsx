@@ -1,5 +1,6 @@
 import { Check, HandPlatter, RefreshCw, Sun, Volume2, VolumeX } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
+import { SessionName } from "@/components/session-name";
 import { LoadingState } from "@/components/loading-state";
 import { Notice } from "@/components/notice";
 import { PageHeader } from "@/components/page-header";
@@ -10,6 +11,7 @@ import { staffNavItems } from "@/features/accounts/navigation";
 import { formatDateTime } from "@/lib/format";
 import { displayName } from "@/lib/language";
 import { optionSummary } from "@/lib/options";
+import { sessionTitle } from "@/lib/session-label";
 import { staffMessages } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { useWakeLock } from "@/lib/useWakeLock";
@@ -30,9 +32,11 @@ function TableCard({ table, model }: { table: PassTable; model: ReturnType<typeo
   const m = passMessages[language];
   const c = staffMessages[language];
   return (
-    <article className="flex flex-col gap-2 rounded-2xl border bg-card p-4 shadow-xs">
+    <article className="flex min-w-0 flex-col gap-2 rounded-2xl border bg-card p-4 shadow-xs">
       <header className="flex items-baseline justify-between gap-3">
-        <h2 className="min-w-0 text-3xl font-bold wrap-break-word">{c.table(table.tableLabel)}</h2>
+        <h2 className="min-w-0 text-3xl font-bold">
+          <SessionName session={table} />
+        </h2>
         <span className="shrink-0 text-sm text-muted-foreground">
           {m.toServe(table.items.length)}
         </span>
@@ -78,7 +82,7 @@ function TableCard({ table, model }: { table: PassTable; model: ReturnType<typeo
               <Button
                 className="w-full"
                 disabled={!model.fresh || model.busy.includes(item.id)}
-                aria-label={m.servedLabel(c.table(table.tableLabel), name.text)}
+                aria-label={m.servedLabel(sessionTitle(table, language), name.text)}
                 onClick={() => void model.serve(item)}
               >
                 <Check />
@@ -99,7 +103,7 @@ function PassContent({ account }: { account: CurrentAccount }) {
   const model = usePass(account);
   const wakeLock = useWakeLock();
   // Only pages outside the tabs link back: Pass is a STAFF tab but an OWNER Home entry.
-  const isTab = staffNavItems(account.role, language).some((item) => item.to === "/staff/pass");
+  const isTab = staffNavItems(account, language).some((item) => item.to === "/staff/pass");
   return (
     <div>
       <PageHeader

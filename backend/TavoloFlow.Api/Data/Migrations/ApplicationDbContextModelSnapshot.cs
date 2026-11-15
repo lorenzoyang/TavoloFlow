@@ -35,6 +35,13 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasDefaultValue(1)
                         .HasColumnName("bill_version");
 
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("DINE_IN")
+                        .HasColumnName("channel");
+
                     b.Property<string>("CloseReason")
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)")
@@ -47,6 +54,10 @@ namespace TavoloFlow.Api.Data.Migrations
                     b.Property<long?>("ClosedTotalCents")
                         .HasColumnType("bigint")
                         .HasColumnName("closed_total_cents");
+
+                    b.Property<long?>("DeliveryFeeCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("delivery_fee_cents");
 
                     b.Property<string>("JoinCodeCiphertext")
                         .HasColumnType("text")
@@ -74,7 +85,6 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnName("table_id");
 
                     b.Property<string>("TableLabelSnapshot")
-                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("table_label_snapshot");
@@ -84,11 +94,16 @@ namespace TavoloFlow.Api.Data.Migrations
                     b.HasAlternateKey("Id", "RestaurantId")
                         .HasName("uq_sessions_id_tenant");
 
-                    b.HasIndex("RestaurantId");
+                    b.HasIndex("RestaurantId")
+                        .HasDatabaseName("IX_dining_sessions_restaurant_id");
 
                     b.HasIndex("TableId")
                         .IsUnique()
                         .HasDatabaseName("uq_active_session_per_table")
+                        .HasFilter("status = 'ACTIVE'");
+
+                    b.HasIndex("RestaurantId", "OpenedAt")
+                        .HasDatabaseName("ix_dining_sessions_active")
                         .HasFilter("status = 'ACTIVE'");
 
                     b.HasIndex("TableId", "RestaurantId");
@@ -97,17 +112,23 @@ namespace TavoloFlow.Api.Data.Migrations
 
                     b.ToTable("dining_sessions", null, t =>
                         {
-                            t.HasCheckConstraint("ck_session_active_table", "status <> 'ACTIVE' OR table_id IS NOT NULL");
-
                             t.HasCheckConstraint("ck_session_bill_version", "bill_version > 0");
 
-                            t.HasCheckConstraint("ck_session_close_reason", "close_reason IS NULL OR close_reason IN ('PAID', 'VOIDED', 'EMPTY')");
+                            t.HasCheckConstraint("ck_session_channel", "channel IN ('DINE_IN', 'PICKUP', 'DELIVERY')");
+
+                            t.HasCheckConstraint("ck_session_close_reason", "close_reason IS NULL OR close_reason IN ('PAID', 'VOIDED') OR (close_reason = 'EMPTY' AND channel = 'DINE_IN') OR (close_reason = 'NO_SHOW' AND channel <> 'DINE_IN')");
 
                             t.HasCheckConstraint("ck_session_close_time", "closed_at IS NULL OR closed_at >= opened_at");
 
                             t.HasCheckConstraint("ck_session_closed_total", "closed_total_cents IS NULL OR closed_total_cents >= 0");
 
-                            t.HasCheckConstraint("ck_session_lifecycle", "(status = 'ACTIVE' AND closed_at IS NULL AND close_reason IS NULL AND closed_total_cents IS NULL AND join_code_ciphertext IS NOT NULL) OR (status = 'CLOSED' AND closed_at IS NOT NULL AND close_reason IS NOT NULL AND closed_total_cents IS NOT NULL AND join_code_ciphertext IS NULL)");
+                            t.HasCheckConstraint("ck_session_delivery_fee", "(channel = 'DELIVERY' AND delivery_fee_cents IS NOT NULL AND delivery_fee_cents >= 0) OR (channel <> 'DELIVERY' AND delivery_fee_cents IS NULL)");
+
+                            t.HasCheckConstraint("ck_session_dine_in", "channel <> 'DINE_IN' OR (table_label_snapshot IS NOT NULL AND (status <> 'ACTIVE' OR (table_id IS NOT NULL AND join_code_ciphertext IS NOT NULL)))");
+
+                            t.HasCheckConstraint("ck_session_lifecycle", "(status = 'ACTIVE' AND closed_at IS NULL AND close_reason IS NULL AND closed_total_cents IS NULL) OR (status = 'CLOSED' AND closed_at IS NOT NULL AND close_reason IS NOT NULL AND closed_total_cents IS NOT NULL AND join_code_ciphertext IS NULL)");
+
+                            t.HasCheckConstraint("ck_session_online", "channel = 'DINE_IN' OR (table_id IS NULL AND table_label_snapshot IS NULL AND join_code_ciphertext IS NULL)");
 
                             t.HasCheckConstraint("ck_session_status", "status IN ('ACTIVE', 'CLOSED')");
                         });
@@ -409,6 +430,276 @@ namespace TavoloFlow.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TavoloFlow.Api.Entities.OnlineCounter", b =>
+                {
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("restaurant_id");
+
+                    b.Property<DateOnly>("BusinessDate")
+                        .HasColumnType("date")
+                        .HasColumnName("business_date");
+
+                    b.Property<int>("LastNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("last_number");
+
+                    b.HasKey("RestaurantId", "BusinessDate");
+
+                    b.ToTable("online_counters", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_online_counter_number", "last_number > 0");
+                        });
+                });
+
+            modelBuilder.Entity("TavoloFlow.Api.Entities.OnlineHour", b =>
+                {
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("restaurant_id");
+
+                    b.Property<int>("Weekday")
+                        .HasColumnType("integer")
+                        .HasColumnName("weekday");
+
+                    b.Property<int>("Slot")
+                        .HasColumnType("integer")
+                        .HasColumnName("slot");
+
+                    b.Property<int>("ClosesMinute")
+                        .HasColumnType("integer")
+                        .HasColumnName("closes_minute");
+
+                    b.Property<int>("OpensMinute")
+                        .HasColumnType("integer")
+                        .HasColumnName("opens_minute");
+
+                    b.HasKey("RestaurantId", "Weekday", "Slot");
+
+                    b.ToTable("online_hours", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_online_hour_minutes", "opens_minute >= 0 AND opens_minute < closes_minute AND closes_minute <= 1440");
+
+                            t.HasCheckConstraint("ck_online_hour_slot", "slot IN (1, 2)");
+
+                            t.HasCheckConstraint("ck_online_hour_weekday", "weekday BETWEEN 1 AND 7");
+                        });
+                });
+
+            modelBuilder.Entity("TavoloFlow.Api.Entities.OnlineRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("AcceptedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("accepted_at");
+
+                    b.Property<DateOnly>("BusinessDate")
+                        .HasColumnType("date")
+                        .HasColumnName("business_date");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_request_id");
+
+                    b.Property<string>("CustomerName")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("customer_name");
+
+                    b.Property<string>("CustomerPhone")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("customer_phone");
+
+                    b.Property<string>("DefaultLanguageSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("default_language_snapshot");
+
+                    b.Property<string>("DeliveryAddress")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("delivery_address");
+
+                    b.Property<string>("DeliveryNotes")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("delivery_notes");
+
+                    b.Property<DateTime?>("EstimatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("estimated_at");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("Fulfillment")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("fulfillment");
+
+                    b.Property<long>("ItemsTotalCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("items_total_cents");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer")
+                        .HasColumnName("number");
+
+                    b.Property<string>("RejectReason")
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("reject_reason");
+
+                    b.Property<DateTime?>("RejectedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("rejected_at");
+
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("restaurant_id");
+
+                    b.Property<Guid?>("SessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_id");
+
+                    b.Property<string>("StatusToken")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("status_token");
+
+                    b.Property<DateTime>("SubmittedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("submitted_at");
+
+                    b.ComplexCollection(typeof(List<Dictionary<string, object>>), "Lines", "TavoloFlow.Api.Entities.OnlineRequest.Lines#OrderLineSnapshot", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.PrimitiveCollection<string>("AllergenCodes")
+                                .IsRequired()
+                                .HasJsonPropertyName("allergenCodes");
+
+                            b1.Property<string>("ItemCode")
+                                .HasJsonPropertyName("itemCode");
+
+                            b1.Property<Guid>("MenuItemId")
+                                .HasJsonPropertyName("menuItemId");
+
+                            b1.Property<string>("NameEn")
+                                .HasJsonPropertyName("nameEn");
+
+                            b1.Property<string>("NameIt")
+                                .HasJsonPropertyName("nameIt");
+
+                            b1.Property<string>("NameZh")
+                                .HasJsonPropertyName("nameZh");
+
+                            b1.Property<int>("Quantity")
+                                .HasJsonPropertyName("quantity");
+
+                            b1.Property<string>("Remark")
+                                .HasJsonPropertyName("remark");
+
+                            b1.Property<long>("UnitPriceCents")
+                                .HasJsonPropertyName("unitPriceCents");
+
+                            b1.ComplexCollection(typeof(List<Dictionary<string, object>>), "Options", "TavoloFlow.Api.Entities.OnlineRequest.Lines#OrderLineSnapshot.Options#OrderItemOption", b2 =>
+                                {
+                                    b2.IsRequired();
+
+                                    b2.Property<string>("GroupNameEn")
+                                        .HasJsonPropertyName("groupNameEn");
+
+                                    b2.Property<string>("GroupNameIt")
+                                        .HasJsonPropertyName("groupNameIt");
+
+                                    b2.Property<string>("GroupNameZh")
+                                        .HasJsonPropertyName("groupNameZh");
+
+                                    b2.Property<string>("NameEn")
+                                        .HasJsonPropertyName("nameEn");
+
+                                    b2.Property<string>("NameIt")
+                                        .HasJsonPropertyName("nameIt");
+
+                                    b2.Property<string>("NameZh")
+                                        .HasJsonPropertyName("nameZh");
+
+                                    b2.Property<long>("PriceDeltaCents")
+                                        .HasJsonPropertyName("priceDeltaCents");
+
+                                    b2.HasJsonPropertyName("options");
+                                });
+
+                            b1
+                                .ToJson("lines")
+                                .HasColumnType("jsonb");
+                        });
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("Id", "RestaurantId")
+                        .HasName("uq_online_requests_id_tenant");
+
+                    b.HasIndex("StatusToken")
+                        .IsUnique()
+                        .HasDatabaseName("uq_online_request_status_token");
+
+                    b.HasIndex("RestaurantId", "ClientRequestId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_online_request_client_request");
+
+                    b.HasIndex("RestaurantId", "ExpiresAt")
+                        .HasDatabaseName("ix_online_requests_waiting")
+                        .HasFilter("accepted_at IS NULL AND rejected_at IS NULL");
+
+                    b.HasIndex("RestaurantId", "SubmittedAt")
+                        .HasDatabaseName("ix_online_requests_contact")
+                        .HasFilter("customer_phone IS NOT NULL");
+
+                    b.HasIndex("SessionId", "RestaurantId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_online_request_session");
+
+                    b.HasIndex("RestaurantId", "BusinessDate", "Number")
+                        .IsUnique()
+                        .HasDatabaseName("uq_online_request_number");
+
+                    b.ToTable("online_requests", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_online_request_accepted", "(accepted_at IS NULL AND estimated_at IS NULL AND session_id IS NULL) OR (accepted_at IS NOT NULL AND estimated_at IS NOT NULL AND estimated_at >= accepted_at AND session_id IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_online_request_decision", "(accepted_at IS NULL OR rejected_at IS NULL) AND (accepted_at IS NULL OR accepted_at < expires_at) AND (rejected_at IS NULL OR rejected_at < expires_at)");
+
+                            t.HasCheckConstraint("ck_online_request_expiry", "expires_at > submitted_at");
+
+                            t.HasCheckConstraint("ck_online_request_fulfillment", "fulfillment IN ('PICKUP', 'DELIVERY')");
+
+                            t.HasCheckConstraint("ck_online_request_language", "default_language_snapshot IN ('zh', 'it', 'en')");
+
+                            t.HasCheckConstraint("ck_online_request_lines", "jsonb_typeof(lines) = 'array'");
+
+                            t.HasCheckConstraint("ck_online_request_number", "number > 0");
+
+                            t.HasCheckConstraint("ck_online_request_phone", "customer_phone IS NULL OR customer_phone ~ '^\\+?[0-9]{6,15}$'");
+
+                            t.HasCheckConstraint("ck_online_request_pickup_address", "fulfillment = 'DELIVERY' OR (delivery_address IS NULL AND delivery_notes IS NULL)");
+
+                            t.HasCheckConstraint("ck_online_request_reject_reason", "reject_reason IS NULL OR (rejected_at IS NOT NULL AND (reject_reason IN ('SOLD_OUT', 'BUSY', 'CLOSING') OR (reject_reason = 'OUT_OF_RANGE' AND fulfillment = 'DELIVERY')))");
+
+                            t.HasCheckConstraint("ck_online_request_total", "items_total_cents > 0");
+                        });
+                });
+
             modelBuilder.Entity("TavoloFlow.Api.Entities.Order", b =>
                 {
                     b.Property<Guid>("Id")
@@ -665,6 +956,80 @@ namespace TavoloFlow.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TavoloFlow.Api.Entities.PushSubscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Auth")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("auth");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("CredentialVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("credential_version");
+
+                    b.Property<string>("Endpoint")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("endpoint");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("language");
+
+                    b.Property<string>("P256dh")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("p256dh");
+
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("restaurant_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Endpoint")
+                        .IsUnique()
+                        .HasDatabaseName("uq_push_subscription_endpoint");
+
+                    b.HasIndex("RestaurantId")
+                        .HasDatabaseName("ix_push_subscriptions_restaurant");
+
+                    b.HasIndex("UserId", "RestaurantId");
+
+                    b.ToTable("push_subscriptions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_push_subscription_credential_version", "credential_version > 0");
+
+                            t.HasCheckConstraint("ck_push_subscription_language", "language IN ('zh', 'it', 'en')");
+                        });
+                });
+
             modelBuilder.Entity("TavoloFlow.Api.Entities.Restaurant", b =>
                 {
                     b.Property<Guid>("Id")
@@ -694,6 +1059,31 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("character varying(2)")
                         .HasColumnName("default_language");
 
+                    b.Property<bool>("DeliveryEnabled")
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("delivery_enabled");
+
+                    b.Property<string>("DeliveryNoteEn")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("delivery_note_en");
+
+                    b.Property<string>("DeliveryNoteIt")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("delivery_note_it");
+
+                    b.Property<string>("DeliveryNoteZh")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("delivery_note_zh");
+
+                    b.Property<bool>("DineInEnabled")
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("dine_in_enabled");
+
                     b.Property<string>("GoogleMapsUrl")
                         .HasMaxLength(2048)
                         .HasColumnType("character varying(2048)")
@@ -710,6 +1100,15 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("character varying(150)")
                         .HasColumnName("name");
 
+                    b.Property<bool>("OnlineEnabled")
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("online_enabled");
+
+                    b.Property<DateTime?>("OnlinePausedUntil")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("online_paused_until");
+
                     b.Property<bool>("OrderingEnabled")
                         .HasColumnType("boolean")
                         .HasDefaultValue(false)
@@ -720,12 +1119,22 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("owner_contact");
 
+                    b.Property<string>("PublicPhone")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("public_phone");
+
                     b.Property<string>("ServiceStatus")
                         .IsRequired()
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)")
                         .HasDefaultValue("SUSPENDED")
                         .HasColumnName("service_status");
+
+                    b.Property<string>("Slug")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("slug");
 
                     b.Property<int>("SubscriptionVersion")
                         .HasColumnType("integer")
@@ -748,6 +1157,10 @@ namespace TavoloFlow.Api.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Slug")
+                        .IsUnique()
+                        .HasDatabaseName("uq_restaurant_slug");
+
                     b.ToTable("restaurants", null, t =>
                         {
                             t.HasCheckConstraint("ck_restaurant_annual_fee", "default_annual_fee_cents IS NULL OR default_annual_fee_cents BETWEEN 0 AND 9007199254740991");
@@ -758,7 +1171,15 @@ namespace TavoloFlow.Api.Data.Migrations
 
                             t.HasCheckConstraint("ck_restaurant_google_maps_url", "google_maps_url IS NULL OR google_maps_url LIKE 'https://%'");
 
+                            t.HasCheckConstraint("ck_restaurant_online_slug", "NOT online_enabled OR slug IS NOT NULL");
+
+                            t.HasCheckConstraint("ck_restaurant_public_phone", "public_phone IS NULL OR public_phone ~ '^\\+?[0-9]{6,15}$'");
+
                             t.HasCheckConstraint("ck_restaurant_service_status", "service_status IN ('ACTIVE', 'SUSPENDED')");
+
+                            t.HasCheckConstraint("ck_restaurant_services", "dine_in_enabled OR online_enabled");
+
+                            t.HasCheckConstraint("ck_restaurant_slug", "slug IS NULL OR slug ~ '^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$'");
 
                             t.HasCheckConstraint("ck_restaurant_subscription_version", "subscription_version > 0");
 
@@ -1031,6 +1452,47 @@ namespace TavoloFlow.Api.Data.Migrations
                     b.Navigation("Restaurant");
                 });
 
+            modelBuilder.Entity("TavoloFlow.Api.Entities.OnlineCounter", b =>
+                {
+                    b.HasOne("TavoloFlow.Api.Entities.Restaurant", "Restaurant")
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Restaurant");
+                });
+
+            modelBuilder.Entity("TavoloFlow.Api.Entities.OnlineHour", b =>
+                {
+                    b.HasOne("TavoloFlow.Api.Entities.Restaurant", "Restaurant")
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Restaurant");
+                });
+
+            modelBuilder.Entity("TavoloFlow.Api.Entities.OnlineRequest", b =>
+                {
+                    b.HasOne("TavoloFlow.Api.Entities.Restaurant", "Restaurant")
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TavoloFlow.Api.Entities.DiningSession", "Session")
+                        .WithOne("OnlineRequest")
+                        .HasForeignKey("TavoloFlow.Api.Entities.OnlineRequest", "SessionId", "RestaurantId")
+                        .HasPrincipalKey("TavoloFlow.Api.Entities.DiningSession", "Id", "RestaurantId")
+                        .OnDelete(DeleteBehavior.ClientNoAction);
+
+                    b.Navigation("Restaurant");
+
+                    b.Navigation("Session");
+                });
+
             modelBuilder.Entity("TavoloFlow.Api.Entities.Order", b =>
                 {
                     b.HasOne("TavoloFlow.Api.Entities.Restaurant", "Restaurant")
@@ -1079,6 +1541,26 @@ namespace TavoloFlow.Api.Data.Migrations
                     b.Navigation("Restaurant");
                 });
 
+            modelBuilder.Entity("TavoloFlow.Api.Entities.PushSubscription", b =>
+                {
+                    b.HasOne("TavoloFlow.Api.Entities.Restaurant", "Restaurant")
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TavoloFlow.Api.Entities.RestaurantUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId", "RestaurantId")
+                        .HasPrincipalKey("Id", "RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Restaurant");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("TavoloFlow.Api.Entities.RestaurantSubscriptionPeriod", b =>
                 {
                     b.HasOne("TavoloFlow.Api.Entities.Restaurant", "Restaurant")
@@ -1114,6 +1596,8 @@ namespace TavoloFlow.Api.Data.Migrations
 
             modelBuilder.Entity("TavoloFlow.Api.Entities.DiningSession", b =>
                 {
+                    b.Navigation("OnlineRequest");
+
                     b.Navigation("Orders");
                 });
 

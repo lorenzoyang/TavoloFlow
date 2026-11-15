@@ -122,6 +122,36 @@ const zh = {
     "关闭后，开桌期间任何扫描本桌二维码的人都可直接加入并下单，对正在用餐的桌位立即生效。",
   codeOnHint:
     "开启后，新加入的顾客须输入入桌码；已加入的顾客授权保持有效，直到本轮结束或授权到期。",
+  services: "开通的服务",
+  serviceDineIn: "扫码堂食",
+  serviceDineInHint: "顾客在桌上扫码点餐；员工端有大厅和桌台。",
+  serviceOnline: "线上点单",
+  serviceOnlineHint: "顾客通过餐厅的线上链接点餐，到店自取或由餐厅配送；需要线上链接。",
+  slugField: "线上链接 /r/…（开通线上点单时必填）",
+  slugHint: "3–40 个小写字母、数字或连字符，不能以连字符开头或结尾。",
+  slugInvalid: "线上链接格式不对：3–40 个小写字母、数字或连字符，不能以连字符开头或结尾。",
+  servicesInvalid: "至少开通一项服务；开通线上点单时须填写线上链接。",
+  servicesSummary: (dineIn: boolean, online: boolean) =>
+    `扫码堂食${dineIn ? "已开通" : "未开通"} · 线上点单${online ? "已开通" : "未开通"}`,
+  onlineLink: (slug: string) => `线上链接：/r/${slug}`,
+  noSlug: "尚未设置线上链接",
+  editServices: "修改服务",
+  servicesForm: "修改开通的服务",
+  saveServices: "保存服务",
+  servicesNeedSlug: "开通线上点单前，请先设置线上链接。",
+  editSlug: "修改线上链接",
+  setSlug: "设置线上链接",
+  slugForm: "修改线上链接",
+  saveSlug: "保存链接",
+  dineInOffHint:
+    "关闭扫码堂食：员工端不再有大厅和桌台，顾客扫描桌台二维码只能浏览菜单。还有未结账的堂食时会被拒绝。",
+  dineInOnHint: "开通扫码堂食：员工端出现大厅和桌台，开桌后顾客可以扫码点餐。",
+  onlineOnHint: "开通线上点单：老板填写餐厅电话和营业时间后，顾客即可通过线上链接下单。",
+  onlineOffHint:
+    "关闭线上点单：顾客不能再通过线上链接下单。还有待接单或未结账的线上订单时会被拒绝。",
+  slugChangeHint: (from: string, to: string) =>
+    `线上链接将从 /r/${from} 改为 /r/${to}。旧链接和已经印出的二维码立即失效；桌台二维码不受影响。`,
+  slugSetHint: (to: string) => `线上链接将设为 /r/${to}。`,
   accountHint: (role: string, username: string, hint: string) => `${role} · ${username}：${hint}`,
   resetHint: "重置后所有旧登录失效，须交付新临时密码并首次改密。账号启用状态不变。",
   disableHint: "禁用后所有旧登录失效。",
@@ -260,6 +290,41 @@ export const platformMessages: Record<Language, typeof zh> = {
       "Senza codice, mentre il tavolo è aperto chiunque scansioni il suo QR può entrare e ordinare. Vale subito, anche per i tavoli già aperti.",
     codeOnHint:
       "Con il codice, i nuovi clienti devono inserirlo; chi è già entrato resta dentro fino alla chiusura della visita o alla scadenza dell’accesso.",
+    services: "Servizi attivi",
+    serviceDineIn: "QR al tavolo",
+    serviceDineInHint:
+      "I clienti ordinano scansionando il QR al tavolo; lo staff ha Sala e Tavoli.",
+    serviceOnline: "Ordini online",
+    serviceOnlineHint:
+      "I clienti ordinano dal link online del ristorante, con ritiro in negozio o consegna del ristorante; serve il link.",
+    slugField: "Link online /r/… (obbligatorio con gli ordini online)",
+    slugHint: "3–40 lettere minuscole, cifre o trattini, senza trattino all’inizio o alla fine.",
+    slugInvalid:
+      "Link online non valido: 3–40 lettere minuscole, cifre o trattini, senza trattino all’inizio o alla fine.",
+    servicesInvalid: "Attiva almeno un servizio; gli ordini online richiedono il link.",
+    servicesSummary: (dineIn, online) =>
+      `QR al tavolo: ${dineIn ? "attivo" : "non attivo"} · Ordini online: ${online ? "attivi" : "non attivi"}`,
+    onlineLink: (slug) => `Link online: /r/${slug}`,
+    noSlug: "Link online non ancora impostato",
+    editServices: "Modifica servizi",
+    servicesForm: "Modifica i servizi attivi",
+    saveServices: "Salva servizi",
+    servicesNeedSlug: "Imposta prima il link online, poi attiva gli ordini online.",
+    editSlug: "Modifica link online",
+    setSlug: "Imposta link online",
+    slugForm: "Modifica il link online",
+    saveSlug: "Salva link",
+    dineInOffHint:
+      "Disattivando il QR al tavolo, lo staff non ha più Sala e Tavoli e chi scansiona il QR di un tavolo vede solo il menu. Viene rifiutato se ci sono ancora visite al tavolo da chiudere.",
+    dineInOnHint:
+      "Attivando il QR al tavolo, lo staff vede Sala e Tavoli e i clienti ordinano dai tavoli aperti.",
+    onlineOnHint:
+      "Attivando gli ordini online, i clienti potranno ordinare dal link appena il titolare imposta telefono e orari.",
+    onlineOffHint:
+      "Disattivando gli ordini online, i clienti non possono più ordinare dal link. Viene rifiutato se ci sono ancora ordini online da accettare o da chiudere.",
+    slugChangeHint: (from, to) =>
+      `Il link online passa da /r/${from} a /r/${to}. Il vecchio link e i QR già stampati smettono subito di funzionare; i QR dei tavoli non cambiano.`,
+    slugSetHint: (to) => `Il link online sarà /r/${to}.`,
     accountHint: (role, username, hint) => `${role} · ${username}: ${hint}`,
     resetHint:
       "Dopo il reset tutti gli accessi precedenti non valgono più: consegna la nuova password temporanea, da cambiare al primo accesso. Lo stato dell’account non cambia.",
@@ -394,6 +459,41 @@ export const platformMessages: Record<Language, typeof zh> = {
       "Without a code, while a table is open anyone scanning its QR code can join and order. It applies at once, also to tables already open.",
     codeOnHint:
       "With the code, new guests must enter it; guests already in stay until the visit closes or their access expires.",
+    services: "Services",
+    serviceDineIn: "QR dine-in",
+    serviceDineInHint:
+      "Guests order by scanning the QR code at their table; staff get Floor and Tables.",
+    serviceOnline: "Online ordering",
+    serviceOnlineHint:
+      "Customers order from the restaurant’s online link, for pickup or the restaurant’s own delivery; needs the link.",
+    slugField: "Online link /r/… (required with online ordering)",
+    slugHint: "3–40 lowercase letters, digits or hyphens, not starting or ending with a hyphen.",
+    slugInvalid:
+      "Invalid online link: use 3–40 lowercase letters, digits or hyphens, not starting or ending with a hyphen.",
+    servicesInvalid: "Turn on at least one service; online ordering needs the link.",
+    servicesSummary: (dineIn, online) =>
+      `QR dine-in: ${dineIn ? "on" : "off"} · Online ordering: ${online ? "on" : "off"}`,
+    onlineLink: (slug) => `Online link: /r/${slug}`,
+    noSlug: "No online link yet",
+    editServices: "Change services",
+    servicesForm: "Change the services",
+    saveServices: "Save services",
+    servicesNeedSlug: "Set the online link before turning on online ordering.",
+    editSlug: "Change online link",
+    setSlug: "Set online link",
+    slugForm: "Change the online link",
+    saveSlug: "Save link",
+    dineInOffHint:
+      "Turning QR dine-in off removes Floor and Tables from the staff pages, and scanning a table’s QR code only shows the menu. It’s refused while table visits are still open.",
+    dineInOnHint:
+      "Turning QR dine-in on shows Floor and Tables to staff, and guests order at open tables.",
+    onlineOnHint:
+      "Turning online ordering on lets customers order from the link once the owner sets the phone and hours.",
+    onlineOffHint:
+      "Turning online ordering off stops orders from the link. It’s refused while online orders are still waiting or unsettled.",
+    slugChangeHint: (from, to) =>
+      `The online link changes from /r/${from} to /r/${to}. The old link and printed QR codes stop working at once; table QR codes stay the same.`,
+    slugSetHint: (to) => `The online link will be /r/${to}.`,
     accountHint: (role, username, hint) => `${role} · ${username}: ${hint}`,
     resetHint:
       "After the reset every earlier sign-in stops working: hand over the new temporary password, to be changed at first sign-in. The account’s status doesn’t change.",

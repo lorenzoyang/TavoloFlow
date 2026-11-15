@@ -2,13 +2,14 @@ import type { AccountScope } from "@/features/accounts/api";
 import type { Order } from "@/features/orders/api";
 import { confirmedOrder } from "@/features/orders/response";
 import { request, write } from "@/lib/api";
+import { namesSession, type SessionNaming } from "@/lib/session-label";
 import { storeKey } from "@/lib/store-views";
 import type { OrderStatus } from "./state";
 
-export type KitchenOrder = Order & {
-  tableLabel: string;
-  processedAt: string | null;
-};
+export type KitchenOrder = Order &
+  SessionNaming & {
+    processedAt: string | null;
+  };
 export type KitchenPage = {
   items: KitchenOrder[];
   nextCursor: string | null;
@@ -35,7 +36,7 @@ function confirmedKitchenOrder(order: KitchenOrder, id: string) {
   confirmedOrder(order, order.sessionId);
   if (
     order.id !== id ||
-    typeof order.tableLabel !== "string" ||
+    !namesSession(order) ||
     (order.status === "NEW"
       ? order.processedAt !== null
       : typeof order.processedAt !== "string" || !Number.isFinite(Date.parse(order.processedAt)))

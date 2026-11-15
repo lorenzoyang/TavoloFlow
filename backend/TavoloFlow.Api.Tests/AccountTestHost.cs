@@ -13,7 +13,9 @@ using Microsoft.Net.Http.Headers;
 using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Guests;
+using TavoloFlow.Api.Online;
 using TavoloFlow.Api.Platform;
+using TavoloFlow.Api.Push;
 
 namespace TavoloFlow.Api.Tests;
 
@@ -24,15 +26,30 @@ public sealed class TestClock : TimeProvider
     public override DateTimeOffset GetUtcNow() => now;
 
     public void Advance(TimeSpan duration) => now += duration;
+
+    // Pins an absolute instant, e.g. a weekday and hour in the restaurant's time zone. Set it before
+    // signing in: tickets issued at the old time would otherwise look issued in the future or expired.
+    public void Set(DateTimeOffset instant) => now = instant;
 }
 
 public sealed class AccountTestHost(
     PostgreSqlFixture database,
     bool lowLimits = false,
-    bool production = false
+    bool production = false,
+    bool push = false
 ) : WebApplicationFactory<Program>
 {
+    // The application server key of RFC 8291 Appendix A, so tests can compare with its public key.
+    public const string PushPrivateKey =
+        "c9f58f89813e9f8e872e71f42aa64e1757c9254dcc62b72ddc010bb4043ea11c";
+    public const string PushPublicKey =
+        "BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8";
+    public const string PushSubject = "mailto:push@example.test";
+
     public TestClock Clock { get; } = new();
+
+    // Every push request goes here instead of the network, whether or not push is configured.
+    public FakePushService PushService { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -42,6 +59,11 @@ public sealed class AccountTestHost(
             "DataProtection:KeyRingPath",
             Path.Combine(Path.GetTempPath(), "tavoloflow-test-keys")
         );
+        if (push)
+        {
+            builder.UseSetting("WebPush:PrivateKey", PushPrivateKey);
+            builder.UseSetting("WebPush:Subject", PushSubject);
+        }
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
@@ -77,6 +99,12 @@ public sealed class AccountTestHost(
                 options.LoginPerUsernamePerFiveMinutes = lowLimits ? 2 : 1000;
                 options.PasswordChangesPerMinute = lowLimits ? 1 : 1000;
             });
+            services.Configure<OnlineRateLimitOptions>(options =>
+                options.SubmissionsPerIpPerTenMinutes = lowLimits ? 3 : 1000
+            );
+            services
+                .AddHttpClient(PushSender.HttpClientName)
+                .ConfigurePrimaryHttpMessageHandler(() => PushService);
             services.AddControllers().AddApplicationPart(typeof(AccountProbeController).Assembly);
         });
     }
