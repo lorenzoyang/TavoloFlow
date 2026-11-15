@@ -73,11 +73,13 @@ and ringing are unchanged. Server contracts, the VAPID key and the sending rules
   server's 404/410 and sign-in-expiry cleanup. An older VAPID key is unsubscribed and requires a new tap.
 - **Sign-out.** The controller pauses automatic registration and lets an in-flight operation settle.
   It reads the browser endpoint and passes it as `pushEndpoint` to `POST /api/auth/logout`. The server
-  removes that restaurant's row before clearing the cookie. A browser-read or revocation failure
-  leaves the user signed in with an error and manual retry/identity-check actions. A lost response uses
-  the existing GET identity check, never an automatic logout retry. The browser keeps its subscription
-  for registration at the next sign-in; only "turn off for this device" unsubscribes it, after a
-  best-effort DELETE. Already-dispatched notifications may still arrive after sign-out.
+  removes that restaurant's row before clearing the cookie. If the Service Worker API, staff worker
+  registration or PushManager is absent, logout proceeds without an endpoint. Actual registration or
+  subscription read failures, or server revocation failures, leave the user signed in with an error
+  and manual retry/identity-check actions. A lost response uses the existing GET identity check, never
+  an automatic logout retry. The browser keeps its subscription for registration at the next sign-in;
+  only "turn off for this device" unsubscribes it, after a best-effort DELETE. Already-dispatched
+  notifications may still arrive after sign-out.
 - **Notifications.** `sw.js` turns `{ number, language }` into "新线上订单 #12", "Nuovo ordine online
   #12" or "New online order #12" with a short body, tag `online-order-{number}` (one notification and
   one system sound per order; `renotify` for a repeated number) and the app icon. A malformed payload

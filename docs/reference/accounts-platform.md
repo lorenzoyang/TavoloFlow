@@ -45,7 +45,9 @@ Store logout accepts an optional nullable `pushEndpoint` of at most 2048 charact
 compatible. Unknown fields are rejected. The endpoint is removed only inside the current restaurant,
 before the cookie is cleared, even before the first password change or with online ordering/push off.
 Missing rows are harmless. A deletion failure returns an error and leaves the cookie in place.
-The current client treats a browser subscription read failure as a failed logout, not a missing device.
+The client logs out without an endpoint when the Service Worker API, staff worker registration or
+PushManager is absent. Actual failures while looking up the registration or reading its subscription
+fail logout and keep the user signed in.
 Notifications already handed to a push service may still arrive. Legacy clients sending `{}` have only
 the original cookie logout behavior and should reload to use the coordinated device revocation.
 

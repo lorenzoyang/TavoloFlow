@@ -449,9 +449,10 @@ there is no service-worker background resubscription or retry timer.
 
 Signing out pauses registration and waits for in-flight work, then sends the current browser endpoint
 as `pushEndpoint` to `POST /api/auth/logout`. The server revokes that restaurant's row before clearing
-the cookie; revocation failure leaves the user signed in. The browser subscription remains for the next
-sign-in. Already-dispatched notifications may still arrive. Browser details are in
-[the staff PWA](pwa.md#lock-screen-push).
+the cookie. If the Service Worker API, staff registration or PushManager is absent, logout proceeds
+without an endpoint. Actual browser-read or revocation failures leave the user signed in. The browser
+subscription remains for the next sign-in. Already-dispatched notifications may still arrive. Browser
+details are in [the staff PWA](pwa.md#lock-screen-push).
 
 ### Sending
 

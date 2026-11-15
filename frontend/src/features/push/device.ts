@@ -1,4 +1,4 @@
-import { pushSupport, isOrderNotification, type PushSupport } from "./state";
+import { pushSupport, isOrderNotification, type PushSupport } from "./state.ts";
 
 // This device's push state, read from the browser. Only production builds register the service
 // worker (useInstallableStaffApp), so development reports push as unsupported.
@@ -33,7 +33,10 @@ export async function activeRegistration() {
 }
 
 export async function currentSubscription() {
-  return (await (await registration())?.pushManager.getSubscription()) ?? null;
+  const current = await registration();
+  // Some browsers support service workers without the Push API.
+  if (!current?.pushManager) return null;
+  return (await current.pushManager.getSubscription()) ?? null;
 }
 
 // Opening the online orders page answers every notification shown on this device.
