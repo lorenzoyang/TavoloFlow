@@ -369,22 +369,32 @@ function HoursCard({
               const day = m.weekdays[weekday - 1];
               const slots = week[weekday];
               return (
-                <fieldset key={weekday} disabled={busy} className="space-y-2 py-3">
+                // min-w-0: a fieldset otherwise grows to its content's minimum width, pushing the
+                // time inputs and the remove button out of narrow cards.
+                <fieldset key={weekday} disabled={busy} className="min-w-0 space-y-2 py-3">
                   <div className="flex items-center justify-between gap-2">
                     <legend className="font-medium">{day}</legend>
                     {slots.length === 0 && (
                       <span className="text-sm text-muted-foreground">{m.closedDay}</span>
                     )}
                   </div>
+                  {/* One line per slot; only the first shows its labels, the others keep them
+                      for screen readers. */}
                   {slots.map((slot, index) => (
                     <div key={index} className="flex items-end gap-2">
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <Label htmlFor={`opens-${weekday}-${index}`} className="text-xs">
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <Label
+                          htmlFor={`opens-${weekday}-${index}`}
+                          className={cn("text-xs", index > 0 && "sr-only")}
+                        >
                           {m.opens}
                         </Label>
+                        {/* iOS gives native time inputs a minimum width unless their appearance
+                            is reset, so they would overlap in a narrow row. */}
                         <Input
                           id={`opens-${weekday}-${index}`}
                           type="time"
+                          className="appearance-none"
                           value={slot.opens}
                           onChange={(event) =>
                             edit(
@@ -396,13 +406,23 @@ function HoursCard({
                           }
                         />
                       </div>
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <Label htmlFor={`closes-${weekday}-${index}`} className="text-xs">
+                      <span
+                        aria-hidden="true"
+                        className="flex h-11 items-center text-muted-foreground"
+                      >
+                        –
+                      </span>
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <Label
+                          htmlFor={`closes-${weekday}-${index}`}
+                          className={cn("text-xs", index > 0 && "sr-only")}
+                        >
                           {m.closes}
                         </Label>
                         <Input
                           id={`closes-${weekday}-${index}`}
                           type="time"
+                          className="appearance-none"
                           value={slot.closes}
                           onChange={(event) =>
                             edit(

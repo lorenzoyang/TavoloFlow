@@ -31,20 +31,19 @@ import {
 import type { useOnlineCart } from "./useOnlineCart";
 import { deviceStorage } from "./useRestaurantLanguage";
 
+// Always a button with the number on it, so customers see they can tap to call.
 export function PhoneLink({
   phone,
   language,
-  variant = "outline",
   className,
 }: {
   phone: string;
   language: Language;
-  variant?: "outline" | "default" | "link";
   className?: string;
 }) {
   return (
-    <a href={`tel:${phone}`} className={cn(buttonVariants({ variant }), className)}>
-      <Phone aria-hidden="true" />
+    <a href={`tel:${phone}`} className={cn(buttonVariants({ variant: "outline" }), className)}>
+      <Phone aria-hidden="true" className="text-primary" />
       {onlineOrderMessages[language].callNumber(phone)}
     </a>
   );
@@ -75,14 +74,7 @@ export function OnlineHeader({
           {subtitle && (
             <p className="mt-1 font-medium text-muted-foreground wrap-break-word">{subtitle}</p>
           )}
-          {phone && (
-            <PhoneLink
-              phone={phone}
-              language={language}
-              variant="link"
-              className="h-auto min-h-11 px-0 text-foreground"
-            />
-          )}
+          {phone && <PhoneLink phone={phone} language={language} className="mt-3" />}
         </div>
         <div className="flex items-center gap-2">
           <LanguageToggle language={language} select={selectLanguage} />

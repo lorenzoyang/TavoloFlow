@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { RefreshCw } from "lucide-react";
+import { Check, ChefHat, Clock, RefreshCw, X, type LucideIcon } from "lucide-react";
 import { BrandMark } from "@/components/brand";
 import { Notice } from "@/components/notice";
 import { SourceLink } from "@/components/source-link";
@@ -21,17 +21,22 @@ import { onlineOrderQuery, type OnlineOrder } from "./api";
 import { onlineOrderMessages } from "./messages";
 import { OnlineHeader, PhoneLink } from "./OnlineViews";
 import { useRestaurantLanguage } from "./useRestaurantLanguage";
-import { orderEnded, orderView, statusCopy } from "./state";
+import { orderEnded, orderView, statusCopy, type OrderView } from "./state";
 
-function headline(order: OnlineOrder, language: Language) {
-  const m = onlineOrderMessages[language];
-  const copy = statusCopy(order);
-  if (order.estimatedAt && copy === "preparingPickup")
-    return m.preparingPickupAt(formatTime(order.estimatedAt, language));
-  if (order.estimatedAt && copy === "preparingDelivery")
-    return m.preparingDeliveryAt(formatTime(order.estimatedAt, language));
-  return m.status[copy];
-}
+// Each state's icon on a round badge. State colours keep one meaning in every theme; an accepted
+// order in preparation takes the restaurant's own accent.
+const failed = { Icon: X, className: "bg-destructive/10 text-destructive" };
+const done = { Icon: Check, className: "bg-success text-success-foreground" };
+const viewIcons: Record<OrderView, { Icon: LucideIcon; className: string }> = {
+  waiting: { Icon: Clock, className: "bg-warning text-warning-foreground" },
+  preparing: { Icon: ChefHat, className: "bg-accent text-accent-foreground" },
+  ready: done,
+  collected: done,
+  closed: { Icon: X, className: "bg-muted text-muted-foreground" },
+  expired: failed,
+  rejected: failed,
+  allCancelled: failed,
+};
 
 function OrderContent({
   order,
@@ -56,8 +61,13 @@ function OrderContent({
   // When the order did not go ahead, calling the restaurant is the customer's next step.
   const callFirst = view === "expired" || view === "rejected" || view === "allCancelled";
   const success = view === "ready" || view === "collected";
+  const delivery = order.fulfillment === "DELIVERY";
+  const { Icon, className: iconClass } = viewIcons[view];
+  // While the order is prepared, the estimated time is the one thing to remember: it stands alone.
+  const estimate =
+    view === "preparing" && order.estimatedAt ? formatTime(order.estimatedAt, language) : null;
   // Before acceptance a delivery order has no fee yet: the restaurant confirms it when accepting.
-  const itemsOnly = order.fulfillment === "DELIVERY" && order.phase !== "ACCEPTED";
+  const itemsOnly = delivery && order.phase !== "ACCEPTED";
   const feePending = itemsOnly && order.phase === "WAITING";
   return (
     <div lang={language} className="min-h-dvh">
@@ -82,51 +92,56 @@ function OrderContent({
       />
       <main className="mx-auto max-w-lg space-y-5 px-4 pt-5 pb-12">
         <Card>
-          <CardContent className="space-y-3">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-sm font-medium text-muted-foreground">{m.orderTitle}</h2>
-              <p className="font-display text-3xl font-semibold tabular-nums">
-                {m.orderNumber(order.number)}
-              </p>
-            </div>
-            <p
-              role="status"
-              className={cn(
-                "text-xl leading-snug font-semibold",
-                success && "text-success-foreground",
-              )}
-            >
-              {headline(order, language)}
-            </p>
-            {order.customerName && (
-              <p className="text-muted-foreground wrap-break-word">
-                {(order.fulfillment === "DELIVERY" ? m.deliveryFor : m.pickupFor)(
-                  order.customerName,
+          <CardContent className="space-y-4">
+            <h2 className="sr-only">{m.orderTitle}</h2>
+            <div className="flex items-start justify-between gap-3">
+              <div role="status" className="min-w-0 flex-1 space-y-3">
+                <p className="flex items-start gap-3 text-xl leading-snug font-semibold">
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "flex size-9 shrink-0 items-center justify-center rounded-full",
+                      iconClass,
+                    )}
+                  >
+                    <Icon className="size-5" />
+                  </span>
+                  <span className={cn("min-w-0 pt-1 wrap-break-word", success && "text-success")}>
+                    {estimate ? m.accepted : m.status[statusCopy(order)]}
+                  </span>
+                </p>
+                {estimate && (
+                  <div>
+                    <p className="font-display text-5xl font-semibold tabular-nums">{estimate}</p>
+                    <p className="mt-1 text-muted-foreground">
+                      {delivery ? m.deliveryAround : m.pickupAround}
+                    </p>
+                  </div>
                 )}
-              </p>
-            )}
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-              <dt className="text-muted-foreground">{m.submitted}</dt>
-              <dd className="tabular-nums">{formatTime(order.submittedAt, language)}</dd>
-              {order.estimatedAt && !ended && (
-                <>
-                  <dt className="text-muted-foreground">{m.estimated}</dt>
-                  <dd className="tabular-nums">{formatTime(order.estimatedAt, language)}</dd>
-                </>
-              )}
-            </dl>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="text-xs text-muted-foreground">{m.numberLabel}</p>
+                <p className="font-display text-3xl font-semibold tabular-nums">
+                  {m.orderNumber(order.number)}
+                </p>
+              </div>
+            </div>
             {view === "waiting" && (
               <p className="text-sm leading-6">
                 {m.waitingHint(formatTime(order.expiresAt, language))} {m.updating}
               </p>
             )}
+            {/* When the order did not go ahead, calling is the next step: the phone moves here. */}
+            {callFirst && phone && (
+              <PhoneLink phone={phone} language={language} className="w-full" />
+            )}
+            <p className="border-t pt-3 text-sm text-muted-foreground wrap-break-word">
+              {order.customerName &&
+                `${(delivery ? m.deliveryFor : m.pickupFor)(order.customerName)} · `}
+              {m.submittedAt(formatTime(order.submittedAt, language))}
+            </p>
           </CardContent>
         </Card>
-        {callFirst && phone && (
-          <Notice tone="warning" action={<PhoneLink phone={phone} language={language} />}>
-            {m.status[statusCopy(order)]}
-          </Notice>
-        )}
         {error && (
           <Notice
             tone="error"

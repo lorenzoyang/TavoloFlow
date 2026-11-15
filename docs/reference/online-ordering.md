@@ -268,14 +268,16 @@ that ID was stored. Format, link, CSRF and rate-limit rejections come earlier an
 flight.
 
 The status page shows the number, the customer's name, the submission and estimated times, the dishes
-(cancelled ones struck through and not charged) and the total. `state.ts` derives what it says from
+(cancelled ones struck through and not charged) and the total. Its status card puts each state's icon
+beside the status line (state colours, with the restaurant's accent while the order is prepared) and,
+once accepted, the estimated time in large type on its own. `state.ts` derives what it says from
 `phase`, `sessionStatus`, `closeReason` and the dish statuses (`orderView`, `statusCopy`): waiting,
 expired, rejected with or without a reason, preparing (with the estimated time), ready, all dishes
 cancelled, collected (`PAID`) and closed (`NO_SHOW` or `VOIDED`), with pickup and delivery wording.
 A delivery order names itself "Delivery · name"; while waiting its total is labelled as the items
 total with "delivery fee to be confirmed" below it, and once accepted the fee appears above the total
-(struck through and not charged when every dish is cancelled). When the order did not go ahead (expired, rejected, all cancelled) the phone moves from the header to
-the most visible notice. Customers cannot cancel; the page says to call instead.
+(struck through and not charged when every dish is cancelled). When the order did not go ahead (expired, rejected, all cancelled) the phone moves from the header
+into the status card. Customers cannot cancel; the page says to call instead.
 
 The privacy page names the restaurant as controller and TavoloFlow as processor, and lists the data,
 purpose, legal basis (performance of the customer's own order), the 30-day retention, the customer's
