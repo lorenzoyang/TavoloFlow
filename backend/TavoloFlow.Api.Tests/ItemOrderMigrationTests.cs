@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
-using TavoloFlow.Api.Entities;
 
 namespace TavoloFlow.Api.Tests;
 
@@ -15,27 +14,51 @@ public sealed class ItemOrderMigrationTests(PostgreSqlFixture database)
         await using var db = await database.CreateIsolatedContextAsync();
         var migrator = db.GetService<IMigrator>();
         await migrator.MigrateAsync("20261115132915_AddMenuCategoryPosition");
-        var first = new Restaurant { Name = "First", DefaultLanguage = "en" };
-        var second = new Restaurant { Name = "Second", DefaultLanguage = "en" };
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        // These inserts must depend only on the schema at the migration's starting version.
+        foreach (var restaurantId in new[] { first, second })
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO restaurants (id, name, default_language) VALUES ({restaurantId}, 'Migration', 'en')"
+            );
         var categories = new[]
         {
-            new MenuCategory { Restaurant = first, NameEn = "A" },
-            new MenuCategory
+            new
             {
-                Restaurant = first,
-                NameEn = "B",
+                Id = Guid.NewGuid(),
+                RestaurantId = first,
+                Name = "A",
+                Position = 0,
+            },
+            new
+            {
+                Id = Guid.NewGuid(),
+                RestaurantId = first,
+                Name = "B",
                 Position = 1,
             },
-            new MenuCategory { Restaurant = second, NameEn = "C" },
-            new MenuCategory
+            new
             {
-                Restaurant = second,
-                NameEn = "Empty",
+                Id = Guid.NewGuid(),
+                RestaurantId = second,
+                Name = "C",
+                Position = 0,
+            },
+            new
+            {
+                Id = Guid.NewGuid(),
+                RestaurantId = second,
+                Name = "Empty",
                 Position = 1,
             },
         };
-        db.MenuCategories.AddRange(categories);
-        await db.SaveChangesAsync();
+        foreach (var category in categories)
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"""
+                INSERT INTO menu_categories (id, restaurant_id, name_en, position)
+                VALUES ({category.Id}, {category.RestaurantId}, {category.Name}, {category.Position})
+                """
+            );
         var ids = Enumerable
             .Range(1, 6)
             .Select(n => Guid.Parse($"00000000-0000-4000-8000-{n:D12}"))
@@ -47,16 +70,17 @@ public sealed class ItemOrderMigrationTests(PostgreSqlFixture database)
             new[] { ids[1], ids[3] },
         };
         for (var i = 0; i < groups.Length; i++)
+        {
+            var category = categories[i];
             foreach (var id in groups[i].Reverse())
                 await db.Database.ExecuteSqlInterpolatedAsync(
                     $"""
                     INSERT INTO menu_items (id, restaurant_id, category_id, name_en, price_cents,
                         allergen_codes, allergen_reviewed, is_available)
-                    VALUES ({id}, {categories[i].RestaurantId}, {categories[
-                        i
-                    ].Id}, 'Dish', 1000, ARRAY[]::text[], true, true)
+                    VALUES ({id}, {category.RestaurantId}, {category.Id}, 'Dish', 1000, ARRAY[]::text[], true, true)
                     """
                 );
+        }
         await migrator.MigrateAsync();
         Assert.False(db.Database.HasPendingModelChanges());
         for (var i = 0; i < groups.Length; i++)

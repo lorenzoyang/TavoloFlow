@@ -10,11 +10,12 @@ type ErrorBody = {
   [extension: string]: unknown;
 };
 
-// Writes whose result may be lost give up after this long; the caller then recovers by GET.
+// Writes whose result may be lost give up after this long; callers then show their recovery/retry UI.
 const REQUEST_TIMEOUT_MS = 15_000;
 
-export function withTimeout(signal: AbortSignal): AbortSignal {
-  return AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]);
+export function withTimeout(signal?: AbortSignal): AbortSignal {
+  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }
 
 export class ApiError extends Error {

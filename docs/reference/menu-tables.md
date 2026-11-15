@@ -133,10 +133,13 @@ editor sheet. The compact list shows names, prices and up/down controls. Moves e
 snapshot; Save submits once, Cancel discards it, and background reads never replace the draft.
 Submission disables editing/closing; success closes the sheet and refreshes the menu while keeping
 the selected category. A successful save followed by failed refresh is reported separately.
-Failures freeze the draft. "Reload and reset order" reads by GET and replaces the draft with the
-server's current order; failed reads keep it frozen, and a deleted category can only be closed.
-There is no automatic write retry or persisted draft. Unmount/identity changes cancel tracked work
-and late results are ignored.
+The form uses the menu page's shared mutation and feedback, with a 15-second request timeout.
+Failures retain the editable draft and allow another explicit save, including after an unknown result;
+there is no automatic write retry or persisted draft. A member conflict offers a menu reread by GET.
+Rereading leaves the open draft intact: close and reopen ordering to start with the newly read menu.
+If the category was deleted, close the form and refresh the menu. Background reads never reset an
+open form through a changing key. Shared identity checks prevent late successes from updating another
+account's UI/cache; a result from an unmounted page cannot close a newly mounted page's editor.
 
 ## Option groups
 
@@ -316,3 +319,7 @@ Tests: [menu integration](../../backend/TavoloFlow.Api.Tests/MenuTests.cs),
 Manually check category sorting, dish-order drafts and their conflict/unknown-result rereads,
 simultaneous price/availability edits, unknown create results, photo replacement,
 plain/card PNG downloads, invalid versus offline QR behavior, and 360px forms in every language.
+
+The category/dish migration tests seed their starting schemas through SQL with explicit IDs and only
+the columns present at those versions. Current EF entities are used for verification after upgrading,
+so future model fields do not change how the legacy fixtures are inserted.

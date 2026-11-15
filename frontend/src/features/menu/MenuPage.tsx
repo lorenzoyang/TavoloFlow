@@ -27,6 +27,7 @@ import {
   deleteOptionGroup,
   menuQuery,
   reorderCategories,
+  reorderItems,
   reorderOptionGroups,
   saveCategory,
   saveItem,
@@ -76,7 +77,6 @@ function MenuContent({ account }: { account: CurrentAccount }) {
   const [tab, setTab] = useState<"dishes" | "options">("dishes");
   const [editor, setEditor] = useState<Editor | null>(null);
   const [notice, setNotice] = useState("");
-  const [sortingBusy, setSortingBusy] = useState(false);
   // Each mutation runs one request built by the menu API functions.
   const mutation = useMutation({
     mutationFn: (send: () => Promise<unknown>) => send(),
@@ -105,7 +105,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
       else if (result === "failed") setPhotoNotice({ tone: "warning", text: m.refreshFailed });
     },
   });
-  const busy = mutation.isPending || imageMutation.isPending || sortingBusy;
+  const busy = mutation.isPending || imageMutation.isPending;
   const editing = editor !== null;
   function open(next: Editor) {
     mutation.reset();
@@ -126,7 +126,8 @@ function MenuContent({ account }: { account: CurrentAccount }) {
       action={
         (!(error instanceof ApiError) ||
           error.status >= 500 ||
-          error.code === "CATEGORIES_CHANGED") && (
+          error.code === "CATEGORIES_CHANGED" ||
+          error.code === "CATEGORY_ITEMS_CHANGED") && (
           <Button
             variant="outline"
             disabled={query.isFetching}
@@ -522,14 +523,12 @@ function MenuContent({ account }: { account: CurrentAccount }) {
             {editor?.kind === "item-order" && (
               <ItemOrderForm
                 initial={editor.snapshot}
-                account={account}
                 busy={busy}
-                setBusy={setSortingBusy}
-                saved={(result) => {
-                  setEditor(null);
-                  setNotice(result === "refreshed" ? m.saved : m.refreshFailed);
-                }}
+                save={(ids) =>
+                  mutation.mutate(() => reorderItems(editor.snapshot.category.id, ids))
+                }
                 cancel={cancel}
+                feedback={feedback}
               />
             )}
             {menu && editor?.kind === "category" && (

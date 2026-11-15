@@ -35,7 +35,7 @@ const zhErrors = {
   BILL_LIMIT_REACHED: "本轮账单版本已达到支持的上限，请联系管理员。",
   CATEGORY_NOT_EMPTY: "请先移走或删除分类中的菜品。",
   CATEGORIES_CHANGED: "分类已有变化，请重新读取菜单后排序。",
-  CATEGORY_ITEMS_CHANGED: "分类中的菜品已有变化，请重新读取并重置排序。",
+  CATEGORY_ITEMS_CHANGED: "分类中的菜品已有变化。请重新读取菜单，关闭排序后重新打开。",
   CREATE_CONFLICT: "餐厅标识或登录名已被使用，请核对原结果或修改登录名。",
   CREDENTIALS_CHANGED: "账号凭据已变化，请重新登录。",
   CURRENT_PASSWORD_INCORRECT: "当前密码不正确。",
@@ -100,7 +100,7 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
     CATEGORY_NOT_EMPTY: "Sposta o elimina prima i piatti della categoria.",
     CATEGORIES_CHANGED: "Le categorie sono cambiate. Ricarica il menu e riordinale.",
     CATEGORY_ITEMS_CHANGED:
-      "I piatti della categoria sono cambiati. Ricarica e reimposta l’ordine.",
+      "I piatti della categoria sono cambiati. Ricarica il menu, poi chiudi e riapri l’ordinamento.",
     CREATE_CONFLICT:
       "Identificativo del ristorante o nome utente già in uso: controlla il risultato originale o cambia il nome utente.",
     CREDENTIALS_CHANGED: "Le credenziali sono cambiate. Accedi di nuovo.",
@@ -170,7 +170,8 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
     BILL_LIMIT_REACHED: "The bill has reached the supported limit. Contact the administrator.",
     CATEGORY_NOT_EMPTY: "Move or delete the dishes in this category first.",
     CATEGORIES_CHANGED: "The categories have changed. Reload the menu and reorder them.",
-    CATEGORY_ITEMS_CHANGED: "The dishes in this category have changed. Reload and reset the order.",
+    CATEGORY_ITEMS_CHANGED:
+      "The dishes in this category have changed. Reload the menu, then close and reopen dish ordering.",
     CREATE_CONFLICT:
       "Restaurant ID or username already in use: check the original result or change the username.",
     CREDENTIALS_CHANGED: "Your credentials have changed. Sign in again.",

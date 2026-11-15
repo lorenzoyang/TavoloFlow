@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
-using TavoloFlow.Api.Entities;
 
 namespace TavoloFlow.Api.Tests;
 
@@ -17,10 +16,13 @@ public sealed class CategoryOrderMigrationTests(PostgreSqlFixture database)
         await migrator.MigrateAsync("20261114171915_AddPushSubscriptions");
         var restaurants = Enumerable
             .Range(0, 3)
-            .Select(index => new Restaurant { Name = $"Migration {index}", DefaultLanguage = "it" })
+            .Select(index => new { Id = Guid.NewGuid(), Name = $"Migration {index}" })
             .ToArray();
-        context.Restaurants.AddRange(restaurants);
-        await context.SaveChangesAsync();
+        // Seed the old schema without letting today's EF model introduce newer columns.
+        foreach (var restaurant in restaurants)
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO restaurants (id, name, default_language) VALUES ({restaurant.Id}, {restaurant.Name}, 'it')"
+            );
         Guid[] ids =
         [
             Guid.Parse("00000000-0000-4000-8000-000000000001"),

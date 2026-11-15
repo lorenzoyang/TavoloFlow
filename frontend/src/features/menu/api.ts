@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { request, write } from "@/lib/api";
+import { request, withTimeout, write } from "@/lib/api";
 import type { CurrentAccount } from "@/features/accounts/api";
 import type { Language, Names } from "@/lib/language";
 
@@ -58,8 +58,13 @@ export const saveCategory = (id: string | undefined, body: unknown) =>
 export const reorderCategories = (categoryIds: string[]) =>
   write<void>("/api/owner/menu/categories/order", "PUT", { categoryIds });
 
-export const reorderItems = (categoryId: string, itemIds: string[], signal: AbortSignal) =>
-  write<void>(`/api/owner/menu/categories/${categoryId}/items/order`, "PUT", { itemIds }, signal);
+export const reorderItems = (categoryId: string, itemIds: string[]) =>
+  write<void>(
+    `/api/owner/menu/categories/${categoryId}/items/order`,
+    "PUT",
+    { itemIds },
+    withTimeout(),
+  );
 
 export const saveItem = (id: string | undefined, body: unknown) =>
   write<MenuItem>(`/api/owner/menu/items${id ? `/${id}` : ""}`, id ? "PUT" : "POST", body);
