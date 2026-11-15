@@ -66,7 +66,7 @@ The interface follows your browser's language. To change it, pick a language und
 
 ### What it contains
 
-The **Demo Ramen** restaurant: LACQUER theme, euro and the Rome time zone, English as the default menu language, with names and descriptions in three languages. Service and ordering are on, and guests have to enter the table code.
+The **Demo Ramen** restaurant: LACQUER theme, euro and the Rome time zone, English as the default menu language, with names and descriptions in three languages. Service and ordering are on, and guests have to enter the table code. The restaurant uses QR dine-in only: online ordering is off, but turning it on takes a few steps (see "Trying online ordering").
 
 - 8 tables, T01 to T08, all free; the QR tokens are generated at random during initialization;
 - 4 categories and 12 dishes, with prices, descriptions, sample allergens and one photo each;
@@ -88,6 +88,18 @@ The restaurant and the dishes are made up, allergens included, and the photos ar
 8. If you like, also sign in as the administrator at `/platform/login`, in the same browser: the guest, staff and administrator identities have separate cookies and don't get in each other's way (see ["Three identities"](development-notes.md#three-identities-staff-guest-platform)).
 
 All normal tabs of a browser share the same staff-area login: to use owner and staff at the same time you need another profile, another browser or a private window.
+
+### Trying online ordering
+
+In the demo online ordering is off. Turning it on takes a couple of minutes, with the demo accounts:
+
+1. Sign in as **administrator** at `/platform/login` and open **Demo Ramen**. Tap **"Set online link"**, type for example `demo-ramen`, save with **"Save link"** and confirm. Then tap **"Change services"**, turn on **"Online ordering"** next to "QR dine-in", save with **"Save services"** and confirm. The link comes first: without it online ordering can't be turned on.
+2. Sign in as **owner**. From Home open **Online ordering**: enter the phone and tap **"Save phone"**; then, under **Hours**, add a slot for today that includes the current time (the end is the last moment to order) and tap **"Save hours"**. The status at the top must become **"Open"**; otherwise the reason is shown just below. To try delivery too, turn on **"Offer delivery"** and tap **"Save delivery"**.
+3. In a private window or another profile, so there is no staff login, open the link shown under **Online link**, for example <http://127.0.0.1:8080/r/demo-ramen>. Add a few dishes, open the cart and tap **"Checkout"**, enter a name and phone and send with **"Place order"**. The order's status page opens.
+4. Go back to the staff area: at the top of every page the banner shows the order to accept (here too, the browser wants a tap on the page before it plays sound). Tap **"View"**, or **Online orders** from Home, and accept by tapping one of the times (10, 20, 30 or 45 min). The customer's status page shows the order accepted, with the expected time.
+5. The order is now in the **Kitchen** as "Pickup #1": mark the dishes **"Ready"** and, from the **Pass**, **"Served"**. Finally, as owner, open **Bill**, choose "Pickup #1" and tap **"Collected, check payment"**; tick the confirmation and close with **"Collected and paid"**.
+
+If more than 10 minutes pass before acceptance, the order expires: the status page says so and shows the restaurant's phone. Hours follow the restaurant's time zone (Rome), not the computer's.
 
 ### How it is built
 
@@ -262,6 +274,15 @@ Then open <http://localhost:5173/staff/login>, or `/platform/login`.
 
 - **Starting over.** `docker compose down -v` deletes the development database volume, and only that one: the demo has its own Compose project. Then start again from `docker compose up -d db` and step 3.
 - **The PWA.** With `npm run dev` the service worker is not registered, so it doesn't interfere with hot reloading. To try the installation and the offline page you need a build: `npm run build && npm run preview`, on <http://localhost:4173>, with the API running (details in [`pwa.md`](../reference/pwa.md)).
+- **Push notifications.** They are off in development, and in the demo too: without a key the API doesn't offer them and Home doesn't show the "Lock-screen notifications" section. To try them, add the key and a contact to the local secrets and restart the API:
+
+  ```bash
+  dotnet user-secrets set 'WebPush:PrivateKey' "$(openssl rand -hex 32)" --project backend/TavoloFlow.Api
+  dotnet user-secrets set 'WebPush:Subject' 'mailto:you@example.com' --project backend/TavoloFlow.Api
+  ```
+
+  Both are needed: with only one the API doesn't start. Notifications go through the service worker, so here too you need the build (`npm run build && npm run preview`). In Chrome on the computer open <http://localhost:4173/staff>, turn notifications on from Home, put the browser in the background and place an online order from another window (first turn online ordering on as in "Trying online ordering"): "New online order #N" must arrive. The push services are real (Google for Chrome), so the computer must be online.
+
 - **Push recovery checks.** With push configured and enabled in a production/preview build, simulate a failed subscription PUT: Home must show failure, not “on”. Restore the network and return to the app: registration must recover without another permission prompt. A failed device deletion during logout must leave you signed in with retry available. After successful logout, a new order must notify only the remaining devices; signing in again restores this device. Already-sent notifications may still arrive.
 
 ## Part 3: tests and checks
@@ -348,7 +369,7 @@ cd frontend
 npm run dev -- --host 0.0.0.0
 ```
 
-Without `VITE_PUBLIC_BASE_URL`, the QR codes use the address of the page you generate them from, that is `localhost`, and the phone wouldn't know where to go: the interface warns about it with "This link uses a local address that phones can't reach". Vite reads the variable at startup and writes it into the frontend code. When you save `.env.local` it restarts by itself, but the open page has to be reloaded.
+Without `VITE_PUBLIC_BASE_URL`, the QR codes use the address of the page you generate them from, that is `localhost`, and the phone wouldn't know where to go: the interface warns about it with "This link uses a local address that phones can't reach". The same goes for the online ordering link and QR code, in Online ordering settings. Vite reads the variable at startup and writes it into the frontend code. When you save `.env.local` it restarts by itself, but the open page has to be reloaded.
 
 ### 3. WSL only: port forwarding and firewall
 
@@ -386,18 +407,19 @@ The rule opens port 5173 only on private networks and only to devices on the sam
 1. On the computer open `http://localhost:5173/staff/login`, sign in as the owner (with the demo data everything is ready) and open a table on **Floor**.
 2. In **Tables & QR** tap **"QR"** on the same table: the link under the QR code must start with `http://192.168.1.36:5173`.
 3. Scan the QR code with the phone, enter the table code and send an order. If you want to start over without old cookies, open the link in a private window.
+4. If you turned online ordering on, scan the QR code in Online ordering settings with the phone too, and try a pickup order.
 
 ### What you cannot test this way
 
 An address like `http://192.168.1.36:5173` is not HTTPS, so to the phone's browser it is not a secure context. Some browser features require one:
 
-- **installing the PWA** and the service worker;
+- **installing the PWA** and the service worker, and so **push notifications** too;
 - **keep-screen-on** in Kitchen and Pass (Screen Wake Lock);
 - **automatic copying** of links and codes: the app notices and asks you to copy them by hand.
 
 Everything else works. For example, order IDs are generated with `crypto.getRandomValues` precisely because, unlike `crypto.randomUUID`, it also works without HTTPS ([`lib/ids.ts`](../../frontend/src/lib/ids.ts)).
 
-To try the PWA on an Android phone there is a trick: with USB debugging and the port forwarding of `chrome://inspect`, the phone opens `localhost:4173` of the preview build, and `localhost` counts as a secure context (see [`pwa.md`](../reference/pwa.md)). For iPhone, and for the final test, you need the real HTTPS of [self-hosting](self-hosting.md).
+To try the PWA on an Android phone there is a trick: with USB debugging and the port forwarding of `chrome://inspect`, the phone opens `localhost:4173` of the preview build, and `localhost` counts as a secure context (see [`pwa.md`](../reference/pwa.md)). That way you can also try push notifications with the phone locked, with the key configured as in "Useful things". For iPhone, which offers notifications only to the app added to the Home Screen, and for the final test, you need the real HTTPS of [self-hosting](self-hosting.md).
 
 ### Cleanup
 
@@ -426,6 +448,8 @@ Remove-NetFirewallRule -DisplayName "TavoloFlow Dev 5173"
 | `--seed-demo` says the database already contains data                   | it only imports into an empty database: use the data you have or recreate the volume                                                                                                                                                       |
 | Constant logouts, CSRF errors                                           | demo and development both open from `localhost`: open the demo from `127.0.0.1`                                                                                                                                                            |
 | Floor shows "The restaurant's service isn't active yet or is suspended" | the restaurant is suspended: the administrator activates it with "Activate service"                                                                                                                                                        |
+| Home has no "Online orders" and "Online ordering"                       | the restaurant doesn't have online ordering: the administrator sets the link and then turns it on with "Change services" (see "Trying online ordering")                                                                                    |
+| The online ordering page only lets customers browse the menu            | the status in Online ordering settings says why: phone or hours missing, paused, outside hours or too many waiting orders; hours follow the restaurant's time zone                                                                         |
 | The guest sees the menu but can't order                                 | ordering is paused: on Floor, "QR ordering"                                                                                                                                                                                                |
 | The QR codes contain `localhost`                                        | `VITE_PUBLIC_BASE_URL` in `frontend/.env.local`, then reload the page (Vite restarts by itself)                                                                                                                                            |
 | The phone doesn't open the page                                         | same Wi-Fi network and Vite started with `--host 0.0.0.0`; on Linux and macOS the system firewall; on WSL private network profile, firewall rule and WSL IP still equal to the port forwarding's (`netsh interface portproxy show v4tov4`) |
