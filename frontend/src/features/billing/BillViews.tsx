@@ -65,7 +65,7 @@ function BillOrder({ order, timeZone }: { order: KitchenOrder; timeZone: string 
           </span>
         </div>
         <span className="font-semibold tabular-nums">
-          {m.payable(formatMoney(order.payableAmountCents, language))}
+          {m.orderDishes(formatMoney(order.payableAmountCents, language))}
         </span>
       </header>
       {order.payableAmountCents !== order.totalAmountCents && (

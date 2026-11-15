@@ -59,6 +59,8 @@ coupon's discount, because the restaurant's till issues the receipt and needs th
 
 Orders reuse the [kitchen DTO](kitchen-pass.md#kitchen-apis-and-transactions): original amount,
 remaining payable amount, status and immutable line snapshots with READY/cancellation timestamps.
+Order cards label that remaining amount "dishes" (菜品, Piatti, Dishes), never "due": only the bill
+total, which adds the delivery fee and takes off a coupon, says what to collect.
 A line's unit price already includes its chosen options' deltas; the options appear under its name.
 Cancelled lines retain original prices and content and are shown as excluded from receivables.
 There is no cancellation reason or whole-order note.
