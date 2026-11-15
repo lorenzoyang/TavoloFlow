@@ -102,11 +102,20 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
         );
         Assert.Equal(order, (await ReadAsync(staff)).Categories.Select(x => x.Id));
 
+        await AssertPublicMenusAsync(host, user.RestaurantId, menu);
+    }
+
+    private async Task AssertPublicMenusAsync(
+        AccountTestHost host,
+        Guid restaurantId,
+        MenuResponse menu
+    )
+    {
         var slug = $"sort-{Guid.NewGuid():N}";
         var token = Guid.NewGuid().ToString("N");
         await using (var context = database.CreateContext())
         {
-            var restaurant = await context.Restaurants.SingleAsync(x => x.Id == user.RestaurantId);
+            var restaurant = await context.Restaurants.SingleAsync(x => x.Id == restaurantId);
             restaurant.Slug = slug;
             restaurant.OnlineEnabled = true;
             context.RestaurantTables.Add(
@@ -134,7 +143,7 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
                 "menu"
             );
             Assert.Equal(
-                order,
+                menu.Categories.Select(x => x.Id),
                 json.GetProperty("categories")
                     .EnumerateArray()
                     .Select(x => x.GetProperty("id").GetGuid())
@@ -286,6 +295,330 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
     }
 
     [Fact]
+    public async Task ReorderItems_ExactPermutation_OrdersEveryMenuAndChangesOnlyPositions()
+    {
+        using var host = new AccountTestHost(database);
+        var user = await SeedAsync();
+        using var owner = await LoginAsync(host, user);
+        var category = await CreateCategoryAsync(owner);
+        var otherCategory = await CreateCategoryAsync(owner);
+        var a = await CreateItemAsync(owner, ValidItem(category.Id));
+        var b = await CreateItemAsync(owner, ValidItem(category.Id));
+        var c = await CreateItemAsync(owner, ValidItem(category.Id));
+        await CreateItemAsync(owner, ValidItem(otherCategory.Id));
+        await UploadImageAsync(owner, a.Id, Photo(64, 64));
+        Assert.Equal(
+            HttpStatusCode.Created,
+            (
+                await SendAsync(
+                    owner,
+                    HttpMethod.Post,
+                    "/api/owner/menu/option-groups",
+                    new OptionGroupInput(
+                        "辣度",
+                        null,
+                        null,
+                        0,
+                        1,
+                        [new OptionInput(null, "微辣", null, null, 100, ["SESAME"])],
+                        [a.Id],
+                        true
+                    )
+                )
+            ).StatusCode
+        );
+        await using (var context = database.CreateContext())
+            await context
+                .MenuItems.Where(x => x.Id == b.Id)
+                .ExecuteUpdateAsync(u =>
+                    u.SetProperty(x => x.IsAvailable, false)
+                        .SetProperty(x => x.AllergenReviewed, false)
+                );
+        var before = await ReadAsync(owner);
+        Guid[] order = [c.Id, a.Id, b.Id];
+        for (var attempt = 0; attempt < 2; attempt++)
+            Assert.Equal(
+                HttpStatusCode.NoContent,
+                (
+                    await SendAsync(
+                        owner,
+                        HttpMethod.Put,
+                        ItemOrderPath(category.Id),
+                        new MenuItemOrderInput(order)
+                    )
+                ).StatusCode
+            );
+        var after = await ReadAsync(owner);
+        Assert.Equal(order, after.Items.Where(x => x.CategoryId == category.Id).Select(x => x.Id));
+        Assert.Equal(before.Categories, after.Categories);
+        Assert.Equal(
+            JsonSerializer.Serialize(before.Items.OrderBy(x => x.Id)),
+            JsonSerializer.Serialize(after.Items.OrderBy(x => x.Id))
+        );
+        await AssertPublicMenusAsync(host, user.RestaurantId, after);
+    }
+
+    [Fact]
+    public async Task ReorderItems_InvalidOrStaleMembership_RejectsAtomically()
+    {
+        using var host = new AccountTestHost(database);
+        using var owner = await LoginAsync(host, await SeedAsync());
+        var category = await CreateCategoryAsync(owner);
+        var otherCategory = await CreateCategoryAsync(owner);
+        Assert.Equal(
+            HttpStatusCode.NoContent,
+            (
+                await SendAsync(
+                    owner,
+                    HttpMethod.Put,
+                    ItemOrderPath(otherCategory.Id),
+                    new MenuItemOrderInput([])
+                )
+            ).StatusCode
+        );
+        var a = await CreateItemAsync(owner, ValidItem(category.Id));
+        var b = await CreateItemAsync(owner, ValidItem(category.Id));
+        var otherItem = await CreateItemAsync(owner, ValidItem(otherCategory.Id));
+        using var foreign = await LoginAsync(host, await SeedAsync());
+        var foreignCategory = await CreateCategoryAsync(foreign);
+        var foreignItem = await CreateItemAsync(foreign, ValidItem(foreignCategory.Id));
+        foreach (
+            Guid[]? invalid in new Guid[]?[]
+            {
+                null,
+                [],
+                [a.Id],
+                [a.Id, a.Id],
+                [a.Id, otherItem.Id],
+                [a.Id, foreignItem.Id],
+                [a.Id, Guid.NewGuid()],
+                [a.Id, b.Id, otherItem.Id],
+            }
+        )
+        {
+            await AssertErrorAsync(
+                await SendAsync(
+                    owner,
+                    HttpMethod.Put,
+                    ItemOrderPath(category.Id),
+                    new MenuItemOrderInput(invalid)
+                ),
+                HttpStatusCode.Conflict,
+                "CATEGORY_ITEMS_CHANGED"
+            );
+            Assert.Equal(
+                new[] { a.Id, b.Id },
+                (await ReadAsync(owner))
+                    .Items.Where(x => x.CategoryId == category.Id)
+                    .Select(x => x.Id)
+            );
+        }
+        foreach (var missing in new[] { Guid.NewGuid(), foreignCategory.Id })
+            await AssertErrorAsync(
+                await SendAsync(
+                    owner,
+                    HttpMethod.Put,
+                    ItemOrderPath(missing),
+                    new MenuItemOrderInput([])
+                ),
+                HttpStatusCode.NotFound,
+                "MENU_RESOURCE_NOT_FOUND"
+            );
+        var c = await CreateItemAsync(owner, ValidItem(category.Id));
+        await AssertErrorAsync(
+            await SendAsync(
+                owner,
+                HttpMethod.Put,
+                ItemOrderPath(category.Id),
+                new MenuItemOrderInput([b.Id, a.Id])
+            ),
+            HttpStatusCode.Conflict,
+            "CATEGORY_ITEMS_CHANGED"
+        );
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (
+                await SendAsync(
+                    owner,
+                    HttpMethod.Put,
+                    $"{Items}/{b.Id}",
+                    ValidItem(otherCategory.Id)
+                )
+            ).StatusCode
+        );
+        await AssertErrorAsync(
+            await SendAsync(
+                owner,
+                HttpMethod.Put,
+                ItemOrderPath(category.Id),
+                new MenuItemOrderInput([c.Id, b.Id, a.Id])
+            ),
+            HttpStatusCode.Conflict,
+            "CATEGORY_ITEMS_CHANGED"
+        );
+        Assert.Equal(
+            HttpStatusCode.NoContent,
+            (await SendAsync(owner, HttpMethod.Delete, $"{Items}/{c.Id}")).StatusCode
+        );
+        await AssertErrorAsync(
+            await SendAsync(
+                owner,
+                HttpMethod.Put,
+                ItemOrderPath(category.Id),
+                new MenuItemOrderInput([c.Id, a.Id])
+            ),
+            HttpStatusCode.Conflict,
+            "CATEGORY_ITEMS_CHANGED"
+        );
+        Assert.Equal(
+            a.Id,
+            Assert.Single((await ReadAsync(owner)).Items, x => x.CategoryId == category.Id).Id
+        );
+        Assert.Equal(foreignItem.Id, Assert.Single((await ReadAsync(foreign)).Items).Id);
+    }
+
+    [Fact]
+    public async Task ReorderItems_MoveEditDeleteAndCreate_PreservesGapsAndAppendsToDestination()
+    {
+        using var host = new AccountTestHost(database);
+        using var owner = await LoginAsync(host, await SeedAsync());
+        var source = await CreateCategoryAsync(owner);
+        var destination = await CreateCategoryAsync(owner);
+        var items = new List<MenuItemResponse>();
+        for (var i = 0; i < 5; i++)
+            items.Add(await CreateItemAsync(owner, ValidItem(source.Id)));
+        var destinationFirst = await CreateItemAsync(owner, ValidItem(destination.Id));
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (
+                await SendAsync(
+                    owner,
+                    HttpMethod.Put,
+                    $"{Items}/{items[2].Id}",
+                    ValidItem(destination.Id)
+                )
+            ).StatusCode
+        );
+        Assert.Equal(
+            new[] { destinationFirst.Id, items[2].Id },
+            (await ReadAsync(owner))
+                .Items.Where(x => x.CategoryId == destination.Id)
+                .Select(x => x.Id)
+        );
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (
+                await SendAsync(
+                    owner,
+                    HttpMethod.Put,
+                    $"{Items}/{items[3].Id}",
+                    ValidItem(source.Id) with
+                    {
+                        NameIt = "New name",
+                        PriceCents = 2500,
+                    }
+                )
+            ).StatusCode
+        );
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (
+                await SendAsync(
+                    owner,
+                    HttpMethod.Patch,
+                    Availability(items[3].Id),
+                    new { isAvailable = false }
+                )
+            ).StatusCode
+        );
+        var appended = await CreateItemAsync(owner, ValidItem(source.Id));
+        Assert.Equal(
+            HttpStatusCode.NoContent,
+            (await SendAsync(owner, HttpMethod.Delete, $"{Items}/{items[1].Id}")).StatusCode
+        );
+        await using (var context = database.CreateContext())
+        {
+            var positions = await context
+                .MenuItems.Where(x => x.CategoryId == source.Id)
+                .ToDictionaryAsync(x => x.Id, x => x.Position);
+            Assert.Equal(0, positions[items[0].Id]);
+            Assert.Equal(3, positions[items[3].Id]);
+            Assert.Equal(4, positions[items[4].Id]);
+            Assert.Equal(5, positions[appended.Id]);
+        }
+        Guid[] order = [appended.Id, items[4].Id, items[3].Id, items[0].Id];
+        Assert.Equal(
+            HttpStatusCode.NoContent,
+            (
+                await SendAsync(
+                    owner,
+                    HttpMethod.Put,
+                    ItemOrderPath(source.Id),
+                    new MenuItemOrderInput(order)
+                )
+            ).StatusCode
+        );
+        Assert.Equal(
+            order,
+            (await ReadAsync(owner)).Items.Where(x => x.CategoryId == source.Id).Select(x => x.Id)
+        );
+        await using var check = database.CreateContext();
+        Assert.Equal(
+            new[] { 0, 1, 2, 3 },
+            await check
+                .MenuItems.Where(x => x.CategoryId == source.Id)
+                .OrderBy(x => x.Position)
+                .Select(x => x.Position)
+                .ToArrayAsync()
+        );
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReorderItems_ConcurrentAdditionOrMove_PreservesAllDishes(bool move)
+    {
+        using var host = new AccountTestHost(database);
+        var user = await SeedAsync();
+        using var owner = await LoginAsync(host, user);
+        using var second = await LoginAsync(host, user);
+        var category = await CreateCategoryAsync(owner);
+        var source = await CreateCategoryAsync(owner);
+        var a = await CreateItemAsync(owner, ValidItem(category.Id));
+        var b = await CreateItemAsync(owner, ValidItem(category.Id));
+        var moving = await CreateItemAsync(owner, ValidItem(source.Id));
+        var results = await Task.WhenAll(
+            SendAsync(
+                owner,
+                HttpMethod.Put,
+                ItemOrderPath(category.Id),
+                new MenuItemOrderInput([b.Id, a.Id])
+            ),
+            SendAsync(
+                second,
+                move ? HttpMethod.Put : HttpMethod.Post,
+                move ? $"{Items}/{moving.Id}" : Items,
+                ValidItem(category.Id)
+            )
+        );
+        Assert.Equal(move ? HttpStatusCode.OK : HttpStatusCode.Created, results[1].StatusCode);
+        var added = (await results[1].Content.ReadFromJsonAsync<MenuItemResponse>())!;
+        var expected =
+            results[0].StatusCode == HttpStatusCode.NoContent
+                ? new[] { b.Id, a.Id, added.Id }
+                : new[] { a.Id, b.Id, added.Id };
+        if (results[0].StatusCode != HttpStatusCode.NoContent)
+            await AssertErrorAsync(results[0], HttpStatusCode.Conflict, "CATEGORY_ITEMS_CHANGED");
+        Assert.Equal(
+            expected,
+            (await ReadAsync(owner)).Items.Where(x => x.CategoryId == category.Id).Select(x => x.Id)
+        );
+    }
+
+    private static string ItemOrderPath(Guid categoryId) =>
+        $"{Categories}/{categoryId}/items/order";
+
+    [Fact]
     public async Task Authorization_AnonymousFirstPasswordStaffAndCsrf_EnforcesActualMenuEndpoints()
     {
         using var host = new AccountTestHost(database);
@@ -303,6 +636,17 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
             await SendAsync(
                 anonymous,
                 HttpMethod.Put,
+                ItemOrderPath(category.Id),
+                new MenuItemOrderInput([item.Id]),
+                csrf: false
+            ),
+            HttpStatusCode.Unauthorized,
+            "UNAUTHENTICATED"
+        );
+        await AssertErrorAsync(
+            await SendAsync(
+                anonymous,
+                HttpMethod.Put,
                 $"{Categories}/order",
                 new CategoryOrderInput([category.Id]),
                 csrf: false
@@ -311,6 +655,16 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
             "UNAUTHENTICATED"
         );
         using var firstLogin = await LoginAsync(host, await SeedAsync(mustChange: true));
+        await AssertErrorAsync(
+            await SendAsync(
+                firstLogin,
+                HttpMethod.Put,
+                ItemOrderPath(category.Id),
+                new MenuItemOrderInput([item.Id])
+            ),
+            HttpStatusCode.Forbidden,
+            "PASSWORD_CHANGE_REQUIRED"
+        );
         await AssertErrorAsync(
             await SendAsync(
                 firstLogin,
@@ -336,6 +690,7 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
             {
                 (HttpMethod.Post, Categories, new CategoryInput("test", null, null)),
                 (HttpMethod.Put, $"{Categories}/order", new CategoryOrderInput([category.Id])),
+                (HttpMethod.Put, ItemOrderPath(category.Id), new MenuItemOrderInput([item.Id])),
                 (
                     HttpMethod.Put,
                     $"{Categories}/{category.Id}",
@@ -358,6 +713,7 @@ public sealed class MenuTests(PostgreSqlFixture database) : IClassFixture<Postgr
             {
                 (HttpMethod.Post, Categories, new CategoryInput("test", null, null)),
                 (HttpMethod.Put, $"{Categories}/order", new CategoryOrderInput([category.Id])),
+                (HttpMethod.Put, ItemOrderPath(category.Id), new MenuItemOrderInput([item.Id])),
                 (HttpMethod.Put, $"{Items}/{item.Id}", ValidItem(category.Id)),
                 (HttpMethod.Delete, $"{Items}/{item.Id}", null),
                 (HttpMethod.Patch, Availability(item.Id), new { isAvailable = false }),

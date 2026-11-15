@@ -242,6 +242,10 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("character varying(150)")
                         .HasColumnName("name_zh");
 
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
                     b.Property<long>("PriceCents")
                         .HasColumnType("bigint")
                         .HasColumnName("price_cents");
@@ -267,6 +271,8 @@ namespace TavoloFlow.Api.Data.Migrations
                     b.ToTable("menu_items", null, t =>
                         {
                             t.HasCheckConstraint("ck_item_has_name", "concat(name_zh, name_it, name_en) ~ '[^[:space:]]'");
+
+                            t.HasCheckConstraint("ck_item_position", "position >= 0");
 
                             t.HasCheckConstraint("ck_item_positive_price", "price_cents > 0");
                         });

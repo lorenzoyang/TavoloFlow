@@ -64,6 +64,11 @@ A closed visit is never reopened.
 OWNER can reorder menu categories with up/down controls. Each move is saved immediately and applies
 to the staff menu, QR menu and online menu in every language. New categories appear last.
 
+OWNER can also reorder dishes within a selected category, using up/down controls followed by one save.
+This order is shared by all menu readers and languages. New dishes and dishes moved into a category
+appear last; editing within the same category preserves position. Deleting or moving dishes leaves
+numeric gaps without visible empty places.
+
 Guests can always choose Chinese, Italian or English.
 Without an explicit guest choice, use the restaurant's default menu language.
 Missing names follow a documented fallback; descriptions follow the resolved name's language.

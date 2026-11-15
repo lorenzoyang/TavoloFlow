@@ -55,6 +55,18 @@ public sealed class MenuController(MenuService menus, CurrentAccount current) : 
     }
 
     [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
+    [HttpPut("api/owner/menu/categories/{categoryId:guid}/items/order")]
+    public async Task<IActionResult> ReorderItems(
+        Guid categoryId,
+        MenuItemOrderInput input,
+        CancellationToken ct
+    )
+    {
+        await menus.ReorderItemsAsync(RestaurantId, categoryId, input.ItemIds, ct);
+        return NoContent();
+    }
+
+    [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
     [HttpPost("api/owner/menu/items")]
     public async Task<IActionResult> CreateItem(MenuItemInput input, CancellationToken ct) =>
         StatusCode(201, await menus.SaveItemAsync(RestaurantId, null, input, ct));

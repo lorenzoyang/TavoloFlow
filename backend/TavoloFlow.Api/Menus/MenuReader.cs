@@ -24,6 +24,7 @@ internal static class MenuReader
             .MenuItems.AsNoTracking()
             .Where(x => x.RestaurantId == restaurantId)
             .OrderBy(x => x.CategoryId)
+            .ThenBy(x => x.Position)
             .ThenBy(x => x.Id)
             .ToArrayAsync(ct);
         var categoryRank = categories

@@ -65,8 +65,8 @@ public sealed class DemoSeeder(
             DefaultAnnualFeeCents = restaurantData.AnnualFeeCents,
         };
 
-        // Dishes within a category and table lists sort rows by ID, so IDs that grow in file order
-        // keep the fixtures' order on screen. Categories have their own explicit position.
+        // Table lists sort rows by ID, so IDs that grow in file order keep the fixtures' order on screen.
+        // Categories and dishes have explicit positions, assigned in fixture order.
         // Photo IDs stay random on purpose.
         var idTime = clock.GetUtcNow();
         Guid NextId() => Guid.CreateVersion7(idTime = idTime.AddMilliseconds(1));
@@ -93,6 +93,7 @@ public sealed class DemoSeeder(
 
         var images = new List<MenuItemImage>();
         var itemIds = new Dictionary<string, Guid>();
+        var itemPositions = new Dictionary<Guid, int>();
 
         // Decode all images before opening the write transaction,
         // just like ordinary image uploads.
@@ -137,6 +138,7 @@ public sealed class DemoSeeder(
                 Id = NextId(),
                 RestaurantId = restaurant.Id,
                 CategoryId = category.Id,
+                Position = itemPositions.GetValueOrDefault(category.Id),
                 ItemCode = content.ItemCode,
                 NameZh = content.NameZh,
                 NameIt = content.NameIt,
@@ -152,6 +154,7 @@ public sealed class DemoSeeder(
             };
 
             restaurant.MenuItems.Add(entity);
+            itemPositions[category.Id] = entity.Position + 1;
             itemIds.Add(item.Key, entity.Id);
             images.Add(
                 new MenuItemImage

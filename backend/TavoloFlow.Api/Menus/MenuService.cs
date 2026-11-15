@@ -151,6 +151,17 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
                     )
                 )
                     throw MenuErrors.NotFound();
+                if (id is null || item.CategoryId != value.CategoryId)
+                    item.Position =
+                        (
+                            await context
+                                .MenuItems.Where(x =>
+                                    x.RestaurantId == restaurantId
+                                    && x.CategoryId == value.CategoryId
+                                )
+                                .MaxAsync(x => (int?)x.Position, ct)
+                            ?? -1
+                        ) + 1;
                 item.CategoryId = value.CategoryId;
                 item.ItemCode = value.ItemCode;
                 item.NameZh = value.NameZh;
@@ -197,6 +208,43 @@ public sealed class MenuService(ApplicationDbContext context, CatalogDeletionSer
             ct
         );
     }
+
+    public Task ReorderItemsAsync(
+        Guid restaurantId,
+        Guid categoryId,
+        Guid[]? itemIds,
+        CancellationToken ct
+    ) =>
+        WriteAsync(
+            restaurantId,
+            async () =>
+            {
+                if (
+                    !await context.MenuCategories.AnyAsync(
+                        x => x.RestaurantId == restaurantId && x.Id == categoryId,
+                        ct
+                    )
+                )
+                    throw MenuErrors.NotFound();
+                var items = await context
+                    .MenuItems.Where(x =>
+                        x.RestaurantId == restaurantId && x.CategoryId == categoryId
+                    )
+                    .ToDictionaryAsync(x => x.Id, ct);
+                if (
+                    itemIds is null
+                    || itemIds.Length != items.Count
+                    || !itemIds.ToHashSet().SetEquals(items.Keys)
+                )
+                    throw MenuErrors.CategoryItemsChanged();
+                // Track just the position changes and let EF batch them in one SaveChanges call.
+                // Category membership is stable while this transaction holds the restaurant UPDATE lock.
+                foreach (var (itemId, position) in itemIds.Select((id, index) => (id, index)))
+                    items[itemId].Position = position;
+                await context.SaveChangesAsync(ct);
+            },
+            ct
+        );
 
     public async Task DeleteItemAsync(Guid restaurantId, Guid id, CancellationToken ct)
     {

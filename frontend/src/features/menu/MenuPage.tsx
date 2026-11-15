@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, RefreshCw, Trash2, Utensils, X } from "lucide-react";
+import { ArrowDownUp, Pencil, Plus, RefreshCw, Trash2, Utensils, X } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { FilterChips } from "@/components/filter-chips";
@@ -44,6 +44,7 @@ import { displayName } from "@/lib/language";
 import { ItemImageSection, ItemThumbnail } from "./ItemImage";
 import { CategoryForm, ItemForm } from "./MenuForms";
 import { CategoryOrder } from "./CategoryOrder";
+import { ItemOrderForm, type ItemOrderSnapshot } from "./ItemOrderForm";
 import { allergenLabel, languages, menuMessages } from "./messages";
 import { OptionGroupForm } from "./OptionGroupForm";
 import { OptionGroups, TemplatePicker } from "./OptionGroups";
@@ -52,6 +53,7 @@ import type { OptionTemplate } from "./option-templates";
 type Editor =
   | { kind: "category"; value?: Category }
   | { kind: "item"; value?: MenuItem; categoryId: string }
+  | { kind: "item-order"; snapshot: ItemOrderSnapshot }
   // A new option group starts from a template (or a blank form).
   | { kind: "templates" }
   | { kind: "group"; value?: OptionGroup; template?: OptionTemplate }
@@ -74,6 +76,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
   const [tab, setTab] = useState<"dishes" | "options">("dishes");
   const [editor, setEditor] = useState<Editor | null>(null);
   const [notice, setNotice] = useState("");
+  const [sortingBusy, setSortingBusy] = useState(false);
   // Each mutation runs one request built by the menu API functions.
   const mutation = useMutation({
     mutationFn: (send: () => Promise<unknown>) => send(),
@@ -102,7 +105,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
       else if (result === "failed") setPhotoNotice({ tone: "warning", text: m.refreshFailed });
     },
   });
-  const busy = mutation.isPending || imageMutation.isPending;
+  const busy = mutation.isPending || imageMutation.isPending || sortingBusy;
   const editing = editor !== null;
   function open(next: Editor) {
     mutation.reset();
@@ -152,6 +155,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
   const formOpen =
     editor?.kind === "category" ||
     editor?.kind === "item" ||
+    editor?.kind === "item-order" ||
     editor?.kind === "templates" ||
     editor?.kind === "group";
   // Lists every group in its new order, so a repeated or late request changes nothing more.
@@ -287,7 +291,26 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                 <h2 className="text-lg font-semibold wrap-break-word">
                   {displayName(selected, menu.defaultLanguage, language).text}
                 </h2>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                  {items.length >= 2 && (
+                    <Button
+                      variant="outline"
+                      disabled={busy || editing || query.isFetching || query.isError}
+                      onClick={() =>
+                        open({
+                          kind: "item-order",
+                          snapshot: {
+                            category: selected,
+                            defaultLanguage: menu.defaultLanguage,
+                            items,
+                          },
+                        })
+                      }
+                    >
+                      <ArrowDownUp />
+                      {m.sortItems}
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     disabled={busy || editing}
@@ -320,7 +343,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                 title={owner ? (menu.categories.length ? m.noItems : m.noCategories) : m.staffEmpty}
               />
             )}
-            <ul className="grid gap-3 lg:grid-cols-2">
+            <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               {items.map((item) => {
                 const name = displayName(item, menu.defaultLanguage, language);
                 const description = {
@@ -480,9 +503,11 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                     ? editor.value
                       ? m.editOptionGroup
                       : m.addOptionGroup
-                    : editor?.kind === "item" && editor.value
-                      ? m.editItem
-                      : m.addItem}
+                    : editor?.kind === "item-order"
+                      ? m.sortItems
+                      : editor?.kind === "item" && editor.value
+                        ? m.editItem
+                        : m.addItem}
             </SheetTitle>
             <SheetClose
               disabled={busy}
@@ -494,6 +519,19 @@ function MenuContent({ account }: { account: CurrentAccount }) {
             </SheetClose>
           </SheetHeader>
           <div className="flex-1 overflow-y-auto px-4 pt-4">
+            {editor?.kind === "item-order" && (
+              <ItemOrderForm
+                initial={editor.snapshot}
+                account={account}
+                busy={busy}
+                setBusy={setSortingBusy}
+                saved={(result) => {
+                  setEditor(null);
+                  setNotice(result === "refreshed" ? m.saved : m.refreshFailed);
+                }}
+                cancel={cancel}
+              />
+            )}
             {menu && editor?.kind === "category" && (
               <CategoryForm
                 key={`category-${editor.value?.id ?? "new"}`}

@@ -99,7 +99,7 @@ public sealed class DemoSeederTests(PostgreSqlFixture database) : IClassFixture<
                 );
             }
         );
-        // Categories have explicit positions; dishes and tables keep their ID order from the fixtures.
+        // Categories and dishes have explicit positions; tables keep their ID order from the fixtures.
         Assert.Equal(
             new[] { "Ramen", "Sides", "Drinks", "Desserts" },
             (
@@ -112,11 +112,14 @@ public sealed class DemoSeederTests(PostgreSqlFixture database) : IClassFixture<
             (
                 await db
                     .MenuItems.OrderBy(x => x.CategoryId)
+                    .ThenBy(x => x.Position)
                     .ThenBy(x => x.Id)
                     .Take(4)
                     .ToArrayAsync()
             ).Select(x => x.ItemCode)
         );
+        foreach (var group in items.GroupBy(x => x.CategoryId))
+            Assert.Equal(Enumerable.Range(0, group.Count()), group.Select(x => x.Position).Order());
         Assert.Equal(
             Enumerable.Range(1, 8).Select(x => $"T{x:00}"),
             (await db.RestaurantTables.OrderBy(x => x.Id).ToArrayAsync()).Select(x => x.TableLabel)

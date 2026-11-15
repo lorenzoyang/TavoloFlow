@@ -28,6 +28,10 @@ const zh = {
   editCategory: "编辑分类",
   sortCategories: "分类排序",
   categoryOrderHint: "上下移动分类，每次调整都会立即保存，并用于顾客菜单。",
+  sortItems: "菜品排序",
+  itemOrderHint: "上下移动本分类的菜品，调整完成后点保存。顾客菜单也会使用这个顺序。",
+  reloadItemOrder: "重新读取并重置排序",
+  itemOrderCategoryMissing: "这个分类已被删除，请关闭排序面板。",
   addItem: "添加菜品",
   editItem: "编辑菜品",
   edit: "编辑",
@@ -162,6 +166,11 @@ export const menuMessages: Record<Language, typeof zh> = {
     addCategory: "Nuova categoria",
     editCategory: "Modifica categoria",
     sortCategories: "Ordina categorie",
+    sortItems: "Ordina piatti",
+    itemOrderHint:
+      "Sposta i piatti di questa categoria su o giù, poi salva. L’ordine vale anche per i menu dei clienti.",
+    reloadItemOrder: "Ricarica e reimposta l’ordine",
+    itemOrderCategoryMissing: "Questa categoria è stata eliminata. Chiudi il pannello.",
     categoryOrderHint:
       "Sposta le categorie su o giù. Ogni modifica viene salvata subito e applicata ai menu dei clienti.",
     addItem: "Nuovo piatto",
@@ -305,6 +314,11 @@ export const menuMessages: Record<Language, typeof zh> = {
     addCategory: "New category",
     editCategory: "Edit category",
     sortCategories: "Reorder categories",
+    sortItems: "Reorder dishes",
+    itemOrderHint:
+      "Move this category’s dishes up or down, then save. Customer menus use the same order.",
+    reloadItemOrder: "Reload and reset order",
+    itemOrderCategoryMissing: "This category has been deleted. Close the panel.",
     categoryOrderHint:
       "Move categories up or down. Each change is saved immediately and used on customer menus.",
     addItem: "New dish",

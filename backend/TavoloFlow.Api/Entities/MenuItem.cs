@@ -5,6 +5,7 @@ public sealed class MenuItem
     public Guid Id { get; set; }
     public Guid RestaurantId { get; set; }
     public Guid CategoryId { get; set; }
+    public int Position { get; set; }
     public string? ItemCode { get; set; }
     public string? NameZh { get; set; }
     public string? NameIt { get; set; }

@@ -16,6 +16,7 @@ public photo read.
 | `POST /api/owner/menu/categories`                 | OWNER       | 201, category                                       |
 | `PUT /api/owner/menu/categories/{id}`             | OWNER       | 200, category                                       |
 | `PUT /api/owner/menu/categories/order`            | OWNER       | 204                                                 |
+| `PUT /api/owner/menu/categories/{categoryId}/items/order` | OWNER | 204                                            |
 | `DELETE /api/owner/menu/categories/{id}`          | OWNER       | 204                                                 |
 | `POST /api/owner/menu/items`                      | OWNER       | 201, item initially available                       |
 | `PUT /api/owner/menu/items/{id}`                  | OWNER       | 200, item preserving availability/photo             |
@@ -33,7 +34,7 @@ public photo read.
 
 Menu response: `restaurantId`, `defaultLanguage`, `availableLanguages`, `categories`, `items`,
 `optionGroups` and `allergens`. Categories sort by their restaurant-wide position, then ID; items follow
-that category order, retaining item ID order within each category. Option groups sort by their
+that category order, sorting by their category-local position and then item ID. Option groups sort by their
 restaurant-wide position. Category response is `id/nameZh/nameIt/nameEn`. Items also carry
 `categoryId`, `itemCode`, three descriptions, `priceCents`, `allergenCodes`, `allergenReviewed`,
 `isAvailable`, nullable `imageId` and `optionGroupIds` (in group order).
@@ -108,6 +109,34 @@ refresh; drafts are not persisted on closing the form. Writes are not automatica
 offline. After an unknown result, reread and compare before resubmitting: category/item creation has
 no idempotency key. A known successful write
 followed by refresh failure is reported separately.
+
+## Dish order within a category
+
+Each dish has a non-negative `menu_items.position` within its category. All menu readers use that
+order in every language. The migration preserves the previous ID order separately for each restaurant
+and category; demo imports assign positions in fixture order. Creating a dish or moving it to another
+category appends after the destination's maximum position, under the restaurant UPDATE lock. Other
+content edits preserve position. Deleting or moving a dish leaves gaps; readers show a continuous list.
+
+`PUT /api/owner/menu/categories/{categoryId}/items/order` takes `{ "itemIds": [...] }`: every current
+dish in this restaurant's category, including sold-out and unreviewed dishes. An existing empty category
+accepts an empty array. Missing/foreign categories return `MENU_RESOURCE_NOT_FOUND` (404); null,
+duplicate, missing, extra, foreign or other-category dish IDs return `CATEGORY_ITEMS_CHANGED` (409).
+Validation and assignment of consecutive positions from zero happen inside one `MenuWrites` transaction.
+Only position changes are tracked, with one `SaveChangesAsync` so EF batches the writes. No position
+uniqueness constraint is needed. Repeating the same target is harmless; concurrent same-set reorderings
+use last-write-wins. This endpoint changes no content, availability, photo or option links and needs
+no allergen review. Content DTOs do not accept position.
+
+OWNER selects a category with at least two dishes, then opens the dish-order form in the existing
+editor sheet. The compact list shows names, prices and up/down controls. Moves edit an in-memory
+snapshot; Save submits once, Cancel discards it, and background reads never replace the draft.
+Submission disables editing/closing; success closes the sheet and refreshes the menu while keeping
+the selected category. A successful save followed by failed refresh is reported separately.
+Failures freeze the draft. "Reload and reset order" reads by GET and replaces the draft with the
+server's current order; failed reads keep it frozen, and a deleted category can only be closed.
+There is no automatic write retry or persisted draft. Unmount/identity changes cancel tracked work
+and late results are ignored.
 
 ## Option groups
 
@@ -265,7 +294,7 @@ The restaurant theme applies after bootstrap loads; invalid/loading entrances ke
 
 Common errors include `VALIDATION_FAILED` (400), `MENU_RESOURCE_NOT_FOUND`, `TABLE_NOT_FOUND` and
 `QR_NOT_FOUND` (404), plus conflicts `ITEM_CODE_CONFLICT`, `CATEGORY_NOT_EMPTY`,
-`ALLERGEN_REVIEW_REQUIRED`, `CATEGORIES_CHANGED`, `OPTION_GROUPS_CHANGED`, `TABLE_LABEL_CONFLICT` and
+`ALLERGEN_REVIEW_REQUIRED`, `CATEGORIES_CHANGED`, `CATEGORY_ITEMS_CHANGED`, `OPTION_GROUPS_CHANGED`, `TABLE_LABEL_CONFLICT` and
 `TABLE_HAS_ACTIVE_SESSION` (409).
 Photo errors are `IMAGE_INVALID` (400), `IMAGE_TOO_LARGE` (413) and `MENU_IMAGE_NOT_FOUND` (404).
 Account/CSRF errors follow [accounts](accounts-platform.md).
@@ -279,9 +308,11 @@ Sources: [menu DTOs](../../backend/TavoloFlow.Api/Menus/MenuContracts.cs),
 
 Tests: [menu integration](../../backend/TavoloFlow.Api.Tests/MenuTests.cs),
 [category-order migration](../../backend/TavoloFlow.Api.Tests/CategoryOrderMigrationTests.cs),
+[dish-order migration](../../backend/TavoloFlow.Api.Tests/ItemOrderMigrationTests.cs),
 [option groups](../../backend/TavoloFlow.Api.Tests/MenuOptionTests.cs),
 [tables/bootstrap integration](../../backend/TavoloFlow.Api.Tests/TableAndPublicMenuTests.cs),
 [language](../../frontend/tests/menu-language.test.ts) and
 [public menu/QR](../../frontend/tests/public-menu.test.ts).
-Manually check category sorting and its conflict/unknown-result rereads, simultaneous price/availability edits, unknown create results, photo replacement,
+Manually check category sorting, dish-order drafts and their conflict/unknown-result rereads,
+simultaneous price/availability edits, unknown create results, photo replacement,
 plain/card PNG downloads, invalid versus offline QR behavior, and 360px forms in every language.

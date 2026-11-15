@@ -18,6 +18,7 @@ internal sealed class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                     "concat(name_zh, name_it, name_en) ~ '[^[:space:]]'"
                 );
                 table.HasCheckConstraint("ck_item_positive_price", "price_cents > 0");
+                table.HasCheckConstraint("ck_item_position", "position >= 0");
             }
         );
 
@@ -32,6 +33,7 @@ internal sealed class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
         builder.Property(item => item.RestaurantId).HasColumnName("restaurant_id");
 
         builder.Property(item => item.CategoryId).HasColumnName("category_id");
+        builder.Property(item => item.Position).HasColumnName("position");
 
         builder
             .Property(item => item.ItemCode)

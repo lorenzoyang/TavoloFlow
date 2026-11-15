@@ -58,6 +58,9 @@ export const saveCategory = (id: string | undefined, body: unknown) =>
 export const reorderCategories = (categoryIds: string[]) =>
   write<void>("/api/owner/menu/categories/order", "PUT", { categoryIds });
 
+export const reorderItems = (categoryId: string, itemIds: string[], signal: AbortSignal) =>
+  write<void>(`/api/owner/menu/categories/${categoryId}/items/order`, "PUT", { itemIds }, signal);
+
 export const saveItem = (id: string | undefined, body: unknown) =>
   write<MenuItem>(`/api/owner/menu/items${id ? `/${id}` : ""}`, id ? "PUT" : "POST", body);
 

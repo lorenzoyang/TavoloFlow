@@ -12,6 +12,9 @@ public sealed record CategoryInput(string? NameZh, string? NameIt, string? NameE
 public sealed record CategoryOrderInput(Guid[]? CategoryIds);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record MenuItemOrderInput(Guid[]? ItemIds);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record MenuItemInput(
     Guid CategoryId,
     string? ItemCode,
@@ -232,6 +235,13 @@ public static class MenuErrors
 
     public static ApiException ImageNotFound() =>
         new(404, "MENU_IMAGE_NOT_FOUND", "The image doesn't exist.");
+
+    public static ApiException CategoryItemsChanged() =>
+        new(
+            409,
+            "CATEGORY_ITEMS_CHANGED",
+            "The dishes in this category have changed. Reload the menu and order them again."
+        );
 }
 
 public static class MenuAllergens

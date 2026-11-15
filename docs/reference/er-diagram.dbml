@@ -289,6 +289,7 @@ Table menu_items {
   id uuid [pk]
   restaurant_id uuid [not null]
   category_id uuid [not null]
+  position int [not null, note: 'Category-local display order; new and moved-in dishes append']
   item_code varchar(40)
   name_zh varchar(150)
   name_it varchar(150)
@@ -310,6 +311,7 @@ Table menu_items {
   Checks {
     `concat(name_zh, name_it, name_en) ~ '[^[:space:]]'` [name: 'ck_item_has_name']
     `price_cents > 0` [name: 'ck_item_positive_price']
+    `position >= 0` [name: 'ck_item_position']
   }
 
   Note: '''
@@ -324,7 +326,9 @@ Table menu_items {
     allergen_reviewed=true + empty allergen_codes means reviewed and
     no identified declarable allergens; do not promise zero cross-contact.
     Reconfirm allergen review on every item content save, even if sold out.
-    Photo and availability writes do not require another content review.
+    Photo, availability and category-local order writes do not require another content review.
+    Name/price edits preserve position; moving to another category appends there.
+    Deleting or moving leaves gaps; explicit reorder assigns consecutive positions.
   '''
 }
 
