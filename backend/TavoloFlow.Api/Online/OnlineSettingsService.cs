@@ -7,8 +7,8 @@ using TavoloFlow.Api.Entities;
 
 namespace TavoloFlow.Api.Online;
 
-// The restaurant's online ordering settings: public phone, weekly hours and delivery (OWNER), pause
-// (STAFF, OWNER).
+// The restaurant's online ordering settings: public phone, weekly hours, delivery and coupons (OWNER),
+// pause (STAFF, OWNER).
 // Every write locks the restaurant row (UPDATE), so a submission holding restaurant SHARE sees either the
 // old or the new settings, and the platform cannot turn the service off halfway through a write.
 public sealed class OnlineSettingsService(ApplicationDbContext db, TimeProvider clock)
@@ -120,6 +120,86 @@ public sealed class OnlineSettingsService(ApplicationDbContext db, TimeProvider 
         return response;
     }
 
+    // Codes are unique per restaurant and a restaurant keeps at most 50; the restaurant UPDATE lock
+    // serializes coupon writes, so both checks hold. A submission holding restaurant SHARE sees the
+    // coupon either fully created or not at all.
+    public async Task<OnlineSettingsResponse> CreateCouponAsync(
+        Guid restaurantId,
+        OnlineCouponInput input,
+        CancellationToken ct
+    )
+    {
+        var code =
+            OnlineCoupons.Normalize(input.Code)
+            ?? throw ApiException.Validation(
+                "Enter a code of 3-20 letters or digits.",
+                "code",
+                "Invalid code."
+            );
+        if (!OnlineCoupons.ValidPercent(input.PercentOff))
+            throw ApiException.Validation(
+                $"Enter a whole percentage from {OnlineCoupons.MinPercent} to {OnlineCoupons.MaxPercent}.",
+                "percentOff",
+                "Invalid percentage."
+            );
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var restaurant = await LockOfferedAsync(restaurantId, ct);
+        if (input.ValidUntil is { } last && last < BusinessDate(restaurant))
+            throw ApiException.Validation(
+                "The last valid day can't be before the restaurant's today.",
+                "validUntil",
+                "In the past."
+            );
+        var codes = await db
+            .OnlineCoupons.Where(c => c.RestaurantId == restaurantId)
+            .Select(c => c.Code)
+            .ToArrayAsync(ct);
+        if (codes.Contains(code))
+            throw OnlineErrors.CouponCodeTaken();
+        if (codes.Length >= OnlineCoupons.MaxCoupons)
+            throw OnlineErrors.CouponLimit();
+        db.OnlineCoupons.Add(
+            new OnlineCoupon
+            {
+                Id = Guid.CreateVersion7(),
+                RestaurantId = restaurantId,
+                Code = code,
+                PercentOff = input.PercentOff!.Value,
+                ValidUntil = input.ValidUntil,
+            }
+        );
+        await db.SaveChangesAsync(ct);
+        var response = await ResponseAsync(restaurant, ct);
+        await transaction.CommitAsync(ct);
+        return response;
+    }
+
+    // Deleting a coupon that is already gone reaches the same target, so it returns the settings too.
+    // Requests and bills keep the code and percentage they copied.
+    public async Task<OnlineSettingsResponse> DeleteCouponAsync(
+        Guid restaurantId,
+        Guid id,
+        CancellationToken ct
+    )
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var restaurant = await LockOfferedAsync(restaurantId, ct);
+        await db
+            .OnlineCoupons.Where(c => c.RestaurantId == restaurantId && c.Id == id)
+            .ExecuteDeleteAsync(ct);
+        var response = await ResponseAsync(restaurant, ct);
+        await transaction.CommitAsync(ct);
+        return response;
+    }
+
+    private DateOnly BusinessDate(Restaurant restaurant) =>
+        DateOnly.FromDateTime(
+            OnlineSchedule.Local(
+                TimeZoneInfo.FindSystemTimeZoneById(restaurant.TimeZone),
+                clock.GetUtcNow()
+            )
+        );
+
     private static string? DeliveryNote(string? value, string field)
     {
         var note = InputRules.TrimToNull(value);
@@ -193,6 +273,12 @@ public sealed class OnlineSettingsService(ApplicationDbContext db, TimeProvider 
         var zone = TimeZoneInfo.FindSystemTimeZoneById(restaurant.TimeZone);
         var local = OnlineSchedule.Local(zone, now);
         var current = OnlineSchedule.Current(hours, local);
+        var today = DateOnly.FromDateTime(local);
+        var coupons = await db
+            .OnlineCoupons.AsNoTracking()
+            .Where(c => c.RestaurantId == restaurant.Id)
+            .OrderBy(c => c.Code)
+            .ToArrayAsync(ct);
         return new(
             restaurant.Slug,
             restaurant.PublicPhone,
@@ -208,7 +294,16 @@ public sealed class OnlineSettingsService(ApplicationDbContext db, TimeProvider 
             restaurant.DeliveryEnabled,
             restaurant.DeliveryNoteZh,
             restaurant.DeliveryNoteIt,
-            restaurant.DeliveryNoteEn
+            restaurant.DeliveryNoteEn,
+            coupons
+                .Select(c => new OnlineCouponResponse(
+                    c.Id,
+                    c.Code,
+                    c.PercentOff,
+                    c.ValidUntil,
+                    !OnlineCoupons.IsValid(c, today)
+                ))
+                .ToArray()
         );
     }
 

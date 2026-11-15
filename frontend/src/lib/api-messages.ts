@@ -51,6 +51,8 @@ const zhErrors = {
   ONLINE_NOT_OFFERED: "本餐厅未开通线上点单。",
   PUSH_NOT_CONFIGURED: "这台服务器没有开启锁屏通知。",
   PUSH_DEVICE_LIMIT: "本餐厅开启锁屏通知的设备已达 20 台，请先在不用的设备上关闭。",
+  COUPON_CODE_TAKEN: "已经有这个券码了，请换一个。",
+  COUPON_LIMIT: "每家餐厅最多保留 50 张优惠券，请先删除不用的。",
   ONLINE_REQUEST_CHANGED: "这个线上订单已被处理或已超时，请刷新列表。",
   ONLINE_REQUEST_NOT_FOUND: "线上订单不存在。",
   OPTION_GROUPS_CHANGED: "选项组已有变化，请刷新菜单后重新排序。",
@@ -118,6 +120,9 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
     PUSH_NOT_CONFIGURED: "Questo server non invia notifiche a schermo bloccato.",
     PUSH_DEVICE_LIMIT:
       "Il ristorante ha già 20 dispositivi con le notifiche attive: disattivale su uno che non usate più.",
+    COUPON_CODE_TAKEN: "Esiste già un codice uguale: scegline un altro.",
+    COUPON_LIMIT:
+      "Un ristorante può tenere al massimo 50 codici sconto: eliminane uno che non usi.",
     ONLINE_REQUEST_CHANGED: "L’ordine online è già stato gestito o è scaduto: aggiorna l’elenco.",
     ONLINE_REQUEST_NOT_FOUND: "Ordine online non trovato.",
     OPTION_GROUPS_CHANGED: "I gruppi di opzioni sono cambiati. Aggiorna il menu e riordinali.",
@@ -189,6 +194,8 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
     PUSH_NOT_CONFIGURED: "This server doesn’t send lock-screen notifications.",
     PUSH_DEVICE_LIMIT:
       "The restaurant already has 20 devices with notifications on: turn them off on one you no longer use.",
+    COUPON_CODE_TAKEN: "There is already a coupon with this code: choose another.",
+    COUPON_LIMIT: "A restaurant keeps at most 50 coupons: delete one you no longer use.",
     ONLINE_REQUEST_CHANGED:
       "This online order was already handled or has expired: refresh the list.",
     ONLINE_REQUEST_NOT_FOUND: "Online order not found.",

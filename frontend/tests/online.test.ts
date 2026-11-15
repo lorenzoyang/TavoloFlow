@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   acceptFee,
   activeProgress,
+  couponInput,
   DELIVERY_MINUTES,
   deliveryDraft,
   deliveryInput,
@@ -11,6 +12,7 @@ import {
   formatMinute,
   mapsUrl,
   MAX_WAITING_REQUESTS,
+  normalizeCouponCode,
   normalizePhone,
   pendingBanner,
   PICKUP_MINUTES,
@@ -238,4 +240,32 @@ test("a delivery address opens a plain maps search with the address encoded", ()
     mapsUrl("Via Roma 1, Milano & co"),
     "https://www.google.com/maps/search/?api=1&query=Via%20Roma%201%2C%20Milano%20%26%20co",
   );
+});
+
+test("coupon codes are trimmed and uppercased like the server, 3-20 letters or digits", () => {
+  assert.equal(normalizeCouponCode("  estate10 "), "ESTATE10");
+  assert.equal(normalizeCouponCode("abc"), "ABC");
+  assert.equal(normalizeCouponCode("A".repeat(20)), "A".repeat(20));
+  for (const invalid of ["AB", "A".repeat(21), "ESTATE-10", "ESTATE 10", "", "ÉTÉ10"])
+    assert.equal(normalizeCouponCode(invalid), null);
+});
+
+test("the coupon form sends a whole percentage of 1-50 and an optional last day", () => {
+  assert.deepEqual(couponInput({ code: " estate10", percent: "10", validUntil: "" }), {
+    ok: true,
+    input: { code: "ESTATE10", percentOff: 10, validUntil: null },
+  });
+  assert.deepEqual(couponInput({ code: "ESTATE", percent: " 50 ", validUntil: "2026-12-31" }), {
+    ok: true,
+    input: { code: "ESTATE", percentOff: 50, validUntil: "2026-12-31" },
+  });
+  for (const percent of ["0", "51", "", "10.5", "1e1", "-5", "abc"])
+    assert.deepEqual(couponInput({ code: "ESTATE", percent, validUntil: "" }), {
+      ok: false,
+      problems: ["percent"],
+    });
+  assert.deepEqual(couponInput({ code: "x", percent: "0", validUntil: "" }), {
+    ok: false,
+    problems: ["code", "percent"],
+  });
 });

@@ -36,6 +36,7 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database)
                 "menu_option_groups",
                 "menu_options",
                 "online_counters",
+                "online_coupons",
                 "online_hours",
                 "online_requests",
                 "order_items",

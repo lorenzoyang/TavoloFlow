@@ -147,6 +147,49 @@ export const sameDelivery = (input: DeliveryInput, settings: DeliverySettings) =
 export const deliveryWithoutNote = (input: DeliveryInput) =>
   input.enabled && !input.noteZh && !input.noteIt && !input.noteEn;
 
+// Coupons: a code customers type, a whole percentage off the dishes and an optional last local day. The
+// server's rules (OnlineCoupons): 3-20 letters or digits, stored uppercase; 1-50 percent.
+export const COUPON_MIN_PERCENT = 1;
+export const COUPON_MAX_PERCENT = 50;
+export type OnlineCoupon = {
+  id: string;
+  code: string;
+  percentOff: number;
+  // yyyy-mm-dd, inclusive; null never expires.
+  validUntil: string | null;
+  expired: boolean;
+};
+export type CouponDraft = { code: string; percent: string; validUntil: string };
+export type CouponInput = { code: string; percentOff: number; validUntil: string | null };
+export type CouponProblem = "code" | "percent";
+export const emptyCouponDraft: CouponDraft = { code: "", percent: "", validUntil: "" };
+
+// Trimmed and uppercased like the server; null when it cannot be a code.
+export function normalizeCouponCode(value: string): string | null {
+  const code = value.trim().toUpperCase();
+  return /^[A-Z0-9]{3,20}$/.test(code) ? code : null;
+}
+
+export const validCouponPercent = (value: number) =>
+  Number.isInteger(value) && value >= COUPON_MIN_PERCENT && value <= COUPON_MAX_PERCENT;
+
+// The last day comes from a date input (yyyy-mm-dd or empty); the server rejects a day before today.
+export function couponInput(
+  draft: CouponDraft,
+): { ok: true; input: CouponInput } | { ok: false; problems: CouponProblem[] } {
+  const code = normalizeCouponCode(draft.code);
+  const percent = /^\d{1,2}$/.test(draft.percent.trim()) ? Number(draft.percent.trim()) : NaN;
+  const problems: CouponProblem[] = [
+    ...(code === null ? (["code"] as const) : []),
+    ...(validCouponPercent(percent) ? [] : (["percent"] as const)),
+  ];
+  if (problems.length || code === null) return { ok: false, problems };
+  return {
+    ok: true,
+    input: { code, percentOff: percent, validUntil: draft.validUntil || null },
+  };
+}
+
 // The submission cap (OnlineAvailability): with this many requests waiting, customers cannot order.
 export const MAX_WAITING_REQUESTS = 20;
 

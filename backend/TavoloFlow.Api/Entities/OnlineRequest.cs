@@ -41,6 +41,11 @@ public sealed class OnlineRequest
 
     public List<OrderLineSnapshot> Lines { get; set; } = [];
     public long ItemsTotalCents { get; set; }
+
+    // The coupon as it was at submission, both set or both null. Not a foreign key: the owner may delete
+    // the coupon later, and the bill keeps applying this percentage to the dishes still charged.
+    public string? CouponCode { get; set; }
+    public int? CouponPercentOff { get; set; }
     public required string DefaultLanguageSnapshot { get; set; }
     public DateTime SubmittedAt { get; set; }
     public DateTime ExpiresAt { get; set; }

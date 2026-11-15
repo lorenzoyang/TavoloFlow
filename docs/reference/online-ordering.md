@@ -29,9 +29,12 @@ is off render a "service not offered" state.
 | `PUT /api/owner/online/hours`    | OWNER        | `{ slots: [{ weekday, opensMinute, closesMinute }] }` → settings |
 | `PATCH /api/owner/online/phone`  | OWNER        | `{ publicPhone }`, blank clears → settings                       |
 | `PUT /api/owner/online/delivery` | OWNER        | `{ enabled, noteZh, noteIt, noteEn }` → settings                 |
+| `POST /api/owner/online/coupons` | OWNER        | `{ code, percentOff, validUntil }` → settings                    |
+| `DELETE /api/owner/online/coupons/{id}` | OWNER | → settings (also when already gone)                              |
 
 Settings are `{ slug, publicPhone, hours, pausedUntil, status, nextOpensAt, currentSlotEndsAt,
-deliveryEnabled, deliveryNoteZh, deliveryNoteIt, deliveryNoteEn }`.
+deliveryEnabled, deliveryNoteZh, deliveryNoteIt, deliveryNoteEn, coupons }`; each coupon is
+`{ id, code, percentOff, validUntil, expired }`, ordered by code.
 `hours` are ordered by weekday and opening time. `pausedUntil` is null once the pause has lapsed.
 `nextOpensAt` accompanies `CLOSED_HOURS` and is null when the week has no slots. `currentSlotEndsAt`
 is set while a slot accepts orders. Times are UTC. Delivery never changes `status`: pickup stays
@@ -73,6 +76,26 @@ checkout only says that the restaurant confirms the fee. Turning delivery off ke
 stops new delivery submissions; waiting delivery requests can still be accepted or rejected and
 accepted ones close as usual. There is no fee rule in code: whoever accepts a delivery order enters
 its fee.
+
+## Coupons
+
+A coupon is a code the owner shares (Instagram, flyers, delivery bags) for a percentage off the dishes of
+online orders, never QR dine-in. Each is one `online_coupons` row: `code` (3–20 letters or digits, stored
+uppercase and unique per restaurant: `uq_online_coupon_code`, `ck_online_coupon_code`), `percent_off`
+(whole, 1–50: `ck_online_coupon_percent`, so an online bill with any dish left stays positive and PAID
+still works) and an optional inclusive `valid_until`, the last local business date it works. Codes can
+be used any number of times; without customer accounts there is no once-per-customer or first-order
+rule. `Online/OnlineCoupons.cs` holds the only copy of the rules: `Normalize` (trim and uppercase, then
+the format), `IsValid(coupon, businessDate)` with the date from `TimeProvider`, and `DiscountCents`.
+
+Coupons are created and deleted, never edited. Creation trims and uppercases the code, refuses a
+`validUntil` before the restaurant's local today (`VALIDATION_FAILED`), an existing code
+(`COUPON_CODE_TAKEN`, 409, checked first so a repeated create explains itself) and a 51st coupon
+(`COUPON_LIMIT`, 409). Deleting removes only the restaurant's own row and returns the settings even when
+nothing was left to delete. Both writes follow the settings rules above: restaurant UPDATE (which also
+serializes the code and limit checks), `ONLINE_NOT_OFFERED`, the fresh settings and no pending marker.
+`expired` compares `valid_until` with the restaurant's local date, and nothing deletes expired coupons;
+the owner deletes them when they want. Turning online ordering off keeps the coupons.
 
 ## Pause
 
@@ -127,7 +150,9 @@ the same snapshot fields as an order item with options nested as in `options_sna
 their items through it; `OrderLineSnapshotTests` fails when an order item gains a snapshot field the
 line does not carry. `lines.menuItemId` is not a foreign key, so dish deletion never touches requests.
 Check constraints allow at most one decision, only before `expires_at`, with the three acceptance
-columns set together and `OUT_OF_RANGE` only for delivery.
+columns set together and `OUT_OF_RANGE` only for delivery. `coupon_code` and `coupon_percent_off` copy
+the coupon a submission used, set together or both NULL (`ck_online_request_coupon`); they are not a
+foreign key, so deleting or expiring the coupon never changes requests or bills.
 
 `online_counters` holds each restaurant-day's last number. Accepted online orders become
 `dining_sessions` rows with `channel` `PICKUP` or `DELIVERY` (dine-in visits are `DINE_IN`): no table,
@@ -486,8 +511,10 @@ customer phones; the frontend repeats it in `features/online/state.ts`.
 `/staff/online-settings` (from 首页, with a back link) shows the status, the full online link with copy
 and open actions, and its QR PNG, generated in the browser with the table QR options and the same
 `VITE_PUBLIC_BASE_URL` origin rule (`publicMenuUrl` accepts `/r/{slug}`). STAFF and OWNER pause or
-resume; OWNER also edits the phone, the week and delivery (a switch and three note fields, with a
-warning while delivery is on without any note). A missing phone or week is explained in one warning.
+resume; OWNER also edits the phone, the week, delivery (a switch and three note fields, with a
+warning while delivery is on without any note) and coupons (a list with the percentage, last day or
+an expired badge, a delete button behind `ConfirmDialog`, and a create form with code, percentage and
+an optional date input). A missing phone or week is explained in one warning.
 Time inputs cannot hold 24:00, so 00:00 as a closing time means midnight. The query key is
 `["online-settings", restaurantId, userId]`; the visible page rereads it every 60 seconds because
 slots and pauses change with the clock. Local form edits survive background refreshes until saved or
@@ -510,6 +537,9 @@ discarded.
   counting only waiting requests (twenty expired ones never block); the rate limit; recovery scoped to
   the restaurant; every status-page phase without private fields; and the race between a submission
   and switching online ordering off (`LockGate`).
+- `OnlineCouponTests`: OWNER-only coupon creation (normalized codes, per-restaurant uniqueness,
+  validation, the inclusive last day in the restaurant's zone), idempotent deletion scoped to the
+  restaurant, the 50-coupon limit, `ONLINE_NOT_OFFERED` and the coupon check constraints.
 - `OnlineSettingsTests`: OWNER-only phone, hours and delivery (trimmed notes, blank as null, 500
   characters, notes kept when off), validation, whole-week replacement, both pauses
   lapsing with `TestClock.Set`, `ONLINE_CLOSED`, `ONLINE_NOT_OFFERED`, `SUSPENDED`, the database
