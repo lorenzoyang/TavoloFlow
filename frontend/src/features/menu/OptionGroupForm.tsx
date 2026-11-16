@@ -4,7 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldDescription, FieldError, FieldLabel, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import {
+  NativeSelect,
+  NativeSelectOptGroup,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
 import { Switch } from "@/components/ui/switch";
 import { formatCents, parsePrice } from "@/lib/format";
 import { displayName } from "@/lib/language";
@@ -17,6 +21,8 @@ import { languages, menuMessages } from "./messages";
 import type { OptionTemplate } from "./option-templates";
 
 const MAX_OPTIONS = 30;
+// Option names are shorter than dish names (150), so a name taken from a dish is cut to fit.
+const MAX_OPTION_NAME = 100;
 
 // One editable option. The id stays with an existing option, so the server keeps it (and its sold-out
 // state); the key only identifies the row while editing.
@@ -123,6 +129,31 @@ export function OptionGroupForm({
     const next = [...rows];
     [next[index], next[index + by]] = [next[index + by], next[index]];
     setRows(next);
+  }
+  function addRow(row: Row) {
+    // A new group starts with one blank row: the first dish taken from the menu fills it.
+    const [only] = rows;
+    const blank =
+      rows.length === 1 &&
+      only.id === null &&
+      ![only.nameZh, only.nameIt, only.nameEn].some((name) => name.trim()) &&
+      only.price === "0" &&
+      only.allergenCodes.length === 0;
+    setRows(blank ? [row] : [...rows, row]);
+    setReviewed(false);
+  }
+  // A one-time copy of the dish's names and allergens, with no extra price: nothing links the option
+  // to the dish afterwards, as with templates and copied groups.
+  function addDish(id: string) {
+    const item = menu.items.find((value) => value.id === id);
+    if (!item) return;
+    addRow({
+      ...newRow(),
+      nameZh: (item.nameZh ?? "").slice(0, MAX_OPTION_NAME),
+      nameIt: (item.nameIt ?? "").slice(0, MAX_OPTION_NAME),
+      nameEn: (item.nameEn ?? "").slice(0, MAX_OPTION_NAME),
+      allergenCodes: item.allergenCodes,
+    });
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -232,7 +263,7 @@ export function OptionGroupForm({
                         <Input
                           id={`${row.key}-name${suffix}`}
                           lang={code}
-                          maxLength={100}
+                          maxLength={MAX_OPTION_NAME}
                           value={row[`name${suffix}`]}
                           onChange={(event) =>
                             edit(index, { [`name${suffix}`]: event.target.value })
@@ -279,18 +310,54 @@ export function OptionGroupForm({
             })}
           </ol>
           <FieldDescription>{m.extraPriceHint}</FieldDescription>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={rows.length >= MAX_OPTIONS}
-            onClick={() => {
-              setRows([...rows, newRow()]);
-              setReviewed(false);
-            }}
-          >
-            <Plus />
-            {m.addOption}
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={rows.length >= MAX_OPTIONS}
+              onClick={() => {
+                setRows([...rows, newRow()]);
+                setReviewed(false);
+              }}
+            >
+              <Plus />
+              {m.addOption}
+            </Button>
+            {menu.items.length > 0 && (
+              // Always shows its placeholder: picking a dish adds a row and the select resets.
+              <NativeSelect
+                aria-label={m.addFromDish}
+                aria-describedby="add-from-dish-hint"
+                value=""
+                disabled={rows.length >= MAX_OPTIONS}
+                onChange={(event) => addDish(event.target.value)}
+                className="min-w-0 flex-1 basis-40"
+              >
+                <NativeSelectOption value="" disabled>
+                  {m.addFromDish}
+                </NativeSelectOption>
+                {menu.categories.map((category) => {
+                  const items = menu.items.filter((item) => item.categoryId === category.id);
+                  if (!items.length) return null;
+                  return (
+                    <NativeSelectOptGroup
+                      key={category.id}
+                      label={displayName(category, menu.defaultLanguage, language).text}
+                    >
+                      {items.map((item) => (
+                        <NativeSelectOption key={item.id} value={item.id}>
+                          {displayName(item, menu.defaultLanguage, language).text}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelectOptGroup>
+                  );
+                })}
+              </NativeSelect>
+            )}
+          </div>
+          {menu.items.length > 0 && (
+            <FieldDescription id="add-from-dish-hint">{m.fromDishHint}</FieldDescription>
+          )}
         </fieldset>
         {/* After the options: how many a guest may choose depends on how many there are. */}
         <div className="space-y-4 rounded-xl border p-3">

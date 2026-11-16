@@ -215,7 +215,12 @@ Templates (size, sugar, ice/temperature, toppings, spice) are frontend constants
 group's form; prices start at zero and allergens unchecked. The same picker can copy one of the
 restaurant's groups, for the same options under another rule or other prices: the form starts with its
 names, rule, options, prices and allergens, but no dishes and an unticked review, and saving creates a
-new group with new options that keeps no link to the original. Group names need not be unique. Ice and temperature share one group, so no
+new group with new options that keeps no link to the original. Group names need not be unique.
+"Add from a dish" adds an option with the dish's names (cut to the 100-character option limit) and
+allergens and no extra price, copied once with no link: later dish edits, sold-out included, never
+reach the option, and the dish form reminds the owner to update such options' allergens. A set menu is
+a dish with required groups; its choices stay options of one order line, so kitchen dish counts and
+station screens do not split them. Ice and temperature share one group, so no
 rule between groups is needed. Out of scope: rules between options, several portions of one option, a
 price per dish inside a shared group, negative deltas and combos.
 

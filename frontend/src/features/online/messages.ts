@@ -84,7 +84,7 @@ const zh = {
   deliveryNote: (language: string) => `配送说明（${language}）`,
   noteLanguages: { zh: "中文", it: "意大利语", en: "英语" },
   deliveryPlaceholder: "例如：5 公里内满 20 € 免配送费，否则 2 €。",
-  deliveryNoNote: "还没有写配送说明：顾客结账时只会看到“配送费以餐厅确认为准”。",
+  deliveryNoNote: "还没有写配送说明：顾客结账时只会看到「配送费以餐厅确认为准」。",
   deliveryTooLong: (language: string) => `${language}说明最多 500 个字符。`,
   saveDelivery: "保存配送设置",
   // Coupons

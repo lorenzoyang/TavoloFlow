@@ -368,6 +368,10 @@ export function ItemForm({
             {m.review}
           </label>
           <FieldDescription>{m.reviewHint}</FieldDescription>
+          {/* Options taken from a dish keep no link to it, so a changed recipe needs a second edit. */}
+          {menu.optionGroups.length > 0 && (
+            <FieldDescription>{m.dishInGroupsHint}</FieldDescription>
+          )}
         </fieldset>
         <fieldset className="space-y-3">
           <legend className="mb-1 font-medium">{m.optionGroupsField}</legend>
