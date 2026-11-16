@@ -1,14 +1,10 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useId, useRef, useState, type FormEvent } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldDescription, FieldError, FieldLabel, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  NativeSelect,
-  NativeSelectOptGroup,
-  NativeSelectOption,
-} from "@/components/ui/native-select";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Switch } from "@/components/ui/switch";
 import { formatCents, parsePrice } from "@/lib/format";
 import { displayName } from "@/lib/language";
@@ -49,6 +45,18 @@ const newRow = (): Row => ({
   allergenCodes: [],
   open: false,
 });
+
+// A new group starts with one untouched blank row: the first options taken from dishes replace it.
+function isBlankStart(rows: Row[]) {
+  const [only] = rows;
+  return (
+    rows.length === 1 &&
+    only.id === null &&
+    ![only.nameZh, only.nameIt, only.nameEn].some((name) => name.trim()) &&
+    only.price === "0" &&
+    only.allergenCodes.length === 0
+  );
+}
 
 // An existing group's options. A copy drops their ids, so saving creates new options and leaves the
 // original group untouched.
@@ -114,6 +122,13 @@ export function OptionGroupForm({
   const [reviewed, setReviewed] = useState(initial !== undefined);
   const [validation, setValidation] = useState("");
   const reviewBox = useRef<HTMLElement>(null);
+  // "Add from dishes": an inline checklist, so several dishes become options in one step.
+  const [picking, setPicking] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const pickerId = useId();
+  const pickerToggle = useRef<HTMLButtonElement>(null);
+  // How many options may still be added; the blank starting row is replaced, so it leaves a slot.
+  const remaining = MAX_OPTIONS - rows.length + (isBlankStart(rows) ? 1 : 0);
   const limit = Math.min(max, rows.length);
   const label = (row: Row, index: number) =>
     displayName(
@@ -130,30 +145,29 @@ export function OptionGroupForm({
     [next[index], next[index + by]] = [next[index + by], next[index]];
     setRows(next);
   }
-  function addRow(row: Row) {
-    // A new group starts with one blank row: the first dish taken from the menu fills it.
-    const [only] = rows;
-    const blank =
-      rows.length === 1 &&
-      only.id === null &&
-      ![only.nameZh, only.nameIt, only.nameEn].some((name) => name.trim()) &&
-      only.price === "0" &&
-      only.allergenCodes.length === 0;
-    setRows(blank ? [row] : [...rows, row]);
+  // One option per ticked dish, in menu order whatever order they were ticked in: a one-time copy of
+  // the dish's names and allergens, with no extra price. Nothing links the option to the dish
+  // afterwards, as with templates and copied groups. A dish deleted meanwhile is skipped.
+  function addDishes(ids: string[]) {
+    const added = menu.items
+      .filter((item) => ids.includes(item.id))
+      .map((item) => ({
+        ...newRow(),
+        nameZh: (item.nameZh ?? "").slice(0, MAX_OPTION_NAME),
+        nameIt: (item.nameIt ?? "").slice(0, MAX_OPTION_NAME),
+        nameEn: (item.nameEn ?? "").slice(0, MAX_OPTION_NAME),
+        allergenCodes: item.allergenCodes,
+      }));
+    if (!added.length) return;
+    setRows(isBlankStart(rows) ? added : [...rows, ...added]);
     setReviewed(false);
   }
-  // A one-time copy of the dish's names and allergens, with no extra price: nothing links the option
-  // to the dish afterwards, as with templates and copied groups.
-  function addDish(id: string) {
-    const item = menu.items.find((value) => value.id === id);
-    if (!item) return;
-    addRow({
-      ...newRow(),
-      nameZh: (item.nameZh ?? "").slice(0, MAX_OPTION_NAME),
-      nameIt: (item.nameIt ?? "").slice(0, MAX_OPTION_NAME),
-      nameEn: (item.nameEn ?? "").slice(0, MAX_OPTION_NAME),
-      allergenCodes: item.allergenCodes,
-    });
+  // Closing the picker unmounts the button just pressed, so focus returns to the toggle.
+  function closePicker(ids: string[]) {
+    addDishes(ids);
+    setPicking(false);
+    setPicked([]);
+    pickerToggle.current?.focus();
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -324,37 +338,56 @@ export function OptionGroupForm({
               {m.addOption}
             </Button>
             {menu.items.length > 0 && (
-              // Always shows its placeholder: picking a dish adds a row and the select resets.
-              <NativeSelect
-                aria-label={m.addFromDish}
+              <Button
+                ref={pickerToggle}
+                type="button"
+                variant="outline"
+                aria-expanded={picking}
+                aria-controls={pickerId}
                 aria-describedby="add-from-dish-hint"
-                value=""
-                disabled={rows.length >= MAX_OPTIONS}
-                onChange={(event) => addDish(event.target.value)}
-                className="min-w-0 flex-1 basis-40"
+                disabled={remaining <= 0}
+                onClick={() => {
+                  setPicking(!picking);
+                  setPicked([]);
+                }}
               >
-                <NativeSelectOption value="" disabled>
-                  {m.addFromDish}
-                </NativeSelectOption>
-                {menu.categories.map((category) => {
-                  const items = menu.items.filter((item) => item.categoryId === category.id);
-                  if (!items.length) return null;
-                  return (
-                    <NativeSelectOptGroup
-                      key={category.id}
-                      label={displayName(category, menu.defaultLanguage, language).text}
-                    >
-                      {items.map((item) => (
-                        <NativeSelectOption key={item.id} value={item.id}>
-                          {displayName(item, menu.defaultLanguage, language).text}
-                        </NativeSelectOption>
-                      ))}
-                    </NativeSelectOptGroup>
-                  );
-                })}
-              </NativeSelect>
+                {m.addFromDish}
+                <ChevronDown className={cn("transition-transform", picking && "rotate-180")} />
+              </Button>
             )}
           </div>
+          {picking && (
+            <section
+              id={pickerId}
+              aria-label={m.addFromDish}
+              className="space-y-3 rounded-xl border p-3"
+            >
+              {/* Bounded, so the buttons stay close to the boxes on a long menu. */}
+              <div className="max-h-[50dvh] space-y-3 overflow-y-auto">
+                <DishChecklist
+                  menu={menu}
+                  checked={picked}
+                  change={setPicked}
+                  full={picked.length >= remaining}
+                />
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <span className="mr-auto text-xs text-muted-foreground">
+                  {m.remainingOptions(Math.max(0, remaining - picked.length))}
+                </span>
+                <Button type="button" variant="ghost" onClick={() => closePicker([])}>
+                  {m.cancel}
+                </Button>
+                <Button
+                  type="button"
+                  disabled={picked.length === 0}
+                  onClick={() => closePicker(picked)}
+                >
+                  {m.addPicked(picked.length)}
+                </Button>
+              </div>
+            </section>
+          )}
           {menu.items.length > 0 && (
             <FieldDescription id="add-from-dish-hint">{m.fromDishHint}</FieldDescription>
           )}
@@ -404,37 +437,7 @@ export function OptionGroupForm({
         <fieldset className="space-y-3">
           <legend className="mb-1 font-medium">{m.usedBy}</legend>
           <FieldDescription>{m.usedByHint}</FieldDescription>
-          {menu.categories.map((category) => {
-            const items = menu.items.filter((item) => item.categoryId === category.id);
-            if (!items.length) return null;
-            return (
-              <div key={category.id} className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  {displayName(category, menu.defaultLanguage, language).text}
-                </p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {items.map((item) => (
-                    <label
-                      key={item.id}
-                      className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm transition-colors has-data-checked:border-primary/40 has-data-checked:bg-accent"
-                    >
-                      <Checkbox
-                        checked={dishes.includes(item.id)}
-                        onCheckedChange={(checked) =>
-                          setDishes(
-                            checked ? [...dishes, item.id] : dishes.filter((id) => id !== item.id),
-                          )
-                        }
-                      />
-                      <span className="min-w-0 wrap-break-word">
-                        {displayName(item, menu.defaultLanguage, language).text}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+          <DishChecklist menu={menu} checked={dishes} change={setDishes} />
         </fieldset>
         <Errors error={error} />
         <Actions
@@ -445,4 +448,53 @@ export function OptionGroupForm({
       </FieldSet>
     </form>
   );
+}
+
+// The menu's dishes by category, each with a checkbox: the dishes that use the group, or the dishes to
+// copy as options. When full, only the ticked boxes stay enabled, so they can still be unticked.
+function DishChecklist({
+  menu,
+  checked,
+  change,
+  full = false,
+}: {
+  menu: Menu;
+  checked: string[];
+  change: (ids: string[]) => void;
+  full?: boolean;
+}) {
+  const language = useStaffLanguage();
+  return menu.categories.map((category) => {
+    const items = menu.items.filter((item) => item.categoryId === category.id);
+    if (!items.length) return null;
+    return (
+      <div key={category.id} className="space-y-2">
+        <p className="text-sm text-muted-foreground">
+          {displayName(category, menu.defaultLanguage, language).text}
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {items.map((item) => {
+            const ticked = checked.includes(item.id);
+            return (
+              <label
+                key={item.id}
+                className="flex min-h-11 min-w-0 cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm transition-colors has-data-checked:border-primary/40 has-data-checked:bg-accent has-data-disabled:cursor-not-allowed has-data-disabled:opacity-50"
+              >
+                <Checkbox
+                  checked={ticked}
+                  disabled={full && !ticked}
+                  onCheckedChange={(value) =>
+                    change(value ? [...checked, item.id] : checked.filter((id) => id !== item.id))
+                  }
+                />
+                <span className="min-w-0 wrap-break-word">
+                  {displayName(item, menu.defaultLanguage, language).text}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+    );
+  });
 }
