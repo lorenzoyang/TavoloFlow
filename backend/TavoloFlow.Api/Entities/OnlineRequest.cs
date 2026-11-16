@@ -25,7 +25,8 @@ public sealed class OnlineRequest
     public Guid RestaurantId { get; set; }
     public Guid ClientRequestId { get; set; }
 
-    // Restaurant-scoped source digests, absent only on requests predating source limits.
+    // Restaurant-scoped source digests, absent on requests predating source limits. Acceptance and
+    // rejection clear them; an expired request keeps them until the 30-day contact cleanup.
     public string? BrowserKey { get; set; }
     public string? IpKey { get; set; }
 

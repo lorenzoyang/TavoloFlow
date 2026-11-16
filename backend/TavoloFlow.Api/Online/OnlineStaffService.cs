@@ -101,6 +101,8 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
         db.DiningSessions.Add(session);
         db.Orders.Add(order);
         await db.SaveChangesAsync(ct);
+        // A decided request no longer occupies a waiting slot, so its source digests have no use;
+        // rejection clears them too.
         var accepted = await db
             .OnlineRequests.Where(r =>
                 r.RestaurantId == restaurantId
@@ -112,7 +114,9 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
                 u =>
                     u.SetProperty(r => r.AcceptedAt, now)
                         .SetProperty(r => r.EstimatedAt, now.AddMinutes(minutes))
-                        .SetProperty(r => r.SessionId, session.Id),
+                        .SetProperty(r => r.SessionId, session.Id)
+                        .SetProperty(r => r.BrowserKey, (string?)null)
+                        .SetProperty(r => r.IpKey, (string?)null),
                 ct
             );
         if (accepted != 1)
@@ -186,7 +190,11 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
             .OnlineRequests.Where(r => r.Id == id)
             .Waiting(restaurantId, now)
             .ExecuteUpdateAsync(
-                u => u.SetProperty(r => r.RejectedAt, now).SetProperty(r => r.RejectReason, reason),
+                u =>
+                    u.SetProperty(r => r.RejectedAt, now)
+                        .SetProperty(r => r.RejectReason, reason)
+                        .SetProperty(r => r.BrowserKey, (string?)null)
+                        .SetProperty(r => r.IpKey, (string?)null),
                 ct
             );
         if (rejected != 1)

@@ -98,18 +98,20 @@ public sealed class OnlineAbuseTests(PostgreSqlFixture database) : IClassFixture
     [InlineData("ACCEPTED")]
     [InlineData("REJECTED")]
     [InlineData("EXPIRED")]
-    public async Task Browser_DecisionOrExpiry_ReleasesSlot(string outcome)
+    public async Task Browser_DecisionOrExpiry_ReleasesSlotAndDecisionsClearDigests(string outcome)
     {
         using var host = new AccountTestHost(database);
         host.Clock.Set(Noon);
         var shop = await SeedShopAsync(database);
         using var client = host.Browser();
         Assert.Equal(HttpStatusCode.Created, (await Submit(client, shop)).StatusCode);
+        Guid firstId;
         await using (var db = database.CreateContext())
         {
             var request = await db.OnlineRequests.SingleAsync(r =>
                 r.RestaurantId == shop.RestaurantId
             );
+            firstId = request.Id;
             var staff = new OnlineStaffService(db, host.Clock);
             if (outcome == "ACCEPTED")
                 await staff.AcceptAsync(shop.RestaurantId, request.Id, new(20, null), default);
@@ -122,6 +124,21 @@ public sealed class OnlineAbuseTests(PostgreSqlFixture database) : IClassFixture
         var next = await Submit(client, shop);
         Assert.Equal(HttpStatusCode.Created, next.StatusCode);
         Assert.Equal(2, (await next.Content.ReadFromJsonAsync<OnlineSubmissionResponse>())!.Number);
+
+        // A decision clears the first request's source digests; an expired one keeps them until
+        // the 30-day contact cleanup.
+        await using var check = database.CreateContext();
+        var first = await check.OnlineRequests.SingleAsync(r => r.Id == firstId);
+        if (outcome == "EXPIRED")
+        {
+            Assert.NotNull(first.BrowserKey);
+            Assert.NotNull(first.IpKey);
+        }
+        else
+        {
+            Assert.Null(first.BrowserKey);
+            Assert.Null(first.IpKey);
+        }
     }
 
     [Theory]
