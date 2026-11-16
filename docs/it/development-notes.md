@@ -39,7 +39,7 @@ TavoloFlow è un sistema di ordinazione al tavolo tramite codice QR, che accetta
 **Staff**, da telefono o tablet; l'area staff si può installare come app (PWA):
 
 - **Sala** (solo con il QR al tavolo, come i Tavoli): vede i tavoli e i loro conti, apre un tavolo quando arrivano i clienti e comunica il codice; mette in pausa o riattiva i nuovi ordini; chiude senza incasso un tavolo senza ordini o con tutti i piatti annullati;
-- **Cucina**: riceve i nuovi ordini con un avviso sonoro, aggiornati ogni 10 secondi; li vede nelle viste Piatti (raggruppati per piatto), Ordini ed Evasi; nella vista Piatti ogni schermo può mostrare solo alcune categorie del menu (per esempio uno schermo solo per le bevande); sotto ogni piatto vede le opzioni scelte dal cliente; segna ogni piatto come pronto o lo annulla; gli ordini online accettati compaiono insieme a quelli dei tavoli, come «Ritiro #12» o «Consegna #12»;
+- **Cucina**: riceve i nuovi ordini con un avviso sonoro, aggiornati ogni 10 secondi; li vede nelle viste Piatti (raggruppati per piatto), Ordini ed Evasi; ogni schermo riapre l'ultima scelta tra Piatti e Ordini e, nella vista Piatti, può mostrare solo alcune categorie del menu (per esempio uno schermo solo per le bevande); sotto ogni piatto vede le opzioni scelte dal cliente; segna ogni piatto come pronto o lo annulla; gli ordini online accettati compaiono insieme a quelli dei tavoli, come «Ritiro #12» o «Consegna #12»;
 - **Pass**: su un tablet al bancone, mostra i piatti pronti da portare ai tavoli; quando un piatto arriva al tavolo si tocca «Servito»;
 - **Menu**: segna un piatto, o una singola opzione (per esempio un topping finito), come esaurito o di nuovo disponibile;
 - **Ordini online**: accetta un ordine scegliendo tra quanto sarà pronto (per una consegna prima inserisce il costo) oppure lo rifiuta, con un motivo facoltativo. Finché c'è un ordine da accettare, ogni pagina dello staff mostra in alto un banner che suona. Qui vede anche gli ordini accettati e non ancora chiusi, con telefono e indirizzo del cliente;
@@ -49,7 +49,7 @@ TavoloFlow è un sistema di ordinazione al tavolo tramite codice QR, che accetta
 
 **Titolare**: tutto quello che fa lo staff, e in più:
 
-- gestisce il menu: categorie, piatti in tre lingue, prezzi, allergeni, foto, e i gruppi di opzioni condivisi tra i piatti (formato, zucchero, topping, piccantezza…), con supplementi, allergeni propri e modelli già tradotti nelle tre lingue; può mettere un piatto in offerta con un prezzo scontato, che vale sia al tavolo sia online, e toglierlo svuotando il campo;
+- gestisce il menu: categorie, piatti in tre lingue, prezzi, allergeni, foto, e i gruppi di opzioni condivisi tra i piatti (formato, zucchero, topping, piccantezza…), con supplementi, allergeni propri e modelli già tradotti nelle tre lingue; un gruppo nuovo può anche partire dalla copia di uno esistente. Un menu fisso è un piatto con gruppi obbligatori (per esempio «scegli una bibita»), e le loro opzioni si possono prendere dai piatti, spuntandone anche più d'uno insieme: nomi e allergeni vengono copiati una volta sola, quindi se poi il piatto cambia, l'opzione resta com'era. Può mettere un piatto in offerta con un prezzo scontato, che vale sia al tavolo sia online, e toglierlo svuotando il campo;
 - gestisce i tavoli e ne scarica il QR e il segnatavolo da stampare;
 - nella sezione Conto chiude la visita dopo l'incasso, e nello Storico conti consulta i conti chiusi;
 - nel Conto chiude anche gli ordini online: «Ritirato, verifica incasso» o «Consegnato, verifica incasso» dopo l'incasso, oppure «Cliente non venuto» o «Non consegnato»; finché l'ordine è aperto può correggere il costo di consegna;
@@ -292,11 +292,11 @@ Il codice condiviso sta in `lib/` (`api.ts` con le funzioni di richiesta, format
 
 **Dove stanno i dati.** Nel frontend ci sono tre tipi di stato, e ognuno ha il suo posto:
 
-| Tipo                           | Dove                    | Esempi                                                                                                        |
-| ------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Dati del server                | cache di TanStack Query | menu, Sala, coda della Cucina, conti                                                                          |
-| Intenzioni locali della scheda | `sessionStorage`        | carrello (anche quello online), identificativi delle operazioni in attesa di conferma                         |
-| Dati del dispositivo           | `localStorage`          | lingua dell'interfaccia, suono e categorie nascoste della Cucina, token dell'ultimo ordine online del cliente |
+| Tipo                           | Dove                    | Esempi                                                                                                               |
+| ------------------------------ | ----------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Dati del server                | cache di TanStack Query | menu, Sala, coda della Cucina, conti                                                                                 |
+| Intenzioni locali della scheda | `sessionStorage`        | carrello (anche quello online), identificativi delle operazioni in attesa di conferma                                |
+| Dati del dispositivo           | `localStorage`          | lingua dell'interfaccia, suono, vista e categorie nascoste della Cucina, token dell'ultimo ordine online del cliente |
 
 Il primo pezzo della chiave di ogni query dice a quale identità appartengono i dati: `public` (menu anonimo), `guest`, `platform`, `["auth", "me"]` (l'identità dello staff); tutto il resto conta come dato privato del ristorante. Quando lo staff fa login o logout, `lib/query-scope.ts` svuota solo la cache dello staff, e i dati del cliente o dell'amministratore aperti nella stessa scheda restano.
 

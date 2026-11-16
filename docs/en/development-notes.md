@@ -39,7 +39,7 @@ TavoloFlow is a QR-code table ordering system that also takes online orders. Eve
 **Staff**, from a phone or tablet; the staff area can be installed as an app (PWA):
 
 - **Floor** (only with QR dine-in, like Tables): sees the tables and their bills, opens a table when guests arrive and tells them the code; pauses or resumes new orders; closes without payment a table with no orders or with every dish cancelled;
-- **Kitchen**: receives new orders with an alert sound, refreshed every 10 seconds; sees them in the Dishes (grouped by dish), Orders and Done views; in the Dishes view each screen can show only some menu categories (for example a screen just for drinks); sees the options the guest chose under each dish; marks each dish as ready or cancels it; accepted online orders appear together with the tables' ones, as "Pickup #12" or "Delivery #12";
+- **Kitchen**: receives new orders with an alert sound, refreshed every 10 seconds; sees them in the Dishes (grouped by dish), Orders and Done views; each screen reopens the last choice between Dishes and Orders and, in the Dishes view, can show only some menu categories (for example a screen just for drinks); sees the options the guest chose under each dish; marks each dish as ready or cancels it; accepted online orders appear together with the tables' ones, as "Pickup #12" or "Delivery #12";
 - **Pass**: on a tablet at the counter, shows the ready dishes to take to the tables; when a dish reaches the table, you tap "Served";
 - **Menu**: marks a dish, or a single option (for example a topping that ran out), as sold out or available again;
 - **Online orders**: accepts an order by choosing when it will be ready (for a delivery, after entering the fee) or rejects it, with an optional reason. While an order waits for acceptance, every staff page shows a banner at the top that rings. Here they also see the accepted orders not yet closed, with the customer's phone and address;
@@ -49,7 +49,7 @@ TavoloFlow is a QR-code table ordering system that also takes online orders. Eve
 
 **Owner**: everything the staff does, plus:
 
-- manages the menu: categories, dishes in three languages, prices, allergens, photos, and the option groups shared by dishes (size, sugar, toppings, spice level…), with extra prices, their own allergens and templates already translated into the three languages; can put a dish on sale with a sale price, which applies both at the table and online, and end the sale by clearing the field;
+- manages the menu: categories, dishes in three languages, prices, allergens, photos, and the option groups shared by dishes (size, sugar, toppings, spice level…), with extra prices, their own allergens and templates already translated into the three languages; a new group can also start as a copy of an existing one. A set menu is a dish with required groups (for example "choose a drink"), and their options can be taken from dishes, ticking several at once: names and allergens are copied only once, so if the dish changes later, the option stays as it was. Can put a dish on sale with a sale price, which applies both at the table and online, and end the sale by clearing the field;
 - manages the tables and downloads their QR code and the printable table card;
 - in the Bill section closes the visit after payment, and in Bill history browses closed bills;
 - in Bill also closes online orders: "Collected, check payment" or "Delivered, check payment" after payment, or "Customer didn't come" or "Not delivered"; while the order is open they can correct the delivery fee;
@@ -292,11 +292,11 @@ Shared code lives in `lib/` (`api.ts` with the request functions, price and time
 
 **Where data lives.** The frontend has three kinds of state, and each has its own place:
 
-| Kind                 | Where                | Examples                                                                                                 |
-| -------------------- | -------------------- | -------------------------------------------------------------------------------------------------------- |
-| Server data          | TanStack Query cache | menu, Floor, Kitchen queue, bills                                                                        |
-| Tab-local intentions | `sessionStorage`     | cart (the online one too), identifiers of operations awaiting confirmation                               |
-| Device data          | `localStorage`       | interface language, Kitchen sound and hidden categories, the token of the customer's latest online order |
+| Kind                 | Where                | Examples                                                                                                       |
+| -------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Server data          | TanStack Query cache | menu, Floor, Kitchen queue, bills                                                                              |
+| Tab-local intentions | `sessionStorage`     | cart (the online one too), identifiers of operations awaiting confirmation                                     |
+| Device data          | `localStorage`       | interface language, Kitchen sound, view and hidden categories, the token of the customer's latest online order |
 
 The first piece of each query key says which identity the data belongs to: `public` (anonymous menu), `guest`, `platform`, `["auth", "me"]` (the staff identity); everything else counts as private restaurant data. When the staff signs in or out, `lib/query-scope.ts` clears only the staff cache, and the guest's or administrator's data open in the same tab stays.
 
