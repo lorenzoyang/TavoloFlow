@@ -159,7 +159,9 @@ fields. Temporary passwords appear only in successful create/reset responses, ne
 
 List paging defaults to 20, at most 100 per page; `status` is ACTIVE/SUSPENDED. Name search uses a
 substring. Subscription filters and expiry sorting are described in
-[subscriptions](restaurant-subscriptions.md). Default order is newest creation/ID first.
+[subscriptions](restaurant-subscriptions.md). Default order is newest creation/ID first. The list page
+keeps its filters and page in the URL search, so returning from a restaurant restores them; restaurants
+are created on their own page, `/platform/restaurants/new`.
 
 Creation atomically saves the client-selected UUID, SUSPENDED restaurant, EUR/Europe/Rome defaults,
 ordering off and both accounts. It requires `services: { dineIn, online }` (at least one on) and takes
@@ -177,8 +179,9 @@ Permanent deletion is one conditional DELETE with `service_status = 'SUSPENDED'`
 all tenant data, including photos, subscriptions, active visits and unpaid/closed bills. Active visits
 do not block it; the platform cannot close bills itself. Missing/repeated deletion returns
 `RESTAURANT_NOT_FOUND` (404); an active restaurant returns `RESTAURANT_NOT_SUSPENDED` (409).
-The UI requires the typed restaurant name and an inline consequence confirmation. The application
-logs actor, restaurant ID and name; backup copies remain until normal backup retention removes them.
+The UI requires the typed restaurant name in a confirmation dialog that lists the consequences. The
+application logs actor, restaurant ID and name; backup copies remain until normal backup retention
+removes them.
 
 ## Presentation settings
 
@@ -191,8 +194,8 @@ change and platform pages keep the default palette.
 The optional map URL is platform-only and reserved for a future public restaurant list. It must be an
 HTTPS Google Maps link (`maps.app.goo.gl`, `maps.google.*`, or `google.*/maps`), at most 2048 characters.
 Store, guest and subscription responses do not expose it. Map/theme writes leave subscription version
-unchanged. The join-code switch is also a single-field target-value update, but uses inline confirmation
-and waits for guest joins' restaurant SHARE locks. It preserves existing guest grants.
+unchanged. The join-code switch is also a single-field target-value update, but uses the confirmation
+dialog and waits for guest joins' restaurant SHARE locks. It preserves existing guest grants.
 
 ## Services and online link
 
@@ -212,8 +215,8 @@ keeps at least one service on (`ck_restaurant_services`) and a link whenever onl
 | Accepting orders | `ordering_enabled` belongs to dine-in only; the services write leaves it untouched                                                                                                   |
 
 The restaurant's own online settings (public phone, hours, pause) are in
-[online ordering](online-ordering.md). Both writes log the actor, use the usual management pending marker and sit behind the inline
-management confirmation, which spells out the consequences. Without dine-in, opening, guest joining,
+[online ordering](online-ordering.md). Both writes log the actor, use the usual management pending marker and sit behind the
+management confirmation dialog, which spells out the consequences. Without dine-in, opening, guest joining,
 guest code reads and QR orders return `DINE_IN_NOT_OFFERED` (409), and so does turning accepting-orders
 on; see [dining and ordering](dining-ordering.md). Store navigation drops Floor and Tables, and those
 pages show a "service not offered" state for saved links.

@@ -1,11 +1,11 @@
-import { useState } from "react";
-import { Copy, KeyRound, MapPin } from "lucide-react";
+import { useId, useState, type ReactNode } from "react";
+import { Copy, KeyRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
 import { THEMES, themeAttribute, type RestaurantTheme } from "@/lib/theme";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
+import { cn } from "@/lib/utils";
 import { managementMessages } from "./management-messages";
 import { platformMessages } from "./messages";
 import type { TemporaryCredential, ManagedAccount } from "./state";
@@ -48,34 +48,18 @@ export function ThemeChoices({
   );
 }
 
-export function ThemeBadge({ theme }: { theme: RestaurantTheme }) {
+// The theme as plain text with its colour, for a value that must not look like a control.
+export function ThemeName({ theme }: { theme: RestaurantTheme }) {
   const m = platformMessages[useStaffLanguage()];
   return (
-    <Badge variant="outline">
+    <span className="inline-flex items-center gap-2">
       <span
         aria-hidden="true"
         data-theme={themeAttribute(theme) ?? undefined}
-        className="size-2.5 rounded-full bg-primary"
+        className="size-3 shrink-0 rounded-full bg-primary"
       />
-      {m.themeBadge(m.themes[theme]?.name ?? theme)}
-    </Badge>
-  );
-}
-
-// The restaurant name keeps every map link's accessible name unique in the restaurant list.
-export function MapLink({ url, name }: { url: string; name: string }) {
-  const m = platformMessages[useStaffLanguage()];
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label={m.openMap(name)}
-      className={buttonVariants({ variant: "outline" })}
-    >
-      <MapPin />
-      {m.map}
-    </a>
+      {m.themes[theme]?.name ?? theme}
+    </span>
   );
 }
 
@@ -138,50 +122,122 @@ export function TemporaryPasswords({
   );
 }
 
-export function AccountActions({
-  account,
-  disabled,
-  platform,
-  choose,
+// One titled card per task on the platform pages; the heading names the region.
+export function Section({
+  title,
+  description,
+  className,
+  children,
 }: {
+  title: ReactNode;
+  description?: ReactNode;
+  className?: string;
+  children: ReactNode;
+}) {
+  const id = useId();
+  return (
+    <section
+      aria-labelledby={id}
+      className={cn(
+        "rounded-2xl bg-card p-4 shadow-xs ring-1 ring-foreground/10 sm:p-5",
+        className,
+      )}
+    >
+      <h2 id={id} className="text-lg font-semibold">
+        {title}
+      </h2>
+      {description && <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>}
+      <div className="mt-2">{children}</div>
+    </section>
+  );
+}
+
+// A setting: its name and current value on the left, the control that changes it on the right.
+export function SettingRow({
+  labelId,
+  label,
+  value,
+  nested = false,
+  children,
+}: {
+  labelId?: string;
+  label: ReactNode;
+  value?: ReactNode;
+  nested?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-3",
+        nested && "ml-1 border-l-2 pl-4",
+      )}
+    >
+      <div className="min-w-0 flex-1 basis-40">
+        <p id={labelId} className="font-medium">
+          {label}
+        </p>
+        {value && (
+          <div className="mt-0.5 text-sm leading-6 wrap-break-word text-muted-foreground">
+            {value}
+          </div>
+        )}
+      </div>
+      {children && <div className="flex shrink-0 items-center gap-2">{children}</div>}
+    </div>
+  );
+}
+
+type AccountProps = {
   account: ManagedAccount;
   disabled: boolean;
   platform: boolean;
   choose: (kind: "reset" | "active", account: ManagedAccount) => void;
-}) {
+};
+
+// The account's name, state and actions, without a card: the platform lists both accounts in one.
+export function AccountRow({ account, disabled, platform, choose }: AccountProps) {
   const m = managementMessages[useStaffLanguage()];
   return (
-    <Card size="sm">
-      <CardContent className="space-y-3">
-        <p className="font-semibold wrap-break-word">
-          {account.role} · {account.username}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Badge variant={account.isActive ? "success" : "outline"}>
-            {account.isActive ? m.active : m.inactive}
-          </Badge>
-          <Badge variant={account.mustChangePassword ? "warning" : "secondary"}>
-            {account.mustChangePassword ? m.mustChange : m.changed}
-          </Badge>
-        </div>
-        <div className="flex flex-wrap gap-2">
+    <div className="space-y-3">
+      <p className="font-semibold wrap-break-word">
+        {account.role} · {account.username}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Badge variant={account.isActive ? "success" : "outline"}>
+          {account.isActive ? m.active : m.inactive}
+        </Badge>
+        <Badge variant={account.mustChangePassword ? "warning" : "secondary"}>
+          {account.mustChangePassword ? m.mustChange : m.changed}
+        </Badge>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          disabled={disabled}
+          onClick={() => choose("reset", { ...account })}
+        >
+          {m.reset(account.role)}
+        </Button>
+        {platform && (
           <Button
             variant="outline"
             disabled={disabled}
-            onClick={() => choose("reset", { ...account })}
+            onClick={() => choose("active", { ...account })}
           >
-            {m.reset(account.role)}
+            {m.toggle(account.isActive, account.role)}
           </Button>
-          {platform && (
-            <Button
-              variant="outline"
-              disabled={disabled}
-              onClick={() => choose("active", { ...account })}
-            >
-              {m.toggle(account.isActive, account.role)}
-            </Button>
-          )}
-        </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function AccountActions(props: AccountProps) {
+  return (
+    <Card size="sm">
+      <CardContent>
+        <AccountRow {...props} />
       </CardContent>
     </Card>
   );

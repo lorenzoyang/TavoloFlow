@@ -71,7 +71,7 @@ const zhErrors = {
   RESTAURANT_EXISTS: "此创建标识已存在，请核对原餐厅。",
   RESTAURANT_NOT_FOUND: "餐厅不存在。",
   RESTAURANT_NOT_SUSPENDED: "请先停用餐厅服务，再永久删除。",
-  SERVICE_HAS_OPEN_WORK: "要关闭的服务还有未完成的工作（例如未结账的用餐），请先处理完再关闭。",
+  SERVICE_HAS_OPEN_WORK: "要关闭的功能还有未完成的工作（例如未结账的用餐），请先处理完再关闭。",
   SERVICE_SUSPENDED: "餐厅服务已暂停。",
   SESSION_ALREADY_ACTIVE: "此桌已开桌，请重新读取当前用餐状态。",
   SESSION_CLOSED: "本次用餐已结束。",
@@ -150,7 +150,7 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
     RESTAURANT_NOT_FOUND: "Il ristorante non esiste.",
     RESTAURANT_NOT_SUSPENDED: "Sospendi prima il servizio del ristorante, poi eliminalo.",
     SERVICE_HAS_OPEN_WORK:
-      "Il servizio da disattivare ha ancora lavoro in corso (per esempio visite non chiuse). Completalo prima.",
+      "La funzione da disattivare ha ancora lavoro in corso (per esempio visite non chiuse). Completalo prima.",
     SERVICE_SUSPENDED: "Il servizio del ristorante è sospeso.",
     SESSION_ALREADY_ACTIVE: "Il tavolo è già aperto. Ricarica lo stato attuale.",
     SESSION_CLOSED: "Questa visita è già chiusa.",
@@ -231,7 +231,7 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
     RESTAURANT_NOT_FOUND: "The restaurant doesn’t exist.",
     RESTAURANT_NOT_SUSPENDED: "Suspend the restaurant’s service first, then delete it.",
     SERVICE_HAS_OPEN_WORK:
-      "The service you’re turning off still has open work (such as unsettled visits). Finish it first.",
+      "The feature you’re turning off still has open work (such as unsettled visits). Finish it first.",
     SERVICE_SUSPENDED: "The restaurant’s service is suspended.",
     SESSION_ALREADY_ACTIVE: "The table is already open. Reload the current state.",
     SESSION_CLOSED: "This visit is already closed.",

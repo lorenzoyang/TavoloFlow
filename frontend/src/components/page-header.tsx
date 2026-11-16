@@ -11,7 +11,7 @@ export function PageHeader({
 }: {
   title: ReactNode;
   description?: ReactNode;
-  back?: { to: LinkProps["to"]; label: string };
+  back?: { to: LinkProps["to"]; search?: LinkProps["search"]; label: string };
   actions?: ReactNode;
 }) {
   return (
@@ -19,6 +19,7 @@ export function PageHeader({
       {back && (
         <Link
           to={back.to}
+          search={back.search}
           className="-ml-2 inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm text-muted-foreground hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <ChevronLeft aria-hidden="true" className="size-4" />

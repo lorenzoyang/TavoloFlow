@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { RefreshCw } from "lucide-react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { LoadingState } from "@/components/loading-state";
 import { Notice } from "@/components/notice";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { errorMessage } from "@/lib/api";
 import { formatCents, formatMoney, parsePrice } from "@/lib/format";
 import { randomUuid } from "@/lib/ids";
-import { cn } from "@/lib/utils";
 import { onLifecycleChange } from "@/lib/useLiveView";
+import { Section } from "@/features/platform/ManagementViews";
 import {
   adjustExpiry,
   confirmPayment,
@@ -61,15 +61,20 @@ export function PlatformSubscription({
   const periods = detail.data?.periods;
   const actions = useSubscriptionActions(userId);
   const [editor, setEditor] = useState<Editor | null>(null);
+  // The confirmation outlives its dialog, so the closing dialog keeps its text.
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const [validation, setValidation] = useState("");
-  useEffect(() => onLifecycleChange(() => setConfirmation(null)), []);
+  // Where the last write was sent from (a period ID, "create" or "metadata"), so its result shows
+  // there; opening another editor leaves an earlier result where it was.
+  const [resultAt, setResultAt] = useState<string | null>(null);
+  useEffect(() => onLifecycleChange(() => setConfirming(false)), []);
   // Background refreshes block submission but never disable inputs that are being typed into.
   const locked = actions.busy || detail.stale || detail.isFetching || !summary;
   const open = (kind: Editor["kind"], period?: SubscriptionPeriod) => {
     if (!summary || locked) return;
     setValidation("");
-    setConfirmation(null);
+    setConfirming(false);
     setEditor({ kind, period, summary });
   };
   const submitEditor = (event: FormEvent<HTMLFormElement>) => {
@@ -153,206 +158,209 @@ export function PlatformSubscription({
       }
       setValidation("");
       setConfirmation(next);
+      setConfirming(true);
     } catch (error) {
       setValidation(error instanceof Error ? error.message : m.checkInput);
     }
   };
   const commit = async () => {
-    if (!confirmation || locked || confirmation.version !== summary?.version) return;
+    if (!confirming || !confirmation || locked || confirmation.version !== summary?.version) return;
     const selected = confirmation;
-    setConfirmation(null);
+    setConfirming(false);
+    setResultAt(editor ? (editor.period?.id ?? editor.kind) : null);
     if (await actions.run(selected.send)) setEditor(null);
   };
-  return (
-    <section
-      className="my-6 space-y-5 rounded-2xl border bg-card p-4 shadow-xs sm:p-5"
-      aria-label={m.region}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold">{m.title}</h2>
-        <Button
-          variant="outline"
-          size="icon"
-          aria-label={m.refresh}
-          onClick={() => void detail.refetch()}
-        >
-          <RefreshCw className={cn(detail.isFetching && "animate-spin")} />
-        </Button>
-      </div>
-      {detail.isPending && <LoadingState label={m.loading} />}
-      {detail.error && (
-        <Notice tone="error">{errorMessage(detail.error, undefined, language)}</Notice>
-      )}
-      {summary && (
-        <div className="space-y-4">
-          <SubscriptionStatus summary={summary} />
-          <dl className="grid gap-x-4 gap-y-2 border-t pt-4 text-sm sm:grid-cols-[10rem_1fr]">
-            <dt className="text-muted-foreground">{m.ownerContact}</dt>
-            <dd className="min-w-0 font-medium whitespace-pre-wrap wrap-break-word">
-              {summary.ownerContact || m.notRegistered}
-            </dd>
-            <dt className="text-muted-foreground">{m.defaultFee}</dt>
-            <dd className="font-medium">
-              {summary.defaultAnnualFeeCents === null
-                ? m.feeNotSet
-                : money(summary.defaultAnnualFeeCents)}
-            </dd>
-          </dl>
-          <div className="flex flex-wrap gap-2">
-            <Button disabled={locked} onClick={() => open("create")}>
-              {m.newPeriod}
-            </Button>
-            <Button variant="outline" disabled={locked} onClick={() => open("metadata")}>
-              {m.editMetadata}
-            </Button>
-          </div>
-          {detail.stale && (
-            <p role="status" className="text-sm">
-              {m.stale}
-            </p>
-          )}
-        </div>
-      )}
-      {actions.message && <Notice>{actions.message}</Notice>}
-      {editor && (
-        <form
-          key={`${editor.kind}:${editor.period?.id ?? "new"}:${editor.summary.version}`}
-          onSubmit={submitEditor}
-          className="space-y-4 rounded-xl border bg-background p-4"
-        >
-          <h3 className="font-semibold">{m.editor[editor.kind]}</h3>
-          <fieldset disabled={actions.busy || !!confirmation} className="grid gap-4 sm:grid-cols-2">
-            {editor.kind === "metadata" ? (
-              <>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="subscription-contact">{m.ownerContact}</Label>
-                  <Textarea
-                    id="subscription-contact"
-                    name="ownerContact"
-                    maxLength={500}
-                    defaultValue={editor.summary.ownerContact ?? ""}
-                    rows={3}
-                  />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="subscription-annual">{m.annualField}</Label>
-                  <Input
-                    id="subscription-annual"
-                    name="annualFee"
-                    inputMode="decimal"
-                    defaultValue={
-                      editor.summary.defaultAnnualFeeCents === null
-                        ? ""
-                        : formatCents(editor.summary.defaultAnnualFeeCents)
-                    }
-                  />
-                </div>
-              </>
-            ) : editor.kind === "create" || editor.kind === "edit" ? (
-              <PeriodFields
-                key={`${editor.kind}:${editor.period?.id ?? "new"}`}
-                prefix="period"
-                annualFee={editor.summary.defaultAnnualFeeCents}
-                today={editor.summary.localToday}
-                startsOn={renewalStart(periods?.[0], editor.summary)}
-                initial={editor.period}
-                allowPaid={editor.kind === "create"}
-              />
-            ) : editor.kind === "expiry" ? (
+  const feedback = (at: string) =>
+    resultAt === at && actions.message ? <Notice>{actions.message}</Notice> : null;
+  // Each editor opens beside what it changes: a period's own card, the contact details or the
+  // new-period button.
+  const renderEditor = (inside: boolean) =>
+    editor && (
+      <form
+        key={`${editor.kind}:${editor.period?.id ?? "new"}:${editor.summary.version}`}
+        onSubmit={submitEditor}
+        className={
+          inside ? "space-y-4 border-t pt-4" : "space-y-4 rounded-xl border bg-background p-4"
+        }
+      >
+        <h3 className="font-semibold">{m.editor[editor.kind]}</h3>
+        <fieldset disabled={actions.busy || confirming} className="grid gap-4 sm:grid-cols-2">
+          {editor.kind === "metadata" ? (
+            <>
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="subscription-end">{m.newEnd}</Label>
-                <Input
-                  id="subscription-end"
-                  name="endsOn"
-                  type="date"
-                  required
-                  defaultValue={editor.period!.endsOn}
-                  min={editor.period!.startsOn}
+                <Label htmlFor="subscription-contact">{m.ownerContact}</Label>
+                <Textarea
+                  id="subscription-contact"
+                  name="ownerContact"
+                  maxLength={500}
+                  defaultValue={editor.summary.ownerContact ?? ""}
+                  rows={3}
                 />
               </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="subscription-annual">{m.annualField}</Label>
+                <Input
+                  id="subscription-annual"
+                  name="annualFee"
+                  inputMode="decimal"
+                  defaultValue={
+                    editor.summary.defaultAnnualFeeCents === null
+                      ? ""
+                      : formatCents(editor.summary.defaultAnnualFeeCents)
+                  }
+                />
+              </div>
+            </>
+          ) : editor.kind === "create" || editor.kind === "edit" ? (
+            <PeriodFields
+              key={`${editor.kind}:${editor.period?.id ?? "new"}`}
+              prefix="period"
+              annualFee={editor.summary.defaultAnnualFeeCents}
+              today={editor.summary.localToday}
+              startsOn={renewalStart(periods?.[0], editor.summary)}
+              initial={editor.period}
+              allowPaid={editor.kind === "create"}
+            />
+          ) : editor.kind === "expiry" ? (
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="subscription-end">{m.newEnd}</Label>
+              <Input
+                id="subscription-end"
+                name="endsOn"
+                type="date"
+                required
+                defaultValue={editor.period!.endsOn}
+                min={editor.period!.startsOn}
+              />
+            </div>
+          ) : (
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="subscription-paid">{m.paidOn}</Label>
+              <Input
+                id="subscription-paid"
+                name="paidOn"
+                type="date"
+                required
+                defaultValue={editor.summary.localToday}
+                max={editor.summary.localToday}
+              />
+            </div>
+          )}
+          <Button type="submit" disabled={locked}>
+            {m.checkContinue}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setEditor(null);
+              setValidation("");
+            }}
+          >
+            {m.cancelEdit}
+          </Button>
+        </fieldset>
+        {editor.summary.version !== summary?.version && (
+          <Notice tone="error">{m.editorStale}</Notice>
+        )}
+        {validation && <Notice tone="error">{validation}</Notice>}
+      </form>
+    );
+  return (
+    <Section title={m.title}>
+      <div className="space-y-4">
+        {detail.isPending && <LoadingState label={m.loading} />}
+        {detail.error && (
+          <Notice tone="error">{errorMessage(detail.error, undefined, language)}</Notice>
+        )}
+        {resultAt === null && actions.message && <Notice>{actions.message}</Notice>}
+        {summary && (
+          <>
+            <SubscriptionStatus summary={summary} />
+            {editor?.kind === "metadata" ? (
+              renderEditor(false)
             ) : (
-              <>
-                <div className="sm:col-span-2">
-                  <PeriodDetails period={editor.period!} />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="subscription-paid">{m.paidOn}</Label>
-                  <Input
-                    id="subscription-paid"
-                    name="paidOn"
-                    type="date"
-                    required
-                    defaultValue={editor.summary.localToday}
-                    max={editor.summary.localToday}
-                  />
-                </div>
-              </>
+              <dl className="grid gap-x-4 gap-y-2 border-t pt-4 text-sm sm:grid-cols-[10rem_1fr]">
+                <dt className="text-muted-foreground">{m.ownerContact}</dt>
+                <dd className="min-w-0 font-medium whitespace-pre-wrap wrap-break-word">
+                  {summary.ownerContact || m.notRegistered}
+                </dd>
+                <dt className="text-muted-foreground">{m.defaultFee}</dt>
+                <dd className="font-medium">
+                  {summary.defaultAnnualFeeCents === null
+                    ? m.feeNotSet
+                    : money(summary.defaultAnnualFeeCents)}
+                </dd>
+              </dl>
             )}
-            <Button type="submit" disabled={locked}>
-              {m.checkContinue}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setEditor(null);
-                setValidation("");
-              }}
-            >
-              {m.cancelEdit}
-            </Button>
-          </fieldset>
-          {editor.summary.version !== summary?.version && (
-            <Notice tone="error">{m.editorStale}</Notice>
-          )}
-          {validation && <Notice tone="error">{validation}</Notice>}
-        </form>
-      )}
-      {confirmation && (
-        <section
-          className="space-y-4 rounded-xl border border-primary/30 bg-accent/40 p-4"
-          aria-label={m.confirmRegion}
-        >
-          <h3 className="font-semibold">{m.confirmTitle}</h3>
-          <p className="text-sm leading-6">{confirmation.description}</p>
-          {confirmation.version !== summary?.version && (
-            <Notice tone="error">{m.versionChanged}</Notice>
-          )}
-          <div className="flex flex-wrap gap-2">
-            <Button
-              disabled={locked || confirmation.version !== summary?.version}
-              onClick={() => void commit()}
-            >
-              {m.confirm}
-            </Button>
-            <Button variant="outline" onClick={() => setConfirmation(null)}>
-              {m.backToEdit}
-            </Button>
-          </div>
-        </section>
-      )}
-      <h3 className="font-semibold">{m.periodsTitle}</h3>
-      {periods?.length === 0 && <p className="text-sm text-muted-foreground">{m.noPeriods}</p>}
-      {periods?.map((period) => (
-        <article className="space-y-3 rounded-xl border p-4" key={period.id}>
-          <PeriodDetails period={period} />
-          <div className="flex flex-wrap gap-2">
-            {!period.paidOn && (
-              <>
-                <Button disabled={locked} onClick={() => open("payment", period)}>
-                  {m.confirmPaid}
-                </Button>
-                <Button variant="outline" disabled={locked} onClick={() => open("edit", period)}>
-                  {m.editAgreement}
-                </Button>
-              </>
+            {feedback("metadata")}
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={locked || editor?.kind === "create"} onClick={() => open("create")}>
+                {m.newPeriod}
+              </Button>
+              <Button
+                variant="outline"
+                disabled={locked || editor?.kind === "metadata"}
+                onClick={() => open("metadata")}
+              >
+                {m.editMetadata}
+              </Button>
+            </div>
+            {editor?.kind === "create" && renderEditor(false)}
+            {feedback("create")}
+            {detail.stale && (
+              <p role="status" className="text-sm">
+                {m.stale}
+              </p>
             )}
-            <Button variant="outline" disabled={locked} onClick={() => open("expiry", period)}>
-              {m.adjustExpiry}
-            </Button>
-          </div>
-        </article>
-      ))}
-    </section>
+          </>
+        )}
+        <h3 className="border-t pt-4 font-semibold">{m.periodsTitle}</h3>
+        {periods?.length === 0 && <p className="text-sm text-muted-foreground">{m.noPeriods}</p>}
+        {periods?.map((period) => (
+          <article className="space-y-3 rounded-xl border p-4" key={period.id}>
+            <PeriodDetails period={period} />
+            {editor?.period?.id === period.id ? (
+              renderEditor(true)
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {!period.paidOn && (
+                  <>
+                    <Button disabled={locked} onClick={() => open("payment", period)}>
+                      {m.confirmPaid}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      disabled={locked}
+                      onClick={() => open("edit", period)}
+                    >
+                      {m.editAgreement}
+                    </Button>
+                  </>
+                )}
+                <Button variant="outline" disabled={locked} onClick={() => open("expiry", period)}>
+                  {m.adjustExpiry}
+                </Button>
+              </div>
+            )}
+            {feedback(period.id)}
+          </article>
+        ))}
+      </div>
+      <ConfirmDialog
+        open={confirming && !!confirmation}
+        title={editor ? m.editor[editor.kind] : m.confirmTitle}
+        description={confirmation?.description}
+        confirmLabel={m.confirm}
+        cancelLabel={m.backToEdit}
+        confirmDisabled={locked || confirmation?.version !== summary?.version}
+        onConfirm={() => void commit()}
+        onCancel={() => setConfirming(false)}
+      >
+        {confirmation && confirmation.version !== summary?.version && (
+          <Notice tone="error">{m.versionChanged}</Notice>
+        )}
+      </ConfirmDialog>
+    </Section>
   );
 }

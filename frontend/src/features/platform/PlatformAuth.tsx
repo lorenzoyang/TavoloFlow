@@ -1,27 +1,36 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Link, Navigate } from "@tanstack/react-router";
+import { Navigate, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronDown, UserRound } from "lucide-react";
 import { BrandMark } from "@/components/brand";
 import { SourceLink } from "@/components/source-link";
 import { LoadingState } from "@/components/loading-state";
 import { Notice } from "@/components/notice";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { buttonVariants } from "@/components/ui/button-variants";
 import { ApiError, errorMessage } from "@/lib/api";
 import { changePlatformPassword, platformLogin, platformLogout } from "./api";
 import { platformQuery, replacePlatform, type PlatformIdentity } from "./identity";
-import { PlatformSubscriptionReminders } from "@/features/subscriptions/SubscriptionReminders";
 import { LanguageSwitch } from "@/features/accounts/LanguageSwitch";
+import { listSearch } from "./list-search";
 import { htmlLang } from "@/lib/staff-language";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { platformMessages } from "./messages";
 
-// Platform pages share the store pages' device language; the switch stays in the header.
+// Platform pages share the store pages' device language; the switch stays in the header, next to
+// the signed-in administrator's menu. The identity query is the one PlatformBoundary observes.
 export function PlatformLayout({ children }: { children: ReactNode }) {
   const language = useStaffLanguage();
+  const identity = useQuery(platformQuery).data;
   useEffect(() => {
     const root = document.documentElement;
     root.lang = htmlLang(language);
@@ -32,9 +41,12 @@ export function PlatformLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh">
       <header className="border-b bg-card pt-safe">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <BrandMark caption={platformMessages[language].brandCaption} />
+        {/* Phones: the brand on its own row, then the language switch and the account menu at the
+            right; one row from sm. */}
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-3">
+          <BrandMark caption={platformMessages[language].brandCaption} className="mr-auto" />
           <LanguageSwitch />
+          {identity && <AccountMenu key={identity.userId} account={identity} />}
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 pt-6 pb-6">{children}</main>
@@ -80,14 +92,10 @@ export function PlatformBoundary({
   );
 }
 
-const navLink = buttonVariants({
-  variant: "ghost",
-  className: "aria-[current=page]:bg-accent aria-[current=page]:text-accent-foreground",
-});
-
-export function PlatformNavigation({ account }: { account: PlatformIdentity }) {
+function AccountMenu({ account }: { account: PlatformIdentity }) {
   const language = useStaffLanguage();
   const m = platformMessages[language];
+  const navigate = useNavigate();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const logout = async () => {
@@ -107,25 +115,35 @@ export function PlatformNavigation({ account }: { account: PlatformIdentity }) {
     }
   };
   return (
-    <div className="mb-6 space-y-3">
-      <nav
-        aria-label={m.nav}
-        className="flex flex-wrap items-center gap-2 rounded-2xl border bg-card p-2 shadow-xs"
-      >
-        <Link to="/platform/restaurants" className={navLink}>
-          {m.restaurants}
-        </Link>
-        <Link to="/platform/change-password" className={navLink}>
-          {m.changePassword}
-        </Link>
-        <span className="ml-auto px-2 text-sm text-muted-foreground">{account.username}</span>
-        <Button variant="outline" disabled={busy} onClick={() => void logout()}>
-          {m.logout}
-        </Button>
-      </nav>
-      {error && <Notice tone="error">{error}</Notice>}
-      <PlatformSubscriptionReminders userId={account.userId} />
-    </div>
+    <>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="outline"
+              className="ml-auto sm:ml-0"
+              disabled={busy}
+              aria-label={account.username}
+            >
+              <UserRound />
+              <span className="hidden max-w-40 truncate sm:inline">{account.username}</span>
+              <ChevronDown />
+            </Button>
+          }
+        />
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => void navigate({ to: "/platform/change-password" })}>
+            {m.changePassword}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => void logout()}>{m.logout}</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {error && (
+        <Notice tone="error" className="basis-full">
+          {error}
+        </Notice>
+      )}
+    </>
   );
 }
 
@@ -175,9 +193,7 @@ function PlatformForm({ password = false }: { password?: boolean }) {
   return (
     <Card className="mx-auto max-w-md [--card-spacing:--spacing(6)]">
       <CardContent className="space-y-5">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {password ? m.changePassword : m.loginTitle}
-        </h1>
+        {!password && <h1 className="text-2xl font-semibold tracking-tight">{m.loginTitle}</h1>}
         <form onSubmit={submit} className="space-y-4">
           <fieldset disabled={busy} className="space-y-4">
             {!password && (
@@ -229,13 +245,21 @@ export function PlatformLoginPage() {
   return <PlatformBoundary login>{() => <PlatformForm />}</PlatformBoundary>;
 }
 export function PlatformPasswordPage() {
+  const language = useStaffLanguage();
   return (
     <PlatformBoundary>
       {(account) => (
-        <>
-          <PlatformNavigation account={account!} />
+        <div className="mx-auto max-w-md">
+          <PageHeader
+            title={platformMessages[language].changePassword}
+            back={{
+              to: "/platform/restaurants",
+              search: listSearch(),
+              label: platformMessages[language].backToList,
+            }}
+          />
           <PlatformForm key={account!.userId} password />
-        </>
+        </div>
       )}
     </PlatformBoundary>
   );

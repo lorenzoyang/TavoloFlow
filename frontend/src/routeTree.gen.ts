@@ -35,6 +35,7 @@ import { Route as StaffSubscriptionRouteImport } from './routes/staff.subscripti
 import { Route as StaffTablesRouteImport } from './routes/staff.tables'
 import { Route as PlatformRestaurantsIndexRouteImport } from './routes/platform.restaurants.index'
 import { Route as PlatformRestaurantsRestaurantIdRouteImport } from './routes/platform.restaurants.$restaurantId'
+import { Route as PlatformRestaurantsNewRouteImport } from './routes/platform.restaurants.new'
 import { Route as RSlugPrivacyRouteImport } from './routes/r.$slug_.privacy'
 
 const IndexRoute = IndexRouteImport.update({
@@ -169,6 +170,11 @@ const PlatformRestaurantsRestaurantIdRoute =
     path: '/$restaurantId',
     getParentRoute: () => PlatformRestaurantsRoute,
   } as any)
+const PlatformRestaurantsNewRoute = PlatformRestaurantsNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => PlatformRestaurantsRoute,
+} as any)
 const RSlugPrivacyRoute = RSlugPrivacyRouteImport.update({
   id: '/r/$slug_/privacy',
   path: '/r/$slug/privacy',
@@ -201,6 +207,7 @@ export interface FileRoutesByFullPath {
   '/platform/': typeof PlatformIndexRoute
   '/staff/': typeof StaffIndexRoute
   '/platform/restaurants/$restaurantId': typeof PlatformRestaurantsRestaurantIdRoute
+  '/platform/restaurants/new': typeof PlatformRestaurantsNewRoute
   '/r/$slug/privacy': typeof RSlugPrivacyRoute
   '/platform/restaurants/': typeof PlatformRestaurantsIndexRoute
 }
@@ -227,6 +234,7 @@ export interface FileRoutesByTo {
   '/platform': typeof PlatformIndexRoute
   '/staff': typeof StaffIndexRoute
   '/platform/restaurants/$restaurantId': typeof PlatformRestaurantsRestaurantIdRoute
+  '/platform/restaurants/new': typeof PlatformRestaurantsNewRoute
   '/r/$slug/privacy': typeof RSlugPrivacyRoute
   '/platform/restaurants': typeof PlatformRestaurantsIndexRoute
 }
@@ -257,6 +265,7 @@ export interface FileRoutesById {
   '/platform/': typeof PlatformIndexRoute
   '/staff/': typeof StaffIndexRoute
   '/platform/restaurants/$restaurantId': typeof PlatformRestaurantsRestaurantIdRoute
+  '/platform/restaurants/new': typeof PlatformRestaurantsNewRoute
   '/r/$slug_/privacy': typeof RSlugPrivacyRoute
   '/platform/restaurants/': typeof PlatformRestaurantsIndexRoute
 }
@@ -288,6 +297,7 @@ export interface FileRouteTypes {
     | '/platform/'
     | '/staff/'
     | '/platform/restaurants/$restaurantId'
+    | '/platform/restaurants/new'
     | '/r/$slug/privacy'
     | '/platform/restaurants/'
   fileRoutesByTo: FileRoutesByTo
@@ -314,6 +324,7 @@ export interface FileRouteTypes {
     | '/platform'
     | '/staff'
     | '/platform/restaurants/$restaurantId'
+    | '/platform/restaurants/new'
     | '/r/$slug/privacy'
     | '/platform/restaurants'
   id:
@@ -343,6 +354,7 @@ export interface FileRouteTypes {
     | '/platform/'
     | '/staff/'
     | '/platform/restaurants/$restaurantId'
+    | '/platform/restaurants/new'
     | '/r/$slug_/privacy'
     | '/platform/restaurants/'
   fileRoutesById: FileRoutesById
@@ -541,6 +553,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlatformRestaurantsRestaurantIdRouteImport
       parentRoute: typeof PlatformRestaurantsRoute
     }
+    '/platform/restaurants/new': {
+      id: '/platform/restaurants/new'
+      path: '/new'
+      fullPath: '/platform/restaurants/new'
+      preLoaderRoute: typeof PlatformRestaurantsNewRouteImport
+      parentRoute: typeof PlatformRestaurantsRoute
+    }
     '/r/$slug_/privacy': {
       id: '/r/$slug_/privacy'
       path: '/r/$slug/privacy'
@@ -553,11 +572,13 @@ declare module '@tanstack/react-router' {
 
 interface PlatformRestaurantsRouteChildren {
   PlatformRestaurantsRestaurantIdRoute: typeof PlatformRestaurantsRestaurantIdRoute
+  PlatformRestaurantsNewRoute: typeof PlatformRestaurantsNewRoute
   PlatformRestaurantsIndexRoute: typeof PlatformRestaurantsIndexRoute
 }
 
 const PlatformRestaurantsRouteChildren: PlatformRestaurantsRouteChildren = {
   PlatformRestaurantsRestaurantIdRoute: PlatformRestaurantsRestaurantIdRoute,
+  PlatformRestaurantsNewRoute: PlatformRestaurantsNewRoute,
   PlatformRestaurantsIndexRoute: PlatformRestaurantsIndexRoute,
 }
 

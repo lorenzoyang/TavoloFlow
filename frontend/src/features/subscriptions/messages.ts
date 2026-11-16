@@ -136,9 +136,9 @@ export const subscriptionMessages: Record<Language, typeof zh> = {
 // The platform's own subscription management: periods, payments, fees and reminders.
 const platformZh = {
   reminderError: "年费提醒暂时无法更新。",
-  reminderLoading: "正在读取年费提醒…",
-  reminders: (unpaid: number, dueSoon: number, expired: number) =>
-    `年费提醒：已开始待收款 ${unpaid} 家 · 7 天内到期 ${dueSoon} 家 · 已到期 ${expired} 家`,
+  remindersTitle: "年费提醒：点按查看对应餐厅。",
+  reminder: (kind: "UNPAID" | "DUE_SOON" | "EXPIRED", count: number) =>
+    `${kind === "UNPAID" ? "已开始待收款" : kind === "DUE_SOON" ? "7 天内到期" : "已到期"} ${count} 家`,
   remindersStale: "提醒待刷新，以上为上次读取结果。",
   unknownResult:
     "操作结果未知，请核对刷新后的资料。修改只按确认时的版本生效，重新确认不会重复登记。",
@@ -164,9 +164,7 @@ const platformZh = {
   paidOnInvalid: "请填写不晚于今天的实际付费日期。",
   paymentConfirm: (startsOn: string, endsOn: string, amount: string, paidOn: string) =>
     `确认已收到 ${startsOn} 至 ${endsOn} 的全部费用 ${amount}，实际付费日期 ${paidOn}。服务起止日期保持原约定。`,
-  region: "餐厅年费管理",
   title: "年费与收费周期",
-  refresh: "刷新年费资料",
   loading: "正在读取年费资料…",
   ownerContact: "老板联系方式",
   notRegistered: "尚未登记",
@@ -188,7 +186,6 @@ const platformZh = {
   checkContinue: "核对并继续",
   cancelEdit: "取消编辑",
   editorStale: "资料已被更新，请关闭编辑后重新核对最新资料。",
-  confirmRegion: "收费操作确认",
   confirmTitle: "确认本次操作",
   versionChanged: "资料版本已变化，请取消后重新读取。",
   confirm: "确认执行",
@@ -212,9 +209,9 @@ export const platformSubscriptionMessages: Record<Language, typeof platformZh> =
   zh: platformZh,
   it: {
     reminderError: "Impossibile aggiornare gli avvisi sugli abbonamenti.",
-    reminderLoading: "Caricamento degli avvisi sugli abbonamenti…",
-    reminders: (unpaid, dueSoon, expired) =>
-      `Abbonamenti: ${unpaid} iniziati da pagare · ${dueSoon} in scadenza entro 7 giorni · ${expired} scaduti`,
+    remindersTitle: "Abbonamenti da seguire: tocca per vedere i ristoranti.",
+    reminder: (kind, count) =>
+      `${kind === "UNPAID" ? "Da pagare" : kind === "DUE_SOON" ? "In scadenza entro 7 giorni" : "Scaduti"}: ${count}`,
     remindersStale: "Avvisi da aggiornare: questa è l’ultima lettura riuscita.",
     unknownResult:
       "Esito sconosciuto: controlla i dati aggiornati. Ogni modifica vale solo per la versione confermata, quindi confermare di nuovo non la registra due volte.",
@@ -234,9 +231,7 @@ export const platformSubscriptionMessages: Record<Language, typeof platformZh> =
     paidOnInvalid: "Inserisci la data effettiva del pagamento, non successiva a oggi.",
     paymentConfirm: (startsOn, endsOn, amount, paidOn) =>
       `Confermare di aver ricevuto per intero ${amount} per il periodo dal ${startsOn} al ${endsOn}, pagato il ${paidOn}. Le date del servizio restano quelle concordate.`,
-    region: "Abbonamento del ristorante",
     title: "Abbonamento e periodi",
-    refresh: "Aggiorna i dati dell’abbonamento",
     loading: "Caricamento dell’abbonamento…",
     ownerContact: "Contatto del titolare",
     notRegistered: "Non registrato",
@@ -258,7 +253,6 @@ export const platformSubscriptionMessages: Record<Language, typeof platformZh> =
     checkContinue: "Controlla e continua",
     cancelEdit: "Annulla modifica",
     editorStale: "I dati sono stati aggiornati: chiudi la modifica e controlla quelli nuovi.",
-    confirmRegion: "Conferma dell’operazione sull’abbonamento",
     confirmTitle: "Conferma l’operazione",
     versionChanged: "La versione dei dati è cambiata: annulla e ricarica.",
     confirm: "Conferma",
@@ -278,9 +272,9 @@ export const platformSubscriptionMessages: Record<Language, typeof platformZh> =
   },
   en: {
     reminderError: "Can’t update the subscription reminders.",
-    reminderLoading: "Loading subscription reminders…",
-    reminders: (unpaid, dueSoon, expired) =>
-      `Subscriptions: ${unpaid} started and unpaid · ${dueSoon} ending within 7 days · ${expired} expired`,
+    remindersTitle: "Subscriptions to follow up: tap to see the restaurants.",
+    reminder: (kind, count) =>
+      `${kind === "UNPAID" ? "Unpaid" : kind === "DUE_SOON" ? "Ending within 7 days" : "Expired"}: ${count}`,
     remindersStale: "Reminders to refresh: this is the last successful read.",
     unknownResult:
       "Unknown result: check the refreshed data. Each change applies only to the version you confirmed, so confirming again never records it twice.",
@@ -300,9 +294,7 @@ export const platformSubscriptionMessages: Record<Language, typeof platformZh> =
     paidOnInvalid: "Enter the actual payment date, no later than today.",
     paymentConfirm: (startsOn, endsOn, amount, paidOn) =>
       `Confirm the full ${amount} for ${startsOn} to ${endsOn} was received, paid on ${paidOn}. The service dates stay as agreed.`,
-    region: "Restaurant subscription",
     title: "Subscription and periods",
-    refresh: "Refresh subscription data",
     loading: "Loading the subscription…",
     ownerContact: "Owner contact",
     notRegistered: "Not registered",
@@ -324,7 +316,6 @@ export const platformSubscriptionMessages: Record<Language, typeof platformZh> =
     checkContinue: "Check and continue",
     cancelEdit: "Cancel editing",
     editorStale: "The data was updated: close the editor and check the new data.",
-    confirmRegion: "Subscription action confirmation",
     confirmTitle: "Confirm this action",
     versionChanged: "The data version has changed: cancel and reload.",
     confirm: "Confirm",

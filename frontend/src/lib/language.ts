@@ -3,6 +3,13 @@ export type Names = { nameZh: string | null; nameIt: string | null; nameEn: stri
 
 export const LANGUAGES: readonly Language[] = ["zh", "it", "en"];
 
+// Each language names itself, so someone who cannot read the current interface still finds theirs.
+export const LANGUAGE_NAMES: Record<Language, string> = {
+  zh: "中文",
+  it: "Italiano",
+  en: "English",
+};
+
 export function isLanguage(value: unknown): value is Language {
   return value === "zh" || value === "it" || value === "en";
 }

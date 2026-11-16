@@ -79,7 +79,7 @@ The version is the duplicate guard. A repeated applied write cannot consume its 
 Unlike account/restaurant management markers, the browser persists no pending subscription operation.
 After timeout, disconnection or leaving the foreground, reread and have the administrator reconcile
 current detail before another confirmation. No automatic POST retry or lookup-by-operation-ID exists.
-Platform confirmations remain inline regions. Applied writes log actor, restaurant and action type,
+Platform confirmations use the shared confirmation dialog. Applied writes log actor, restaurant and action type,
 not amounts or contact details.
 
 The UI supports Chinese, Italian and English using the shared device preference. Amount formatting

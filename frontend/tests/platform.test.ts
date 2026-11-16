@@ -7,6 +7,7 @@ import {
   managementKey,
   readPending,
   recoveryUrl,
+  restaurantsSearch,
   servicesValid,
   type ManagedAccount,
 } from "../src/features/platform/state.ts";
@@ -99,4 +100,44 @@ test("at least one service stays on and online ordering needs its link", () => {
   assert.equal(servicesValid({ dineIn: true, online: true }, "ramen"), true);
   assert.equal(servicesValid({ dineIn: false, online: false }, "ramen"), false);
   assert.equal(servicesValid({ dineIn: true, online: true }, null), false);
+});
+
+test("list filters from the URL keep only known values and omit the defaults", () => {
+  assert.deepEqual(
+    restaurantsSearch({
+      search: "  ramen  ",
+      status: "SUSPENDED",
+      subscriptionStatus: "DUE_SOON",
+      sort: "EXPIRY",
+      page: 3,
+    }),
+    {
+      search: "ramen",
+      status: "SUSPENDED",
+      subscriptionStatus: "DUE_SOON",
+      sort: "EXPIRY",
+      page: 3,
+    },
+  );
+  assert.deepEqual(
+    restaurantsSearch({
+      search: "   ",
+      status: "active",
+      subscriptionStatus: "PAID",
+      sort: "NAME",
+      page: 1,
+    }),
+    {
+      search: undefined,
+      status: undefined,
+      subscriptionStatus: undefined,
+      sort: undefined,
+      page: undefined,
+    },
+  );
+  for (const page of [0, -2, 1.5, "x", null, Number.MAX_SAFE_INTEGER + 2])
+    assert.equal(restaurantsSearch({ page }).page, undefined, String(page));
+  assert.equal(restaurantsSearch({ page: "2" }).page, 2);
+  assert.equal(restaurantsSearch({ search: "a".repeat(200) }).search?.length, 150);
+  assert.equal(restaurantsSearch({ search: 42 }).search, undefined);
 });

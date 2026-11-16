@@ -1,10 +1,7 @@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { isLanguage, LANGUAGES, type Language } from "@/lib/language";
+import { isLanguage, LANGUAGE_NAMES, LANGUAGES } from "@/lib/language";
 import { setStaffLanguage, useStaffLanguage } from "@/lib/useStaffLanguage";
 import { accountMessages } from "./messages";
-
-// Each option names itself in its own language, so someone who cannot read the current one finds it.
-const names: Record<Language, string> = { zh: "中文", it: "Italiano", en: "English" };
 
 export function LanguageSwitch({ className }: { className?: string }) {
   const language = useStaffLanguage();
@@ -27,7 +24,7 @@ export function LanguageSwitch({ className }: { className?: string }) {
           lang={value}
           className="bg-card px-3 aria-pressed:bg-primary aria-pressed:text-primary-foreground"
         >
-          {names[value]}
+          {LANGUAGE_NAMES[value]}
         </ToggleGroupItem>
       ))}
     </ToggleGroup>

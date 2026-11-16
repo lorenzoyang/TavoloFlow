@@ -7,19 +7,13 @@ import type {
   Restaurant,
   RestaurantDetail,
   RestaurantServices,
+  RestaurantsSearch,
   TemporaryCredential,
 } from "./state";
 
 // Platform administration uses the platform identity; the owner's staff maintenance uses the store identity.
 export const RESTAURANTS_PAGE_SIZE = 20;
-type RestaurantFilter = {
-  search: string;
-  status: string;
-  page: number;
-  subscriptionStatus?: string;
-  sort?: string;
-};
-type CreateRestaurantInput = {
+export type CreateRestaurantInput = {
   id: string;
   name: string;
   defaultLanguage: string;
@@ -55,9 +49,9 @@ export const changePlatformPassword = (
   );
 export const platformLogout = () => platformWrite<void>("/api/platform/auth/logout", "POST", {});
 
-export function listRestaurants(filter: RestaurantFilter, signal: AbortSignal) {
+export function listRestaurants(filter: RestaurantsSearch, signal: AbortSignal) {
   const search = new URLSearchParams({
-    page: String(filter.page),
+    page: String(filter.page ?? 1),
     pageSize: String(RESTAURANTS_PAGE_SIZE),
   });
   if (filter.search) search.set("search", filter.search);

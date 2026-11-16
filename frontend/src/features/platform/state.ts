@@ -97,3 +97,32 @@ export const isSlug = (value: string) => /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.tes
 // At least one service stays on, and online ordering needs its link.
 export const servicesValid = (services: RestaurantServices, slug: string | null) =>
   (services.dineIn || services.online) && (!services.online || !!slug);
+
+// The restaurant list's filters live in the URL, so returning from a restaurant keeps them. Unknown
+// values fall back to "all", and the first page is the default, so neither appears in the URL.
+export const RESTAURANT_STATUSES = ["ACTIVE", "SUSPENDED"] as const;
+export const SUBSCRIPTION_FILTERS = ["UNPAID", "DUE_SOON", "EXPIRED", "UNCONFIGURED"] as const;
+export const RESTAURANT_SORTS = ["EXPIRY"] as const;
+export type RestaurantsSearch = {
+  search?: string;
+  status?: (typeof RESTAURANT_STATUSES)[number];
+  subscriptionStatus?: (typeof SUBSCRIPTION_FILTERS)[number];
+  sort?: (typeof RESTAURANT_SORTS)[number];
+  page?: number;
+};
+function oneOf<T extends string>(value: unknown, allowed: readonly T[]): T | undefined {
+  return allowed.find((item) => item === value);
+}
+export function restaurantsSearch(search: Record<string, unknown>): RestaurantsSearch {
+  const page = Number(search.page);
+  return {
+    search:
+      typeof search.search === "string"
+        ? search.search.trim().slice(0, 150) || undefined
+        : undefined,
+    status: oneOf(search.status, RESTAURANT_STATUSES),
+    subscriptionStatus: oneOf(search.subscriptionStatus, SUBSCRIPTION_FILTERS),
+    sort: oneOf(search.sort, RESTAURANT_SORTS),
+    page: Number.isSafeInteger(page) && page > 1 ? page : undefined,
+  };
+}
