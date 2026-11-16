@@ -21,6 +21,12 @@ CANCELLED lines. Actual cancellation increments the visit's bill version once; R
 | Orders          | NEW orders, including their terminal lines         | `(createdAt, id)` ascending          |
 | Processed       | PROCESSED orders, including fully cancelled orders | `(processedAt, id)` descending       |
 
+Each device opens the kitchen on the view it last chose between Dishes and Orders:
+`tavoloflow:kitchen-view` in localStorage holds `NEW` for Orders and is removed for Dishes. It is
+shared by every restaurant and account on the device and survives logout. Choosing Processed leaves it
+unchanged, so a screen never reopens on finished work. Without storage the page opens on Dishes and the
+tabs still switch for that page.
+
 Dishes and Orders share one NEW query. Dish grouping is client-side by `menuItemId`, or snapshot code
 and names after deletion. Remarks and chosen options (size, sweetness, spice…) stay on their own
 lines, shown as one summary such as "Size: Large · Toppings: Pearls, Coconut jelly". A group shows its oldest name, total
@@ -136,8 +142,8 @@ are cancelled/discarded after hiding, disconnecting or changing identity; kitche
 
 Sound is enabled by default, but playback depends on browser permissions and AudioContext state.
 Page taps try to unlock audio; the UI requests a tap when necessary. Kitchen plays two rising tones;
-pass plays three short high tones through shared `useAlertSound`/`AlertAudio`. Sound and wake-lock
-settings are device preferences, not business state. The online order ringing (low-high pairs from
+pass plays three short high tones through shared `useAlertSound`/`AlertAudio`. Sound, wake-lock and
+view settings are device preferences, not business state. The online order ringing (low-high pairs from
 the banner on every staff page, see [online ordering](online-ordering.md#banner-and-ringing)) is
 separate: the kitchen and pass sound switches never mute it.
 

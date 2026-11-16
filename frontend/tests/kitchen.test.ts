@@ -8,6 +8,7 @@ import {
   dishGroups,
   hiddenCategoriesKey,
   readHiddenCategories,
+  readKitchenView,
   screenArrivals,
   pendingKitchenKey,
   readPending,
@@ -213,6 +214,12 @@ test("a screen stores only the categories it hides, per restaurant, and ignores 
   assert.deepEqual(readHiddenCategories(JSON.stringify([drinks, drinks, "../x", 3])), [drinks]);
   for (const raw of [null, "{", "{}", JSON.stringify(drinks)])
     assert.deepEqual(readHiddenCategories(raw), []);
+});
+
+test("a screen reopens on Orders only when it chose it; anything else opens on Dishes", () => {
+  assert.equal(readKitchenView("NEW"), "NEW");
+  for (const raw of [null, "", "DISHES", "PROCESSED", "new", "{"])
+    assert.equal(readKitchenView(raw), "DISHES");
 });
 
 test("hidden categories leave only their dishes out; unknown and deleted dishes always show", () => {

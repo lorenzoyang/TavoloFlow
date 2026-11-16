@@ -27,7 +27,9 @@ import {
 import { kitchenMessages } from "./messages";
 import {
   dishGroups,
+  kitchenViewKey,
   pendingKitchenKey,
+  readKitchenView,
   readPending,
   recoveryOutcome,
   type KitchenView,
@@ -38,6 +40,25 @@ import { useKitchenCategories } from "./useKitchenCategories";
 import { useKitchenChime } from "./useKitchenChime";
 
 const markerOrder = (marker: PendingKitchenAction) => marker.orderId;
+
+function readView(): KitchenView {
+  try {
+    return readKitchenView(localStorage.getItem(kitchenViewKey));
+  } catch {
+    return "DISHES";
+  }
+}
+
+// Processed leaves the stored choice alone, so the screen reopens on the view it last worked in.
+function saveView(view: KitchenView) {
+  if (view === "PROCESSED") return;
+  try {
+    if (view === "NEW") localStorage.setItem(kitchenViewKey, "NEW");
+    else localStorage.removeItem(kitchenViewKey);
+  } catch {
+    /* The tabs still switch for this page without storage. */
+  }
+}
 
 // The kitchen queue: polls the open visits' orders, announces new ones and marks each line READY or
 // CANCELLED. Writes need a fresh view; each one is marked before its POST so that a lost result is
@@ -57,7 +78,7 @@ export function useKitchen(account: CurrentAccount) {
   const live = useLiveView();
   const [openedAt] = useState(Date.now);
   const resumedAt = Math.max(live.resumeAfter, openedAt);
-  const [view, setView] = useState<KitchenView>("DISHES");
+  const [view, setView] = useState<KitchenView>(readView);
   const [switchedAt, setSwitchedAt] = useState(0);
   const status: OrderStatus = view === "PROCESSED" ? "PROCESSED" : "NEW";
   const query = useInfiniteQuery({
@@ -274,6 +295,7 @@ export function useKitchen(account: CurrentAccount) {
       if (next === view) return;
       if ((next === "PROCESSED") !== (status === "PROCESSED")) setSwitchedAt(Date.now());
       setView(next);
+      saveView(next);
       setError("");
     },
     query,

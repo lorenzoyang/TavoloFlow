@@ -86,6 +86,15 @@ export function readHiddenCategories(raw: string | null): string[] {
   }
 }
 
+// The view a kitchen screen opens on is a device preference too, shared by every restaurant and account
+// on the device. Only the two views of the NEW orders are kept, and Dishes by leaving nothing stored: a
+// screen that reopened on Processed would hide new work.
+export const kitchenViewKey = "tavoloflow:kitchen-view";
+
+export function readKitchenView(raw: string | null): KitchenView {
+  return raw === "NEW" ? "NEW" : "DISHES";
+}
+
 // null while nothing can be hidden. A dish that is no longer on the menu, or whose menu is not loaded,
 // always shows: a dish on two screens is better than a dish on none.
 export function categoryFilter(
