@@ -576,11 +576,11 @@ Chiede nome utente e password (6–128 caratteri; mentre scrivi non si vede nien
 
 #### Il primo ristorante
 
-1. Entra in `/platform/login` e crea un ristorante di prova: nome, lingua del menu, nomi utente del titolare e dello staff, ed eventualmente primo periodo di abbonamento. Scegli i servizi: QR ai tavoli, ordini online o entrambi. Il valore iniziale abilita solo i QR; per gli ordini online imposta anche l'identificativo del link (`slug`).
+1. Entra in `/platform/login`, tocca **«Nuovo ristorante»** (sul telefono solo **«+»**) e crea un ristorante di prova: nome, lingua del menu, nomi utente del titolare e dello staff, ed eventualmente primo periodo di abbonamento. Scegli le funzioni: QR ai tavoli, ordini online o entrambe. Il valore iniziale abilita solo i QR; per gli ordini online imposta anche l'identificativo del link (`slug`).
 2. Salva subito le due **password temporanee**: vengono mostrate una sola volta.
 3. Il titolare entra in `/staff/login`, imposta la nuova password e prepara il menu: categorie, piatti, prezzi, allergeni ed eventuali opzioni.
 4. Anche lo staff completa il primo cambio di password.
-5. Il ristorante nasce **sospeso**. Dall'area amministratore attiva il servizio, poi segui i percorsi abilitati qui sotto.
+5. Il ristorante nasce **sospeso**. Nel suo dettaglio, nell'area amministratore, tocca **«Attiva servizio»** nell'avviso in cima alla pagina, poi segui i percorsi abilitati qui sotto.
 
 **Con i QR ai tavoli:**
 

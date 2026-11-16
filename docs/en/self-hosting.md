@@ -576,11 +576,11 @@ It asks for a username and password (6–128 characters; nothing shows while you
 
 #### The first restaurant
 
-1. Sign in at `/platform/login` and create a test restaurant: name, menu language, owner and staff usernames, and an optional first subscription period. Choose table QR ordering, online ordering or both. The initial selection enables only QR ordering; online ordering also requires a link identifier (`slug`).
+1. Sign in at `/platform/login`, tap **"New restaurant"** (just **"+"** on a phone) and create a test restaurant: name, menu language, owner and staff usernames, and an optional first subscription period. Choose the features: table QR ordering, online ordering or both. The initial selection enables only QR ordering; online ordering also requires a link identifier (`slug`).
 2. Save the two **temporary passwords** immediately: they are shown only once.
 3. The owner signs in at `/staff/login`, sets a new password and prepares the menu: categories, dishes, prices, allergens and any options.
 4. Staff also completes the first password change.
-5. The restaurant starts **suspended**. Activate its service in the platform area, then follow the enabled paths below.
+5. The restaurant starts **suspended**. On its details page in the platform area, tap **"Activate service"** in the notice at the top, then follow the enabled paths below.
 
 **With table QR ordering:**
 
