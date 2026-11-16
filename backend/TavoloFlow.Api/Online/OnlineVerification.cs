@@ -102,6 +102,9 @@ public sealed class OnlineVerification(
             return;
         if (string.IsNullOrWhiteSpace(token) || token.Length > 2048)
             throw OnlineErrors.VerificationFailed();
+        // Safe diagnostics only: the provider's HTTP status, its documented error codes or the check
+        // that failed, so operators can tell a wrong secret or hostname from an outage.
+        var detail = "";
         try
         {
             using var body = new FormUrlEncodedContent(
@@ -115,12 +118,21 @@ public sealed class OnlineVerification(
                 .CreateClient(HttpClientName)
                 .PostAsync(Endpoint, body, ct);
             if (!response.IsSuccessStatusCode)
+            {
+                detail = $"HTTP {(int)response.StatusCode}";
                 throw OnlineErrors.VerificationUnavailable();
+            }
             var result = await response.Content.ReadFromJsonAsync<VerificationResult>(ct);
             if (result is null)
+            {
+                detail = "empty response";
                 throw OnlineErrors.VerificationUnavailable();
+            }
             if (!result.Success)
             {
+                detail = result.Errors is { Length: > 0 }
+                    ? string.Join(",", result.Errors)
+                    : "no error codes";
                 if (
                     result.Errors is { Length: > 0 }
                     && result.Errors.All(e =>
@@ -135,19 +147,21 @@ public sealed class OnlineVerification(
             }
             // Official dummy responses have example.com and omit action/cdata. Startup validation
             // restricts this exception to the recognized paired keys in Development.
-            if (
-                !TurnstileOptions.IsTestSiteKey(settings.SiteKey!.Trim())
-                && (
+            if (!TurnstileOptions.IsTestSiteKey(settings.SiteKey!.Trim()))
+            {
+                detail =
                     !string.Equals(
                         result.Hostname,
                         settings.Hostname!.Trim(),
                         StringComparison.OrdinalIgnoreCase
                     )
-                    || result.Action != Action
-                    || result.Data != Binding(restaurantId, requestId)
-                )
-            )
-                throw OnlineErrors.VerificationFailed();
+                        ? "hostname mismatch"
+                    : result.Action != Action ? "action mismatch"
+                    : result.Data != Binding(restaurantId, requestId) ? "cdata mismatch"
+                    : "";
+                if (detail.Length > 0)
+                    throw OnlineErrors.VerificationFailed();
+            }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -171,7 +185,11 @@ public sealed class OnlineVerification(
         catch (ApiException error)
         {
             // Never log keys, raw tokens, request IDs used for recovery, or response bodies.
-            logger.LogWarning("Online verification rejected: {Code}.", error.Code);
+            logger.LogWarning(
+                "Online verification rejected: {Code} ({Detail}).",
+                error.Code,
+                detail
+            );
             throw;
         }
     }

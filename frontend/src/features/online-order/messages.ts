@@ -150,7 +150,7 @@ const zh = {
     },
     {
       heading: "保存多久",
-      body: "姓名、电话和地址在提交 30 天后删除；订单的菜品和金额作为餐厅的账目保留，不再与你的联系方式关联。",
+      body: "姓名、电话和地址在提交满 30 天后，于该餐厅收到下一笔线上订单时删除；备份中的副本最多再保留 7 天。订单的菜品和金额作为餐厅的账目保留，不再与你的联系方式关联。",
     },
     {
       heading: "你的权利",
@@ -158,7 +158,11 @@ const zh = {
     },
     {
       heading: "浏览器存储",
-      body: "本页只使用技术上必需的存储：购物车、语言选择、订单状态链接、防伪验证 Cookie 和防止重复占位的浏览器 Cookie（30 天）。服务器还保存按餐厅区分的浏览器及 IP 来源摘要，用于限制待接单占位，并随超过 30 天的联系信息清除。没有统计或广告。若启用了安全验证，结账时浏览器会与 Cloudflare Turnstile 通信，用于防止自动刷单；我们只发送验证凭证及餐厅与请求的绑定摘要，不发送姓名、电话、地址或菜品内容。",
+      body: "本页只使用技术上必需的存储：购物车、语言选择、订单状态链接、防伪验证 Cookie 和防止重复占位的浏览器 Cookie（30 天）。服务器还保存按餐厅区分的浏览器及 IP 来源摘要，用于限制待接单占位：餐厅接单或拒单时即清除，未处理而过期的随超过 30 天的联系信息清除。没有统计或广告。",
+    },
+    {
+      heading: "安全验证",
+      body: "若启用了安全验证，结账时浏览器会直接连接 Cloudflare Turnstile，用于防止自动刷单。Cloudflare 因此会处理你的 IP 地址以及浏览器和设备的技术信息（如 User-Agent），处理可能发生在欧盟或欧洲经济区以外，适用 Cloudflare 的 Turnstile 隐私说明。我们自己只发送验证凭证及餐厅与请求的绑定摘要，不发送姓名、电话、地址或菜品内容。",
     },
   ],
 };
@@ -332,7 +336,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       },
       {
         heading: "Per quanto tempo",
-        body: "Nome, telefono e indirizzo si cancellano 30 giorni dopo l’invio; piatti e importi dell’ordine restano nella contabilità del ristorante, senza i tuoi contatti.",
+        body: "Nome, telefono e indirizzo si cancellano con il primo nuovo ordine online ricevuto dal ristorante dopo 30 giorni dall’invio; le copie di backup restano al massimo altri 7 giorni. Piatti e importi dell’ordine restano nella contabilità del ristorante, senza i tuoi contatti.",
       },
       {
         heading: "I tuoi diritti",
@@ -340,7 +344,11 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       },
       {
         heading: "Memoria del browser",
-        body: "Questa pagina usa solo la memoria tecnicamente necessaria: carrello, lingua scelta, link allo stato dell’ordine, cookie anti-falsificazione e cookie del browser per limitare gli ordini in attesa (30 giorni). Il server conserva impronte del browser e dell’IP separate per ristorante per limitare gli ordini in attesa, cancellate insieme ai contatti più vecchi di 30 giorni. Nessuna statistica o pubblicità. Se la verifica di sicurezza è attiva, alla cassa il browser comunica con Cloudflare Turnstile contro gli invii automatici. Inviamo solo la prova e un’impronta del ristorante e della richiesta, senza nome, telefono, indirizzo o piatti.",
+        body: "Questa pagina usa solo la memoria tecnicamente necessaria: carrello, lingua scelta, link allo stato dell’ordine, cookie anti-falsificazione e cookie del browser per limitare gli ordini in attesa (30 giorni). Il server conserva impronte del browser e dell’IP separate per ristorante per limitare gli ordini in attesa: si cancellano quando il ristorante accetta o rifiuta l’ordine, altrimenti insieme ai contatti più vecchi di 30 giorni. Nessuna statistica o pubblicità.",
+      },
+      {
+        heading: "Verifica di sicurezza",
+        body: "Se la verifica di sicurezza è attiva, alla cassa il browser si collega direttamente a Cloudflare Turnstile per bloccare gli invii automatici. Cloudflare tratta quindi il tuo indirizzo IP e informazioni tecniche sul browser e sul dispositivo (come lo user agent), eventualmente anche fuori dall’UE o dallo SEE, secondo l’informativa privacy di Cloudflare per Turnstile. Noi inviamo solo la prova e un’impronta del ristorante e della richiesta, senza nome, telefono, indirizzo o piatti.",
       },
     ],
   },
@@ -506,7 +514,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       },
       {
         heading: "How long",
-        body: "Name, phone and address are deleted 30 days after the order is sent; the dishes and amounts stay in the restaurant’s accounts without your contact details.",
+        body: "Name, phone and address are deleted with the restaurant’s next online order once 30 days have passed since yours was sent; backup copies are kept for at most 7 more days. The dishes and amounts stay in the restaurant’s accounts without your contact details.",
       },
       {
         heading: "Your rights",
@@ -514,7 +522,11 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       },
       {
         heading: "Browser storage",
-        body: "This page uses only technically necessary storage: the cart, your language, the order status link, the anti-forgery cookie and a browser cookie to limit waiting orders (30 days). The server also stores restaurant-specific browser and IP digests to limit waiting orders, cleared along with contact data older than 30 days. No analytics or advertising. When security verification is enabled, the checkout browser communicates with Cloudflare Turnstile to prevent automated orders. We send only the proof and a restaurant/request binding digest, not names, phones, addresses or dishes.",
+        body: "This page uses only technically necessary storage: the cart, your language, the order status link, the anti-forgery cookie and a browser cookie to limit waiting orders (30 days). The server also stores restaurant-specific browser and IP digests to limit waiting orders: they are cleared when the restaurant accepts or rejects the order, otherwise along with contact data older than 30 days. No analytics or advertising.",
+      },
+      {
+        heading: "Security verification",
+        body: "When security verification is enabled, your browser connects directly to Cloudflare Turnstile at checkout to block automated orders. Cloudflare therefore processes your IP address and technical browser and device information (such as the user agent), possibly outside the EU/EEA, under Cloudflare’s Turnstile privacy policy. We send only the proof and a restaurant/request binding digest, not names, phones, addresses or dishes.",
       },
     ],
   },

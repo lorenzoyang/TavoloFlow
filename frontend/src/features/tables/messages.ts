@@ -54,7 +54,7 @@ const zh = {
   copy: "复制链接",
   openMenu: "打开菜单",
   cardHint:
-    "桌卡包含店名、桌号、二维码和中意英三语“扫码点餐”提示，按 A6（10.5 × 14.8 厘米）打印即可摆桌。",
+    "桌卡包含店名、桌号、二维码和中意英三语「扫码点餐」提示，按 A6（10.5 × 14.8 厘米）打印即可摆桌。",
 };
 
 export const tableMessages: Record<Language, typeof zh> = {

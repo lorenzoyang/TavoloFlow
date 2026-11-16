@@ -6,6 +6,7 @@ import { formatMoney } from "@/lib/format";
 import { displayName, type Language } from "@/lib/language";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import type { Category, MenuItem } from "./api";
+import { Actions } from "./MenuForms";
 import { menuMessages } from "./messages";
 import { dishPriceCents } from "@/features/orders/options";
 
@@ -55,7 +56,6 @@ export function ItemOrderForm({
         </h3>
         <p className="mt-1 text-sm leading-6 text-muted-foreground">{m.itemOrderHint}</p>
       </div>
-      {feedback}
       <ol className="divide-y">
         {items.map((item, index) => {
           const name = displayName(item, initial.defaultLanguage, language).text;
@@ -97,14 +97,7 @@ export function ItemOrderForm({
           );
         })}
       </ol>
-      <div className="sticky bottom-0 flex gap-3 bg-background py-4 pb-safe">
-        <Button type="submit" disabled={busy || !changed}>
-          {busy ? m.saving : m.save}
-        </Button>
-        <Button variant="outline" disabled={busy} onClick={cancel}>
-          {m.cancel}
-        </Button>
-      </div>
+      <Actions busy={busy} cancel={cancel} saveDisabled={!changed} message={feedback} />
     </form>
   );
 }

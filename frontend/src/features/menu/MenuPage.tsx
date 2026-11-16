@@ -59,7 +59,7 @@ type Editor =
   | { kind: "item-order"; snapshot: ItemOrderSnapshot }
   // A new option group starts from a template (or a blank form).
   | { kind: "templates" }
-  | { kind: "group"; value?: OptionGroup; template?: OptionTemplate }
+  | { kind: "group"; value?: OptionGroup; template?: OptionTemplate; copyOf?: OptionGroup }
   | {
       kind: "delete";
       resource: "categories" | "items" | "option-groups";
@@ -79,6 +79,9 @@ function MenuContent({ account }: { account: CurrentAccount }) {
   const [tab, setTab] = useState<"dishes" | "options">("dishes");
   const [editor, setEditor] = useState<Editor | null>(null);
   const [notice, setNotice] = useState("");
+  // The control (a dish, an option group, "categories" or "language") whose write ran outside an
+  // editor: its result shows beside it, since it may be far down the page.
+  const [inline, setInline] = useState<string | null>(null);
   // Each mutation runs one request built by the menu API functions.
   const mutation = useMutation({
     mutationFn: (send: () => Promise<unknown>) => send(),
@@ -113,8 +116,13 @@ function MenuContent({ account }: { account: CurrentAccount }) {
     mutation.reset();
     imageMutation.reset();
     setNotice("");
+    setInline(null);
     setPhotoNotice(undefined);
     setEditor(next);
+  }
+  function writeInline(key: string, send: () => Promise<unknown>) {
+    setInline(key);
+    mutation.mutate(send);
   }
   function cancel() {
     setEditor(null);
@@ -144,6 +152,10 @@ function MenuContent({ account }: { account: CurrentAccount }) {
     </Notice>
   );
   const feedback = mutation.isError ? failure(mutation.error) : null;
+  const inlineResult = (key: string) =>
+    !editor && inline === key
+      ? (feedback ?? (notice && <Notice tone="success">{notice}</Notice>))
+      : null;
   const photoError = imageMutation.isError ? failure(imageMutation.error) : null;
   const menu = query.data;
   // A removed selection falls back to the full menu without discarding an open form.
@@ -164,14 +176,15 @@ function MenuContent({ account }: { account: CurrentAccount }) {
   // Lists every group in its new order, so a repeated or late request changes nothing more.
   function moveGroup(index: number, by: number) {
     const ids = menu!.optionGroups.map((group) => group.id);
+    const moved = ids[index];
     [ids[index], ids[index + by]] = [ids[index + by], ids[index]];
-    mutation.mutate(() => reorderOptionGroups(ids));
+    writeInline(moved, () => reorderOptionGroups(ids));
   }
   function moveCategory(index: number, by: number) {
     if (busy || editing || !menu) return;
     const ids = menu.categories.map((category) => category.id);
     [ids[index], ids[index + by]] = [ids[index + by], ids[index]];
-    mutation.mutate(() => reorderCategories(ids));
+    writeInline("categories", () => reorderCategories(ids));
   }
   // The photo section follows the live menu, unlike the form fields, which keep their snapshot.
   const liveItem =
@@ -196,9 +209,8 @@ function MenuContent({ account }: { account: CurrentAccount }) {
         }
       />
       <div className="mb-5 space-y-3">
-        {notice && <Notice tone="success">{notice}</Notice>}
+        {notice && inline === null && <Notice tone="success">{notice}</Notice>}
         {query.isError && <Notice tone="error">{m.readError}</Notice>}
-        {!editor && feedback}
       </div>
       {!menu && query.isPending && (
         <LoadingState label={query.fetchStatus === "paused" ? m.readError : m.loading} />
@@ -227,9 +239,10 @@ function MenuContent({ account }: { account: CurrentAccount }) {
               menu={menu}
               owner={owner}
               disabled={busy || editing}
-              toggle={(option) =>
-                mutation.mutate(() => setOptionAvailability(option.id, !option.isAvailable))
+              toggle={(group, option) =>
+                writeInline(group.id, () => setOptionAvailability(option.id, !option.isAvailable))
               }
+              result={inlineResult}
               edit={(group) => open({ kind: "group", value: group })}
               remove={(group, dishes) =>
                 open({
@@ -275,6 +288,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                 move={moveCategory}
               />
             )}
+            {inlineResult("categories")}
             <FilterChips
               label={m.categories}
               value={selected?.id ?? ""}
@@ -423,7 +437,9 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                         checked={item.isAvailable}
                         disabled={busy || editing || (!item.isAvailable && !item.allergenReviewed)}
                         onCheckedChange={() =>
-                          mutation.mutate(() => setItemAvailability(item.id, !item.isAvailable))
+                          writeInline(item.id, () =>
+                            setItemAvailability(item.id, !item.isAvailable),
+                          )
                         }
                       />
                       <span
@@ -470,6 +486,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                         </div>
                       )}
                     </div>
+                    {inlineResult(item.id)}
                   </li>
                 );
               })}
@@ -486,8 +503,9 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                 menu={menu}
                 owner={owner}
                 busy={busy || editing}
-                save={(language) => mutation.mutate(() => setDefaultLanguage(language))}
+                save={(language) => writeInline("language", () => setDefaultLanguage(language))}
               />
+              {inlineResult("language")}
             </section>
           </TabsContent>
         </Tabs>
@@ -509,12 +527,10 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                 ? editor.value
                   ? m.editCategory
                   : m.addCategory
-                : editor?.kind === "templates"
-                  ? m.templateTitle
-                  : editor?.kind === "group"
-                    ? editor.value
-                      ? m.editOptionGroup
-                      : m.addOptionGroup
+                : editor?.kind === "group" && editor.value
+                  ? m.editOptionGroup
+                  : editor?.kind === "templates" || editor?.kind === "group"
+                    ? m.addOptionGroup
                     : editor?.kind === "item-order"
                       ? m.sortItems
                       : editor?.kind === "item" && editor.value
@@ -553,13 +569,18 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                 feedback={feedback}
               />
             )}
-            {editor?.kind === "templates" && (
-              <TemplatePicker choose={(template) => open({ kind: "group", template })} />
+            {menu && editor?.kind === "templates" && (
+              <TemplatePicker
+                menu={menu}
+                choose={(template) => open({ kind: "group", template })}
+                copy={(group) => open({ kind: "group", copyOf: group })}
+              />
             )}
             {menu && editor?.kind === "group" && (
               <OptionGroupForm
-                key={`group-${editor.value?.id ?? editor.template?.key ?? "new"}`}
+                key={`group-${editor.value?.id ?? editor.template?.key ?? (editor.copyOf ? `copy-${editor.copyOf.id}` : "new")}`}
                 initial={editor.value}
+                copyOf={editor.copyOf}
                 template={editor.template}
                 menu={menu}
                 busy={busy}

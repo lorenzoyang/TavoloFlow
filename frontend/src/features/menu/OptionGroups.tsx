@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ArrowDown, ArrowUp, ListChecks, Pencil, Plus, Trash2 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +9,7 @@ import { displayName } from "@/lib/language";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import type { Menu, MenuOption, OptionGroup } from "./api";
+import { optionPreview } from "./form-values";
 import { allergenLabel, menuMessages } from "./messages";
 import { optionTemplates, type OptionTemplate } from "./option-templates";
 
@@ -21,14 +23,17 @@ export function OptionGroups({
   edit,
   remove,
   move,
+  result,
 }: {
   menu: Menu;
   owner: boolean;
   disabled: boolean;
-  toggle: (option: MenuOption) => void;
+  toggle: (group: OptionGroup, option: MenuOption) => void;
   edit: (group: OptionGroup) => void;
   remove: (group: OptionGroup, dishes: number) => void;
   move: (index: number, by: number) => void;
+  // The outcome of the last switch or move in this group, shown in its own card.
+  result: (groupId: string) => ReactNode;
 }) {
   const language = useStaffLanguage();
   const m = menuMessages[language];
@@ -98,7 +103,7 @@ export function OptionGroups({
                       aria-label={m.optionAvailability(`${name} · ${optionName}`)}
                       checked={option.isAvailable}
                       disabled={disabled}
-                      onCheckedChange={() => toggle(option)}
+                      onCheckedChange={() => toggle(group, option)}
                     />
                   </li>
                 );
@@ -146,6 +151,7 @@ export function OptionGroups({
                 </div>
               </div>
             )}
+            {result(group.id)}
           </li>
         );
       })}
@@ -153,11 +159,16 @@ export function OptionGroups({
   );
 }
 
-// The first step of a new group: a template with its names already translated, or a blank group.
+// The first step of a new group: a template with its names already translated, a blank group, or a
+// copy of one of the restaurant's groups, for the same options under another rule or other prices.
 export function TemplatePicker({
+  menu,
   choose,
+  copy,
 }: {
+  menu: Menu;
   choose: (template: OptionTemplate | undefined) => void;
+  copy: (group: OptionGroup) => void;
 }) {
   const language = useStaffLanguage();
   const m = menuMessages[language];
@@ -191,6 +202,34 @@ export function TemplatePicker({
           </Button>
         </li>
       </ul>
+      {menu.optionGroups.length > 0 && (
+        <section aria-labelledby="copy-group" className="space-y-2 pt-2">
+          <h3 id="copy-group" className="font-medium">
+            {m.copyTitle}
+          </h3>
+          <p className="text-sm leading-6 text-muted-foreground">{m.copyHint}</p>
+          <ul className="grid gap-2">
+            {menu.optionGroups.map((group) => (
+              <li key={group.id}>
+                {/* The rule and options tell apart groups with the same name. */}
+                <button
+                  type="button"
+                  className="flex min-h-11 w-full flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                  onClick={() => copy(group)}
+                >
+                  <span className="max-w-full font-medium wrap-break-word">
+                    {displayName(group, menu.defaultLanguage, language).text}
+                  </span>
+                  <span className="max-w-full text-xs leading-5 wrap-break-word text-muted-foreground">
+                    {m.rule(group.minSelect, group.maxSelect)} ·{" "}
+                    {optionPreview(group, menu, language)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

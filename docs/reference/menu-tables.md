@@ -195,7 +195,10 @@ most 50 groups and a dish at most 10. Required groups are never preselected for 
   array order is the option order. `menuItemIds` replaces the dishes that use the group. Foreign ids
   return `MENU_RESOURCE_NOT_FOUND`. `0 <= minSelect <= maxSelect <= options`, `maxSelect >= 1`.
 - Every save requires `allergenReviewed: true`, as for dishes; options store canonical allergen codes.
-  Orders add the chosen options' allergens to the dish's, so the dish never has to list them.
+  Orders add the chosen options' allergens to the dish's, so the dish never has to list them. Like the
+  dish editor, the group editor keeps an existing group's review ticked and clears it when an option's
+  allergens change or an option is added. It lists the options before the selection rule, because the
+  maximum choices can't exceed the number of options.
 - Display order is one restaurant-wide `position`; each dish shows its own groups in that relative
   order. New groups come last. The order endpoint takes `{ "groupIds": [...] }`, exactly the current
   groups in their new order, so a repeat changes nothing; a list made from an outdated menu returns
@@ -209,7 +212,15 @@ most 50 groups and a dish at most 10. Required groups are never preselected for 
 
 Templates (size, sugar, ice/temperature, toppings, spice) are frontend constants
 (`features/menu/option-templates.ts`) with names in all three languages that only prefill a new
-group's form; prices start at zero and allergens unchecked. Ice and temperature share one group, so no
+group's form; prices start at zero and allergens unchecked. The same picker can copy one of the
+restaurant's groups, for the same options under another rule or other prices: the form starts with its
+names, rule, options, prices and allergens, but no dishes and an unticked review, and saving creates a
+new group with new options that keeps no link to the original. Group names need not be unique.
+"Add from a dish" adds an option with the dish's names (cut to the 100-character option limit) and
+allergens and no extra price, copied once with no link: later dish edits, sold-out included, never
+reach the option, and the dish form reminds the owner to update such options' allergens. A set menu is
+a dish with required groups; its choices stay options of one order line, so kitchen dish counts and
+station screens do not split them. Ice and temperature share one group, so no
 rule between groups is needed. Out of scope: rules between options, several portions of one option, a
 price per dish inside a shared group, negative deltas and combos.
 

@@ -60,7 +60,7 @@ const zh = {
   cancelHint: (dish: string, amount: string) =>
     `取消「${dish}」后，${amount} 将不计入应收。请先与厨房确认不再制作。`,
   confirmCancel: "确认取消菜品",
-  changed: (status: string) => `菜品已变为“${status}”，本次取消确认已失效。`,
+  changed: (status: string) => `菜品已变为「${status}」，本次取消确认已失效。`,
   unknownStatus: "未知",
   // Hook feedback.
   recovered: (table: string, outcome: Outcome) =>

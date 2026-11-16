@@ -1,22 +1,28 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldDescription, FieldError, FieldLabel, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import {
+  NativeSelect,
+  NativeSelectOptGroup,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
 import { Switch } from "@/components/ui/switch";
 import { formatCents, parsePrice } from "@/lib/format";
 import { displayName } from "@/lib/language";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import type { Menu, OptionGroup } from "./api";
-import { namesFrom } from "./form-values";
+import { firstName, namesFrom, reveal } from "./form-values";
 import { Actions, AllergenChecks, Errors, NameFields, type FormProps } from "./MenuForms";
 import { languages, menuMessages } from "./messages";
 import type { OptionTemplate } from "./option-templates";
 
 const MAX_OPTIONS = 30;
+// Option names are shorter than dish names (150), so a name taken from a dish is cut to fit.
+const MAX_OPTION_NAME = 100;
 
 // One editable option. The id stays with an existing option, so the server keeps it (and its sold-out
 // state); the key only identifies the row while editing.
@@ -44,18 +50,27 @@ const newRow = (): Row => ({
   open: false,
 });
 
-function initialRows(initial?: OptionGroup, template?: OptionTemplate): Row[] {
-  if (initial)
-    return initial.options.map((option) => ({
-      key: nextKey(),
-      id: option.id,
-      nameZh: option.nameZh ?? "",
-      nameIt: option.nameIt ?? "",
-      nameEn: option.nameEn ?? "",
-      price: formatCents(option.priceDeltaCents),
-      allergenCodes: option.allergenCodes,
-      open: false,
-    }));
+// An existing group's options. A copy drops their ids, so saving creates new options and leaves the
+// original group untouched.
+const rowsOf = (group: OptionGroup, keepIds: boolean): Row[] =>
+  group.options.map((option) => ({
+    key: nextKey(),
+    id: keepIds ? option.id : null,
+    nameZh: option.nameZh ?? "",
+    nameIt: option.nameIt ?? "",
+    nameEn: option.nameEn ?? "",
+    price: formatCents(option.priceDeltaCents),
+    allergenCodes: option.allergenCodes,
+    open: false,
+  }));
+
+function initialRows(
+  initial?: OptionGroup,
+  copyOf?: OptionGroup,
+  template?: OptionTemplate,
+): Row[] {
+  if (initial) return rowsOf(initial, true);
+  if (copyOf) return rowsOf(copyOf, false);
   if (template)
     return template.options.map((names) => ({
       ...newRow(),
@@ -66,9 +81,11 @@ function initialRows(initial?: OptionGroup, template?: OptionTemplate): Row[] {
   return [newRow()];
 }
 
-// A whole option group: its names, rule, options and the dishes that use it, saved in one request.
+// A whole option group: its names, rule, options and the dishes that use it, saved in one request. A
+// new group may start from a template or from a copy of an existing group (copyOf).
 export function OptionGroupForm({
   initial,
+  copyOf,
   template,
   menu,
   busy,
@@ -76,18 +93,27 @@ export function OptionGroupForm({
   cancel,
   save,
   feedback,
-}: FormProps & { initial?: OptionGroup; template?: OptionTemplate; menu: Menu }) {
+}: FormProps & {
+  initial?: OptionGroup;
+  copyOf?: OptionGroup;
+  template?: OptionTemplate;
+  menu: Menu;
+}) {
   const language = useStaffLanguage();
   const m = menuMessages[language];
-  const source = initial ?? template;
-  const [rows, setRows] = useState(() => initialRows(initial, template));
+  const source = initial ?? copyOf ?? template;
+  const [rows, setRows] = useState(() => initialRows(initial, copyOf, template));
   const [required, setRequired] = useState((source?.minSelect ?? 1) > 0);
   const [max, setMax] = useState(source?.maxSelect ?? 1);
   const [dishes, setDishes] = useState(() =>
     initial ? menu.items.filter((i) => i.optionGroupIds.includes(initial.id)).map((i) => i.id) : [],
   );
-  const [reviewed, setReviewed] = useState(false);
+  // An existing group was reviewed when it was last saved, as a dish keeps its review; changing an
+  // option's allergens or adding an option asks for a new review. A copy is a new group: its dishes
+  // start empty and it needs its own review.
+  const [reviewed, setReviewed] = useState(initial !== undefined);
   const [validation, setValidation] = useState("");
+  const reviewBox = useRef<HTMLElement>(null);
   const limit = Math.min(max, rows.length);
   const label = (row: Row, index: number) =>
     displayName(
@@ -104,30 +130,63 @@ export function OptionGroupForm({
     [next[index], next[index + by]] = [next[index + by], next[index]];
     setRows(next);
   }
+  function addRow(row: Row) {
+    // A new group starts with one blank row: the first dish taken from the menu fills it.
+    const [only] = rows;
+    const blank =
+      rows.length === 1 &&
+      only.id === null &&
+      ![only.nameZh, only.nameIt, only.nameEn].some((name) => name.trim()) &&
+      only.price === "0" &&
+      only.allergenCodes.length === 0;
+    setRows(blank ? [row] : [...rows, row]);
+    setReviewed(false);
+  }
+  // A one-time copy of the dish's names and allergens, with no extra price: nothing links the option
+  // to the dish afterwards, as with templates and copied groups.
+  function addDish(id: string) {
+    const item = menu.items.find((value) => value.id === id);
+    if (!item) return;
+    addRow({
+      ...newRow(),
+      nameZh: (item.nameZh ?? "").slice(0, MAX_OPTION_NAME),
+      nameIt: (item.nameIt ?? "").slice(0, MAX_OPTION_NAME),
+      nameEn: (item.nameEn ?? "").slice(0, MAX_OPTION_NAME),
+      allergenCodes: item.allergenCodes,
+    });
+  }
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
-    const names = namesFrom(new FormData(event.currentTarget));
+    const form = event.currentTarget;
+    const names = namesFrom(new FormData(form));
+    function fail(message: string, field: Element | null) {
+      setValidation(message);
+      reveal(field);
+    }
     if (!Object.values(names).some(Boolean)) {
-      setValidation(m.namesInvalid);
+      fail(m.namesInvalid, firstName(form));
       return;
     }
-    if (
-      rows.length < 1 ||
-      rows.length > MAX_OPTIONS ||
-      rows.some((row) => ![row.nameZh, row.nameIt, row.nameEn].some((name) => name.trim()))
-    ) {
-      setValidation(m.optionsInvalid);
+    const unnamed = rows.find(
+      (row) => ![row.nameZh, row.nameIt, row.nameEn].some((name) => name.trim()),
+    );
+    if (rows.length < 1 || rows.length > MAX_OPTIONS || unnamed) {
+      fail(
+        m.optionsInvalid,
+        unnamed ? document.getElementById(`${unnamed.key}-name${languages[0].suffix}`) : null,
+      );
       return;
     }
     const prices = rows.map((row) => parsePrice(row.price, true));
-    if (prices.some((price) => price === null)) {
-      setValidation(m.extraPriceInvalid);
+    const badPrice = prices.findIndex((price) => price === null);
+    if (badPrice >= 0) {
+      fail(m.extraPriceInvalid, document.getElementById(`${rows[badPrice].key}-price`));
       return;
     }
     if (!reviewed) {
-      setValidation(m.reviewRequired);
+      fail(m.reviewRequired, reviewBox.current);
       return;
     }
     setValidation("");
@@ -152,34 +211,7 @@ export function OptionGroupForm({
     <form onSubmit={submit} className="space-y-5" aria-busy={busy}>
       <FieldDescription>{m.nameHint}</FieldDescription>
       <FieldSet disabled={busy} className="gap-6">
-        <NameFields initial={initial ?? template?.names} error={error} />
-        <div className="space-y-4 rounded-xl border p-3">
-          <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3">
-            <span>
-              <span className="text-sm font-medium">{m.required}</span>
-              <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                {m.requiredHint}
-              </span>
-            </span>
-            <Switch checked={required} onCheckedChange={setRequired} />
-          </label>
-          <Field>
-            <FieldLabel htmlFor="maxSelect">{m.maxSelect}</FieldLabel>
-            <NativeSelect
-              id="maxSelect"
-              value={String(limit)}
-              onChange={(event) => setMax(Number(event.target.value))}
-              className="w-full"
-            >
-              {rows.map((_, index) => (
-                <NativeSelectOption key={index} value={String(index + 1)}>
-                  {m.maxOption(index + 1)}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-            <FieldDescription>{m.rule(required ? 1 : 0, limit)}</FieldDescription>
-          </Field>
-        </div>
+        <NameFields initial={initial ?? copyOf ?? template?.names} error={error} />
         <fieldset className="space-y-3">
           <legend className="mb-3 font-medium">{m.options}</legend>
           <ol className="space-y-3">
@@ -231,7 +263,7 @@ export function OptionGroupForm({
                         <Input
                           id={`${row.key}-name${suffix}`}
                           lang={code}
-                          maxLength={100}
+                          maxLength={MAX_OPTION_NAME}
                           value={row[`name${suffix}`]}
                           onChange={(event) =>
                             edit(index, { [`name${suffix}`]: event.target.value })
@@ -278,16 +310,97 @@ export function OptionGroupForm({
             })}
           </ol>
           <FieldDescription>{m.extraPriceHint}</FieldDescription>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={rows.length >= MAX_OPTIONS}
-            onClick={() => setRows([...rows, newRow()])}
-          >
-            <Plus />
-            {m.addOption}
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={rows.length >= MAX_OPTIONS}
+              onClick={() => {
+                setRows([...rows, newRow()]);
+                setReviewed(false);
+              }}
+            >
+              <Plus />
+              {m.addOption}
+            </Button>
+            {menu.items.length > 0 && (
+              // Always shows its placeholder: picking a dish adds a row and the select resets.
+              <NativeSelect
+                aria-label={m.addFromDish}
+                aria-describedby="add-from-dish-hint"
+                value=""
+                disabled={rows.length >= MAX_OPTIONS}
+                onChange={(event) => addDish(event.target.value)}
+                className="min-w-0 flex-1 basis-40"
+              >
+                <NativeSelectOption value="" disabled>
+                  {m.addFromDish}
+                </NativeSelectOption>
+                {menu.categories.map((category) => {
+                  const items = menu.items.filter((item) => item.categoryId === category.id);
+                  if (!items.length) return null;
+                  return (
+                    <NativeSelectOptGroup
+                      key={category.id}
+                      label={displayName(category, menu.defaultLanguage, language).text}
+                    >
+                      {items.map((item) => (
+                        <NativeSelectOption key={item.id} value={item.id}>
+                          {displayName(item, menu.defaultLanguage, language).text}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelectOptGroup>
+                  );
+                })}
+              </NativeSelect>
+            )}
+          </div>
+          {menu.items.length > 0 && (
+            <FieldDescription id="add-from-dish-hint">{m.fromDishHint}</FieldDescription>
+          )}
         </fieldset>
+        {/* After the options: how many a guest may choose depends on how many there are. */}
+        <div className="space-y-4 rounded-xl border p-3">
+          <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3">
+            <span>
+              <span className="text-sm font-medium">{m.required}</span>
+              <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                {m.requiredHint}
+              </span>
+            </span>
+            <Switch checked={required} onCheckedChange={setRequired} />
+          </label>
+          <Field>
+            <FieldLabel htmlFor="maxSelect">{m.maxSelect}</FieldLabel>
+            <NativeSelect
+              id="maxSelect"
+              value={String(limit)}
+              onChange={(event) => setMax(Number(event.target.value))}
+              className="w-full"
+            >
+              {rows.map((_, index) => (
+                <NativeSelectOption key={index} value={String(index + 1)}>
+                  {m.maxOption(index + 1)}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+            <FieldDescription>
+              {rows.length === 1 ? m.moreOptionsForMulti : m.rule(required ? 1 : 0, limit)}
+            </FieldDescription>
+          </Field>
+        </div>
+        <div className="space-y-3">
+          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-warning/60 bg-warning/12 p-3 text-sm font-medium">
+            <Checkbox
+              ref={reviewBox}
+              className="mt-0.5"
+              checked={reviewed}
+              onCheckedChange={(checked) => setReviewed(checked)}
+            />
+            {m.reviewOptions}
+          </label>
+          <FieldDescription>{m.reviewHint}</FieldDescription>
+        </div>
         <fieldset className="space-y-3">
           <legend className="mb-1 font-medium">{m.usedBy}</legend>
           <FieldDescription>{m.usedByHint}</FieldDescription>
@@ -323,21 +436,12 @@ export function OptionGroupForm({
             );
           })}
         </fieldset>
-        <div className="space-y-3">
-          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-warning/60 bg-warning/12 p-3 text-sm font-medium">
-            <Checkbox
-              className="mt-0.5"
-              checked={reviewed}
-              onCheckedChange={(checked) => setReviewed(checked)}
-            />
-            {m.reviewOptions}
-          </label>
-          <FieldDescription>{m.reviewHint}</FieldDescription>
-        </div>
         <Errors error={error} />
-        {validation && <FieldError>{validation}</FieldError>}
-        {feedback}
-        <Actions busy={busy} cancel={cancel} />
+        <Actions
+          busy={busy}
+          cancel={cancel}
+          message={validation ? <FieldError>{validation}</FieldError> : feedback}
+        />
       </FieldSet>
     </form>
   );

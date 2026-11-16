@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import type { Category, Menu, MenuItem } from "./api";
 import type { Names } from "@/lib/language";
 import { displayName } from "@/lib/language";
 import { allergenLabel, languages, menuMessages } from "./messages";
-import { namesFrom, optionPreview } from "./form-values";
+import { firstName, namesFrom, optionPreview, reveal } from "./form-values";
 
 export type FormProps = {
   busy: boolean;
@@ -144,17 +144,26 @@ export function AllergenChecks({
   );
 }
 
-// Stays in view at the bottom of the editor sheet, however long the form is.
-export function Actions({ busy, cancel }: Pick<FormProps, "busy" | "cancel">) {
+// Stays in view at the bottom of the editor sheet, however long the form is. The message (a failed
+// check or save) sits above the buttons, so it appears where Save was tapped.
+export function Actions({
+  busy,
+  cancel,
+  message,
+  saveDisabled = false,
+}: Pick<FormProps, "busy" | "cancel"> & { message?: ReactNode; saveDisabled?: boolean }) {
   const m = menuMessages[useStaffLanguage()];
   return (
-    <div className="sticky bottom-0 -mx-4 grid grid-cols-2 gap-3 border-t bg-popover px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
-      <Button type="button" variant="outline" onClick={cancel} disabled={busy}>
-        {m.cancel}
-      </Button>
-      <Button type="submit" disabled={busy}>
-        {busy ? m.saving : m.save}
-      </Button>
+    <div className="sticky bottom-0 -mx-4 space-y-3 border-t bg-popover px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      {message}
+      <div className="grid grid-cols-2 gap-3">
+        <Button type="button" variant="outline" onClick={cancel} disabled={busy}>
+          {m.cancel}
+        </Button>
+        <Button type="submit" disabled={busy || saveDisabled}>
+          {busy ? m.saving : m.save}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -175,6 +184,7 @@ export function CategoryForm({
     const names = namesFrom(new FormData(event.currentTarget));
     if (!Object.values(names).some(Boolean)) {
       setValidation(m.namesInvalid);
+      reveal(firstName(event.currentTarget));
       return;
     }
     setValidation("");
@@ -186,9 +196,11 @@ export function CategoryForm({
       <FieldSet disabled={busy} className="gap-5">
         <NameFields initial={initial} error={error} />
         <Errors error={error} />
-        {validation && <FieldError>{validation}</FieldError>}
-        {feedback}
-        <Actions busy={busy} cancel={cancel} />
+        <Actions
+          busy={busy}
+          cancel={cancel}
+          message={validation ? <FieldError>{validation}</FieldError> : feedback}
+        />
       </FieldSet>
     </form>
   );
@@ -220,6 +232,7 @@ export function ItemForm({
     return sale === null ? "" : formatCents(sale);
   });
   const [validation, setValidation] = useState("");
+  const reviewBox = useRef<HTMLElement>(null);
   const typedPrice = parsePrice(priceText);
   const typedSale = saleText.trim() ? parsePrice(saleText) : null;
   const saving =
@@ -232,25 +245,30 @@ export function ItemForm({
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
-    const data = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const data = new FormData(form);
     const names = namesFrom(data);
     const priceCents = parsePrice(String(data.get("price")));
     const saleInput = String(data.get("salePrice")).trim();
     const salePriceCents = saleInput ? parsePrice(saleInput) : null;
+    function fail(message: string, field: Element | null) {
+      setValidation(message);
+      reveal(field);
+    }
     if (!Object.values(names).some(Boolean)) {
-      setValidation(m.namesInvalid);
+      fail(m.namesInvalid, firstName(form));
       return;
     }
     if (priceCents === null) {
-      setValidation(m.priceInvalid);
+      fail(m.priceInvalid, form.elements.namedItem("price") as Element | null);
       return;
     }
     if (saleInput && (salePriceCents === null || salePriceCents >= priceCents)) {
-      setValidation(m.saleInvalid);
+      fail(m.saleInvalid, form.elements.namedItem("salePrice") as Element | null);
       return;
     }
     if (!reviewed) {
-      setValidation(m.reviewRequired);
+      fail(m.reviewRequired, reviewBox.current);
       return;
     }
     setValidation("");
@@ -342,6 +360,7 @@ export function ItemForm({
           />
           <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-warning/60 bg-warning/12 p-3 text-sm font-medium">
             <Checkbox
+              ref={reviewBox}
               className="mt-0.5"
               checked={reviewed}
               onCheckedChange={(checked) => setReviewed(checked)}
@@ -349,6 +368,10 @@ export function ItemForm({
             {m.review}
           </label>
           <FieldDescription>{m.reviewHint}</FieldDescription>
+          {/* Options taken from a dish keep no link to it, so a changed recipe needs a second edit. */}
+          {menu.optionGroups.length > 0 && (
+            <FieldDescription>{m.dishInGroupsHint}</FieldDescription>
+          )}
         </fieldset>
         <fieldset className="space-y-3">
           <legend className="mb-1 font-medium">{m.optionGroupsField}</legend>
@@ -384,9 +407,11 @@ export function ItemForm({
           </div>
         </fieldset>
         <Errors error={error} />
-        {validation && <FieldError>{validation}</FieldError>}
-        {feedback}
-        <Actions busy={busy} cancel={cancel} />
+        <Actions
+          busy={busy}
+          cancel={cancel}
+          message={validation ? <FieldError>{validation}</FieldError> : feedback}
+        />
       </FieldSet>
     </form>
   );

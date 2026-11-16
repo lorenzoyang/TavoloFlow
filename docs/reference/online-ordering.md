@@ -220,9 +220,11 @@ links and count toward the restaurant's 20-request cap, but have no inferred bro
 Every new request records restaurant-scoped SHA-256 digests `browser_key` and `ip_key`, both present
 or both NULL (`ck_online_request_source`). The IP comes from `RemoteIpAddress` after trusted-proxy
 processing, with IPv4-mapped IPv6 normalized; unavailable IPs share the `unknown` bucket. These are
-linkage keys, not anonymization guarantees. They are never returned or logged and are cleared together
-with contact data older than 30 days on the next successful submission. The existing waiting index
-bounds source checks; there are no extra queue counters or cleanup jobs.
+linkage keys, not anonymization guarantees. They are never returned or logged. Acceptance and
+rejection clear them in their own conditional update, because a decided request no longer occupies a
+waiting slot; an expired request keeps them until the contact cleanup of the next successful
+submission clears data older than 30 days. The existing waiting index bounds source checks; there are
+no extra queue counters or cleanup jobs.
 
 After the existing request-ID duplicate check, inside the same restaurant submission transaction:
 
@@ -271,6 +273,12 @@ a first understood 400 frees its intent, while an unknown-result retry retains i
 intent like other server failures. These codes must not enter the after-duplicate-check rejection list.
 No failed verification allocates a number, waiting slot or notification.
 
+Each failure inside the provider exchange logs one warning with the error code and a safe detail: the
+provider's HTTP status, Cloudflare's `error-codes`, `empty response`, or the failed check
+(`hostname mismatch`, `action mismatch`, `cdata mismatch`), so a wrong secret or hostname is
+distinguishable from an outage. Network failures log the exception type. Keys, proofs, request IDs and
+response bodies are never logged.
+
 The widget is loaded only in checkout or an unknown-intent cart. A request ID is prepared before
 verification, but the complete intent is still saved only immediately before POST. The Managed
 widget uses flexible width, light theme and the customer's interface language. A proof expires or
@@ -278,7 +286,9 @@ is cleared after a submission attempt; key, language, request or component chang
 callbacks. Failed loading/rendering offers retry and the restaurant's phone. It never automatically
 posts an order. GET recovery is independent; manual retry first GETs the original, and only a 404
 allows the same saved intent to be retried with a fresh proof. Browsing and status/privacy pages do
-not load the script. Privacy copy explains the optional Cloudflare communication.
+not load the script. The privacy page's security verification section explains the optional direct
+Cloudflare connection: Cloudflare processes the IP address and technical browser/device information,
+possibly outside the EU/EEA, under its Turnstile privacy policy.
 
 Production Compose passes `TURNSTILE_ENABLED` (default true), `TURNSTILE_SITE_KEY` and
 `TURNSTILE_SECRET_KEY`; the expected hostname comes from `DOMAIN`, not the request's Host header.
@@ -464,11 +474,11 @@ total with "delivery fee to be confirmed" below it, and once accepted the fee ap
 into the status card. Customers cannot cancel; the page says to call instead.
 
 The privacy page names the restaurant as controller and TavoloFlow as processor, and lists the data,
-purpose, legal basis (performance of the customer's own order), the 30-day retention, the customer's
-rights and the browser storage used. Cleanup only runs in a new successful submission transaction;
-without one, contact data remains beyond 30 days. The maintainer accepts this temporary mismatch
-with the draft's fixed 30-day deletion promise, to be resolved in the pre-release privacy review.
-No scheduled cleanup is implemented.
+purpose, legal basis (performance of the customer's own order), retention, the customer's rights, the
+browser storage used and the optional security verification. Retention states the actual mechanism:
+contact data is deleted by the restaurant's next successful online submission once 30 days have
+passed, and backup copies remain for at most 7 more days (`deploy/backup.sh` keeps seven days). No
+scheduled cleanup is implemented; whether to add one is left to the pre-release privacy review.
 
 The global lock order is restaurant → table → session, restaurant → menu item, restaurant → online
 request, and restaurant → submission advisory lock → daily counter. Submission advisory locks are
@@ -508,12 +518,12 @@ hold restaurant UPDATE, so this cannot interleave), creates the ACTIVE `PICKUP` 
 fulfillment, opened now, bill version 1, with the delivery fee on delivery), its single order (`created_at` now, the request's client request ID, total and
 default language) and the items through `OrderLineSnapshot.ToOrderItem` (a deleted dish leaves
 `menu_item_id` null with the snapshot kept), then sets `accepted_at`, `estimated_at` (now plus the
-minutes) and `session_id`. The order is created at acceptance, so the kitchen sorts it by then and the
+minutes) and `session_id` and clears the source digests. The order is created at acceptance, so the kitchen sorts it by then and the
 order watermark rises: the kitchen chimes as for any new order.
 
 Rejection owns a transaction and locks only the request row UPDATE. It then reads time from
 `TimeProvider`, checks `OnlineRequestState.Phase` and conditionally updates the still-waiting row with
-the optional reason; `OUT_OF_RANGE` on a pickup request is `VALIDATION_FAILED`. A request that is no longer
+the optional reason, clearing its source digests; `OUT_OF_RANGE` on a pickup request is `VALIDATION_FAILED`. A request that is no longer
 waiting, including one that expired while waiting for the lock, returns `ONLINE_REQUEST_CHANGED`;
 an unknown or foreign ID `ONLINE_REQUEST_NOT_FOUND` (404).
 Neither write persists a browser pending marker: both apply only to a waiting request, so a repeat just
@@ -680,7 +690,8 @@ an expired badge, a delete button behind `ConfirmDialog`, and a create form with
 an optional date input). A partial date is refused with a translated field message; only a genuinely
 empty control means no expiry. Submission reads the date control's current value and `validity.badInput`
 again, because partial native date edits can leave the value empty without firing React's `onChange`.
-A missing phone or week is explained in one warning.
+A missing phone or week is explained in one warning. Each card shows its own saved or failed result
+beside the button that sent it; the page top keeps only read errors.
 Time inputs cannot hold 24:00, so 00:00 as a closing time means midnight. The query key is
 `["online-settings", restaurantId, userId]`; the visible page rereads it every 60 seconds because
 slots and pauses change with the clock. Local form edits survive background refreshes until saved or

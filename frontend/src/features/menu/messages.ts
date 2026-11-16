@@ -61,6 +61,8 @@ const zh = {
   review: "我已核对配料及制作信息，确认以上过敏原声明。",
   reviewHint: "修改过敏原选项后须重新确认。没有勾选不代表没有交叉接触风险。",
   reviewRequired: "请先确认已完成过敏原审核。",
+  dishInGroupsHint:
+    "如果这道菜也作为选项出现在选项组里（比如套餐），请到「选项」里一起更新它的过敏原。",
   reviewedEmpty: "已审核，未识别出需声明的过敏原",
   unreviewed: "未完成过敏原审核，请由老板编辑确认后再恢复供应。",
   available: "可供应",
@@ -91,9 +93,11 @@ const zh = {
   noOptionGroups: "还没有选项组。奶茶的杯型、甜度、小料，拉面的辣度、加料都可以在这里设置。",
   addOptionGroup: "添加选项组",
   editOptionGroup: "编辑选项组",
-  templateTitle: "选择模板",
   templateHint: "模板已填好三种语言的名称，选择后仍可修改；加价和过敏原请按本店实际情况填写。",
   blankTemplate: "空白选项组",
+  copyTitle: "复制本店的选项组",
+  copyHint:
+    "名称、规则、选项、加价和过敏原都会复制过来，可以再修改；适用菜品不复制，保存前需重新确认过敏原。",
   rule: (min: number, max: number) =>
     min > 0
       ? max === 1
@@ -109,9 +113,12 @@ const zh = {
   requiredHint: "打开后，顾客至少选一项才能加入购物车。",
   maxSelect: "最多可选",
   maxOption: (count: number) => (count === 1 ? "1 项（单选）" : `${count} 项`),
+  moreOptionsForMulti: "添加更多选项后可设为多选。",
   options: "选项",
   optionNumber: (index: number) => `选项 ${index}`,
   addOption: "添加选项",
+  addFromDish: "从菜品添加…",
+  fromDishHint: "复制菜品的名称和过敏原，加价为 0，可以再修改；以后修改菜品不会改到这里。",
   moveUp: (name: string) => `上移：${name}`,
   moveDown: (name: string) => `下移：${name}`,
   removeOption: (name: string) => `删除选项：${name}`,
@@ -124,8 +131,8 @@ const zh = {
   usedByHint: "勾选使用这个选项组的菜品。也可以在编辑菜品时勾选。",
   reviewOptions: "我已核对这些选项的配料，确认以上过敏原声明。",
   optionGroupsField: "选项组（可选）",
-  optionGroupsHint: "顾客点这道菜时须按选项组的规则选择，例如杯型、甜度。选项组在“选项”页管理。",
-  noGroupsForItem: "还没有选项组，可在“选项”页添加。",
+  optionGroupsHint: "顾客点这道菜时须按选项组的规则选择，例如杯型、甜度。选项组在「选项」页管理。",
+  noGroupsForItem: "还没有选项组，可在「选项」页添加。",
   removeGroupHint: (count: number) =>
     `删除后不能恢复${count ? `，将从 ${count} 道菜中移除` : ""}。历史订单里记录的选项会保留。`,
   optionAvailability: (name: string) => `供应状态：${name}`,
@@ -208,6 +215,8 @@ export const menuMessages: Record<Language, typeof zh> = {
     reviewHint:
       "Dopo ogni modifica agli allergeni conferma di nuovo. Nessuna selezione non esclude il rischio di contaminazione crociata.",
     reviewRequired: "Conferma prima la verifica degli allergeni.",
+    dishInGroupsHint:
+      "Se il piatto è anche un’opzione di un gruppo (per esempio in un menu fisso), aggiorna anche lì i suoi allergeni, nella scheda Opzioni.",
     reviewedEmpty: "Verificato: nessun allergene da dichiarare",
     unreviewed:
       "Allergeni non verificati: il titolare deve modificare il piatto e confermarli prima di renderlo disponibile.",
@@ -240,10 +249,12 @@ export const menuMessages: Record<Language, typeof zh> = {
       "Nessun gruppo di opzioni. Qui si impostano formato, zucchero e topping del bubble tea, o piccantezza e aggiunte del ramen.",
     addOptionGroup: "Nuovo gruppo",
     editOptionGroup: "Modifica gruppo",
-    templateTitle: "Scegli un modello",
     templateHint:
       "I modelli hanno già i nomi in tre lingue e si possono modificare; supplementi e allergeni vanno inseriti secondo la tua ricetta.",
     blankTemplate: "Gruppo vuoto",
+    copyTitle: "Copia un gruppo esistente",
+    copyHint:
+      "Copia nomi, regola, opzioni, supplementi e allergeni, che puoi modificare; i piatti non vengono copiati e prima di salvare confermi di nuovo gli allergeni.",
     rule: (min, max) =>
       min > 0
         ? max === 1
@@ -260,9 +271,13 @@ export const menuMessages: Record<Language, typeof zh> = {
     requiredHint: "Se attiva, il cliente deve sceglierne almeno una per aggiungere il piatto.",
     maxSelect: "Scelte massime",
     maxOption: (count) => (count === 1 ? "1 (scelta singola)" : String(count)),
+    moreOptionsForMulti: "Aggiungi altre opzioni per permettere più scelte.",
     options: "Opzioni",
     optionNumber: (index) => `Opzione ${index}`,
     addOption: "Aggiungi opzione",
+    addFromDish: "Aggiungi da un piatto…",
+    fromDishHint:
+      "Copia nomi e allergeni del piatto, senza supplemento, e puoi modificarli; le modifiche future al piatto non cambiano l’opzione.",
     moveUp: (name) => `Sposta su: ${name}`,
     moveDown: (name) => `Sposta giù: ${name}`,
     removeOption: (name) => `Elimina opzione: ${name}`,
@@ -360,6 +375,8 @@ export const menuMessages: Record<Language, typeof zh> = {
     reviewHint:
       "Confirm again after every allergen change. No selection doesn’t rule out cross-contamination.",
     reviewRequired: "Confirm the allergen review first.",
+    dishInGroupsHint:
+      "If this dish is also an option in a group (in a set menu, for example), update its allergens there too, in the Options tab.",
     reviewedEmpty: "Reviewed: no allergens to declare",
     unreviewed:
       "Allergens not reviewed: the owner must edit the dish and confirm them before making it available.",
@@ -392,10 +409,12 @@ export const menuMessages: Record<Language, typeof zh> = {
       "No option groups yet. Set up bubble tea sizes, sugar and toppings, or ramen spice levels and extras here.",
     addOptionGroup: "New group",
     editOptionGroup: "Edit group",
-    templateTitle: "Choose a template",
     templateHint:
       "Templates come with names in all three languages and can be edited; enter extra prices and allergens for your own recipe.",
     blankTemplate: "Blank group",
+    copyTitle: "Copy an existing group",
+    copyHint:
+      "Copies the names, rule, options, extra prices and allergens, which you can edit; dishes aren’t copied, and you confirm the allergens again before saving.",
     rule: (min, max) =>
       min > 0
         ? max === 1
@@ -412,9 +431,13 @@ export const menuMessages: Record<Language, typeof zh> = {
     requiredHint: "When on, guests choose at least one before adding the dish.",
     maxSelect: "Maximum choices",
     maxOption: (count) => (count === 1 ? "1 (single choice)" : String(count)),
+    moreOptionsForMulti: "Add more options to allow several choices.",
     options: "Options",
     optionNumber: (index) => `Option ${index}`,
     addOption: "Add option",
+    addFromDish: "Add from a dish…",
+    fromDishHint:
+      "Copies the dish’s names and allergens with no extra price, which you can edit; later changes to the dish don’t change the option.",
     moveUp: (name) => `Move up: ${name}`,
     moveDown: (name) => `Move down: ${name}`,
     removeOption: (name) => `Delete option: ${name}`,
