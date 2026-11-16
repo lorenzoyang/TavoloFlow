@@ -91,9 +91,11 @@ const zh = {
   noOptionGroups: "还没有选项组。奶茶的杯型、甜度、小料，拉面的辣度、加料都可以在这里设置。",
   addOptionGroup: "添加选项组",
   editOptionGroup: "编辑选项组",
-  templateTitle: "选择模板",
   templateHint: "模板已填好三种语言的名称，选择后仍可修改；加价和过敏原请按本店实际情况填写。",
   blankTemplate: "空白选项组",
+  copyTitle: "复制本店的选项组",
+  copyHint:
+    "名称、规则、选项、加价和过敏原都会复制过来，可以再修改；适用菜品不复制，保存前需重新确认过敏原。",
   rule: (min: number, max: number) =>
     min > 0
       ? max === 1
@@ -241,10 +243,12 @@ export const menuMessages: Record<Language, typeof zh> = {
       "Nessun gruppo di opzioni. Qui si impostano formato, zucchero e topping del bubble tea, o piccantezza e aggiunte del ramen.",
     addOptionGroup: "Nuovo gruppo",
     editOptionGroup: "Modifica gruppo",
-    templateTitle: "Scegli un modello",
     templateHint:
       "I modelli hanno già i nomi in tre lingue e si possono modificare; supplementi e allergeni vanno inseriti secondo la tua ricetta.",
     blankTemplate: "Gruppo vuoto",
+    copyTitle: "Copia un gruppo esistente",
+    copyHint:
+      "Copia nomi, regola, opzioni, supplementi e allergeni, che puoi modificare; i piatti non vengono copiati e prima di salvare confermi di nuovo gli allergeni.",
     rule: (min, max) =>
       min > 0
         ? max === 1
@@ -394,10 +398,12 @@ export const menuMessages: Record<Language, typeof zh> = {
       "No option groups yet. Set up bubble tea sizes, sugar and toppings, or ramen spice levels and extras here.",
     addOptionGroup: "New group",
     editOptionGroup: "Edit group",
-    templateTitle: "Choose a template",
     templateHint:
       "Templates come with names in all three languages and can be edited; enter extra prices and allergens for your own recipe.",
     blankTemplate: "Blank group",
+    copyTitle: "Copy an existing group",
+    copyHint:
+      "Copies the names, rule, options, extra prices and allergens, which you can edit; dishes aren’t copied, and you confirm the allergens again before saving.",
     rule: (min, max) =>
       min > 0
         ? max === 1

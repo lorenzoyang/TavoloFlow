@@ -212,7 +212,10 @@ most 50 groups and a dish at most 10. Required groups are never preselected for 
 
 Templates (size, sugar, ice/temperature, toppings, spice) are frontend constants
 (`features/menu/option-templates.ts`) with names in all three languages that only prefill a new
-group's form; prices start at zero and allergens unchecked. Ice and temperature share one group, so no
+group's form; prices start at zero and allergens unchecked. The same picker can copy one of the
+restaurant's groups, for the same options under another rule or other prices: the form starts with its
+names, rule, options, prices and allergens, but no dishes and an unticked review, and saving creates a
+new group with new options that keeps no link to the original. Group names need not be unique. Ice and temperature share one group, so no
 rule between groups is needed. Out of scope: rules between options, several portions of one option, a
 price per dish inside a shared group, negative deltas and combos.
 

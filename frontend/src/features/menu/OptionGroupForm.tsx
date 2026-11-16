@@ -44,18 +44,27 @@ const newRow = (): Row => ({
   open: false,
 });
 
-function initialRows(initial?: OptionGroup, template?: OptionTemplate): Row[] {
-  if (initial)
-    return initial.options.map((option) => ({
-      key: nextKey(),
-      id: option.id,
-      nameZh: option.nameZh ?? "",
-      nameIt: option.nameIt ?? "",
-      nameEn: option.nameEn ?? "",
-      price: formatCents(option.priceDeltaCents),
-      allergenCodes: option.allergenCodes,
-      open: false,
-    }));
+// An existing group's options. A copy drops their ids, so saving creates new options and leaves the
+// original group untouched.
+const rowsOf = (group: OptionGroup, keepIds: boolean): Row[] =>
+  group.options.map((option) => ({
+    key: nextKey(),
+    id: keepIds ? option.id : null,
+    nameZh: option.nameZh ?? "",
+    nameIt: option.nameIt ?? "",
+    nameEn: option.nameEn ?? "",
+    price: formatCents(option.priceDeltaCents),
+    allergenCodes: option.allergenCodes,
+    open: false,
+  }));
+
+function initialRows(
+  initial?: OptionGroup,
+  copyOf?: OptionGroup,
+  template?: OptionTemplate,
+): Row[] {
+  if (initial) return rowsOf(initial, true);
+  if (copyOf) return rowsOf(copyOf, false);
   if (template)
     return template.options.map((names) => ({
       ...newRow(),
@@ -66,9 +75,11 @@ function initialRows(initial?: OptionGroup, template?: OptionTemplate): Row[] {
   return [newRow()];
 }
 
-// A whole option group: its names, rule, options and the dishes that use it, saved in one request.
+// A whole option group: its names, rule, options and the dishes that use it, saved in one request. A
+// new group may start from a template or from a copy of an existing group (copyOf).
 export function OptionGroupForm({
   initial,
+  copyOf,
   template,
   menu,
   busy,
@@ -76,18 +87,24 @@ export function OptionGroupForm({
   cancel,
   save,
   feedback,
-}: FormProps & { initial?: OptionGroup; template?: OptionTemplate; menu: Menu }) {
+}: FormProps & {
+  initial?: OptionGroup;
+  copyOf?: OptionGroup;
+  template?: OptionTemplate;
+  menu: Menu;
+}) {
   const language = useStaffLanguage();
   const m = menuMessages[language];
-  const source = initial ?? template;
-  const [rows, setRows] = useState(() => initialRows(initial, template));
+  const source = initial ?? copyOf ?? template;
+  const [rows, setRows] = useState(() => initialRows(initial, copyOf, template));
   const [required, setRequired] = useState((source?.minSelect ?? 1) > 0);
   const [max, setMax] = useState(source?.maxSelect ?? 1);
   const [dishes, setDishes] = useState(() =>
     initial ? menu.items.filter((i) => i.optionGroupIds.includes(initial.id)).map((i) => i.id) : [],
   );
   // An existing group was reviewed when it was last saved, as a dish keeps its review; changing an
-  // option's allergens or adding an option asks for a new review.
+  // option's allergens or adding an option asks for a new review. A copy is a new group: its dishes
+  // start empty and it needs its own review.
   const [reviewed, setReviewed] = useState(initial !== undefined);
   const [validation, setValidation] = useState("");
   const reviewBox = useRef<HTMLElement>(null);
@@ -163,7 +180,7 @@ export function OptionGroupForm({
     <form onSubmit={submit} className="space-y-5" aria-busy={busy}>
       <FieldDescription>{m.nameHint}</FieldDescription>
       <FieldSet disabled={busy} className="gap-6">
-        <NameFields initial={initial ?? template?.names} error={error} />
+        <NameFields initial={initial ?? copyOf ?? template?.names} error={error} />
         <fieldset className="space-y-3">
           <legend className="mb-3 font-medium">{m.options}</legend>
           <ol className="space-y-3">

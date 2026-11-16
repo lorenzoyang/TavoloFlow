@@ -59,7 +59,7 @@ type Editor =
   | { kind: "item-order"; snapshot: ItemOrderSnapshot }
   // A new option group starts from a template (or a blank form).
   | { kind: "templates" }
-  | { kind: "group"; value?: OptionGroup; template?: OptionTemplate }
+  | { kind: "group"; value?: OptionGroup; template?: OptionTemplate; copyOf?: OptionGroup }
   | {
       kind: "delete";
       resource: "categories" | "items" | "option-groups";
@@ -527,12 +527,10 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                 ? editor.value
                   ? m.editCategory
                   : m.addCategory
-                : editor?.kind === "templates"
-                  ? m.templateTitle
-                  : editor?.kind === "group"
-                    ? editor.value
-                      ? m.editOptionGroup
-                      : m.addOptionGroup
+                : editor?.kind === "group" && editor.value
+                  ? m.editOptionGroup
+                  : editor?.kind === "templates" || editor?.kind === "group"
+                    ? m.addOptionGroup
                     : editor?.kind === "item-order"
                       ? m.sortItems
                       : editor?.kind === "item" && editor.value
@@ -571,13 +569,18 @@ function MenuContent({ account }: { account: CurrentAccount }) {
                 feedback={feedback}
               />
             )}
-            {editor?.kind === "templates" && (
-              <TemplatePicker choose={(template) => open({ kind: "group", template })} />
+            {menu && editor?.kind === "templates" && (
+              <TemplatePicker
+                menu={menu}
+                choose={(template) => open({ kind: "group", template })}
+                copy={(group) => open({ kind: "group", copyOf: group })}
+              />
             )}
             {menu && editor?.kind === "group" && (
               <OptionGroupForm
-                key={`group-${editor.value?.id ?? editor.template?.key ?? "new"}`}
+                key={`group-${editor.value?.id ?? editor.template?.key ?? (editor.copyOf ? `copy-${editor.copyOf.id}` : "new")}`}
                 initial={editor.value}
+                copyOf={editor.copyOf}
                 template={editor.template}
                 menu={menu}
                 busy={busy}
