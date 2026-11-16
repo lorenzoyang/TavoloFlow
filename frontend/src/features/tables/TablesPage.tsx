@@ -115,6 +115,9 @@ function TablesContent({ account }: { account: CurrentAccount }) {
   const [editor, setEditor] = useState<Editor | null>(null);
   const [qrId, setQrId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
+  // The table whose enabled switch was used last: its result shows in its own card, which may be far
+  // down the page.
+  const [inline, setInline] = useState<string | null>(null);
   const labelInput = useRef<HTMLInputElement>(null);
   // Each mutation runs one request built by the table API functions.
   const mutation = useMutation({
@@ -131,6 +134,7 @@ function TablesContent({ account }: { account: CurrentAccount }) {
   function open(next: Editor) {
     mutation.reset();
     setNotice("");
+    setInline(null);
     setEditor(next);
   }
   function cancel() {
@@ -160,12 +164,9 @@ function TablesContent({ account }: { account: CurrentAccount }) {
       />
       <div className="mb-5 space-y-3">
         <ServiceSuspendedNotice account={account} />
-        {notice && <Notice tone="success">{notice}</Notice>}
+        {notice && inline === null && <Notice tone="success">{notice}</Notice>}
         {(query.isError || query.fetchStatus === "paused") && (
           <Notice tone="error">{m.readError}</Notice>
-        )}
-        {mutation.isError && !editor && (
-          <Notice tone="error">{errorMessage(mutation.error, m.unknownResult, language)}</Notice>
         )}
         {owner && (
           <Button disabled={busy || !!editor} onClick={() => open({ kind: "create" })}>
@@ -210,9 +211,10 @@ function TablesContent({ account }: { account: CurrentAccount }) {
                     aria-label={m.enable(table.tableLabel)}
                     checked={table.isEnabled}
                     disabled={busy || !!editor}
-                    onCheckedChange={() =>
-                      mutation.mutate(() => setTableEnabled(table.id, !table.isEnabled))
-                    }
+                    onCheckedChange={() => {
+                      setInline(table.id);
+                      mutation.mutate(() => setTableEnabled(table.id, !table.isEnabled));
+                    }}
                   />
                   <span className="text-sm text-muted-foreground">
                     {table.isEnabled ? m.enabledHint : m.disabledHint}
@@ -254,6 +256,15 @@ function TablesContent({ account }: { account: CurrentAccount }) {
               {table.activeSessionId && (
                 <p className="text-xs leading-5 text-muted-foreground">{m.activeHint}</p>
               )}
+              {!editor &&
+                inline === table.id &&
+                (mutation.isError ? (
+                  <Notice tone="error">
+                    {errorMessage(mutation.error, m.unknownResult, language)}
+                  </Notice>
+                ) : (
+                  notice && <Notice tone="success">{notice}</Notice>
+                ))}
             </article>
           ))}
         </div>

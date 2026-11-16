@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Download, ExternalLink, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -64,17 +64,21 @@ type Messages = (typeof onlineMessages)[Language];
 type SettingsWrite = (signal: AbortSignal) => Promise<OnlineSettings>;
 // done runs after a current success; settled after every attempt, so a dialog can close either way.
 type SendSettings = (request: SettingsWrite, done?: () => void, settled?: () => void) => void;
+// The card a write came from: its saved or failed result shows there, beside the button that sent it.
+type SettingsCard = "status" | "phone" | "hours" | "delivery" | "coupons";
 
 function StatusCard({
   settings,
   owner,
   busy,
   send,
+  feedback,
 }: {
   settings: OnlineSettings;
   owner: boolean;
   busy: boolean;
   send: SendSettings;
+  feedback: ReactNode;
 }) {
   const language = useStaffLanguage();
   const m = onlineMessages[language];
@@ -154,6 +158,7 @@ function StatusCard({
             </div>
           </div>
         )}
+        {feedback}
       </CardContent>
     </Card>
   );
@@ -276,10 +281,12 @@ function PhoneCard({
   settings,
   busy,
   send,
+  feedback,
 }: {
   settings: OnlineSettings;
   busy: boolean;
   send: SendSettings;
+  feedback: ReactNode;
 }) {
   const m = onlineMessages[useStaffLanguage()];
   // The local edit survives background refreshes until it is saved or discarded.
@@ -324,6 +331,7 @@ function PhoneCard({
             />
           </div>
           {error && <Notice tone="error">{error}</Notice>}
+          {feedback}
           <Button type="submit" disabled={busy || draft === null}>
             {m.savePhone}
           </Button>
@@ -337,10 +345,12 @@ function HoursCard({
   settings,
   busy,
   send,
+  feedback,
 }: {
   settings: OnlineSettings;
   busy: boolean;
   send: SendSettings;
+  feedback: ReactNode;
 }) {
   const m = onlineMessages[useStaffLanguage()];
   const [draft, setDraft] = useState<WeekDraft | null>(null);
@@ -481,6 +491,7 @@ function HoursCard({
             })}
           </div>
           {error && <Notice tone="error">{error}</Notice>}
+          {feedback}
           <div className="flex flex-wrap gap-2">
             <Button type="submit" disabled={busy || unchanged}>
               {m.saveHours}
@@ -510,10 +521,12 @@ function DeliveryCard({
   settings,
   busy,
   send,
+  feedback,
 }: {
   settings: OnlineSettings;
   busy: boolean;
   send: SendSettings;
+  feedback: ReactNode;
 }) {
   const m = onlineMessages[useStaffLanguage()];
   // The local edit survives background refreshes until it is saved or discarded.
@@ -587,6 +600,7 @@ function DeliveryCard({
             <Notice tone="warning">{m.deliveryNoNote}</Notice>
           )}
           {error && <Notice tone="error">{error}</Notice>}
+          {feedback}
           <div className="flex flex-wrap gap-2">
             <Button type="submit" disabled={busy || unchanged}>
               {m.saveDelivery}
@@ -617,10 +631,12 @@ function CouponsCard({
   settings,
   busy,
   send,
+  feedback,
 }: {
   settings: OnlineSettings;
   busy: boolean;
   send: SendSettings;
+  feedback: ReactNode;
 }) {
   const m = onlineMessages[useStaffLanguage()];
   const [draft, setDraft] = useState<CouponDraft>(emptyCouponDraft);
@@ -753,6 +769,7 @@ function CouponsCard({
               </p>
             </div>
           </div>
+          {feedback}
           <Button type="submit" disabled={busy}>
             <Plus />
             {m.createCoupon}
@@ -789,8 +806,8 @@ function OnlineSettingsContent({ account }: { account: CurrentAccount }) {
   const options = onlineSettingsQuery(account);
   const query = useQuery(options);
   const owner = account.role === "OWNER";
-  const [notice, setNotice] = useState("");
-  const [error, setError] = useState<unknown>(null);
+  // error null means saved.
+  const [outcome, setOutcome] = useState<{ card: SettingsCard; error: unknown } | null>(null);
   const [busy, setBusy] = useState(false);
   const ops = useOperations();
   useEffect(
@@ -803,14 +820,18 @@ function OnlineSettingsContent({ account }: { account: CurrentAccount }) {
   );
 
   // Writes already return fresh settings. Keep the existing polling for later changes and unknown results.
-  async function send(request: SettingsWrite, done?: () => void, settled?: () => void) {
+  async function send(
+    card: SettingsCard,
+    request: SettingsWrite,
+    done?: () => void,
+    settled?: () => void,
+  ) {
     if (!isLive() || !isSameAccount(client, account)) return;
     const op = ops.start("settings");
     if (!op) return;
     const current = () => op.isCurrent() && isSameAccount(client, account);
     setBusy(true);
-    setNotice("");
-    setError(null);
+    setOutcome(null);
     try {
       const settings = await request(withTimeout(op.signal));
       if (!current()) return;
@@ -819,14 +840,25 @@ function OnlineSettingsContent({ account }: { account: CurrentAccount }) {
       if (!current()) return;
       client.setQueryData(options.queryKey, settings);
       done?.();
-      setNotice(m.saved);
+      setOutcome({ card, error: null });
     } catch (e) {
-      if (current()) setError(e);
+      if (current()) setOutcome({ card, error: e });
     } finally {
       if (op.finish()) setBusy(false);
       settled?.();
     }
   }
+  // What every card shares: the busy state, a send bound to the card and that card's result.
+  const cardProps = (card: SettingsCard) => ({
+    busy,
+    send: ((request, done, settled) => send(card, request, done, settled)) satisfies SendSettings,
+    feedback:
+      outcome?.card !== card ? null : outcome.error === null ? (
+        <Notice tone="success">{m.saved}</Notice>
+      ) : (
+        <Notice tone="error">{errorMessage(outcome.error, m.unknownResult, language)}</Notice>
+      ),
+  });
   const settings = query.data;
   return (
     <div className="mx-auto max-w-2xl">
@@ -846,25 +878,21 @@ function OnlineSettingsContent({ account }: { account: CurrentAccount }) {
           </Button>
         }
       />
-      <div className="mb-4 space-y-3">
-        {notice && <Notice tone="success">{notice}</Notice>}
-        {(query.isError || query.fetchStatus === "paused") && (
-          <Notice tone="error">{m.readError}</Notice>
-        )}
-        {error !== null && (
-          <Notice tone="error">{errorMessage(error, m.unknownResult, language)}</Notice>
-        )}
-      </div>
+      {(query.isError || query.fetchStatus === "paused") && (
+        <Notice tone="error" className="mb-4">
+          {m.readError}
+        </Notice>
+      )}
       {!settings ? (
         query.isPending && <LoadingState label={m.loading} />
       ) : (
         <div className="space-y-4">
-          <StatusCard settings={settings} owner={owner} busy={busy} send={send} />
+          <StatusCard settings={settings} owner={owner} {...cardProps("status")} />
           <LinkCard slug={settings.slug} />
-          {owner && <PhoneCard settings={settings} busy={busy} send={send} />}
-          {owner && <HoursCard settings={settings} busy={busy} send={send} />}
-          {owner && <DeliveryCard settings={settings} busy={busy} send={send} />}
-          {owner && <CouponsCard settings={settings} busy={busy} send={send} />}
+          {owner && <PhoneCard settings={settings} {...cardProps("phone")} />}
+          {owner && <HoursCard settings={settings} {...cardProps("hours")} />}
+          {owner && <DeliveryCard settings={settings} {...cardProps("delivery")} />}
+          {owner && <CouponsCard settings={settings} {...cardProps("coupons")} />}
         </div>
       )}
     </div>

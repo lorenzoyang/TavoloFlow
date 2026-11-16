@@ -690,7 +690,8 @@ an expired badge, a delete button behind `ConfirmDialog`, and a create form with
 an optional date input). A partial date is refused with a translated field message; only a genuinely
 empty control means no expiry. Submission reads the date control's current value and `validity.badInput`
 again, because partial native date edits can leave the value empty without firing React's `onChange`.
-A missing phone or week is explained in one warning.
+A missing phone or week is explained in one warning. Each card shows its own saved or failed result
+beside the button that sent it; the page top keeps only read errors.
 Time inputs cannot hold 24:00, so 00:00 as a closing time means midnight. The query key is
 `["online-settings", restaurantId, userId]`; the visible page rereads it every 60 seconds because
 slots and pauses change with the clock. Local form edits survive background refreshes until saved or

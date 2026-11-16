@@ -43,7 +43,7 @@ TavoloFlow is a QR-code table ordering system that also takes online orders. Eve
 - **Pass**: on a tablet at the counter, shows the ready dishes to take to the tables; when a dish reaches the table, you tap "Served";
 - **Menu**: marks a dish, or a single option (for example a topping that ran out), as sold out or available again;
 - **Online orders**: accepts an order by choosing when it will be ready (for a delivery, after entering the fee) or rejects it, with an optional reason. While an order waits for acceptance, every staff page shows a banner at the top that rings. Here they also see the accepted orders not yet closed, with the customer's phone and address;
-- in **Online ordering** settings pauses online orders, until the end of the slot or for the rest of the day;
+- in **Online ordering settings** pauses online orders, until the end of the slot or for the rest of the day;
 - from Home turns on the **lock-screen notifications** of new online orders on each device;
 - the interface is in Chinese, Italian or English, chosen per device; until someone chooses, it follows the browser language.
 
@@ -53,7 +53,7 @@ TavoloFlow is a QR-code table ordering system that also takes online orders. Eve
 - manages the tables and downloads their QR code and the printable table card;
 - in the Bill section closes the visit after payment, and in Bill history browses closed bills;
 - in Bill also closes online orders: "Collected, check payment" or "Delivered, check payment" after payment, or "Customer didn't come" or "Not delivered"; while the order is open they can correct the delivery fee;
-- in **Online ordering** settings sets the public phone, the weekly hours (at most two slots a day) and delivery, with a note in three languages on areas and fees; creates and deletes **coupons** for online orders: a percentage off the dishes (1 to 50%), valid until an optional last day, to share on Instagram, on flyers or in delivery bags;
+- in **Online ordering settings** sets the public phone, the weekly hours (at most two slots a day) and delivery, with a note in three languages on areas and fees; creates and deletes **coupons** for online orders: a percentage off the dishes (1 to 50%), valid until an optional last day, to share on Instagram, on flyers or in delivery bags;
 - resets the staff account's password and sees the status of their own subscription.
 
 **Platform administrator**, that is whoever offers the service to restaurants:

@@ -2,7 +2,7 @@ import type { Language } from "@/lib/language";
 import type { WeekProblem } from "./state";
 
 const zh = {
-  title: "线上点单",
+  title: "线上点单设置",
   refresh: "重新读取设置",
   readError: "无法读取线上点单设置，请检查网络后重试。",
   unknownResult: "操作结果待确认，请重新读取设置并核对，再决定是否操作。",
@@ -227,7 +227,7 @@ export const onlineMessages: Record<Language, typeof zh> = {
     deleteCouponConfirm: "Elimina",
   },
   en: {
-    title: "Online ordering",
+    title: "Online ordering settings",
     refresh: "Reload settings",
     readError: "Can’t read the online ordering settings. Check the connection and retry.",
     unknownResult: "Result unknown: reload the settings and check before trying again.",

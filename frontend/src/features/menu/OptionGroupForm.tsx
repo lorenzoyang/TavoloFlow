@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -11,7 +11,7 @@ import { displayName } from "@/lib/language";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import type { Menu, OptionGroup } from "./api";
-import { namesFrom } from "./form-values";
+import { firstName, namesFrom, reveal } from "./form-values";
 import { Actions, AllergenChecks, Errors, NameFields, type FormProps } from "./MenuForms";
 import { languages, menuMessages } from "./messages";
 import type { OptionTemplate } from "./option-templates";
@@ -86,8 +86,11 @@ export function OptionGroupForm({
   const [dishes, setDishes] = useState(() =>
     initial ? menu.items.filter((i) => i.optionGroupIds.includes(initial.id)).map((i) => i.id) : [],
   );
-  const [reviewed, setReviewed] = useState(false);
+  // An existing group was reviewed when it was last saved, as a dish keeps its review; changing an
+  // option's allergens or adding an option asks for a new review.
+  const [reviewed, setReviewed] = useState(initial !== undefined);
   const [validation, setValidation] = useState("");
+  const reviewBox = useRef<HTMLElement>(null);
   const limit = Math.min(max, rows.length);
   const label = (row: Row, index: number) =>
     displayName(
@@ -108,26 +111,34 @@ export function OptionGroupForm({
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
-    const names = namesFrom(new FormData(event.currentTarget));
+    const form = event.currentTarget;
+    const names = namesFrom(new FormData(form));
+    function fail(message: string, field: Element | null) {
+      setValidation(message);
+      reveal(field);
+    }
     if (!Object.values(names).some(Boolean)) {
-      setValidation(m.namesInvalid);
+      fail(m.namesInvalid, firstName(form));
       return;
     }
-    if (
-      rows.length < 1 ||
-      rows.length > MAX_OPTIONS ||
-      rows.some((row) => ![row.nameZh, row.nameIt, row.nameEn].some((name) => name.trim()))
-    ) {
-      setValidation(m.optionsInvalid);
+    const unnamed = rows.find(
+      (row) => ![row.nameZh, row.nameIt, row.nameEn].some((name) => name.trim()),
+    );
+    if (rows.length < 1 || rows.length > MAX_OPTIONS || unnamed) {
+      fail(
+        m.optionsInvalid,
+        unnamed ? document.getElementById(`${unnamed.key}-name${languages[0].suffix}`) : null,
+      );
       return;
     }
     const prices = rows.map((row) => parsePrice(row.price, true));
-    if (prices.some((price) => price === null)) {
-      setValidation(m.extraPriceInvalid);
+    const badPrice = prices.findIndex((price) => price === null);
+    if (badPrice >= 0) {
+      fail(m.extraPriceInvalid, document.getElementById(`${rows[badPrice].key}-price`));
       return;
     }
     if (!reviewed) {
-      setValidation(m.reviewRequired);
+      fail(m.reviewRequired, reviewBox.current);
       return;
     }
     setValidation("");
@@ -153,33 +164,6 @@ export function OptionGroupForm({
       <FieldDescription>{m.nameHint}</FieldDescription>
       <FieldSet disabled={busy} className="gap-6">
         <NameFields initial={initial ?? template?.names} error={error} />
-        <div className="space-y-4 rounded-xl border p-3">
-          <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3">
-            <span>
-              <span className="text-sm font-medium">{m.required}</span>
-              <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                {m.requiredHint}
-              </span>
-            </span>
-            <Switch checked={required} onCheckedChange={setRequired} />
-          </label>
-          <Field>
-            <FieldLabel htmlFor="maxSelect">{m.maxSelect}</FieldLabel>
-            <NativeSelect
-              id="maxSelect"
-              value={String(limit)}
-              onChange={(event) => setMax(Number(event.target.value))}
-              className="w-full"
-            >
-              {rows.map((_, index) => (
-                <NativeSelectOption key={index} value={String(index + 1)}>
-                  {m.maxOption(index + 1)}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-            <FieldDescription>{m.rule(required ? 1 : 0, limit)}</FieldDescription>
-          </Field>
-        </div>
         <fieldset className="space-y-3">
           <legend className="mb-3 font-medium">{m.options}</legend>
           <ol className="space-y-3">
@@ -282,12 +266,57 @@ export function OptionGroupForm({
             type="button"
             variant="outline"
             disabled={rows.length >= MAX_OPTIONS}
-            onClick={() => setRows([...rows, newRow()])}
+            onClick={() => {
+              setRows([...rows, newRow()]);
+              setReviewed(false);
+            }}
           >
             <Plus />
             {m.addOption}
           </Button>
         </fieldset>
+        {/* After the options: how many a guest may choose depends on how many there are. */}
+        <div className="space-y-4 rounded-xl border p-3">
+          <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3">
+            <span>
+              <span className="text-sm font-medium">{m.required}</span>
+              <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                {m.requiredHint}
+              </span>
+            </span>
+            <Switch checked={required} onCheckedChange={setRequired} />
+          </label>
+          <Field>
+            <FieldLabel htmlFor="maxSelect">{m.maxSelect}</FieldLabel>
+            <NativeSelect
+              id="maxSelect"
+              value={String(limit)}
+              onChange={(event) => setMax(Number(event.target.value))}
+              className="w-full"
+            >
+              {rows.map((_, index) => (
+                <NativeSelectOption key={index} value={String(index + 1)}>
+                  {m.maxOption(index + 1)}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+            <FieldDescription>
+              {rows.length === 1 ? m.moreOptionsForMulti : m.rule(required ? 1 : 0, limit)}
+            </FieldDescription>
+          </Field>
+        </div>
+        <div className="space-y-3">
+          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-warning/60 bg-warning/12 p-3 text-sm font-medium">
+            <Checkbox
+              ref={reviewBox}
+              className="mt-0.5"
+              checked={reviewed}
+              onCheckedChange={(checked) => setReviewed(checked)}
+            />
+            {m.reviewOptions}
+          </label>
+          <FieldDescription>{m.reviewHint}</FieldDescription>
+        </div>
         <fieldset className="space-y-3">
           <legend className="mb-1 font-medium">{m.usedBy}</legend>
           <FieldDescription>{m.usedByHint}</FieldDescription>
@@ -323,21 +352,12 @@ export function OptionGroupForm({
             );
           })}
         </fieldset>
-        <div className="space-y-3">
-          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-warning/60 bg-warning/12 p-3 text-sm font-medium">
-            <Checkbox
-              className="mt-0.5"
-              checked={reviewed}
-              onCheckedChange={(checked) => setReviewed(checked)}
-            />
-            {m.reviewOptions}
-          </label>
-          <FieldDescription>{m.reviewHint}</FieldDescription>
-        </div>
         <Errors error={error} />
-        {validation && <FieldError>{validation}</FieldError>}
-        {feedback}
-        <Actions busy={busy} cancel={cancel} />
+        <Actions
+          busy={busy}
+          cancel={cancel}
+          message={validation ? <FieldError>{validation}</FieldError> : feedback}
+        />
       </FieldSet>
     </form>
   );

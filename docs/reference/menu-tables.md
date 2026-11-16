@@ -195,7 +195,10 @@ most 50 groups and a dish at most 10. Required groups are never preselected for 
   array order is the option order. `menuItemIds` replaces the dishes that use the group. Foreign ids
   return `MENU_RESOURCE_NOT_FOUND`. `0 <= minSelect <= maxSelect <= options`, `maxSelect >= 1`.
 - Every save requires `allergenReviewed: true`, as for dishes; options store canonical allergen codes.
-  Orders add the chosen options' allergens to the dish's, so the dish never has to list them.
+  Orders add the chosen options' allergens to the dish's, so the dish never has to list them. Like the
+  dish editor, the group editor keeps an existing group's review ticked and clears it when an option's
+  allergens change or an option is added. It lists the options before the selection rule, because the
+  maximum choices can't exceed the number of options.
 - Display order is one restaurant-wide `position`; each dish shows its own groups in that relative
   order. New groups come last. The order endpoint takes `{ "groupIds": [...] }`, exactly the current
   groups in their new order, so a repeat changes nothing; a list made from an outdated menu returns

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ArrowDown, ArrowUp, ListChecks, Pencil, Plus, Trash2 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -21,14 +22,17 @@ export function OptionGroups({
   edit,
   remove,
   move,
+  result,
 }: {
   menu: Menu;
   owner: boolean;
   disabled: boolean;
-  toggle: (option: MenuOption) => void;
+  toggle: (group: OptionGroup, option: MenuOption) => void;
   edit: (group: OptionGroup) => void;
   remove: (group: OptionGroup, dishes: number) => void;
   move: (index: number, by: number) => void;
+  // The outcome of the last switch or move in this group, shown in its own card.
+  result: (groupId: string) => ReactNode;
 }) {
   const language = useStaffLanguage();
   const m = menuMessages[language];
@@ -98,7 +102,7 @@ export function OptionGroups({
                       aria-label={m.optionAvailability(`${name} · ${optionName}`)}
                       checked={option.isAvailable}
                       disabled={disabled}
-                      onCheckedChange={() => toggle(option)}
+                      onCheckedChange={() => toggle(group, option)}
                     />
                   </li>
                 );
@@ -146,6 +150,7 @@ export function OptionGroups({
                 </div>
               </div>
             )}
+            {result(group.id)}
           </li>
         );
       })}
