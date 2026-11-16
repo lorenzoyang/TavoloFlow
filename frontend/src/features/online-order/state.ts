@@ -251,6 +251,7 @@ export function submissionFailure(
     "CSRF_VALIDATION_FAILED",
     "RATE_LIMITED",
     "ONLINE_BROWSER_REQUIRED",
+    "ONLINE_VERIFICATION_FAILED",
   ].includes(code ?? "")
     ? "editable"
     : "unknown";

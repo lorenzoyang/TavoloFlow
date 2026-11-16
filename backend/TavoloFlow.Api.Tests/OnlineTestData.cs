@@ -25,6 +25,18 @@ internal static class OnlineTestData
 
     public static OnlineSubmissionSource Source() => new(Guid.NewGuid().ToString("N"), "192.0.2.1");
 
+    public static readonly IOnlineVerification NoVerification = new DisabledVerification();
+
+    private sealed class DisabledVerification : IOnlineVerification
+    {
+        public Task VerifyAsync(
+            Guid restaurantId,
+            Guid requestId,
+            string? token,
+            CancellationToken ct
+        ) => Task.CompletedTask;
+    }
+
     public static readonly PushQueue NoPush = new(new PushKeys(Options.Create(new PushOptions())));
 
     public static OrderLineSnapshot Line(

@@ -93,6 +93,12 @@ code at checkout and see the discounted total; the bill keeps the discount in pr
 are cancelled, and staff repeat it on the till that issues the receipt (see
 [online ordering](online-ordering.md#coupons)).
 
+Production deployments enable Managed Turnstile verification for new online requests by default.
+It is checked on the server and bound to restaurant/request; existing-result recovery remains
+available during provider failures. Local development and Demo default to disabled. An explicit
+deployment switch supports self-hosted use without the provider. See
+[verification](online-ordering.md#turnstile-verification).
+
 Online requests also have source limits: one waiting request per browser and restaurant, five per IP
 and restaurant, and independent IP budgets for submissions and public reads. Browsing and cart editing
 remain available while a request waits; checkout resumes after acceptance, rejection or expiry. The

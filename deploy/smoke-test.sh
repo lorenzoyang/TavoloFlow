@@ -76,6 +76,8 @@ POSTGRES_DB=tavoloflow
 POSTGRES_USER=tavoloflow
 POSTGRES_PASSWORD=$(openssl rand -hex 32)
 VAPID_PRIVATE_KEY=$(openssl rand -hex 32)
+# Infrastructure smoke tests do not depend on an external verification service.
+TURNSTILE_ENABLED=false
 PROXY_SUBNET=172.30.81.0/24
 PROXY_DYNAMIC_RANGE=172.30.81.128/25
 CADDY_IP=172.30.81.2
@@ -191,6 +193,26 @@ for name,key in cases.items():
     assert (root/'state/current').read_bytes() == current, f'Installed release changed for {name}'
     assert api_state() == before, f'Running API changed for {name}'
     print(f'Invalid VAPID key rejected without stopping the installed API: {name}')
+
+turnstile_cases = {
+    'invalid switch': {'TURNSTILE_ENABLED': 'invalid'},
+    'missing keys': {'TURNSTILE_ENABLED': 'true'},
+    'placeholder': {'TURNSTILE_ENABLED': 'true', 'TURNSTILE_SITE_KEY': 'REPLACE_WITH_TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY': '0x-fixture-secret-key'},
+    'production test keys': {'TURNSTILE_ENABLED': 'true', 'TURNSTILE_SITE_KEY': '1x00000000000000000000AA', 'TURNSTILE_SECRET_KEY': '1x0000000000000000000000000000000AA'},
+}
+for name, overrides in turnstile_cases.items():
+    lines=[line for line in original.decode().splitlines() if not line.startswith('TURNSTILE_')]
+    lines += [f'{key}={value}' for key,value in overrides.items()]
+    try:
+        env.write_text('\n'.join(lines)+'\n')
+        result=subprocess.run(['bash',str(package/'ops/install-release.sh'),str(package),str(root)],capture_output=True,text=True)
+    finally:
+        env.write_bytes(original)
+    assert result.returncode != 0, f'Installer accepted Turnstile {name}'
+    assert 'TURNSTILE_' in result.stderr, f'Turnstile {name} did not fail during preflight'
+    assert (root/'state/current').read_bytes() == current
+    assert api_state() == before, f'Running API changed for Turnstile {name}'
+    print(f'Invalid Turnstile configuration rejected without stopping the installed API: {name}')
 PY
 python3 "$repo/deploy/smoke-http.py" verify "$work" 18443
 # Reproduce the previous deployment bug, including the parent directory and .env.

@@ -18,7 +18,8 @@ public sealed class OnlineRequestService(
     ApplicationDbContext db,
     TimeProvider clock,
     PushQueue push,
-    IOptions<OnlineRateLimitOptions> limits
+    IOptions<OnlineRateLimitOptions> limits,
+    IOnlineVerification verification
 )
 {
     public static readonly TimeSpan WaitingTime = TimeSpan.FromMinutes(10);
@@ -37,13 +38,28 @@ public sealed class OnlineRequestService(
     )
     {
         var form = Validate(slug, input);
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var restaurantId =
             await db
                 .Restaurants.Where(r => r.Slug == slug)
                 .Select(r => (Guid?)r.Id)
                 .SingleOrDefaultAsync(ct)
             ?? throw OnlineErrors.LinkNotFound();
+        // Fast recovery needs no external verification. A missing result is not proof of absence:
+        // another request may still be in flight, so the transaction repeats this check below.
+        var stored = await StoredAsync(
+            restaurantId,
+            r => r.ClientRequestId == form.ClientRequestId,
+            ct
+        );
+        if (stored is not null)
+            return new(stored, false);
+        await verification.VerifyAsync(
+            restaurantId,
+            form.ClientRequestId,
+            input.TurnstileToken,
+            ct
+        );
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var restaurant = await RowLocks.RestaurantAsync(db, restaurantId, RowLock.Share, ct);
         // The platform may have changed the link meanwhile.
         if (restaurant?.Slug != slug)

@@ -488,3 +488,10 @@ test("a browser conflict link requires a valid token, number and expiry", () => 
     assert.equal(existingSubmission(value), null);
   }
 });
+
+test("Turnstile failure frees a first rejected intent but preserves an unknown result", () => {
+  assert.equal(submissionFailure(400, "ONLINE_VERIFICATION_FAILED", false), "editable");
+  assert.equal(submissionFailure(400, "ONLINE_VERIFICATION_FAILED", true), "unknown");
+  assert.equal(submissionFailure(503, "ONLINE_VERIFICATION_UNAVAILABLE", false), "unknown");
+  assert.equal(submissionFailure(503, "ONLINE_VERIFICATION_UNAVAILABLE", true), "unknown");
+});

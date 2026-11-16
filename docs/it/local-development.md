@@ -287,6 +287,16 @@ Poi apri <http://localhost:5173/staff/login>, oppure `/platform/login`.
 
 - **Verifica del recupero push.** Dopo aver attivato le notifiche, simula un errore alla PUT dell'iscrizione: la Home deve mostrare il fallimento, non «attive». Ripristina la rete e torna all'app: deve confermare la sincronizzazione senza un nuovo permesso. Se la cancellazione dell'iscrizione fallisce durante l'uscita, devi restare collegato e poter riprovare. Dopo un'uscita riuscita un nuovo ordine deve notificare gli altri dispositivi; accedendo di nuovo su questo dispositivo le notifiche riprendono. Quelle già inviate possono ancora arrivare.
 
+### Provare Turnstile in sviluppo
+
+Sviluppo e Demo funzionano senza un account Cloudflare. Per provare la verifica in Development, imposta `Turnstile__Enabled=true`, `Turnstile__SiteKey=1x00000000000000000000AA` e `Turnstile__SecretKey=1x0000000000000000000000000000000AA` nell’ambiente dell’API. Questa coppia ufficiale passa sempre; richiede internet ma funziona anche su localhost e sui telefoni nella rete locale. Le chiavi di test non vanno mai usate in produzione.
+
+Il widget appare soltanto alla conferma o al recupero di un invio incerto. Usa le [altre chiavi ufficiali](https://developers.cloudflare.com/turnstile/troubleshooting/testing/) per simulare rifiuto, interazione e token già usato. Nei test di integrazione il provider è simulato: non servono rete né chiavi vere. Solo le coppie di test riconosciute in Development accettano la risposta ufficiale con `example.com` e senza action/cdata; le chiavi reali verificano anche hostname, azione e legame alla richiesta. Con chiavi reali in sviluppo imposta anche `Turnstile__Hostname` e autorizza quel dominio sul pannello.
+
+Controlla che una verifica mancante, scaduta o fallita impedisca un nuovo invio, conservi carrello e campi, e permetta di riprovare o chiamare. Un risultato sconosciuto deve restare recuperabile via GET; il pulsante di retry cerca prima l’ordine precedente. Dopo un invio non riutilizzare il vecchio token. Verifica a 360px in tutte e tre le lingue.
+
+[Esempio a 360px: messaggio dell’app quando il provider non è disponibile](../images/online-verification-it.webp) (SDK simulato; non mostra il widget Cloudflare).
+
 ## Parte 3: test e controlli
 
 ### Backend

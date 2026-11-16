@@ -26,8 +26,11 @@ public sealed record OnlineMenuResponse(
     OnlineMenuRestaurantResponse Restaurant,
     string Status,
     DateTime? NextOpensAt,
-    PublicMenuContent Menu
+    PublicMenuContent Menu,
+    TurnstilePublicConfiguration? Turnstile
 );
+
+public sealed record TurnstilePublicConfiguration(string SiteKey);
 
 // Items use the QR order line format; Fulfillment is PICKUP or DELIVERY. The address and notes are
 // for delivery only. Coupon is null without one.
@@ -40,7 +43,8 @@ public sealed record OnlineRequestInput(
     string? DeliveryAddress,
     string? DeliveryNotes,
     OrderLineInput?[]? Items,
-    OnlineRequestCouponInput? Coupon
+    OnlineRequestCouponInput? Coupon,
+    string? TurnstileToken = null
 );
 
 // The coupon the customer saw at checkout. PercentOff is the confirmed percentage, like a line's expected

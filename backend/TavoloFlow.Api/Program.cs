@@ -68,6 +68,20 @@ builder
     .ValidateOnStart();
 builder.Services.AddSingleton<OnlineRateLimiter>();
 builder.Services.AddSingleton<OnlineBrowser>();
+builder
+    .Services.AddOptions<TurnstileOptions>()
+    .Configure(options => options.Enabled = builder.Environment.IsProduction())
+    .Bind(builder.Configuration.GetSection(TurnstileOptions.Section))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<TurnstileOptions>, TurnstileOptionsValidator>();
+builder.Services.AddScoped<IOnlineVerification, OnlineVerification>();
+builder
+    .Services.AddHttpClient(
+        OnlineVerification.HttpClientName,
+        client => client.Timeout = TimeSpan.FromSeconds(5)
+    )
+    .RemoveAllLoggers()
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
 
 // Lock-screen push: off unless the VAPID key is configured.
 builder

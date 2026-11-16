@@ -419,6 +419,24 @@ Qui `install` non installa pacchetti: copia un file e ne imposta insieme proprie
 
 **Non rieseguire mai la riga che crea `.env`** nei rilasci successivi: sovrascriveresti la configurazione con il modello vuoto.
 
+#### Verifica Turnstile per gli ordini online
+
+In produzione Turnstile è attivo per impostazione predefinita. Nel pannello Cloudflare apri **Turnstile → Add widget**: scegli **Managed**, autorizza esattamente il nome in `DOMAIN` (senza `https://`, porte o percorsi) e lascia disattivato **Pre-clearance**. Non servono spostamenti di DNS, proxy o hosting; tutti i ristoranti sullo stesso host condividono il widget.
+
+Aggiungi al `.env` del server:
+
+```dotenv
+TURNSTILE_ENABLED=true
+TURNSTILE_SITE_KEY=CHIAVE_PUBBLICA_DA_CLOUDFLARE
+TURNSTILE_SECRET_KEY=CHIAVE_SEGRETA_DA_CLOUDFLARE
+```
+
+Sostituisci i valori con entrambe le chiavi complete del widget: non si generano con `openssl`. La chiave segreta resta nel `.env` protetto, mai in Git o nel codice frontend. Compose passa i valori all’API e ricava l’hostname da `DOMAIN`; il frontend legge solo la chiave pubblica dall’API, senza ricompilazioni dedicate. Il [piano gratuito](https://developers.cloudflare.com/turnstile/plans/) non addebita le verifiche.
+
+L’installatore controlla configurazione, segnaposto e chiavi di test prima di fermare l’API esistente; l’API ricontrolla all’avvio. Il controllo locale non può confermare che le chiavi e i domini sul pannello siano corretti: prima di aprire ai clienti prova un ordine nel browser sul dominio reale, poi accettalo e verifica il risultato. Nome, telefono, indirizzo e piatti non vengono inviati al verificatore. Se Cloudflare non risponde, i nuovi invii restano bloccati con carrello conservato e telefono del ristorante; il recupero degli ordini già inviati continua a funzionare.
+
+Per un’installazione che sceglie esplicitamente di non usare il verificatore, imposta `TURNSTILE_ENABLED=false`: restano limiti IP, cookie e posti in attesa. Sviluppo e Demo sono già disattivati per impostazione predefinita. Le notifiche non cambiano. Per aggiornare un server esistente, aggiungi questi valori prima di eseguire l’installatore della nuova versione. Non stampare né pubblicare la chiave segreta.
+
 #### Il file `.env`
 
 | Variabile           | Cosa scrivere                                                                                                               |

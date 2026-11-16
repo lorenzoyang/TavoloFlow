@@ -287,6 +287,16 @@ npm run dev
 
 - **推送恢复检查。** 配置推送并在生产或 preview 构建中开启后，模拟订阅 PUT 失败：首页必须显示同步失败，不能显示已开启。恢复网络并回到应用后，应重新同步且不再次弹出权限请求。退出时模拟设备删除失败，应保留登录并允许重试。成功退出后，新订单只通知其他设备；重新登录本设备后恢复通知。已经发出的通知仍可能到达。
 
+### 在开发环境测试 Turnstile
+
+开发和 Demo 无需 Cloudflare 账号即可使用。要在 Development 测试验证，可在 API 环境中设置 `Turnstile__Enabled=true`、`Turnstile__SiteKey=1x00000000000000000000AA`、`Turnstile__SecretKey=1x0000000000000000000000000000000AA`。这对官方测试密钥始终通过，需要联网，也支持 localhost 和局域网手机测试。生产禁止使用测试密钥。
+
+组件仅在订单确认或未知结果恢复时显示。可使用[其他官方测试密钥](https://developers.cloudflare.com/turnstile/troubleshooting/testing/)模拟失败、交互或 token 已使用。集成测试模拟验证服务，不需要真实密钥或网络。只有 Development 中已识别的成对测试密钥才接受官方返回的 `example.com` 及缺少 action/cdata 的响应；真实密钥始终校验域名、用途和请求绑定。在开发环境使用真实密钥时，还需设置 `Turnstile__Hostname` 并在面板允许该域名。
+
+检查未完成、过期或失败的验证会阻止新提交，保留购物车和填写内容，并提供重新验证或电话入口。未知结果仍应通过 GET 找回；手动重试先检查原订单。提交后不能复用旧 token。请在 360px 下检查三种语言。
+
+[360px 示例：验证服务不可用时的应用提示](../images/online-verification-zh.webp)（模拟 SDK，未展示 Cloudflare 组件）。
+
 ## 第 3 部分：测试与检查
 
 ### 后端

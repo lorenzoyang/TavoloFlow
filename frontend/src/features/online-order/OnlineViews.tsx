@@ -29,6 +29,13 @@ import {
 } from "./state";
 import type { useOnlineCart } from "./useOnlineCart";
 import { deviceStorage } from "./useRestaurantLanguage";
+import { TurnstileChallenge } from "./TurnstileChallenge";
+import {
+  verificationBinding,
+  verificationContext,
+  verificationToken,
+  type VerificationProof,
+} from "./verification";
 
 // Always a button with the number on it, so customers see they can tap to call.
 export function PhoneLink({
@@ -192,6 +199,42 @@ export function OnlineCartPanel({
   headerAction?: ReactNode;
 }) {
   const m = onlineOrderMessages[language];
+  const [proof, setProof] = useState<VerificationProof | null>(null);
+  const [verificationAttempt, setVerificationAttempt] = useState(0);
+  const siteKey = data.turnstile?.siteKey ?? null;
+  const binding =
+    siteKey && model.verificationRequestId
+      ? verificationBinding(data.restaurant.id, model.verificationRequestId)
+      : null;
+  const proofContext = siteKey && binding ? verificationContext(siteKey, binding, language) : "";
+  const token = verificationToken(proof, proofContext);
+  const resetVerification = () => {
+    setProof(null);
+    setVerificationAttempt((value) => value + 1);
+  };
+  async function submitVerified(retry: boolean) {
+    try {
+      await (retry ? model.retry(token) : model.confirm(token));
+    } finally {
+      resetVerification();
+    }
+  }
+  const challenge =
+    siteKey && binding ? (
+      <TurnstileChallenge
+        key={`${proofContext}:${verificationAttempt}`}
+        siteKey={siteKey}
+        binding={binding}
+        language={language}
+        onProof={setProof}
+        retry={resetVerification}
+        fallback={
+          data.restaurant.publicPhone ? (
+            <PhoneLink phone={data.restaurant.publicPhone} language={language} />
+          ) : null
+        }
+      />
+    ) : null;
   const [tried, setTried] = useState(false);
   const [couponText, setCouponText] = useState("");
   const nameRef = useRef<HTMLInputElement>(null);
@@ -222,7 +265,7 @@ export function OnlineCartPanel({
       ].current?.focus();
       return;
     }
-    void model.confirm();
+    void submitVerified(false);
   }
   return (
     <section id="cart" aria-labelledby="cart-title" className="space-y-4">
@@ -254,6 +297,7 @@ export function OnlineCartPanel({
         <Notice tone="error">{m[model.blocked]}</Notice>
       )}
       <OrderingContextNotice model={model} language={language} />
+      {pending && challenge}
       {pending && (
         <Notice
           tone="warning"
@@ -265,7 +309,7 @@ export function OnlineCartPanel({
               <Button
                 variant="outline"
                 disabled={model.busy || !!model.blocked}
-                onClick={() => void model.retry()}
+                onClick={() => void submitVerified(true)}
               >
                 {m.retryOriginal}
               </Button>
@@ -500,11 +544,14 @@ export function OnlineCartPanel({
           <p className="rounded-xl bg-secondary p-3 text-sm leading-6">
             {delivery ? m.asapDelivery : m.asap}
           </p>
+          {challenge}
           <div className="grid gap-2">
             <Button
               type="submit"
               size="lg"
-              disabled={model.busy || !!model.blocked || model.checkoutBlocked}
+              disabled={
+                model.busy || !!model.blocked || model.checkoutBlocked || (!!siteKey && !token)
+              }
             >
               {model.busy ? m.working : m.placeOrder}
             </Button>

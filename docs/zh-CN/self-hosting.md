@@ -419,6 +419,24 @@ sudo nano /opt/tavoloflow/.env
 
 **之后的发布中，永远不要再执行创建 `.env` 的那一行**：那样会用空模板覆盖你的配置。
 
+#### 线上订单的 Turnstile 验证
+
+生产默认启用 Turnstile。在 Cloudflare 面板进入 **Turnstile → Add widget**：选择 **Managed**，允许 `DOMAIN` 中的完整主机名（不含 `https://`、端口或路径），保持 **Pre-clearance** 关闭。无需迁移 DNS、代理或服务器；同一域名下的餐厅共用一个组件。
+
+在服务器 `.env` 中添加：
+
+```dotenv
+TURNSTILE_ENABLED=true
+TURNSTILE_SITE_KEY=从_CLOUDFLARE_取得的公开密钥
+TURNSTILE_SECRET_KEY=从_CLOUDFLARE_取得的服务器密钥
+```
+
+将示例替换成组件的两类完整密钥，不能用 `openssl` 生成。Secret key 只保存在受保护的 `.env` 中，不提交 Git、不写进前端。Compose 将配置传给 API，并从 `DOMAIN` 取得预期主机名；前端从 API 读取公开 Site key，无需为换密钥单独重建。[免费方案](https://developers.cloudflare.com/turnstile/plans/)不按验证次数收费。
+
+安装器会在停止旧 API 前检查配置、占位值和测试密钥，API 启动时再次检查。本地预检无法证明真实密钥和 Cloudflare 面板中的域名配置正确：开放给顾客之前，应在真实域名的浏览器里提交一单，再接单并核对结果。我们不会向验证服务发送姓名、电话、地址或菜品内容。Cloudflare 故障时会阻止新提交，保留购物车和餐厅电话入口；已提交订单仍可找回。
+
+自托管部署若明确选择不使用外部验证，可设 `TURNSTILE_ENABLED=false`，IP、Cookie 和待接单名额限制仍然生效。开发与 Demo 默认已关闭。通知保持原样。升级已有服务器时，请先补齐这些配置，再运行新版本安装器。不要输出或公开 Secret key。
+
 #### `.env` 文件
 
 | 变量                  | 填什么                                                                                             |

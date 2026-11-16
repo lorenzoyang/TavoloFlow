@@ -1001,7 +1001,8 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
                 submitDb,
                 host.Clock,
                 OnlineTestData.NoPush,
-                OnlineTestData.SubmissionLimits
+                OnlineTestData.SubmissionLimits,
+                OnlineTestData.NoVerification
             ).SubmitAsync(
                 shop.Slug,
                 new OnlineRequestInput(

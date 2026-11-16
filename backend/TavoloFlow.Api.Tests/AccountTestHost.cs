@@ -38,7 +38,8 @@ public sealed class AccountTestHost(
     bool lowLimits = false,
     bool production = false,
     bool push = false,
-    Action<OnlineRateLimitOptions>? onlineLimits = null
+    Action<OnlineRateLimitOptions>? onlineLimits = null,
+    Action<TurnstileOptions>? verificationOptions = null
 ) : WebApplicationFactory<Program>
 {
     // The application server key of RFC 8291 Appendix A, so tests can compare with its public key.
@@ -52,6 +53,7 @@ public sealed class AccountTestHost(
 
     // Every push request goes here instead of the network, whether or not push is configured.
     public FakePushService PushService { get; } = new();
+    public FakeTurnstileService VerificationService { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -69,6 +71,14 @@ public sealed class AccountTestHost(
         builder.ConfigureServices(services =>
         {
             services.AddTransient<IStartupFilter, ClientIpStartupFilter>();
+            services.Configure<TurnstileOptions>(options =>
+            {
+                options.Enabled = false;
+                verificationOptions?.Invoke(options);
+            });
+            services
+                .AddHttpClient(OnlineVerification.HttpClientName)
+                .ConfigurePrimaryHttpMessageHandler(() => VerificationService);
             services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseNpgsql(database.ConnectionString)

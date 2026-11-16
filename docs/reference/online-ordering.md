@@ -201,7 +201,7 @@ Configure these through normal .NET configuration, for example
 `OnlineRateLimits__MaxWaitingPerIp=5` on the API process. With production Compose, pass an override
 through the API service’s `environment` section; adding it only to the host `.env` does not forward it. Frequency counters remain process-local and reset on restart;
 waiting slots are checked in PostgreSQL and apply across API instances. Neither controls notification
-behavior. There is no Turnstile integration or additional service dependency.
+behavior. Optional deployment-wide Turnstile verification is described below.
 
 `OnlineBrowser` uses Data Protection to sign a random 32-byte marker in the host-only
 `TavoloFlow.OnlineBrowser` cookie: HttpOnly, SameSite=Strict, path `/api/public`, Secure outside
@@ -238,6 +238,62 @@ These two source-cap codes prove the current ID was not stored and may free an u
 `RATE_LIMITED` and `ONLINE_BROWSER_REQUIRED` occur before that proof and must retain an unknown intent.
 GET recovery has its own budget and does not depend on the browser marker.
 
+### Turnstile verification
+
+Turnstile is deployment-wide, not a restaurant setting. `Turnstile:Enabled` defaults to true in
+Production and false elsewhere; explicit false keeps the local source/rate protections without
+loading any verification script or calling Cloudflare. When enabled, `SiteKey`, `SecretKey` and
+`Hostname` are required. Known official dummy key pairs are allowed only in Development; they omit
+action/cdata and return `example.com`, so only that recognized mode skips those response checks.
+Missing values, placeholders, unpaired test keys and production dummy keys fail startup.
+
+The menu bootstrap includes `turnstile: { siteKey } | null`. It never exposes the secret key.
+`POST .../requests` accepts the optional transport-only `turnstileToken` (at most 2048 characters when
+verification is enabled); it is not part of `OnlineIntent`, the saved cart or any order snapshot.
+The cart remains version 2. The service first validates business input, resolves the restaurant and
+looks for a committed original request. A found original returns without a provider call. Otherwise
+`OnlineVerification` calls the fixed HTTPS Siteverify endpoint outside every database transaction,
+with a five-second timeout, no redirects and no automatic retry. Only the secret and proof are sent;
+no customer contact, menu contents or recovery credentials are sent or logged.
+
+For real keys, success requires the configured hostname, `action=online_order`, and `cdata` equal to
+lowercase SHA-256 of UTF-8 `restaurantIdN:clientRequestIdN` (GUIDs without hyphens, lowercase). The
+frontend uses `@noble/hashes` SHA-256, including on plain-HTTP development phones; the server uses
+.NET SHA-256. Binding prevents one proof from creating orders with different IDs or restaurants,
+including during Cloudflare's token-redemption convergence window. The existing transaction then
+rechecks the original ID under the restaurant submission lock before source/menu checks and insert.
+There is no new database state or migration.
+
+Invalid, missing, expired or mismatched proofs return `ONLINE_VERIFICATION_FAILED` (400). Timeout,
+provider/network failure, invalid response or a provider-side secret error returns
+`ONLINE_VERIFICATION_UNAVAILABLE` (503). Neither code proves absence of another in-flight original:
+a first understood 400 frees its intent, while an unknown-result retry retains it; a 503 retains the
+intent like other server failures. These codes must not enter the after-duplicate-check rejection list.
+No failed verification allocates a number, waiting slot or notification.
+
+The widget is loaded only in checkout or an unknown-intent cart. A request ID is prepared before
+verification, but the complete intent is still saved only immediately before POST. The Managed
+widget uses flexible width, light theme and the customer's interface language. A proof expires or
+is cleared after a submission attempt; key, language, request or component changes invalidate old
+callbacks. Failed loading/rendering offers retry and the restaurant's phone. It never automatically
+posts an order. GET recovery is independent; manual retry first GETs the original, and only a 404
+allows the same saved intent to be retried with a fresh proof. Browsing and status/privacy pages do
+not load the script. Privacy copy explains the optional Cloudflare communication.
+
+Production Compose passes `TURNSTILE_ENABLED` (default true), `TURNSTILE_SITE_KEY` and
+`TURNSTILE_SECRET_KEY`; the expected hostname comes from `DOMAIN`, not the request's Host header.
+Create one Managed widget for that host, without pre-clearance; no DNS/CDN migration is needed.
+`validate-turnstile.py` checks configuration offline before the installer loads an image or stops an
+installed API. It cannot verify a key's authenticity or the dashboard's hostname settings: perform a
+real-browser check with real keys before accepting customers. Infrastructure smoke tests explicitly
+disable verification and separately test failed preflight without stopping the existing API.
+
+Tests: `OnlineVerificationTests` and `FakeTurnstileService` cover proof binding/replay, provider
+errors, configuration, recovery, concurrency without provider-held database locks and notifications;
+`tests/verification.test.ts` covers the cross-runtime binding vector and stale proof contexts.
+See [Cloudflare validation](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/)
+and [testing](https://developers.cloudflare.com/turnstile/troubleshooting/testing/).
+
 ### Menu and submission contracts
 
 The bootstrap reads restaurant, hours, waiting count and `MenuReader` in one Repeatable Read
@@ -253,7 +309,7 @@ restaurant has it and its `valid_until` has not passed in the restaurant's local
 `RATE_LIMITED`), so codes cannot be guessed by trying them all.
 
 The submission body is `{ clientRequestId, fulfillment, customerName, customerPhone, deliveryAddress?,
-deliveryNotes?, items, coupon? }`, unknown fields rejected; `items` uses the QR order line format and the shared
+deliveryNotes?, items, coupon?, turnstileToken? }`, unknown fields rejected; `items` uses the QR order line format and the shared
 `OrderLines` checks (1–30 lines, 1–20 portions each, 100 in all, 200-character remarks, `optionIds`
 required). The name is trimmed to 1–30 characters and the phone follows `InputRules.NormalizePhone`.
 Pickup takes no address; delivery needs a trimmed address of 1–200 characters and takes optional
@@ -262,7 +318,9 @@ check confirmed and the percentage the customer saw, both required (a malformed 
 `VALIDATION_FAILED`). The server then:
 
 1. Validates the format (`VALIDATION_FAILED`) before any write.
-2. Finds the restaurant by slug and locks it SHARE, rechecking the slug.
+2. Finds the restaurant by slug and checks a committed original, then verifies a new request outside
+   all locks when Turnstile is enabled. Begins the transaction and locks the restaurant SHARE,
+   rechecking the slug.
 3. Acquires the restaurant's transaction advisory submission lock, keyed by `hashtextextended` of
    `tavoloflow:online-submission:` plus the restaurant ID. Only then reads time and the local business
    date and takes the next number with `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` on

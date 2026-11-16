@@ -38,6 +38,10 @@ services:
       # Lock-screen push for new online orders: the VAPID private key and the contact push services see.
       WebPush__PrivateKey: ${VAPID_PRIVATE_KEY:?Set VAPID_PRIVATE_KEY to 64 hex characters (openssl rand -hex 32)}
       WebPush__Subject: https://${DOMAIN}
+      Turnstile__Enabled: ${TURNSTILE_ENABLED:-true}
+      Turnstile__SiteKey: ${TURNSTILE_SITE_KEY:-}
+      Turnstile__SecretKey: ${TURNSTILE_SECRET_KEY:-}
+      Turnstile__Hostname: ${DOMAIN}
       Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Warning
     volumes:
       - protection_keys:/var/tavoloflow/keys

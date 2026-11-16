@@ -45,7 +45,8 @@ public sealed class OnlineConcurrencyTests(PostgreSqlFixture database)
             originalDb,
             clock,
             OnlineTestData.NoPush,
-            OnlineTestData.SubmissionLimits
+            OnlineTestData.SubmissionLimits,
+            OnlineTestData.NoVerification
         ).SubmitAsync(shop.Slug, body, OnlineTestData.Source(), default);
         Task<OnlineSubmission>? retry = null;
         try
@@ -56,7 +57,8 @@ public sealed class OnlineConcurrencyTests(PostgreSqlFixture database)
                 retryDb,
                 clock,
                 OnlineTestData.NoPush,
-                OnlineTestData.SubmissionLimits
+                OnlineTestData.SubmissionLimits,
+                OnlineTestData.NoVerification
             ).SubmitAsync(shop.Slug, body, OnlineTestData.Source(), default);
             await retryGate.Attempted.Task.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.False(retry.IsCompleted);
@@ -135,7 +137,8 @@ public sealed class OnlineConcurrencyTests(PostgreSqlFixture database)
             firstDb,
             clock,
             OnlineTestData.NoPush,
-            OnlineTestData.SubmissionLimits
+            OnlineTestData.SubmissionLimits,
+            OnlineTestData.NoVerification
         ).SubmitAsync(shop.Slug, Submission(shop), OnlineTestData.Source(), default);
         Task<OnlineSubmission>? next = null;
         try
@@ -146,7 +149,8 @@ public sealed class OnlineConcurrencyTests(PostgreSqlFixture database)
                 nextDb,
                 clock,
                 OnlineTestData.NoPush,
-                OnlineTestData.SubmissionLimits
+                OnlineTestData.SubmissionLimits,
+                OnlineTestData.NoVerification
             ).SubmitAsync(shop.Slug, Submission(shop), OnlineTestData.Source(), default);
             await waiting.Attempted.Task.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.False(next.IsCompleted);
@@ -158,7 +162,8 @@ public sealed class OnlineConcurrencyTests(PostgreSqlFixture database)
                         otherDb,
                         clock,
                         OnlineTestData.NoPush,
-                        OnlineTestData.SubmissionLimits
+                        OnlineTestData.SubmissionLimits,
+                        OnlineTestData.NoVerification
                     )
                         .SubmitAsync(
                             other.Slug,

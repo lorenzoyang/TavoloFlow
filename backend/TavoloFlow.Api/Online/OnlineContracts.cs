@@ -78,6 +78,20 @@ public sealed record OnlineSettingsResponse(
 
 public static class OnlineErrors
 {
+    public static ApiException VerificationFailed() =>
+        new(
+            400,
+            "ONLINE_VERIFICATION_FAILED",
+            "Complete a fresh security verification before submitting."
+        );
+
+    public static ApiException VerificationUnavailable() =>
+        new(
+            503,
+            "ONLINE_VERIFICATION_UNAVAILABLE",
+            "Security verification is temporarily unavailable. Check the original result before retrying."
+        );
+
     public static ApiException BrowserRequired() =>
         new(
             400,

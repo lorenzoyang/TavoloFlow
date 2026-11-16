@@ -287,6 +287,16 @@ Then open <http://localhost:5173/staff/login>, or `/platform/login`.
 
 - **Push recovery checks.** With push configured and enabled in a production/preview build, simulate a failed subscription PUT: Home must show failure, not “on”. Restore the network and return to the app: registration must recover without another permission prompt. A failed device deletion during logout must leave you signed in with retry available. After successful logout, a new order must notify only the remaining devices; signing in again restores this device. Already-sent notifications may still arrive.
 
+### Trying Turnstile in development
+
+Development and Demo work without a Cloudflare account. To try verification in Development, set `Turnstile__Enabled=true`, `Turnstile__SiteKey=1x00000000000000000000AA` and `Turnstile__SecretKey=1x0000000000000000000000000000000AA` in the API environment. This official pair always passes; it requires internet but works on localhost and local-network phones. Never use test keys in production.
+
+The widget appears only at confirmation or recovery of an uncertain submission. Use the [other official keys](https://developers.cloudflare.com/turnstile/troubleshooting/testing/) for failure, interaction and spent-token scenarios. Integration tests mock the provider and need no real keys or network. Only recognized test pairs in Development accept the official response with `example.com` and no action/cdata; real keys also check hostname, action and request binding. Real keys in development also need `Turnstile__Hostname` and that hostname authorized in the dashboard.
+
+Check that missing, expired or failed verification blocks a new submission, preserves cart and fields, and offers retry or calling. An unknown result must stay recoverable through GET; manual retry checks the original order first. Never reuse a token after submitting. Check 360px in all three languages.
+
+[360px example: the app notice when the provider is unavailable](../images/online-verification-en.webp) (mocked SDK; this does not depict the Cloudflare widget).
+
 ## Part 3: tests and checks
 
 ### Backend

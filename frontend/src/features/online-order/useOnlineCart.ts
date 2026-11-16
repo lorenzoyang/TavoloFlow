@@ -77,6 +77,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
   const [review, setReview] = useState<OnlineCart | null>(null);
   const [form, setForm] = useState<CheckoutForm>(emptyCheckoutForm);
   const [busy, setBusy] = useState(false);
+  const [requestId, setRequestId] = useState<string | null>(null);
   const current = useRef(cart);
   const live = useRef(data);
   useLayoutEffect(() => {
@@ -223,6 +224,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
       const next = refreshCart(current.current, latest.menu.items, latest.menu.optionGroups);
       remember(next);
       setReview(next);
+      setRequestId(randomUuid());
       // Delivery was turned off since the customer chose it: back to pickup, and say why.
       if (form.fulfillment === "DELIVERY" && !latest.restaurant.deliveryEnabled) {
         setForm({ ...form, fulfillment: "PICKUP" });
@@ -263,7 +265,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     }
   }
 
-  async function send(retry: boolean) {
+  async function send(retry: boolean, turnstileToken: string | null) {
     if (blocked || !isLive()) return;
     if (!retry && checkoutBlocked) return;
     if ((!retry && (!review || current.current.pending)) || (retry && !current.current.pending))
@@ -273,14 +275,35 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     let sending = false;
     try {
       let pending = current.current.pending;
+      if (retry && pending) {
+        // A saved result is recoverable even while the verification provider is unavailable.
+        try {
+          const result = await readSubmission(slug, pending.clientRequestId, work.signal);
+          if (work.active()) success(result);
+          return;
+        } catch (error) {
+          if (!(
+            error instanceof ApiError &&
+            error.status === 404 &&
+            error.code === "ONLINE_REQUEST_NOT_FOUND"
+          ))
+            throw error;
+          if (!work.active()) return;
+        }
+      }
+      if (live.current.turnstile && !turnstileToken) {
+        setMessage("verificationRequired");
+        return;
+      }
       if (!retry) {
-        pending = createOnlineIntent(review!, form, randomUuid());
+        if (!requestId) return;
+        pending = createOnlineIntent(review!, form, requestId);
         if (!remember({ ...review!, pending }, true)) return;
       }
       // A manual replay also needs durable storage; never silently rebuild a lost intent.
       if (retry && !remember(current.current, true)) return;
       sending = true;
-      const result = await submitOnlineRequest(slug, pending!, work.signal);
+      const result = await submitOnlineRequest(slug, pending!, work.signal, turnstileToken);
       if (work.active()) success(result);
     } catch (e) {
       if (!work.active()) return;
@@ -328,6 +351,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
   }
 
   return {
+    verificationRequestId: cart.pending?.clientRequestId ?? requestId,
     waitingOrder: context.data?.pending ?? null,
     contextFailed: context.isError,
     contextChecking: !context.data && !context.isError,
@@ -352,8 +376,8 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     removeCoupon: () => {
       if (!current.current.pending) setForm((value) => ({ ...value, coupon: null }));
     },
-    confirm: () => send(false),
-    retry: () => send(true),
+    confirm: (token: string | null) => send(false, token),
+    retry: (token: string | null) => send(true, token),
     recover,
     back: () => setReview(null),
   };

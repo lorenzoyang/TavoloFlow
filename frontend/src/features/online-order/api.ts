@@ -26,6 +26,7 @@ export type OnlineMenu = {
     deliveryNoteIt: string | null;
     deliveryNoteEn: string | null;
   };
+  turnstile: { siteKey: string } | null;
   status: OnlineStatus;
   // Only with CLOSED_HOURS, and null when the week has no slots.
   nextOpensAt: string | null;
@@ -125,8 +126,17 @@ export const readCoupon = (slug: string, code: string, signal: AbortSignal) =>
     signal,
   });
 
-export const submitOnlineRequest = (slug: string, intent: OnlineIntent, signal: AbortSignal) =>
-  publicWrite<OnlineSubmission>(`${linkPath(slug)}/requests`, intent, signal);
+export const submitOnlineRequest = (
+  slug: string,
+  intent: OnlineIntent,
+  signal: AbortSignal,
+  turnstileToken: string | null = null,
+) =>
+  publicWrite<OnlineSubmission>(
+    `${linkPath(slug)}/requests`,
+    { ...intent, turnstileToken },
+    signal,
+  );
 
 // Recovery after an unknown result: GET only, by the request ID this tab saved before sending.
 export const readSubmission = (slug: string, clientRequestId: string, signal: AbortSignal) =>

@@ -41,6 +41,7 @@ curve_order=int('FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC63255
 if not 0 < int(values['VAPID_PRIVATE_KEY'],16) < curve_order:
     sys.exit('VAPID_PRIVATE_KEY is not a valid P-256 private key; generate another with openssl rand -hex 32.')
 PY
+python3 "$package/ops/validate-turnstile.py" "$TF_ROOT/.env"
 chmod 600 "$TF_ROOT/.env"
 docker load -i "$package/api-image.tar.gz"
 [[ "$(docker image inspect --format '{{.Id}}' "tavoloflow-api:$release")" == "$(cat "$package/image.id")" ]] || fail 'Loaded image ID differs from the manifest.'

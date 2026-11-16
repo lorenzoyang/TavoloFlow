@@ -419,6 +419,24 @@ Here `install` doesn't install packages: it copies a file and sets its owner and
 
 **Never run the line that creates `.env` again** in later releases: you would overwrite the configuration with the empty template.
 
+#### Turnstile verification for online orders
+
+Production enables Turnstile by default. In the Cloudflare dashboard open **Turnstile → Add widget**: choose **Managed**, authorize the exact hostname in `DOMAIN` (without `https://`, ports or paths) and leave **Pre-clearance** off. No DNS, proxy or hosting migration is needed; restaurants on the same host share the widget.
+
+Add to the server’s `.env`:
+
+```dotenv
+TURNSTILE_ENABLED=true
+TURNSTILE_SITE_KEY=PUBLIC_KEY_FROM_CLOUDFLARE
+TURNSTILE_SECRET_KEY=SECRET_KEY_FROM_CLOUDFLARE
+```
+
+Replace these values with both complete widget keys; they are not generated with `openssl`. Keep the secret in the protected `.env`, never Git or frontend code. Compose forwards the settings to the API and derives the expected hostname from `DOMAIN`; the frontend gets only the public key from the API, with no dedicated rebuild. The [free plan](https://developers.cloudflare.com/turnstile/plans/) does not charge per verification.
+
+The installer checks configuration, placeholders and test keys before stopping the existing API; the API checks again on startup. Offline validation cannot confirm the actual keys or dashboard hostnames: before opening to customers, place an order in a browser on the real domain, accept it and check the result. Names, phones, addresses and dishes are not sent to the verifier. During a Cloudflare outage new submissions stay blocked with carts preserved and the restaurant’s phone available; recovery of previously submitted orders still works.
+
+An installation explicitly choosing to omit this verifier may set `TURNSTILE_ENABLED=false`; IP, cookie and waiting-slot protection remains. Development and Demo already default to disabled. Notifications are unchanged. When upgrading an existing server, add the settings before running the new installer. Do not print or publish the secret key.
+
 #### The `.env` file
 
 | Variable            | What to write                                                                                                      |

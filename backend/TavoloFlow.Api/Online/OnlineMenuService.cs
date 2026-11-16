@@ -1,5 +1,6 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Menus;
@@ -7,7 +8,11 @@ using TavoloFlow.Api.Menus;
 namespace TavoloFlow.Api.Online;
 
 // The anonymous online menu: the same menu as the QR page, plus whether customers can order now.
-public sealed class OnlineMenuService(ApplicationDbContext db, TimeProvider clock)
+public sealed class OnlineMenuService(
+    ApplicationDbContext db,
+    TimeProvider clock,
+    IOptions<TurnstileOptions> verification
+)
 {
     public async Task<OnlineMenuResponse> ReadAsync(string slug, CancellationToken ct)
     {
@@ -43,7 +48,8 @@ public sealed class OnlineMenuService(ApplicationDbContext db, TimeProvider cloc
             ),
             availability.Status,
             availability.NextOpensAt,
-            new(menu.AvailableLanguages, menu.Categories, menu.Items, menu.OptionGroups)
+            new(menu.AvailableLanguages, menu.Categories, menu.Items, menu.OptionGroups),
+            verification.Value.Public
         );
     }
 

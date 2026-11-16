@@ -150,7 +150,8 @@ public sealed class OnlineAbuseTests(PostgreSqlFixture database) : IClassFixture
                             db,
                             clock,
                             NoPush,
-                            SubmissionLimits
+                            SubmissionLimits,
+                            NoVerification
                         ).SubmitAsync(shop.Slug, Body(shop), source, default);
                         Assert.True(result.Created);
                         return "CREATED";

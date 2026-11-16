@@ -77,6 +77,12 @@ const zh = {
   deliveryOff: "餐厅现在不提供配送，可以改为到店自取。",
   csrf: "页面验证已过期，请再提交一次。",
   rateLimited: "提交次数太多，请稍后再试。",
+  verificationRequired: "请完成安全验证后再提交；查询原订单不需要验证。",
+  verificationReady: "安全验证已完成。",
+  verificationFailed: "安全验证已失效或未通过，请重新验证。",
+  verificationUnavailable:
+    "安全验证暂时不可用。购物车已保留，请重试或致电餐厅；已提交的订单仍可查询。",
+  verificationRetry: "重新验证",
   notFound: "还没有查到结果。这不表示订单失败，可以稍后再查，或重试原来的订单。",
   offline: "网络或结果无法确认。请恢复网络后查询原来的订单结果。",
   generic: "操作没有完成。请检查网络，或致电餐厅。",
@@ -152,7 +158,7 @@ const zh = {
     },
     {
       heading: "浏览器存储",
-      body: "本页只使用技术上必需的存储：购物车、语言选择、订单状态链接、防伪验证 Cookie 和防止重复占位的浏览器 Cookie（30 天）。服务器还保存按餐厅区分的浏览器及 IP 来源摘要，用于限制待接单占位，并随超过 30 天的联系信息清除。没有统计、广告或第三方追踪。",
+      body: "本页只使用技术上必需的存储：购物车、语言选择、订单状态链接、防伪验证 Cookie 和防止重复占位的浏览器 Cookie（30 天）。服务器还保存按餐厅区分的浏览器及 IP 来源摘要，用于限制待接单占位，并随超过 30 天的联系信息清除。没有统计或广告。若启用了安全验证，结账时浏览器会与 Cloudflare Turnstile 通信，用于防止自动刷单；我们只发送验证凭证及餐厅与请求的绑定摘要，不发送姓名、电话、地址或菜品内容。",
     },
   ],
 };
@@ -245,6 +251,13 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     deliveryOff: "Ora il ristorante non fa consegne: puoi scegliere il ritiro.",
     csrf: "La verifica della pagina è scaduta: invia di nuovo.",
     rateLimited: "Troppi invii: riprova tra poco.",
+    verificationRequired:
+      "Completa la verifica prima di inviare. Per controllare l’ordine precedente non serve.",
+    verificationReady: "Verifica completata.",
+    verificationFailed: "Verifica scaduta o non riuscita. Ripetila prima di inviare.",
+    verificationUnavailable:
+      "Verifica non disponibile. Il carrello è conservato: riprova o chiama il ristorante. Puoi ancora controllare un ordine già inviato.",
+    verificationRetry: "Ripeti verifica",
     notFound:
       "Ancora nessun esito. Non significa che l’ordine sia fallito: puoi verificare più tardi o riprovare lo stesso ordine.",
     offline:
@@ -327,7 +340,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       },
       {
         heading: "Memoria del browser",
-        body: "Questa pagina usa solo la memoria tecnicamente necessaria: carrello, lingua scelta, link allo stato dell’ordine, cookie anti-falsificazione e cookie del browser per limitare gli ordini in attesa (30 giorni). Il server conserva impronte del browser e dell’IP separate per ristorante per limitare gli ordini in attesa, cancellate insieme ai contatti più vecchi di 30 giorni. Nessuna statistica, pubblicità o tracciamento di terzi.",
+        body: "Questa pagina usa solo la memoria tecnicamente necessaria: carrello, lingua scelta, link allo stato dell’ordine, cookie anti-falsificazione e cookie del browser per limitare gli ordini in attesa (30 giorni). Il server conserva impronte del browser e dell’IP separate per ristorante per limitare gli ordini in attesa, cancellate insieme ai contatti più vecchi di 30 giorni. Nessuna statistica o pubblicità. Se la verifica di sicurezza è attiva, alla cassa il browser comunica con Cloudflare Turnstile contro gli invii automatici. Inviamo solo la prova e un’impronta del ristorante e della richiesta, senza nome, telefono, indirizzo o piatti.",
       },
     ],
   },
@@ -414,6 +427,13 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     deliveryOff: "The restaurant isn’t delivering right now; you can choose pickup.",
     csrf: "The page check expired. Please send again.",
     rateLimited: "Too many attempts. Try again shortly.",
+    verificationRequired:
+      "Complete verification before submitting. Checking your existing order needs no verification.",
+    verificationReady: "Verification complete.",
+    verificationFailed: "Verification expired or failed. Complete it again before submitting.",
+    verificationUnavailable:
+      "Verification is unavailable. Your cart is saved: retry or call the restaurant. You can still check an order already submitted.",
+    verificationRetry: "Retry verification",
     notFound:
       "No result found yet. That doesn’t mean the order failed: check again later or retry the same order.",
     offline:
@@ -494,7 +514,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       },
       {
         heading: "Browser storage",
-        body: "This page uses only technically necessary storage: the cart, your language, the order status link, the anti-forgery cookie and a browser cookie to limit waiting orders (30 days). The server also stores restaurant-specific browser and IP digests to limit waiting orders, cleared along with contact data older than 30 days. No analytics, advertising or third-party tracking.",
+        body: "This page uses only technically necessary storage: the cart, your language, the order status link, the anti-forgery cookie and a browser cookie to limit waiting orders (30 days). The server also stores restaurant-specific browser and IP digests to limit waiting orders, cleared along with contact data older than 30 days. No analytics or advertising. When security verification is enabled, the checkout browser communicates with Cloudflare Turnstile to prevent automated orders. We send only the proof and a restaurant/request binding digest, not names, phones, addresses or dishes.",
       },
     ],
   },
@@ -514,6 +534,9 @@ export type OnlineOrderMessage =
   | "invalid"
   | "csrf"
   | "rateLimited"
+  | "verificationRequired"
+  | "verificationFailed"
+  | "verificationUnavailable"
   | "browserPending"
   | "ipWaitingLimit"
   | "browserRequired"
@@ -543,6 +566,8 @@ export const onlineOrderError = (code: string): OnlineOrderMessage =>
       VALIDATION_FAILED: "invalid",
       CSRF_VALIDATION_FAILED: "csrf",
       RATE_LIMITED: "rateLimited",
+      ONLINE_VERIFICATION_FAILED: "verificationFailed",
+      ONLINE_VERIFICATION_UNAVAILABLE: "verificationUnavailable",
       ONLINE_BROWSER_PENDING: "browserPending",
       ONLINE_IP_WAITING_LIMIT: "ipWaitingLimit",
       ONLINE_BROWSER_REQUIRED: "browserRequired",

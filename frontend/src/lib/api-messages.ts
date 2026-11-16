@@ -55,6 +55,8 @@ const zhErrors = {
   COUPON_LIMIT: "每家餐厅最多保留 50 张优惠券，请先删除不用的。",
   ONLINE_REQUEST_CHANGED: "这个线上订单已被处理或已超时，请刷新列表。",
   ONLINE_REQUEST_NOT_FOUND: "线上订单不存在。",
+  ONLINE_VERIFICATION_FAILED: "安全验证已失效或未通过，请重新验证。",
+  ONLINE_VERIFICATION_UNAVAILABLE: "安全验证暂时不可用，请查询原订单后再重试，或致电餐厅。",
   ONLINE_BROWSER_REQUIRED: "请允许本站 Cookie 后刷新页面再下单。",
   ONLINE_BROWSER_PENDING: "这个浏览器已有订单等待接单，请先查看原订单。",
   ONLINE_IP_WAITING_LIMIT: "这个网络下等待接单的订单太多，请稍后再试。",
@@ -128,6 +130,9 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
       "Un ristorante può tenere al massimo 50 codici sconto: eliminane uno che non usi.",
     ONLINE_REQUEST_CHANGED: "L’ordine online è già stato gestito o è scaduto: aggiorna l’elenco.",
     ONLINE_REQUEST_NOT_FOUND: "Ordine online non trovato.",
+    ONLINE_VERIFICATION_FAILED: "Verifica scaduta o non riuscita: ripetila.",
+    ONLINE_VERIFICATION_UNAVAILABLE:
+      "Verifica non disponibile: controlla l’ordine precedente prima di riprovare o chiama il ristorante.",
     ONLINE_BROWSER_REQUIRED: "Consenti i cookie di questo sito e ricarica prima di ordinare.",
     ONLINE_BROWSER_PENDING:
       "Questo browser ha già un ordine in attesa: controlla l’ordine precedente.",
@@ -206,6 +211,9 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
     ONLINE_REQUEST_CHANGED:
       "This online order was already handled or has expired: refresh the list.",
     ONLINE_REQUEST_NOT_FOUND: "Online order not found.",
+    ONLINE_VERIFICATION_FAILED: "Verification expired or failed. Complete it again.",
+    ONLINE_VERIFICATION_UNAVAILABLE:
+      "Verification is unavailable. Check the original order before retrying, or call the restaurant.",
     ONLINE_BROWSER_REQUIRED: "Allow this site’s cookies and reload before ordering.",
     ONLINE_BROWSER_PENDING:
       "This browser already has an order awaiting acceptance: check it first.",
