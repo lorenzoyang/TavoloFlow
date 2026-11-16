@@ -109,6 +109,8 @@ const zh = {
         ? "可选 · 单选"
         : `可选 · 最多 ${max} 项`,
   usedByCount: (count: number) => (count ? `${count} 道菜使用` : "尚未用于菜品"),
+  optionCount: (count: number) => `${count} 个选项`,
+  soldOutCount: (count: number) => `${count} 个已售罄`,
   required: "顾客必须选择",
   requiredHint: "打开后，顾客至少选一项才能加入购物车。",
   maxSelect: "最多可选",
@@ -267,6 +269,8 @@ export const menuMessages: Record<Language, typeof zh> = {
           : `Facoltativo · fino a ${max}`,
     usedByCount: (count) =>
       count ? `Usato da ${count} ${count === 1 ? "piatto" : "piatti"}` : "Non ancora usato",
+    optionCount: (count) => `${count} ${count === 1 ? "opzione" : "opzioni"}`,
+    soldOutCount: (count) => `${count} ${count === 1 ? "esaurita" : "esaurite"}`,
     required: "Scelta obbligatoria",
     requiredHint: "Se attiva, il cliente deve sceglierne almeno una per aggiungere il piatto.",
     maxSelect: "Scelte massime",
@@ -427,6 +431,8 @@ export const menuMessages: Record<Language, typeof zh> = {
           : `Optional · up to ${max}`,
     usedByCount: (count) =>
       count ? `Used by ${count} ${count === 1 ? "dish" : "dishes"}` : "Not used yet",
+    optionCount: (count) => `${count} ${count === 1 ? "option" : "options"}`,
+    soldOutCount: (count) => `${count} sold out`,
     required: "Guests must choose",
     requiredHint: "When on, guests choose at least one before adding the dish.",
     maxSelect: "Maximum choices",
