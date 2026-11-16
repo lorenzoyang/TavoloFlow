@@ -191,7 +191,7 @@ The backend is a single project, `backend/TavoloFlow.Api/`, organized by topic r
 | `Kitchen/`           | the Kitchen queue, dish ready or cancelled, the Pass, with the names of online orders                                                                                                                                                                                    |
 | `Billing/`           | the bill, the four closures (`PAID`, `VOIDED`, `EMPTY` and, online only, `NO_SHOW`), delivery fee correction, Bill history                                                                                                                                               |
 | `Platform/`          | administrator area: restaurants, services and online link, accounts, subscriptions                                                                                                                                                                                       |
-| `Online/`            | online ordering: settings (phone, hours, pause, delivery), the customer's menu and submission, the status page, acceptance and rejection; the single rules `OnlineAvailability` (can customers order now?) and `OnlineRequestState` (is the request waiting or expired?) |
+| `Online/`            | online ordering: settings, menu, submission and recovery, acceptance and rejection; `OnlineAvailability` decides whether ordering is allowed and `OnlineRequestState` handles waiting and expiry; browser/IP source limits and Turnstile verification through `OnlineVerification` |
 | `Push/`              | lock-screen notifications: the VAPID key, device subscriptions, the in-memory queue and sending (`PushSender`, the only `BackgroundService`)                                                                                                                             |
 | `Data/`, `Entities/` | `ApplicationDbContext`, the EF Core mappings and migrations, the row locks (`RowLocks`), the deletion service; the 18 entities                                                                                                                                           |
 
@@ -332,9 +332,9 @@ Cookie paths help too: the browser sends the Guest cookie only to requests under
 - Store and Platform: the cookie contains the account ID, the role and the credential version (`credential_version`), plus the restaurant ID for staff. On every request `ValidatePrincipal` rereads the account from the database: if it has been deactivated or the version has changed (password change or reset), the cookie is rejected. So changing a password signs out all other devices immediately.
 - Guest: the cookie contains restaurant, table and visit, plus a random identifier generated at every join, to which the CSRF token is bound. It only proves that "this browser joined this visit"; whether the visit is still open is checked by every guest service, on every request. After closing, the cookie stays in the browser, but every request answers `SESSION_CLOSED`.
 
-**The online customer has no identity.** The `/r/{slug}` and `/o/{token}` pages use no login cookie: to find their order again, two random values known only to that device are enough, the `clientRequestId` for recovery after a network error and the status page token. Submitting, however, is a write, so it needs its CSRF token, requested from `/api/public/csrf` and bound to the Guest scope.
+**Online customers have no login identity.** The `/r/{slug}` and `/o/{token}` pages use no login cookie: recovery relies on the random `clientRequestId` after a network failure and the order status token. Submission requires a Guest-scoped CSRF token from `/api/public/csrf` and the `TavoloFlow.OnlineBrowser` cookie. The latter is only a server-signed random browser marker used to limit waiting orders at the same restaurant; it does not mean the customer is signed in or their phone is verified. With Turnstile enabled, new submissions also require a verification proof.
 
-**In the frontend**, `lib/api.ts` has a family of functions for each identity: `request`/`write` for staff, `publicRequest` for anonymous reads (without cookies, like the public menu), `publicWrite` for the anonymous online order submission (it sends only the CSRF cookie), `guestRequest`/`guestWrite` for the table guest and `platformRequest`/`platformWrite` for the administrator. Each write first asks its own identity's `csrf` endpoint for a fresh CSRF token and sends it in the `X-CSRF-TOKEN` header.
+**In the frontend**, `lib/api.ts` has a family of functions for each identity: `request`/`write` for staff, `publicRequest` for anonymous reads (without cookies, such as the public menu, order recovery and status), `publicWrite` for anonymous online submissions (same-origin requests carrying CSRF and browser-marker cookies), `guestRequest`/`guestWrite` for table guests, and `platformRequest`/`platformWrite` for administrators. The online `ordering-context` query also carries same-origin cookies to find this browser’s waiting order at this restaurant. Before each write, the frontend requests a fresh CSRF token from its identity’s `csrf` endpoint and sends it in the `X-CSRF-TOKEN` header.
 
 Why cookies and not JWT tokens, and how the CSRF protection works, I explain in "Cookies, CSRF and same-origin".
 
@@ -399,15 +399,35 @@ sequenceDiagram
   actor T as Owner (Bill)
   participant A as API
   participant D as PostgreSQL
+  participant V as Cloudflare Turnstile
   participant P as Push services
 
   C->>A: GET /api/public/r/{slug}/bootstrap (anonymous)
-  A-->>C: restaurant, menu and online ordering status
-  C->>A: POST /api/public/r/{slug}/requests (clientRequestId, name, phone, lines)
-  A->>D: lock restaurant (SHARE), the restaurant's submission lock, the day's counter
-  A->>D: if clientRequestId already exists returns that request, otherwise saves it, waiting for 10 minutes
-  A-->>C: number, expiry and status page token
-  A-)P: after the commit, "New online order" to the subscribed devices
+  A-->>C: Restaurant, menu, ordering status and public verification settings
+  C->>A: GET ordering-context (browser cookie)
+  A-->>C: This browser’s waiting order at this restaurant, if any
+  Note over C: Prepare clientRequestId at confirmation
+  opt Verification enabled
+    C->>V: Load widget and complete verification bound to this request
+    V-->>C: Verification proof
+  end
+  Note over C: Save the full intent before POST, without the proof
+  C->>A: POST requests (clientRequestId, form, dishes, turnstileToken)
+  A->>D: Look for a committed result with this clientRequestId
+  alt Already exists
+    A-->>C: Original order result, without calling verification
+  else Not found yet
+    opt Verification enabled
+      A->>V: Validate proof through Siteverify, without database locks
+      V-->>A: Result, hostname, action and request binding
+    end
+    A->>D: Transaction: restaurant lock, submission lock, daily counter, duplicate recheck
+    A->>D: First submission only, check source slots, availability and menu, save for 10 minutes
+    A-->>C: Number, expiry and order status token
+    opt First submission succeeded and transaction committed
+      A-)P: Send new online order notification to subscribed devices
+    end
+  end
   loop every 10 seconds
     S->>A: GET /api/staff/online/pending (banner and Online orders)
   end
@@ -421,7 +441,7 @@ sequenceDiagram
 ```
 
 1. **Menu.** The `/r/{slug}` page reads without cookies the restaurant, the menu and the online ordering status, computed by a single rule (`OnlineAvailability`): service suspended, online ordering off or phone missing, paused, outside hours, too many waiting orders, or open. If it isn't open, the customer can browse the menu but not check out.
-2. **Submission.** As at the table, the frontend saves the whole intention with a `clientRequestId` in `sessionStorage`, and only then sends the POST. The backend takes the locks, assigns the day's number and first of all looks for a request with the same ID: if there is one, it returns it and rolls back the transaction, so the number isn't used up. Otherwise it checks the status, delivery, any coupon code, the dishes and the prices again and saves the request, with a copy of the code and its percentage, which waits for 10 minutes. The customer moves to the status page.
+2. **Submission.** At confirmation, the frontend first generates `clientRequestId` so Turnstile can bind verification to this request. The full intent is still saved to `sessionStorage` only before POST; the proof travels with the request and is not saved. The backend first looks for the committed original and returns it if found. Otherwise it verifies outside the transaction, then starts a transaction, locks the restaurant, acquires the submission lock and daily counter, and checks duplicates again. A duplicate returns the original result and rolls back the counter, so no new number is consumed. A first submission also checks browser/IP waiting slots, availability, delivery, coupons, dishes and prices, then saves the request, including a copy of the coupon code and discount percentage, to wait for acceptance for 10 minutes. The customer opens the status page.
 3. **Alert.** Only after the commit does the order number enter an in-memory queue, and a background service sends the push notifications. Staff with the app open see it anyway from the banner, which asks the server every 10 seconds and rings while an order waits for acceptance.
 4. **Acceptance.** The staff choose when it will be ready (for delivery, the fee first). The backend locks the request, checks that it is still waiting and, in the same transaction, creates the visit (`PICKUP` or `DELIVERY`), its only order and the lines, copied from the request. The order is born at that moment, so for the Kitchen it is a new order like the others, and it rings. If the staff reject it instead, or nobody answers in time, nothing is born: the request stays rejected or expired.
 5. **Kitchen, Pass and bill.** From here everything goes as for a table: dishes ready or cancelled, "Served" from the Pass (for a delivery it means handed to whoever delivers), and the owner closes the bill at pickup or on delivery; if the customer doesn't show up, they close it as `NO_SHOW`. The customer's status page refreshes every 10 seconds until the order ends.
@@ -541,7 +561,11 @@ The two techniques complement each other: the pessimistic lock protects the mill
 
 The frontend never resends the POST by itself. After an unknown result it looks for the order with a GET (`/api/public/sessions/{id}/orders/by-request/{requestId}`); the guest can check again with "Check order result" or tap "Retry original order", which resends the same ID with exactly the same content. It is always the guest who decides.
 
-Online orders use the same idea, with a few differences. The `clientRequestId` is unique per restaurant (`uq_online_request_client_request`), and the backend looks for it after taking the day's number: a repeat returns the original request and rolls back the transaction, so numbers have no gaps. Recovery is a GET by ID (`/api/public/r/{slug}/requests/by-client-id/{id}`): only that phone knows the random ID, and it is the credential. Then there is a deliberate difference. If a retry after an unknown result is rejected for a reason the backend checks only after looking up the ID (for example orders paused, outside hours, too many waiting orders, delivery off or the menu changed), that rejection proves the first request doesn't exist, and the cart is released. For table orders the rule stays the cautious one described above.
+Online orders follow the same idea, with a few differences. `clientRequestId` is unique within a restaurant (`uq_online_request_client_request`). The backend first looks for a committed result before external verification. If it is not found, verification runs, then a second duplicate check runs under the locks after taking the daily number. A duplicate found at this point rolls back the counter too, leaving no numbering gap. Not finding a result in the first lookup does not mean another submission still in flight has failed.
+
+Recovery uses a GET by ID (`/api/public/r/{slug}/requests/by-client-id/{id}`). This random ID is itself a credential, so it must not be sent unchanged to the verifier. Manual “Retry the same order” also starts with a GET: if found, it opens the original; only a not-found-yet 404 allows the same ID and content to be sent again with a fresh proof. A 404 still does not prove the original request failed; the duplicate check under the lock prevents concurrent retries from creating another order.
+
+Another deliberate difference: after an unknown result, a retry rejected by a check performed after the duplicate check under the lock (for example paused ordering, closed hours, full browser or IP waiting slots, delivery off or a changed menu) proves that no original with this ID exists, so the cart unlocks. Verification failure, CSRF, rate limits and a missing browser marker happen before that proof and cannot justify discarding the unknown intent. `ONLINE_VERIFICATION_FAILED` (400) allows unlocking only on a first, explicitly rejected submission; verification-unavailable 503s, timeouts and lost responses retain the intent. Table orders still follow the cautious rule above.
 
 ### Online orders: a request to accept
 
@@ -557,6 +581,22 @@ Online orders use the same idea, with a few differences. The `clientRequestId` i
 - **A person decides the delivery fee.** No calculation from the distance: it would need a paid maps service, and the customer's address would have to be sent to another company. The owner writes their rules in a note (by area, by amount…), and whoever accepts the order enters the fee, which goes into the bill. If it is wrong, the owner corrects it before closing, with the bill version.
 
 The price: the staff must answer within 10 minutes, even at peak times, and an expired order is lost: the customer has to call or order again. That is why there is the banner that rings on every page and, for locked phones, push notifications (see "A PWA for staff").
+
+### Source limits and verification for online orders
+
+**Problem.** Requiring acceptance before an order reaches the kitchen lets staff reject suspicious orders, but it does not stop repeated submissions filling waiting slots or constantly triggering the banner and lock-screen notifications. CSRF prevents another site from borrowing the browser to send requests; it does not stop someone opening the order page directly and abusing it.
+
+**Approach: limit sources, then add Turnstile verification for new submissions.**
+
+- **One waiting order per browser and restaurant.** A server-signed random browser marker lives in an HttpOnly, SameSite=Strict cookie expiring after 30 days. `ordering-context` finds its waiting order at the current restaurant and the page links back to it. This is neither a device fingerprint nor identity verification; clearing cookies can replace the marker, so IP limits are also needed.
+- **Separate frequency limits from waiting slots.** By default, each IP can attempt 3 submissions per minute and 10 per ten minutes, including invalid JSON, failed CSRF and repeated requests. Each restaurant also allows at most 5 waiting orders from the same IP, while keeping its overall cap of 20. Acceptance, rejection or expiry releases slots. Status reads, recovery reads and new submissions each have separate frequency budgets.
+- **Load Turnstile only when submission is needed.** It defaults to enabled in production and disabled in Development and Demo; it is a deployment setting, not a restaurant switch. The widget loads at confirmation or in the recovery area for an unknown result and follows the customer’s language. Expiry, the end of an attempt or a change in request context invalidates the old proof for submission; it never automatically submits another order. Browsing the menu, privacy or status pages does not load it.
+- **The backend decides whether verification is valid.** `OnlineVerification` sends the proof to a fixed Siteverify HTTPS endpoint, waits at most 5 seconds and neither retries automatically nor follows redirects. Real keys require matching hostname, `action=online_order` and request binding. The binding is SHA-256 of `restaurantIdN:clientRequestIdN` (lowercase GUIDs without hyphens), sent as `cdata`; it keeps the original recovery ID private and prevents one proof from serving different requests or restaurants. Verification holds no database locks, so a slow Cloudflare response does not keep the restaurant locked.
+- **Failure creates no order or reminder.** Rejected verification returns `ONLINE_VERIFICATION_FAILED`; verifier failure returns `ONLINE_VERIFICATION_UNAVAILABLE`. Without a successfully saved request, no number or waiting slot is consumed and no notification is sent. Carts and unknown results follow the recovery rules above; GET queries for committed orders do not depend on Cloudflare. Proofs and the Secret key never enter carts, order snapshots or logs, and we send no names, phones, addresses or dishes to the verifier.
+
+The cost is an external service dependency: with verification enabled, both the customer’s browser and the API must reach Cloudflare. Failed verification blocks new submissions rather than silently allowing them. Before deployment, obtain real keys and complete the server settings; see the [existing VPS upgrade steps](self-hosting.md#first-upgrade-to-a-version-with-turnstile). Only recognised official test-key pairs in Development accept the official `example.com` response without action/cdata.
+
+These measures increase the cost of automated orders and repeated slot occupation, but do not verify that a phone belongs to the customer or guarantee collection or payment. A person can still place a malicious order, and legitimate customers sharing a public IP also share its limits. The restaurant must still assess suspicious requests, call if necessary and decide whether to accept. Accepted orders that are not collected are still recorded as `NO_SHOW`; the app does not recover the restaurant’s losses. Notifications and ringing are unchanged.
 
 ### Discounts: sale prices and coupons
 
@@ -683,7 +723,7 @@ The check is done by `CsrfValidationFilter`, registered globally because `AddCon
 - **Opening a table is not idempotent.** Unlike the order, opening has no request ID. If the response gets lost, the frontend rereads the Floor and the staff decide whether to open again; a second opening on the same table gets `SESSION_ALREADY_ACTIVE`, and the unique index guarantees a single open visit per table anyway. One risk remains, which I accepted consciously for the first version: an old request arriving very late, when the table has already been closed, opening a visit nobody wanted, to be closed later without payment. If it happened often in real use, I would add a request ID to opening too. For an order or a bill such a risk wouldn't be acceptable, and that is why `clientRequestId` and `bill_version` exist there.
 - **Menu: the last change wins.** If the owner edits the same dish from two devices, the last save wins, without conflict warnings. It isn't serious, because what matters is checked by the order: the backend always rechecks prices, availability and options and, if something changed, answers `MENU_CHANGED` with the list of changes (for an option that is sold out or no longer valid the reason is `OPTIONS_CHANGED`).
 - **An error format of my own instead of ProblemDetails.** ASP.NET Core supports a standard error format (ProblemDetails, RFC 9457), but the frontend was already built around the `code` field. Generating everything from a single filter cost less than switching to the standard format, which for a public API would still be the more correct choice.
-- **Contact details deleted only by a new order.** Customers' name, phone and address are deleted after 30 days, but without a background job: the next online order of the same restaurant deletes them, in its own transaction. If a restaurant gets no more online orders, the data stays. The privacy notice, on the other hand, promises a fixed 30 days: before real use one of the two must be fixed.
+- **Contact details are cleared only by a new order.** Online customers’ names, phones, addresses and restaurant-specific browser/IP digests older than 30 days are cleared by the next successful online submission at the same restaurant, without a scheduled background job. If a restaurant gets no further orders, the data remains. The privacy page’s retention section still says deletion occurs 30 days after submission, which does not match the actual trigger. Its wording or the cleanup mechanism needs a separate update; the current implementation does not guarantee automatic deletion on day 30.
 - **Subscriptions without history.** The initial design had a subscription events table, with the history of changes, notices to the owner and an ID for each operation against duplicates. I removed it when it became clear that `subscription_version` alone was enough to prevent two changes from consuming the same version. I lost the history, but for a first version it wasn't needed.
 
 ## Limits and what I would do differently

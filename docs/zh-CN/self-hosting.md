@@ -366,7 +366,7 @@ SHA256SUMS           每个文件的校验和
 
 **可选：在本地完整测试。** [`deploy/smoke-test.sh`](../../deploy/smoke-test.sh) 会把发布包安装到一个临时的、隔离的 Docker 里（Docker-in-Docker，使用本地测试证书），检查安装、迁移、HTTPS、三种身份的 cookie 和 CSRF、连续两次发布、备份、恢复和回滚，然后清理本次测试创建的资源。它使用发布包里写的地址，所以任何 `PUBLIC_ORIGIN` 都可以：
 
-它还检查密钥缺失或无效时会在停止 API 前拒绝发布，以及升级、重启、恢复 `production.env`、回滚后公钥保持一致。它不发送真实推送：通知送达与声音需要按第 6 步在手机上验收。
+它还检查 VAPID 密钥缺失或无效、Turnstile 配置缺失或使用生产禁止的测试密钥时，会在停止旧 API 前拒绝发布，以及升级、重启、恢复 `production.env`、回滚后 VAPID 公钥保持一致。演练明确关闭 Turnstile，不调用真实验证服务，也不发送真实推送：真实密钥的验证、通知送达与声音需要按第 6 步在手机上验收。
 
 ```bash
 PUBLIC_ORIGIN=https://app.example.com bash deploy/build-release.sh
@@ -427,11 +427,13 @@ sudo nano /opt/tavoloflow/.env
 
 ```dotenv
 TURNSTILE_ENABLED=true
-TURNSTILE_SITE_KEY=从_CLOUDFLARE_取得的公开密钥
-TURNSTILE_SECRET_KEY=从_CLOUDFLARE_取得的服务器密钥
+TURNSTILE_SITE_KEY=REPLACE_WITH_TURNSTILE_SITE_KEY
+TURNSTILE_SECRET_KEY=REPLACE_WITH_TURNSTILE_SECRET_KEY
 ```
 
 将示例替换成组件的两类完整密钥，不能用 `openssl` 生成。Secret key 只保存在受保护的 `.env` 中，不提交 Git、不写进前端。Compose 将配置传给 API，并从 `DOMAIN` 取得预期主机名；前端从 API 读取公开 Site key，无需为换密钥单独重建。[免费方案](https://developers.cloudflare.com/turnstile/plans/)不按验证次数收费。
+
+在刚才打开的 nano 中填写配置，按 `Ctrl+O` 保存，按回车确认文件名，再按 `Ctrl+X` 退出。需要重新编辑时，在 VPS 上执行 `sudo nano /opt/tavoloflow/.env`。如果服务器已经运行了一段时间，现在才升级到带验证的版本，请按[日常发布中的完整步骤](#首次升级到带-turnstile-的版本)操作，不要重新执行上面从模板创建 `.env` 的命令。
 
 安装器会在停止旧 API 前检查配置、占位值和测试密钥，API 启动时再次检查。本地预检无法证明真实密钥和 Cloudflare 面板中的域名配置正确：开放给顾客之前，应在真实域名的浏览器里提交一单，再接单并核对结果。我们不会向验证服务发送姓名、电话、地址或菜品内容。Cloudflare 故障时会阻止新提交，保留购物车和餐厅电话入口；已提交订单仍可找回。
 
@@ -445,12 +447,15 @@ TURNSTILE_SECRET_KEY=从_CLOUDFLARE_取得的服务器密钥
 | `ACME_EMAIL`        | 你真实的邮箱，用于接收证书通知                                                                                 |
 | `POSTGRES_PASSWORD` | `openssl rand -hex 32` 生成的 64 个十六进制字符                                                           |
 | `VAPID_PRIVATE_KEY` | 另行运行 `openssl rand -hex 32` 生成的不同值，用于推送通知                                                       |
+| `TURNSTILE_ENABLED` | `true` 启用线上下单验证（生产默认）；明确不使用时填 `false`，不能只留空 |
+| `TURNSTILE_SITE_KEY` | Cloudflare Managed 组件的完整 Site key；启用验证时必填 |
+| `TURNSTILE_SECRET_KEY` | 同一组件的完整 Secret key；启用验证时必填，只保存在服务器上 |
 
 其他保持不变。不要加引号，`=` 两边不要有空格。
 
 - **数据库密码只在第一次生效。** PostgreSQL 只在数据卷为空时，用 `POSTGRES_PASSWORD` 创建用户。之后在 `.env` 里改密码，数据库并不知道，API 就再也连不上了。用十六进制，是因为它只包含 `0-9` 和 `a-f`：无论在 Compose 里还是在连接字符串里，都没有需要转义的字符。
 - **通知密钥需要跨版本保留。** API 从 `VAPID_PRIVATE_KEY` 推导公钥并签名推送；更换后旧订阅失效，每台设备都需要重新开启通知。它必须与数据库密码分别生成。Compose 自动把推送联系地址设为 `https://` + `DOMAIN`。 即使目前只使用桌台扫码点单，也必须配置通知密钥。它必须是有效的 P-256 私钥；安装器会在停止旧 API 前检查格式和取值范围。
-- **停止 API 前，安装器会检查四件事：** 数据库密码是 64 个十六进制字符、通知密钥是 64 个十六进制字符且为有效 P-256 私钥、邮箱不是模板值，以及 `https://` + `DOMAIN` 与发布包里的 `public-origin.txt` 一致。这样你就不可能装上一个二维码指向别的域名的前端。
+- **停止旧 API 前，安装器会检查配置：** 数据库密码是 64 个十六进制字符、通知密钥是 64 个十六进制字符且为有效 P-256 私钥、邮箱不是模板值，以及 `https://` + `DOMAIN` 与发布包里的 `public-origin.txt` 一致。启用 Turnstile 时，还会检查完整密钥、占位值、生产禁止的测试密钥和主机名格式。这些是离线检查，不能证明 Cloudflare 密钥真实有效。
 - `PROXY_SUBNET`、`PROXY_DYNAMIC_RANGE` 和 `CADDY_IP` 定义 Caddy 与 API 之间的网络，以及 Caddy 的固定 IP。只有当 VPS 上已经有另一个 Docker 网络在用 `172.30.80.0/24` 时才需要修改，而且三个要一起改，并在第一次启动之前改。
 - 安装程序已经会用 `docker compose config --quiet` 检查配置；安装之后，你可以自己用 `sudo bash /opt/tavoloflow/tf.sh config --quiet` 检查。不加 `--quiet` 会打印全部内容，包括密码。
 
@@ -587,7 +592,8 @@ sudo bash /opt/tavoloflow/bootstrap-admin.sh
 
 1. 店主从首页进入「线上点单」设置（`/staff/online-settings`），填写联系电话和每周营业时间，复制 `https://app.example.com/r/{slug}` 链接。
 2. 确认没有暂停接单，当前时间处于保存的营业时段内，页面提示顾客可以下单。电话和营业时间缺一不可；「扫码接单」开关不控制线上订单。
-3. 用另一台手机打开链接，提交一笔到店自取订单。在 `/staff/online` 选择预计时间并接单，再检查厨房、传菜、店主结账和顾客状态页 `/o/{token}`。
+3. 用另一台手机打开链接，加入菜品并进入订单确认。启用 Turnstile 时，确认验证组件出现；验证未完成前不能提交，完成后才能下单。只浏览菜单、打开隐私页或查询订单状态时不应加载验证组件。
+4. 提交一笔到店自取订单。在 `/staff/online` 选择预计时间并接单，再检查厨房、传菜、店主结账和顾客状态页 `/o/{token}`。容器健康、部署预检通过，都不能代替这次真实域名和真实密钥的检查。
 
 仅线上点单的餐厅跳过桌位和桌台步骤。管理员不能代替店主结账。测试订单会保留在历史中，因此请使用明确标记的测试餐厅，不要用 SQL 手动删除记录。
 
@@ -650,7 +656,7 @@ sudo ls -lh /opt/tavoloflow/backups/
 
 ### 发布新版本
 
-沿用首次安装流程，但不重新创建管理员或 `.env`。保留已有配置，只按第 6 点补入新版本要求的新变量。
+沿用首次安装的打包与安装方式，但不重新创建管理员或 `.env`。保留已有配置，先按下面的升级前配置步骤补入新版本要求的变量，再安装新版本。尤其是已经部署很久、现在才加入 Turnstile 的服务器：新版本在生产默认启用验证，旧 `.env` 没有密钥时，安装器会拒绝升级。
 
 **开始之前：**
 
@@ -685,6 +691,50 @@ sudo ls -lh /opt/tavoloflow/backups/
 
    完成后，执行 `exit` 返回本地终端，或另开一个本地终端，继续下面的打包与上传。
 
+#### 首次升级到带 Turnstile 的版本
+
+这是已有服务器补配置的步骤，只需在首次启用时做；之后发布保留已有值。整个部署共用一个组件，不需要每家餐厅分别申请。
+
+1. **在你的电脑浏览器中准备密钥。** 登录 [Cloudflare 控制台](https://dash.cloudflare.com/)，打开 **Turnstile → Add widget**，填写便于识别的名称，例如 `TavoloFlow online orders`。在主机名中添加服务器 `.env` 的 `DOMAIN`，例如 `app.example.com`；我的部署填写 `app.qiaotavoloflow.it`，不填营销站点的根域名，也不带 `https://`、端口或路径。选择 **Managed**，保持 **Pre-clearance** 关闭，再点 **Create**，保存显示的 **Site key** 和 **Secret key**。已有组件时可直接使用同一组件的有效密钥，不要每次发布重新创建。步骤可对照 [Cloudflare 官方说明](https://developers.cloudflare.com/turnstile/get-started/widget-management/dashboard/)。无需迁移 DNS、启用橙色云朵或更换 VPS。
+
+2. **在你的电脑终端登录 VPS：**
+
+   ```bash
+   ssh -o IdentitiesOnly=yes -i ~/.ssh/tavoloflow deploy@VPS_IP
+   ```
+
+   将 `VPS_IP` 替换成服务器 IP。`deploy` 是首次安装时创建的用户；如果你的私钥保存在别处，把 `~/.ssh/tavoloflow` 换成实际路径。已经有这个用户的 SSH 会话时，直接使用即可。
+
+3. **以下在 VPS 上执行，打开现有配置：**
+
+   ```bash
+   sudo nano /opt/tavoloflow/.env
+   ```
+
+   按提示输入 `deploy` 用户的 sudo 密码；输入时终端不显示字符是正常的。在文件末尾添加下面三行；如果变量已经存在，就修改原来的行，每个变量只保留一处：
+
+   ```dotenv
+   TURNSTILE_ENABLED=true
+   TURNSTILE_SITE_KEY=REPLACE_WITH_TURNSTILE_SITE_KEY
+   TURNSTILE_SECRET_KEY=REPLACE_WITH_TURNSTILE_SECRET_KEY
+   ```
+
+   用刚取得的完整 Site key 和同一组件的完整 Secret key，分别替换 `REPLACE_WITH_...` 的整个占位值，不加引号，`=` 两边不加空格。它们来自 Cloudflare，不能用 `openssl` 生成，也不能用本地开发的官方测试密钥。保留原有 `DOMAIN`、`POSTGRES_PASSWORD`、`VAPID_PRIVATE_KEY` 和其他配置；不要从 `.env.example` 重建文件。不要把 Secret key 发到聊天、截图或 Git 中。
+
+4. **在 nano 中保存并退出。** 按 `Ctrl+O`（字母 O），底部出现文件名 `/opt/tavoloflow/.env` 后按回车确认；再按 `Ctrl+X` 返回 VPS 的命令行。只编辑 `.env` 不会改变正在运行的容器，这次配置会由下面的新版本安装流程带入 API。生产 Compose 会从 `DOMAIN` 设置预期主机名，不需要另填 `TURNSTILE_HOSTNAME`，也不用把密钥写入前端或为此单独重建前端。
+
+5. **返回你的电脑继续打包。** 在 SSH 会话中执行：
+
+   ```bash
+   exit
+   ```
+
+   这会结束 SSH 会话、回到电脑终端；也可以保留 VPS 会话，另开一个电脑终端执行下面的构建与上传。已有配置正确时，以后发布可以直接从下一节开始。
+
+如果明确选择不使用外部验证，在同一个文件中将 `TURNSTILE_ENABLED` 设为 `false`；不需要填写两类密钥，但浏览器、IP 和待接单名额限制仍然生效。这是部署者主动选择关闭验证，不是缺少密钥时的自动降级。
+
+#### 打包、上传与安装
+
 **在你的电脑上：**
 
 ```bash
@@ -710,12 +760,26 @@ cd ~/tavoloflow-upload
 sha256sum -c "tavoloflow-$RELEASE.tar.gz.sha256"
 mkdir "$RELEASE"
 tar -xzf "tavoloflow-$RELEASE.tar.gz" -C "$RELEASE"
+# 检查解压后每个文件；没有输出表示通过
+cd "$RELEASE"
+sha256sum --check --quiet SHA256SUMS
+cd ..
+# 新发布包里的预检脚本：旧服务器上可能还没有这个文件
+sudo python3 "$RELEASE/ops/validate-turnstile.py" /opt/tavoloflow/.env
+```
+
+任一检查报错都先停下。Turnstile 预检正常结束且没有输出，表示开关、密钥格式和主机名格式符合要求；它不会联网验证密钥是否真实、是否属于同一个组件，也不能检查面板允许的域名。修改 `.env` 时仍用 `sudo nano /opt/tavoloflow/.env`，保存退出后重新预检。不要用打印整个配置文件或不带 `--quiet` 的 Compose 命令来检查密钥。
+
+**仍在 VPS 的 `~/tavoloflow-upload` 中，检查通过后安装：**
+
+```bash
 # 你在 ~/tavoloflow-upload 里，所以路径以 $RELEASE/ 开头
 sudo bash "$RELEASE/ops/install-release.sh" "$PWD/$RELEASE" /opt/tavoloflow
 sudo bash /opt/tavoloflow/tf.sh ps
+sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api
 ```
 
-安装程序一开始会重新检查每个文件（`SHA256SUMS`）。发现已经装有某个版本时，安装程序会这样做：
+安装器会再次检查包内每个文件、原有配置及 Turnstile 配置。检查在停止旧 API 之前进行：缺少密钥时不会先中断营业。发现已经装有某个版本时，通过检查后的流程是：
 
 ```text
 停止 API → 备份 → 迁移 → 新 API → 切换 web/current → 重新创建 Caddy 容器 → 保存版本
@@ -730,6 +794,10 @@ sudo bash /opt/tavoloflow/tf.sh ps
 
 **发布后**让每台员工设备重新加载页面，以启用新版通知和退出逻辑。检查登录、一次读取（如厨房或结账）和 PWA 页面切换；已开启通知的设备应等到确认已开启，再做一次锁屏测试。如果某个写操作显示结果待核对，按照界面的提示操作：应用会用 GET 检查，盲目重发可能会把操作执行两次。
 
+**首次启用 Turnstile 后，还要验收顾客下单。** 在真实业务域名上重新加载 `/r/{slug}`，不要继续使用升级前一直开着的旧页面：旧页面不会携带新验证凭证。在明确标记的测试餐厅中加入菜品、进入确认、完成验证并提交一单，员工接单后核对状态、厨房和账单。验证组件通常会自动完成检查，不一定要求顾客点击。再确认原订单状态页能正常查询，员工通知和响铃仍按原方式工作。测试订单应按真实流程处理，不用 SQL 删除。
+
+如果验证未完成、过期或加载失败，不应发出新订单；购物车应保留，加载失败时应有重新验证和餐厅电话入口。发生网络中断或“结果未知”时，先用页面的查询入口找回原订单；“重试原订单”会先 GET 查询，只有尚未查到才使用新验证重试同一个请求。不要清空购物车另下一张来代替核对。验证服务暂时不可用时，新提交会被阻止，但原订单的查询与恢复仍然可用。
+
 如果这次发布修改了 `tavoloflow-backup.service` 或 `.timer`，安装程序只会更新 `/opt/tavoloflow` 里的副本：请重复第 1 部分第 7 步里的两行 `install` 和 `daemon-reload`。
 
 ### 发布出问题时
@@ -742,13 +810,39 @@ sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api db caddy
 
 - **不要删除卷，也不要马上恢复数据库。** 脚本出错不会删除数据。
 - 如果 API 处于停止状态，在查明原因之前，先别让餐厅恢复使用系统。
-- 修复之后，用一个**新的 ID** 发布：同一个 ID 会被构建（压缩包已存在）和安装程序（`web/releases/版本` 目录已存在）拒绝。重新执行迁移没有害处。
+- **只在 Turnstile 配置预检失败时：** 旧 API 仍在运行，新版本的前端目录尚未创建。用 `sudo nano /opt/tavoloflow/.env` 修正后，可以重新运行预检和同一发布包的安装命令，无需重新打包或再次解压。
+- **已经进入后续安装阶段时：** 先查日志和容器状态；如果已创建 `web/releases/版本`，安装器会拒绝再次使用同一个 ID。修复代码或安装问题后，用一个**新的 ID** 打包发布，不要手动删除版本目录来强行重试。迁移包会跳过已执行的迁移。
 
 如果失败的正是首次安装，`state/current` 还不存在，`tf.sh` 不知道该用哪个版本。你需要自己传给它，在 `sudo` 后面用 `env`，因为 `sudo` 会清除写在它前面的环境变量：
 
 ```bash
 sudo env RELEASE_ID=失败的版本 bash /opt/tavoloflow/tf.sh logs --tail 100 api db caddy
 ```
+
+#### Turnstile 的常见问题
+
+| 现象 | 检查与处理 |
+| --- | --- |
+| 安装器提示 `Set TURNSTILE_...` 或生产禁止测试密钥 | 在 VPS 用 `sudo nano /opt/tavoloflow/.env` 检查三项配置，填同一组件的真实密钥；不能保留 `REPLACE_WITH_...` 占位值或使用开发测试密钥。保存后重新运行预检。 |
+| 确认订单时验证组件加载失败 | 检查顾客网络是否能访问 `challenges.cloudflare.com`，以及浏览器扩展是否拦截了组件；使用页面的“重新验证”，仍失败可拨打餐厅电话。无需为 Turnstile 开放新的 VPS 入站端口。 |
+| 容器健康、预检通过，顾客仍收到验证失败 | 检查 Site key、Secret key 是否配套，组件模式是否为 Managed，面板主机名是否包含实际业务域名且与 `DOMAIN` 一致；使用刷新后的顾客页面重新验证。预检和健康检查不会测试 Cloudflare 的真实验证。 |
+| API 日志出现 `ONLINE_VERIFICATION_UNAVAILABLE`，或页面一直无法完成提交 | 检查密钥是否仍有效、API 容器是否能通过 HTTPS 访问 Cloudflare 的 Siteverify 服务。凭证错误、服务超时和网络故障都会阻止新提交；先查询原订单，避免重复下单。不要打印或公开密钥、原始 token 或请求正文。 |
+
+首次启用之后，如果只修改服务器 `.env` 中的验证配置，也需要重新创建 API 容器才会生效；普通 `restart` 不会重新读取 Compose 环境变量。可以在维护窗口操作，先在 VPS 上检查：
+
+```bash
+sudo python3 /opt/tavoloflow/validate-turnstile.py /opt/tavoloflow/.env
+```
+
+检查通过后再执行（会短暂中断 API）：
+
+```bash
+sudo bash /opt/tavoloflow/tf.sh up -d --no-deps --force-recreate --wait --wait-timeout 120 api
+sudo bash /opt/tavoloflow/tf.sh ps
+sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api
+```
+
+然后按上面的真实下单流程验收。这是已经安装带 Turnstile 版本后的操作，不能代替首次升级的安装流程。
 
 #### 回滚到上一个版本
 
@@ -777,13 +871,13 @@ sudo bash /opt/tavoloflow/rollback.sh --schema-compatible 上一个版本
 tavoloflow-20261027T023000Z-12345.tar.gz    UTC 时间和进程号
 ├── database.dump      数据库，用 pg_dump 导出
 ├── keys.tar.gz        Data Protection 密钥
-├── production.env     .env 副本，包括数据库密码和 VAPID 通知密钥
+├── production.env     .env 副本，包括数据库密码、VAPID 和 Turnstile 配置
 ├── compose.yaml, Caddyfile
 ├── state/             当时已安装的版本
 └── SHA256SUMS
 ```
 
-- **两类密钥都要恢复。** `keys.tar.gz` 保存 Data Protection 密钥；VAPID 通知密钥保存在 `production.env`。保留并恢复后者才能保留通知订阅，恢复时不要重新生成 VAPID 密钥。
+- **密钥和验证配置也要恢复。** `keys.tar.gz` 保存 Data Protection 密钥；VAPID 通知密钥和 Turnstile 配置保存在 `production.env`。保留原 VAPID 密钥才能保留通知订阅，恢复时不要重新生成。旧备份可能还没有 Turnstile 配置：如果准备运行带验证的新版本，安装前要补齐，不能因为 `.env` 来自备份就跳过检查。Cloudflare 面板的组件和主机名设置不包含在这个备份里。
 
 - **`pg_dump` 从同一个快照读取所有数据：** 即使导出时有订单进来，文件也是一致的，就像在同一瞬间拍下的照片。
 - **密钥必须和数据库放在一起。** 登录 cookie 和入桌码都是用这些密钥加密的：只有数据库而没有密钥，所有设备都得重新登录，正在进行的用餐的入桌码也无法读取。
@@ -938,12 +1032,14 @@ sudo rm -rf /root/tavoloflow-restore-check
 
 1. 按第 1 部分第 1 步准备新的 VPS（系统、SSH、`deploy`、防火墙、Docker）。**先不要动 DNS。**
 2. 把备份上传到 VPS，解压到 `/root/tavoloflow-restore`（权限 700），并检查它的 `SHA256SUMS`。
-3. 从备份的 `state/current` 确认当时版本，按第 3、4 步上传并准备同一发布包，**跳过从模板创建 `.env`、生成数据库密码和 VAPID 密钥的步骤**。恢复备份里的 `production.env`，其中包含数据库密码和通知密钥。准备好 `/opt/tavoloflow` 后执行：
+3. 从备份的 `state/current` 确认当时版本，按第 3、4 步上传并准备同一发布包，**跳过从模板创建 `.env`、生成数据库密码和 VAPID 密钥的步骤**。恢复备份里的 `production.env`，其中包含数据库密码、通知密钥和备份时已有的 Turnstile 配置。准备好 `/opt/tavoloflow` 后执行：
 
    ```bash
    sudo install -o root -g root -m 600 \
      /root/tavoloflow-restore/production.env /opt/tavoloflow/.env
    ```
+
+   如果恢复的是带 Turnstile 的版本，先在 VPS 用 `sudo nano /opt/tavoloflow/.env` 核对开关和两类密钥；较旧的备份缺少配置时，按[首次升级步骤](#首次升级到带-turnstile-的版本)补齐。沿用原业务域名时，Cloudflare 的主机名设置不需要因 VPS IP 改变而重建；若更换业务域名，还必须同步组件主机名、`DOMAIN` 和构建时的 `PUBLIC_ORIGIN`。
 
 4. 按第 5 步运行 `install-release.sh`。它会创建一个空数据库和新的密钥，你接下来要替换它们。**不要创建管理员，也不要创建餐厅。** DNS 还指向旧地址，所以 Caddy 拿不到证书是正常的。
 5. 用备份里的数据库和密钥替换它们：
@@ -979,7 +1075,7 @@ sudo bash /opt/tavoloflow/tf.sh up -d caddy
 sudo bash /opt/tavoloflow/tf.sh logs --tail 80 caddy
 ```
 
-8. 检查 HTTPS、登录、历史账单和仍在用餐的桌台入桌码。在原业务域名下，登录仍有效且使用原 VAPID 密钥时，通知订阅可以继续使用；再做一次新订单锁屏测试。登录已过期时，重新登录并等待显示已开启。之后恢复营业并重新启用自动备份（第 1 部分第 7 步）。
+8. 检查 HTTPS、登录、历史账单和仍在用餐的桌台入桌码。在原业务域名下，登录仍有效且使用原 VAPID 密钥时，通知订阅可以继续使用；再做一次新订单锁屏测试。启用 Turnstile 时，还要在真实域名上完成验证和测试下单，并确认已有订单能查询。登录已过期时，重新登录并等待显示已开启。之后恢复营业并重新启用自动备份（第 1 部分第 7 步）。
 
 数据库会回到备份时的状态：之后发生的事情，需要和餐厅一起手动核对。
 
@@ -1044,6 +1140,8 @@ df -h
 - [ ] PWA 能在 Android 和 iOS 上安装；提示音、屏幕常亮和离线页面都正常。
 - [ ] 线上点单已配置并开放，每台设备确认通知已开启；Android 和已安装的 iPhone/iPad 锁屏测试后，点击通知进入线上订单页面。退出与重新登录符合第 6 步的检查结果。
 - [ ] 恢复或升级后保留原 VAPID 密钥、重新加载员工设备，并在原业务域名下验证通知。
+- [ ] Turnstile 开关已明确配置；启用时使用同一 Managed 组件的真实密钥，允许实际业务域名，关闭 Pre-clearance。刷新顾客页面后，真实下单验证通过；未通过验证不能提交，原订单仍可查询。
+- [ ] 备份的 `production.env` 包含当前验证配置；使用旧备份恢复新版本时，已检查并补齐缺少的变量。
 - [ ] VPS 重启后应用自动恢复，数据和登录都完好。
 - [ ] 每晚备份已启用，并且已经下载过一个备份、成功恢复到临时数据库里。
 - [ ] 你的电脑上有当前版本和上一个版本的发布包，你也知道去哪里找日志、回滚和重置密码的方法。

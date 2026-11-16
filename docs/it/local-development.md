@@ -289,11 +289,42 @@ Poi apri <http://localhost:5173/staff/login>, oppure `/platform/login`.
 
 ### Provare Turnstile in sviluppo
 
-Sviluppo e Demo funzionano senza un account Cloudflare. Per provare la verifica in Development, imposta `Turnstile__Enabled=true`, `Turnstile__SiteKey=1x00000000000000000000AA` e `Turnstile__SecretKey=1x0000000000000000000000000000000AA` nell’ambiente dell’API. Questa coppia ufficiale passa sempre; richiede internet ma funziona anche su localhost e sui telefoni nella rete locale. Le chiavi di test non vanno mai usate in produzione.
+Development e Demo hanno Turnstile disattivato per impostazione predefinita e non richiedono un account Cloudflare. Per provare la verifica, ferma l’API con `Ctrl+C` nel suo terminale, poi esegui **dalla radice del repository sul tuo computer**:
 
-Il widget appare soltanto alla conferma o al recupero di un invio incerto. Usa le [altre chiavi ufficiali](https://developers.cloudflare.com/turnstile/troubleshooting/testing/) per simulare rifiuto, interazione e token già usato. Nei test di integrazione il provider è simulato: non servono rete né chiavi vere. Solo le coppie di test riconosciute in Development accettano la risposta ufficiale con `example.com` e senza action/cdata; le chiavi reali verificano anche hostname, azione e legame alla richiesta. Con chiavi reali in sviluppo imposta anche `Turnstile__Hostname` e autorizza quel dominio sul pannello.
+```bash
+Turnstile__Enabled=true \
+Turnstile__SiteKey=1x00000000000000000000AA \
+Turnstile__SecretKey=1x0000000000000000000000000000000AA \
+dotnet run --project backend/TavoloFlow.Api --launch-profile http
+```
 
-Controlla che una verifica mancante, scaduta o fallita impedisca un nuovo invio, conservi carrello e campi, e permetta di riprovare o chiamare. Un risultato sconosciuto deve restare recuperabile via GET; il pulsante di retry cerca prima l’ordine precedente. Dopo un invio non riutilizzare il vecchio token. Verifica a 360px in tutte e tre le lingue.
+È la sintassi di Bash / WSL: il `\` a fine riga continua il comando e non deve avere spazi dopo. Le variabili valgono solo per questo processo API e non vengono scritte in un file; il profilo `http` usa Development. Vite continua a girare normalmente in un altro terminale. Non servono chiavi in `frontend/.env.local`: ricarica la pagina degli ordini online per leggere la configurazione pubblica.
+
+Questa coppia di [chiavi ufficiali di test](https://developers.cloudflare.com/turnstile/troubleshooting/testing/) passa sempre. Richiede internet, ma funziona su localhost e sui telefoni nella rete locale senza `Turnstile__Hostname`. **Le chiavi di test sono vietate in produzione** e non dimostrano l’efficacia contro i bot. I nomi `TURNSTILE_*` del server sono per il Compose di produzione; avviando direttamente l’API si usano i nomi `Turnstile__*` con doppio underscore mostrati sopra.
+
+Il widget appare solo alla conferma o nel recupero di un invio incerto. Usa le chiavi corrispondenti nella tabella ufficiale per simulare rifiuto, interazione o token già usato; dopo le modifiche riavvia l’API e ricarica la pagina cliente. Solo le coppie di test riconosciute in Development accettano la risposta ufficiale con `example.com` e senza action/cdata; le chiavi vere controllano sempre hostname, azione e legame alla richiesta. Con chiavi vere in sviluppo serve anche `Turnstile__Hostname`, autorizzando nel pannello l’hostname effettivamente usato. Le Secret key vere vanno nei segreti locali o in una configurazione d’ambiente protetta, mai in Git.
+
+In un ristorante di prova, controlla in quest’ordine:
+
+1. Sfogliare `/r/{slug}`, l’informativa privacy o `/o/{token}` non carica il widget. Compare solo dopo aver aggiunto piatti e aperto la conferma; l’invio resta bloccato finché la verifica non è completata.
+2. Attendi la scadenza della prova o simula una verifica fallita: la vecchia prova non deve più autorizzare l’invio. Se il widget si aggiorna da solo, attendi il completamento della nuova verifica. Un rifiuto del server conserva carrello e campi e non crea ordini o notifiche. La prova resta in memoria e non entra nell’intento in `sessionStorage`.
+3. Negli strumenti per sviluppatori del browser blocca `https://challenges.cloudflare.com/*`, poi rientra nella conferma: deve apparire la verifica non disponibile, con possibilità di riprovare o chiamare il ristorante e carrello conservato. Rimuovi il blocco e premi «Ripeti verifica» per recuperare, senza inviare automaticamente un ordine.
+4. Simula la perdita della risposta all’invio: la pagina deve conservare l’intento sconosciuto e recuperare automaticamente solo con GET. Anche «Riprova lo stesso ordine» parte da GET; se trova l’ordine non serve una nuova verifica, mentre solo un risultato non ancora trovato permette di rimandare stesso ID e contenuto con una nuova prova. Verifica fallita o non disponibile non devono cancellare un intento già sconosciuto; non fare un altro ordine al posto del controllo.
+5. A 360px passa tra cinese, italiano e inglese e controlla che pulsanti, messaggi e azioni telefoniche non escano dallo spazio disponibile. Dopo un cambio lingua o la conferma di un’altra richiesta, i callback del vecchio widget non devono abilitare l’invio.
+
+I test di integrazione usano un servizio simulato per successo, rifiuto, timeout, legame errato, invii ripetuti e recupero concorrente. Non servono chiavi Cloudflare vere o chiamate al verificatore; i test del database richiedono comunque Docker. Per eseguirli da soli dalla radice del repository:
+
+```bash
+dotnet test TavoloFlow.slnx --filter 'FullyQualifiedName~OnlineVerificationTests'
+```
+
+Dopo la prova, ferma l’API con `Ctrl+C`. Per continuare lo sviluppo senza verifica, disattivala esplicitamente all’avvio normale:
+
+```bash
+Turnstile__Enabled=false dotnet run --project backend/TavoloFlow.Api --launch-profile http
+```
+
+Ricarica la pagina cliente: il widget non deve più caricarsi. Chiavi vere di produzione e aggiornamento di una VPS esistente sono nella [guida di self-hosting](self-hosting.md#primo-aggiornamento-a-una-versione-con-turnstile). Le prove locali non sostituiscono il collaudo sul dominio reale dopo il rilascio.
 
 [Esempio a 360px: messaggio dell’app quando il provider non è disponibile](../images/online-verification-it.webp) (SDK simulato; non mostra il widget Cloudflare).
 
@@ -462,6 +493,9 @@ Remove-NetFirewallRule -DisplayName "TavoloFlow Dev 5173"
 | In Sala compare «Il servizio del ristorante non è ancora attivo o è sospeso» | il ristorante è sospeso: l'amministratore lo attiva con «Attiva servizio»                                                                                                                                                                             |
 | Il cliente vede il menu ma non può ordinare                                  | gli ordini sono in pausa: in Sala, «Ordini dal QR»                                                                                                                                                                                                    |
 | Nella Home non ci sono «Ordini online» e «Impostazioni ordini online»        | il ristorante non ha gli ordini online: l'amministratore imposta il link e poi li attiva con «Modifica servizi» (vedi «Provare gli ordini online»)                                                                                                    |
+| Verifica attivata, ma nessun widget alla conferma | Controlla che le variabili raggiungano il processo API come `Turnstile__*`, non solo il `.env` della radice o il frontend. Riavvia l’API e ricarica la pagina cliente. Development e Demo disattivano la verifica per impostazione predefinita. |
+| L’API segnala una configurazione Turnstile errata, o la verifica di test fallisce sempre | Controlla che le chiavi di test corrispondano ai tipi della tabella ufficiale e che l’ambiente sia Development. Le chiavi vere richiedono anche `Turnstile__Hostname`, uguale all’hostname del browser e a quello autorizzato nel pannello. |
+| Il widget non si carica, o l’invio segnala verifica non disponibile | Browser e API devono raggiungere Cloudflare: controlla rete ed estensioni che bloccano le richieste. Per un ordine sconosciuto fai prima la GET senza cancellare l’intento originale. Per la produzione vedi la guida di self-hosting. |
 | La pagina degli ordini online fa solo guardare il menu                       | lo stato in «Impostazioni ordini online» dice perché: manca il telefono o gli orari, pausa, fuori orario o troppi ordini in attesa; gli orari seguono il fuso del ristorante                                                                          |
 | I QR contengono `localhost`                                                  | `VITE_PUBLIC_BASE_URL` in `frontend/.env.local`, poi ricarica la pagina (Vite si riavvia da solo)                                                                                                                                                     |
 | Il telefono non apre la pagina                                               | stessa rete Wi-Fi e Vite avviato con `--host 0.0.0.0`; su Linux e macOS il firewall del sistema; su WSL profilo di rete privato, regola del firewall e IP di WSL ancora uguale a quello del port forwarding (`netsh interface portproxy show v4tov4`) |

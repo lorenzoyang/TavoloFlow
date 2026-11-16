@@ -289,11 +289,42 @@ Then open <http://localhost:5173/staff/login>, or `/platform/login`.
 
 ### Trying Turnstile in development
 
-Development and Demo work without a Cloudflare account. To try verification in Development, set `Turnstile__Enabled=true`, `Turnstile__SiteKey=1x00000000000000000000AA` and `Turnstile__SecretKey=1x0000000000000000000000000000000AA` in the API environment. This official pair always passes; it requires internet but works on localhost and local-network phones. Never use test keys in production.
+Development and Demo disable Turnstile by default and need no Cloudflare account. To test verification, stop the running API with `Ctrl+C` in its terminal, then run the following **from the repository root on your computer**:
 
-The widget appears only at confirmation or recovery of an uncertain submission. Use the [other official keys](https://developers.cloudflare.com/turnstile/troubleshooting/testing/) for failure, interaction and spent-token scenarios. Integration tests mock the provider and need no real keys or network. Only recognized test pairs in Development accept the official response with `example.com` and no action/cdata; real keys also check hostname, action and request binding. Real keys in development also need `Turnstile__Hostname` and that hostname authorized in the dashboard.
+```bash
+Turnstile__Enabled=true \
+Turnstile__SiteKey=1x00000000000000000000AA \
+Turnstile__SecretKey=1x0000000000000000000000000000000AA \
+dotnet run --project backend/TavoloFlow.Api --launch-profile http
+```
 
-Check that missing, expired or failed verification blocks a new submission, preserves cart and fields, and offers retry or calling. An unknown result must stay recoverable through GET; manual retry checks the original order first. Never reuse a token after submitting. Check 360px in all three languages.
+This is Bash / WSL syntax: the `\` at the end of each line continues the command, with no spaces after it. These variables apply only to this API process and are not written to a file; the `http` launch profile uses Development. Keep Vite running normally in another terminal. No keys belong in `frontend/.env.local`; reload the online ordering page to read the public settings.
+
+This pair of [official test keys](https://developers.cloudflare.com/turnstile/troubleshooting/testing/) always passes. It requires internet but works on localhost and local-network phones without `Turnstile__Hostname`. **Test keys are forbidden in production**, and they do not demonstrate bot protection. The server’s `TURNSTILE_*` names are for production Compose; running the API directly uses the double-underscore `Turnstile__*` names shown above.
+
+The widget appears only at confirmation or recovery of an uncertain submission. Use the corresponding keys from the official test table to simulate failure, interaction or a spent token; restart the API after changes, then reload the customer page. Only recognised test-key pairs in Development accept the official `example.com` response without action/cdata; real keys always check hostname, action and request binding. Real keys in development also require `Turnstile__Hostname` and the actual hostname authorised in the dashboard. Keep real Secret keys in local secrets or protected environment configuration, never Git.
+
+Check the following in a test restaurant:
+
+1. Browsing `/r/{slug}`, the privacy page or `/o/{token}` does not load the widget. It appears only after adding dishes and entering confirmation; submission stays disabled until verification completes.
+2. Wait for the proof to expire or simulate verification failure: the old proof must no longer authorise submission. If the widget refreshes automatically, wait for the new verification to complete. A server-side rejection preserves cart and form fields and creates no new order or notification. The proof stays in memory and never enters the intent in `sessionStorage`.
+3. Use browser developer tools to block `https://challenges.cloudflare.com/*`, then re-enter confirmation: verification must show as unavailable, offering retry or a call to the restaurant while keeping the cart. Unblock the requests and select “Retry verification” to recover, without automatically placing an order.
+4. Simulate a lost submission response: the page must retain the unknown intent and use only GET for automatic recovery. Manual “Retry the same order” also starts with GET; a found order needs no new verification, and only a not-found-yet result allows the same ID and content to be resent with a fresh proof. Verification failure or unavailability must not clear an already unknown intent; do not create another order instead of checking.
+5. At 360px, switch between Chinese, Italian and English and check that buttons, notices and phone actions do not overflow. After changing language or entering confirmation for another request, callbacks from the old widget must not enable submission.
+
+Integration tests use a mock service for success, failure, timeout, binding mismatch, repeated submission and concurrent recovery. They need no real Cloudflare keys or calls to the verifier; database tests still require Docker. To run them separately from the repository root:
+
+```bash
+dotnet test TavoloFlow.slnx --filter 'FullyQualifiedName~OnlineVerificationTests'
+```
+
+After testing, press `Ctrl+C` to stop the API. To continue development without verification, explicitly disable it when starting normally:
+
+```bash
+Turnstile__Enabled=false dotnet run --project backend/TavoloFlow.Api --launch-profile http
+```
+
+Reload the customer page; the widget should no longer load. Real production keys and the existing VPS upgrade procedure are covered in the [self-hosting guide](self-hosting.md#first-upgrade-to-a-version-with-turnstile). Local tests do not replace acceptance testing on the real domain after deployment.
 
 [360px example: the app notice when the provider is unavailable](../images/online-verification-en.webp) (mocked SDK; this does not depict the Cloudflare widget).
 
@@ -462,6 +493,9 @@ Remove-NetFirewallRule -DisplayName "TavoloFlow Dev 5173"
 | Floor shows "The restaurant's service isn't active yet or is suspended" | the restaurant is suspended: the administrator activates it with "Activate service"                                                                                                                                                        |
 | Home has no "Online orders" and "Online ordering"                       | the restaurant doesn't have online ordering: the administrator sets the link and then turns it on with "Change services" (see "Trying online ordering")                                                                                    |
 | The online ordering page only lets customers browse the menu            | the status in Online ordering settings says why: phone or hours missing, paused, outside hours or too many waiting orders; hours follow the restaurant's time zone                                                                         |
+| Verification enabled, but no widget at confirmation | Check that settings reach the API process as `Turnstile__*`, rather than only being written to the root `.env` or frontend settings. Restart the API and reload the customer page. Development and Demo disable verification by default. |
+| API reports invalid Turnstile configuration, or test verification keeps failing | Check that test keys match the intended types in the official table and that the environment is Development. Real keys also require `Turnstile__Hostname` matching the browser’s hostname and dashboard settings. |
+| Widget cannot load, or submission reports verification unavailable | Both browser and API need access to Cloudflare; check the network and blocking extensions. Query an unknown order with GET first, retaining the original intent. See the self-hosting guide for production troubleshooting. |
 | The guest sees the menu but can't order                                 | ordering is paused: on Floor, "QR ordering"                                                                                                                                                                                                |
 | The QR codes contain `localhost`                                        | `VITE_PUBLIC_BASE_URL` in `frontend/.env.local`, then reload the page (Vite restarts by itself)                                                                                                                                            |
 | The phone doesn't open the page                                         | same Wi-Fi network and Vite started with `--host 0.0.0.0`; on Linux and macOS the system firewall; on WSL private network profile, firewall rule and WSL IP still equal to the port forwarding's (`netsh interface portproxy show v4tov4`) |

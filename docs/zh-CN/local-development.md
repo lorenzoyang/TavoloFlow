@@ -289,11 +289,42 @@ npm run dev
 
 ### 在开发环境测试 Turnstile
 
-开发和 Demo 无需 Cloudflare 账号即可使用。要在 Development 测试验证，可在 API 环境中设置 `Turnstile__Enabled=true`、`Turnstile__SiteKey=1x00000000000000000000AA`、`Turnstile__SecretKey=1x0000000000000000000000000000000AA`。这对官方测试密钥始终通过，需要联网，也支持 localhost 和局域网手机测试。生产禁止使用测试密钥。
+Development 和 Demo 默认关闭 Turnstile，无需 Cloudflare 账号即可使用。要测试验证，在原来运行 API 的终端按 `Ctrl+C` 停止它，然后**在电脑上的仓库根目录**执行：
 
-组件仅在订单确认或未知结果恢复时显示。可使用[其他官方测试密钥](https://developers.cloudflare.com/turnstile/troubleshooting/testing/)模拟失败、交互或 token 已使用。集成测试模拟验证服务，不需要真实密钥或网络。只有 Development 中已识别的成对测试密钥才接受官方返回的 `example.com` 及缺少 action/cdata 的响应；真实密钥始终校验域名、用途和请求绑定。在开发环境使用真实密钥时，还需设置 `Turnstile__Hostname` 并在面板允许该域名。
+```bash
+Turnstile__Enabled=true \
+Turnstile__SiteKey=1x00000000000000000000AA \
+Turnstile__SecretKey=1x0000000000000000000000000000000AA \
+dotnet run --project backend/TavoloFlow.Api --launch-profile http
+```
 
-检查未完成、过期或失败的验证会阻止新提交，保留购物车和填写内容，并提供重新验证或电话入口。未知结果仍应通过 GET 找回；手动重试先检查原订单。提交后不能复用旧 token。请在 360px 下检查三种语言。
+这是 Bash / WSL 的写法，每行末尾的 `\` 表示命令还没结束，后面不要加空格。这些环境变量只传给这次启动的 API，不会写入文件；`http` 启动配置会使用 Development。另一个终端里的 Vite 按原方式运行，无需把密钥写进 `frontend/.env.local`，刷新线上点单页即可读到公开配置。
+
+这对[官方测试密钥](https://developers.cloudflare.com/turnstile/troubleshooting/testing/)始终通过，需要联网，也支持 localhost 和局域网手机测试，不需要填写 `Turnstile__Hostname`。**生产禁止使用测试密钥**，也不能拿它们证明反机器人效果。服务器上的 `TURNSTILE_*` 是生产 Compose 使用的变量名；本地直接运行 API 使用上面带双下划线的 `Turnstile__*`。
+
+组件仅在订单确认或未知结果恢复时显示。可按官方测试表替换对应密钥，模拟失败、交互或 token 已使用；修改后重启 API，再刷新顾客页面。只有 Development 中已识别的成对测试密钥才接受官方返回的 `example.com` 及缺少 action/cdata 的响应；真实密钥始终校验域名、用途和请求绑定。在开发环境使用真实密钥时，还需设置 `Turnstile__Hostname` 并在面板允许实际访问的主机名。真实 Secret key 应放进本地机密或受保护的环境配置，不提交 Git。
+
+在测试餐厅中，按以下顺序检查：
+
+1. 只浏览 `/r/{slug}`、隐私页和 `/o/{token}` 时不加载验证组件。加入菜品、进入订单确认后，组件才出现；验证完成前不能提交，完成后才能提交。
+2. 等待凭证过期或模拟验证失败，旧凭证不能继续授权提交；如果组件自动刷新验证，必须等新验证完成。服务端拒绝验证时，购物车和填写内容仍然保留，不产生新订单或通知。凭证只保存在内存，不进入 `sessionStorage` 中的下单意图。
+3. 用浏览器开发者工具的网络阻止功能拦截 `https://challenges.cloudflare.com/*`，重新进入确认页：应出现验证不可用提示，允许重新验证或拨打餐厅电话，购物车仍在。取消阻止并点“重新验证”后可恢复，不会自动下单。
+4. 模拟提交响应丢失，页面必须保留未知结果，自动核对只发 GET。手动“重试原订单”也先 GET；找到原订单不需要新验证，尚未找到时才用新凭证重发同一 ID、同一内容。验证失败或服务不可用不能清掉已经未知的意图；不能通过另下一张订单来代替查询。
+5. 在 360px 下切换中文、意大利文和英文，检查按钮、提示和电话入口没有溢出。切换语言或重新进入另一笔订单的确认页后，旧组件的回调不能启用新提交。
+
+集成测试用模拟服务覆盖成功、失败、超时、绑定错误、重复提交和并发恢复，不需要真实 Cloudflare 密钥或访问验证服务；数据库测试仍需要 Docker。可从仓库根目录单独运行：
+
+```bash
+dotnet test TavoloFlow.slnx --filter 'FullyQualifiedName~OnlineVerificationTests'
+```
+
+测试结束后，按 `Ctrl+C` 停止 API。若不想继续使用验证，明确关闭后按普通开发方式运行：
+
+```bash
+Turnstile__Enabled=false dotnet run --project backend/TavoloFlow.Api --launch-profile http
+```
+
+刷新顾客页面后不应再加载组件。真实生产密钥的配置和已有 VPS 升级流程见[自托管指南](self-hosting.md#首次升级到带-turnstile-的版本)；本地演练不能替代上线后的真实域名验收。
 
 [360px 示例：验证服务不可用时的应用提示](../images/online-verification-zh.webp)（模拟 SDK，未展示 Cloudflare 组件）。
 
@@ -462,6 +493,9 @@ Remove-NetFirewallRule -DisplayName "TavoloFlow Dev 5173"
 | 桌台页面显示「餐厅服务尚未由平台启用或已被暂停」            | 餐厅处于暂停状态：由管理员用「启用餐厅服务」启用                                                                                                                                               |
 | 首页没有「线上订单」和「线上点单」                          | 餐厅没有开通线上点单：由管理员先设置链接，再用「修改服务」开通（见「试用线上点单」）                                                                                                           |
 | 线上点单页面只能看菜单                                      | 线上点单设置页的状态会说明原因：没填电话或营业时间、已暂停、营业时间外，或者等待接单的订单太多；营业时间按餐厅的时区计算                                                                       |
+| 已开启验证，但确认页不出现组件 | 确认变量设置在 API 进程上，使用 `Turnstile__*` 而非只在根目录 `.env` 或前端里填写；重启 API、刷新顾客页。开发与 Demo 默认关闭验证。 |
+| API 报 Turnstile 配置错误，或者测试验证一直失败 | 核对测试密钥是否为官方表中的对应类型，且环境为 Development；真实密钥还必须设置 `Turnstile__Hostname`，与浏览器访问的主机名和面板配置一致。 |
+| 验证组件无法加载，或提交显示安全验证不可用 | 浏览器和 API 都需要能访问 Cloudflare；检查网络与扩展拦截。未知订单先 GET 查询，不清空原意图；真实部署排查见自托管指南。 |
 | 顾客能看菜单但不能下单                                      | 接单已暂停：在桌台页面打开「扫码接单」                                                                                                                                                         |
 | 二维码里是 `localhost`                                      | 在 `frontend/.env.local` 里设置 `VITE_PUBLIC_BASE_URL`，然后刷新页面（Vite 会自动重启）                                                                                                        |
 | 手机打不开页面                                              | 同一个 Wi-Fi，Vite 用 `--host 0.0.0.0` 启动；Linux 和 macOS 检查系统防火墙；WSL 检查网络是否为专用、防火墙规则，以及 WSL 的 IP 是否仍与端口转发一致（`netsh interface portproxy show v4tov4`） |

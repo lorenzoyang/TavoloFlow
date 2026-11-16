@@ -366,7 +366,7 @@ Tieni sul tuo computer almeno il pacchetto della versione in produzione e quello
 
 **Facoltativo: provare tutto in locale.** [`deploy/smoke-test.sh`](../../deploy/smoke-test.sh) installa il pacchetto dentro un Docker temporaneo e isolato (Docker-in-Docker, con un certificato di prova locale) e controlla installazione, migrazioni, HTTPS, cookie e CSRF delle tre identità, la chiave delle notifiche, due rilasci di fila, backup, ripristino e rollback, poi cancella tutto quello che ha creato. Usa l'indirizzo scritto nel pacchetto, quindi funziona con qualsiasi `PUBLIC_ORIGIN`:
 
-Controlla anche che chiavi VAPID mancanti o invalide siano rifiutate prima di fermare l'API e che la chiave pubblica resti identica dopo aggiornamento, riavvio, ripristino di `production.env` e rollback. Non invia notifiche reali: la consegna e il suono si provano sul telefono al passo 6.
+Controlla anche che chiavi VAPID mancanti o invalide, configurazioni Turnstile mancanti e chiavi di test vietate in produzione siano rifiutate prima di fermare l’API esistente, e che la chiave pubblica VAPID resti identica dopo aggiornamento, riavvio, ripristino di `production.env` e rollback. La prova disattiva esplicitamente Turnstile: non chiama il servizio di verifica reale e non invia notifiche push reali. La verifica con chiavi vere, la consegna delle notifiche e il suono si provano sul telefono al passo 6.
 
 ```bash
 PUBLIC_ORIGIN=https://app.esempio.it bash deploy/build-release.sh
@@ -427,11 +427,13 @@ Aggiungi al `.env` del server:
 
 ```dotenv
 TURNSTILE_ENABLED=true
-TURNSTILE_SITE_KEY=CHIAVE_PUBBLICA_DA_CLOUDFLARE
-TURNSTILE_SECRET_KEY=CHIAVE_SEGRETA_DA_CLOUDFLARE
+TURNSTILE_SITE_KEY=REPLACE_WITH_TURNSTILE_SITE_KEY
+TURNSTILE_SECRET_KEY=REPLACE_WITH_TURNSTILE_SECRET_KEY
 ```
 
 Sostituisci i valori con entrambe le chiavi complete del widget: non si generano con `openssl`. La chiave segreta resta nel `.env` protetto, mai in Git o nel codice frontend. Compose passa i valori all’API e ricava l’hostname da `DOMAIN`; il frontend legge solo la chiave pubblica dall’API, senza ricompilazioni dedicate. Il [piano gratuito](https://developers.cloudflare.com/turnstile/plans/) non addebita le verifiche.
+
+Compila la configurazione nel nano aperto prima: premi `Ctrl+O` per salvare, Invio per confermare il nome del file e `Ctrl+X` per uscire. Per modificarla di nuovo, sulla VPS esegui `sudo nano /opt/tavoloflow/.env`. Se il server è già in uso da tempo e ora aggiungi la verifica, segui i [passaggi completi per l’aggiornamento](#primo-aggiornamento-a-una-versione-con-turnstile): non ripetere il comando sopra che crea `.env` dal modello.
 
 L’installatore controlla configurazione, segnaposto e chiavi di test prima di fermare l’API esistente; l’API ricontrolla all’avvio. Il controllo locale non può confermare che le chiavi e i domini sul pannello siano corretti: prima di aprire ai clienti prova un ordine nel browser sul dominio reale, poi accettalo e verifica il risultato. Nome, telefono, indirizzo e piatti non vengono inviati al verificatore. Se Cloudflare non risponde, i nuovi invii restano bloccati con carrello conservato e telefono del ristorante; il recupero degli ordini già inviati continua a funzionare.
 
@@ -445,12 +447,15 @@ Per un’installazione che sceglie esplicitamente di non usare il verificatore, 
 | `ACME_EMAIL`        | la tua email vera, per gli avvisi sul certificato                                                                           |
 | `POSTGRES_PASSWORD` | i 64 caratteri esadecimali generati da `openssl rand -hex 32`                                                               |
 | `VAPID_PRIVATE_KEY` | altri 64 caratteri esadecimali, generati a parte con `openssl rand -hex 32`: la chiave delle notifiche push                 |
+| `TURNSTILE_ENABLED` | `true` attiva la verifica degli ordini online (predefinito in produzione); per disattivarla esplicitamente scrivi `false`, non lasciare il valore vuoto |
+| `TURNSTILE_SITE_KEY` | la Site key completa del widget Managed di Cloudflare; obbligatoria con verifica attiva |
+| `TURNSTILE_SECRET_KEY` | la Secret key completa dello stesso widget; obbligatoria con verifica attiva, resta solo sul server |
 
 Il resto lascialo com'è. Niente virgolette e niente spazi attorno a `=`.
 
 - **La password del database vale solo la prima volta.** PostgreSQL crea l'utente con `POSTGRES_PASSWORD` solo quando il volume dei dati è vuoto. Se poi la cambi in `.env`, il database non lo sa, e l'API non riesce più a collegarsi. È in esadecimale perché contiene solo `0-9` e `a-f`: nessun carattere da proteggere né in Compose né nella stringa di connessione.
 - **La chiave delle notifiche non va cambiata.** Con `VAPID_PRIVATE_KEY` l'API firma le notifiche a schermo bloccato dei nuovi ordini online, e ne ricava la chiave pubblica con cui ogni dispositivo le attiva. Se la cambi, le notifiche già attivate smettono di arrivare e ogni dispositivo le deve riattivare dalla Home. Anche questa è esadecimale, come la password, ma i due valori devono essere diversi. Come contatto, i servizi di notifica (Apple, Google, Mozilla, Microsoft) vedono `https://` + `DOMAIN`, che il Compose imposta da solo. La chiave è obbligatoria anche se per ora usi solo i QR dei tavoli. Deve essere una chiave privata P-256 valida: l'installer controlla formato e intervallo prima di fermare l'API in servizio.
-- **Prima di fermare l'API, l'installer controlla quattro cose:** password di 64 caratteri esadecimali, chiave delle notifiche di 64 caratteri esadecimali e valida per P-256, email diversa dal modello e `https://` + `DOMAIN` uguale a `public-origin.txt` del pacchetto. Così non puoi installare un frontend i cui QR puntano a un altro dominio.
+- **Prima di fermare l’API esistente, l’installer controlla la configurazione:** password del database di 64 caratteri esadecimali, chiave delle notifiche di 64 caratteri esadecimali e valida per P-256, email diversa dal modello e `https://` + `DOMAIN` uguale a `public-origin.txt` del pacchetto. Con Turnstile attivo controlla anche chiavi complete, segnaposto, chiavi di test vietate in produzione e formato dell’hostname. Sono controlli offline: non possono confermare che le chiavi Cloudflare siano autentiche e valide.
 - `PROXY_SUBNET`, `PROXY_DYNAMIC_RANGE` e `CADDY_IP` definiscono la rete tra Caddy e API e l'IP fisso di Caddy. Cambiali, tutti e tre insieme e prima del primo avvio, solo se sulla VPS c'è già un'altra rete Docker che usa `172.30.80.0/24`.
 - L'installer controlla già la configurazione con `docker compose config --quiet`; dopo l'installazione puoi farlo tu con `sudo bash /opt/tavoloflow/tf.sh config --quiet`. Senza `--quiet` stampa tutto, password comprese.
 
@@ -587,7 +592,8 @@ Chiede nome utente e password (6–128 caratteri; mentre scrivi non si vede nien
 
 1. Nella Home del titolare apri «Impostazioni ordini online» (`/staff/online-settings`), imposta telefono pubblico e orari settimanali e copia il link `https://app.esempio.it/r/{slug}`.
 2. Controlla che non ci sia una pausa e che l'orario attuale sia dentro una fascia salvata: la pagina deve indicare che i clienti possono ordinare. Il telefono e gli orari sono necessari; l'interruttore «Ordini dal QR» non regola gli ordini online.
-3. Da un altro telefono apri il link e invia un ordine da ritirare. Da `/staff/online` accettalo indicando il tempo, poi verifica Cucina, Pass, chiusura del conto da titolare e pagina cliente `/o/{token}`.
+3. Apri il link su un altro telefono, aggiungi dei piatti e vai alla conferma dell’ordine. Con Turnstile attivo controlla che compaia il widget: l’invio deve restare bloccato finché la verifica non è completata. Sfogliare il menu, aprire l’informativa privacy o controllare lo stato dell’ordine non deve caricare il widget.
+4. Invia un ordine da ritirare. Accettalo con un tempo previsto su `/staff/online`, poi controlla Cucina, Pass, chiusura del conto da parte del titolare e pagina del cliente `/o/{token}`. Container sani e controlli preliminari superati non sostituiscono questa prova sul dominio reale con chiavi vere.
 
 Un ristorante con soli ordini online salta tutti i passi dei tavoli e della Sala. L'amministratore non può chiudere conti al posto del titolare. Gli ordini di prova restano nello storico: usa un ristorante chiaramente di prova, senza cancellare righe a mano con SQL.
 
@@ -650,7 +656,7 @@ Poi scarica subito il primo backup sul tuo computer, come spiegato in Parte 2, �
 
 ### Rilasciare una nuova versione
 
-È lo stesso percorso della prima installazione, senza ricreare l'amministratore o `.env`. Conserva i valori esistenti; aggiungi solo le nuove variabili richieste, come nel punto 6.
+Usa lo stesso metodo di build e installazione del primo rilascio, senza ricreare l’amministratore o `.env`. Conserva la configurazione esistente, aggiungi le variabili richieste dalla nuova versione seguendo i passaggi sotto, poi installa. Vale soprattutto per un server in uso da tempo a cui aggiungi Turnstile solo ora: la nuova versione attiva la verifica per impostazione predefinita in produzione, quindi l’installer rifiuta l’aggiornamento se nel vecchio `.env` mancano le chiavi.
 
 **Prima di iniziare:**
 
@@ -685,6 +691,50 @@ Poi scarica subito il primo backup sul tuo computer, come spiegato in Parte 2, �
 
    Al termine, usa `exit` per tornare al terminale locale oppure apri un altro terminale sul tuo computer, quindi continua con la creazione e il caricamento del pacchetto qui sotto.
 
+#### Primo aggiornamento a una versione con Turnstile
+
+Questi passaggi aggiungono la configurazione a un server esistente. Servono solo alla prima attivazione; nei rilasci successivi conserva i valori. Tutta l’installazione condivide un widget: non ne serve uno per ogni ristorante.
+
+1. **Prepara le chiavi nel browser del tuo computer.** Accedi al [pannello Cloudflare](https://dash.cloudflare.com/), apri **Turnstile → Add widget** e scrivi un nome riconoscibile, per esempio `TavoloFlow online orders`. Aggiungi l’hostname indicato da `DOMAIN` nel `.env` del server, per esempio `app.esempio.it`; la mia installazione usa `app.qiaotavoloflow.it`. Non inserire il dominio principale del sito di presentazione, né `https://`, porte o percorsi. Scegli **Managed**, lascia **Pre-clearance** disattivato, poi premi **Create** e conserva **Site key** e **Secret key**. Se hai già un widget, riusa la sua coppia di chiavi valide: non crearne uno a ogni rilascio. Vedi le [istruzioni di Cloudflare](https://developers.cloudflare.com/turnstile/get-started/widget-management/dashboard/). Non serve spostare il DNS, attivare la nuvola arancione o cambiare VPS.
+
+2. **Accedi alla VPS dal terminale del tuo computer:**
+
+   ```bash
+   ssh -o IdentitiesOnly=yes -i ~/.ssh/tavoloflow deploy@VPS_IP
+   ```
+
+   Sostituisci `VPS_IP` con l’indirizzo IP del server. `deploy` è l’utente creato alla prima installazione; se la chiave privata è altrove, sostituisci `~/.ssh/tavoloflow` con il suo percorso. Se hai già una sessione SSH con questo utente, puoi usarla.
+
+3. **Sulla VPS, apri la configurazione esistente:**
+
+   ```bash
+   sudo nano /opt/tavoloflow/.env
+   ```
+
+   Se richiesta, inserisci la password sudo di `deploy`: è normale che il terminale non mostri i caratteri mentre scrivi. Aggiungi queste tre righe in fondo al file. Se una variabile esiste già, modifica la sua riga: ogni variabile deve comparire una volta sola.
+
+   ```dotenv
+   TURNSTILE_ENABLED=true
+   TURNSTILE_SITE_KEY=REPLACE_WITH_TURNSTILE_SITE_KEY
+   TURNSTILE_SECRET_KEY=REPLACE_WITH_TURNSTILE_SECRET_KEY
+   ```
+
+   Sostituisci per intero i segnaposto `REPLACE_WITH_...` con la Site key e la Secret key complete dello stesso widget. Niente virgolette o spazi attorno a `=`. Sono chiavi fornite da Cloudflare: non generarle con `openssl` e non usare quelle ufficiali di test per lo sviluppo. Conserva `DOMAIN`, `POSTGRES_PASSWORD`, `VAPID_PRIVATE_KEY` e gli altri valori esistenti; non ricreare il file da `.env.example`. Non inserire la Secret key in chat, screenshot o Git.
+
+4. **Salva ed esci da nano.** Premi `Ctrl+O` (la lettera O), controlla che in basso compaia `/opt/tavoloflow/.env` e premi Invio per confermare. Poi premi `Ctrl+X` per tornare alla shell della VPS. Modificare soltanto `.env` non cambia il container in esecuzione: l’installazione della nuova versione passerà i valori all’API. Il Compose di produzione ricava l’hostname atteso da `DOMAIN`: non aggiungere un altro `TURNSTILE_HOSTNAME`, non mettere le chiavi nel frontend e non ricompilarlo solo per questi valori.
+
+5. **Torna al tuo computer per costruire il pacchetto.** Nella sessione SSH esegui:
+
+   ```bash
+   exit
+   ```
+
+   Il comando chiude la sessione SSH e ti riporta al terminale del computer. Puoi anche tenere aperta la sessione della VPS e usare un altro terminale locale per la build e il caricamento sotto. Con la configurazione già corretta, i rilasci successivi possono partire dalla prossima sezione.
+
+Se scegli esplicitamente di non usare la verifica esterna, nello stesso file imposta `TURNSTILE_ENABLED` a `false`. Le due chiavi non sono necessarie; restano i limiti per browser, IP e ordini in attesa. È una scelta di chi gestisce l’installazione, non un ripiego automatico quando mancano le chiavi.
+
+#### Build, caricamento e installazione
+
 **Sul tuo computer:**
 
 ```bash
@@ -710,12 +760,26 @@ cd ~/tavoloflow-upload
 sha256sum -c "tavoloflow-$RELEASE.tar.gz.sha256"
 mkdir "$RELEASE"
 tar -xzf "tavoloflow-$RELEASE.tar.gz" -C "$RELEASE"
+# Controlla ogni file estratto; nessun output significa che va bene
+cd "$RELEASE"
+sha256sum --check --quiet SHA256SUMS
+cd ..
+# Usa lo script del nuovo pacchetto: la vecchia installazione potrebbe non averlo
+sudo python3 "$RELEASE/ops/validate-turnstile.py" /opt/tavoloflow/.env
+```
+
+Fermati se un controllo fallisce. Se il controllo preliminare di Turnstile termina senza errori e senza output, interruttore, formato delle chiavi e hostname rispettano i requisiti. Non contatta Cloudflare per verificare che le chiavi siano valide, appartengano allo stesso widget o che il pannello autorizzi l’hostname. Per correggere `.env`, usa `sudo nano /opt/tavoloflow/.env`, salva ed esci, poi ripeti il controllo. Non controllare le chiavi stampando tutto il file o eseguendo Compose senza `--quiet`.
+
+**Sempre sulla VPS, in `~/tavoloflow-upload`, installa dopo aver superato i controlli:**
+
+```bash
 # Sei in ~/tavoloflow-upload, quindi il percorso comincia con $RELEASE/
 sudo bash "$RELEASE/ops/install-release.sh" "$PWD/$RELEASE" /opt/tavoloflow
 sudo bash /opt/tavoloflow/tf.sh ps
+sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api
 ```
 
-Il controllo dei singoli file (`SHA256SUMS`) lo rifà l'installer all'inizio. Quando trova una versione già installata, l'installer fa questo:
+L’installer ricontrolla tutti i file del pacchetto, la configurazione esistente e quella di Turnstile. Lo fa prima di fermare l’API in servizio: se mancano le chiavi non interrompe prima il servizio. Se una versione è già installata, dopo i controlli la sequenza è:
 
 ```text
 ferma l'API → backup → migrazioni → nuova API → sposta web/current → ricrea Caddy → salva la versione
@@ -730,6 +794,10 @@ ferma l'API → backup → migrazioni → nuova API → sposta web/current → r
 
 **Dopo il rilascio** ricarica la pagina su ogni dispositivo dello staff, così usa anche la nuova logica delle notifiche e dell'uscita. Controlla login, una lettura (Cucina o Conto) e cambio di pagina nella PWA; sui dispositivi con notifiche attivate aspetta la conferma «attive» e ripeti una prova a schermo bloccato. Se una scrittura mostra un esito da verificare, segui l'interfaccia: l'app controlla con una GET, e reinviare alla cieca potrebbe ripetere l'operazione.
 
+**Dopo la prima attivazione di Turnstile, prova anche l’ordine del cliente.** Ricarica `/r/{slug}` sul dominio reale dell’applicazione: non continuare con una pagina rimasta aperta da prima dell’aggiornamento, perché non invierà la nuova prova di verifica. In un ristorante chiaramente indicato come test, aggiungi piatti, vai alla conferma, completa la verifica e invia un ordine. Accettalo come staff e controlla stato, cucina e conto. Il widget di solito completa i controlli automaticamente e potrebbe non richiedere un clic. Controlla anche la pagina di stato dell’ordine esistente, le notifiche e lo squillo dello staff, che devono funzionare come prima. Gestisci gli ordini di prova con il flusso normale, senza cancellarli con SQL.
+
+Una verifica incompleta, scaduta o che non si carica non deve creare un nuovo ordine. Il carrello deve restare conservato; se il caricamento fallisce devono esserci un pulsante per riprovare e il telefono del ristorante. Se la rete cade o il risultato è sconosciuto, usa prima il controllo dell’esito nella pagina per ritrovare l’ordine originale. «Riprova lo stesso ordine» fa prima una GET e usa una nuova verifica per ritentare la stessa richiesta solo se non l’ha ancora trovata. Non svuotare il carrello per fare un altro ordine al posto del controllo. Quando il verificatore non è disponibile, i nuovi invii sono bloccati ma gli ordini esistenti restano consultabili e recuperabili.
+
 Se il rilascio ha cambiato `tavoloflow-backup.service` o `.timer`, l'installer aggiorna solo le copie in `/opt/tavoloflow`: ripeti le due righe `install` e `daemon-reload` del passo 7 della Parte 1.
 
 ### Quando un rilascio va male
@@ -742,13 +810,39 @@ sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api db caddy
 
 - **Non cancellare volumi e non ripristinare subito il database.** Un errore dello script non cancella dati.
 - Se l'API è rimasta ferma, tieni il ristorante fuori servizio finché non hai capito.
-- Dopo la correzione, rilascia con un **ID nuovo**: lo stesso ID viene rifiutato sia dalla build (l'archivio esiste già) sia dall'installer (la cartella `web/releases/VERSIONE` esiste già). Rieseguire le migrazioni non fa danni.
+- **Se è fallito solo il controllo preliminare della configurazione Turnstile:** l’API esistente è ancora in esecuzione e la cartella della nuova release frontend non è stata creata. Correggi con `sudo nano /opt/tavoloflow/.env`, poi ripeti il controllo e l’installazione con lo stesso pacchetto: non serve ricostruirlo o estrarlo di nuovo.
+- **Se l’installazione è arrivata a una fase successiva:** controlla prima log e stato dei container. Se esiste già `web/releases/VERSIONE`, l’installer rifiuta lo stesso ID. Dopo aver corretto il codice o il problema di installazione, costruisci e pubblica con un **nuovo ID**; non cancellare a mano la cartella della release per forzare un tentativo. Il bundle salta le migrazioni già applicate.
 
 Se fallisce proprio la prima installazione, `state/current` non esiste ancora e `tf.sh` non sa quale versione usare. Passala tu, con `env` dopo `sudo`, perché `sudo` cancella le variabili d'ambiente scritte prima:
 
 ```bash
 sudo env RELEASE_ID=VERSIONE_FALLITA bash /opt/tavoloflow/tf.sh logs --tail 100 api db caddy
 ```
+
+#### Problemi comuni con Turnstile
+
+| Sintomo | Controlli e rimedi |
+| --- | --- |
+| L’installer segnala `Set TURNSTILE_...` o rifiuta chiavi di test in produzione | Sulla VPS usa `sudo nano /opt/tavoloflow/.env`, controlla le tre variabili e inserisci le chiavi vere dello stesso widget; non lasciare i segnaposto `REPLACE_WITH_...` e non usare chiavi di test. Salva e ripeti il controllo preliminare. |
+| Il widget non si carica alla conferma | Controlla che la rete del cliente raggiunga `challenges.cloudflare.com` e che le estensioni del browser non blocchino il widget. Usa «Ripeti verifica»; se non funziona, chiama il ristorante. Turnstile non richiede nuove porte in ingresso sulla VPS. |
+| Container sani e controlli superati, ma la verifica del cliente fallisce | Controlla che Site key e Secret key siano abbinate, che il widget sia Managed e che il pannello autorizzi l’hostname reale dell’applicazione, uguale a `DOMAIN`. Ricarica la pagina del cliente e ripeti la verifica. I controlli preliminari e di salute non provano la verifica reale di Cloudflare. |
+| I log API mostrano `ONLINE_VERIFICATION_UNAVAILABLE`, oppure l’invio continua a fallire | Controlla che le chiavi siano ancora valide e che il container API raggiunga Siteverify di Cloudflare via HTTPS. Credenziali errate, timeout e problemi di rete bloccano nuovi invii: controlla prima l’ordine originale per evitare duplicati. Non stampare né pubblicare chiavi, token grezzi o corpi delle richieste. |
+
+Dopo la prima attivazione, anche una modifica delle sole impostazioni di verifica nel `.env` del server richiede di ricreare il container API: un normale `restart` non rilegge le variabili d’ambiente di Compose. Fallo in una finestra di manutenzione, iniziando con questo controllo sulla VPS:
+
+```bash
+sudo python3 /opt/tavoloflow/validate-turnstile.py /opt/tavoloflow/.env
+```
+
+Se passa, esegui questi comandi (l’API sarà interrotta brevemente):
+
+```bash
+sudo bash /opt/tavoloflow/tf.sh up -d --no-deps --force-recreate --wait --wait-timeout 120 api
+sudo bash /opt/tavoloflow/tf.sh ps
+sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api
+```
+
+Poi ripeti la prova d’ordine reale descritta sopra. Questa procedura vale quando è già installata una versione con Turnstile: non sostituisce l’installazione del primo aggiornamento.
 
 #### Tornare alla versione precedente
 
@@ -777,13 +871,13 @@ Ogni esecuzione di [`backup.sh`](../../deploy/backup.sh) crea un archivio in `/o
 tavoloflow-20261027T023000Z-12345.tar.gz    ora UTC e numero del processo
 ├── database.dump      il database, con pg_dump
 ├── keys.tar.gz        le chiavi di Data Protection
-├── production.env     una copia di .env, password e chiave VAPID comprese
+├── production.env     copia di .env: password del database, VAPID e configurazione Turnstile
 ├── compose.yaml, Caddyfile
 ├── state/             le versioni installate in quel momento
 └── SHA256SUMS
 ```
 
-- **Due tipi di chiave, entrambi necessari.** `keys.tar.gz` contiene Data Protection; la chiave VAPID è in `production.env`. Conserva e ripristina anche quest'ultimo per mantenere le iscrizioni alle notifiche. Non generare una nuova VAPID durante il ripristino.
+- **Ripristina anche chiavi e configurazione della verifica.** `keys.tar.gz` contiene le chiavi Data Protection; `production.env` contiene la chiave VAPID delle notifiche e la configurazione Turnstile. Conserva la VAPID originale per mantenere le sottoscrizioni alle notifiche: non generarne un’altra durante il ripristino. I backup vecchi potrebbero non avere Turnstile: aggiungi la configurazione prima di installare una nuova versione con verifica, senza dare per scontato che un `.env` ripristinato non richieda controlli. Il widget e gli hostname nel pannello Cloudflare non fanno parte di questo backup.
 
 - **`pg_dump` legge tutto da un'unica istantanea:** anche se mentre lavora arriva un ordine, il file è coerente, come fotografato in un solo istante.
 - **Le chiavi vanno sempre con il database.** Cookie di login e codici dei tavoli sono cifrati con quelle chiavi: con il database ma senza le chiavi, tutti i dispositivi devono rifare il login e i codici dei tavoli aperti diventano illeggibili.
@@ -938,12 +1032,14 @@ Se il server è perso, ricostruisci tutto su una VPS nuova a partire da un backu
 
 1. Prepara la nuova VPS come nel passo 1 della Parte 1 (sistema, SSH, `deploy`, firewall, Docker). **Non toccare ancora il DNS.**
 2. Carica il backup sulla VPS, estrailo in `/root/tavoloflow-restore` (permessi 700) e controlla il suo `SHA256SUMS`.
-3. In `state/current` del backup trovi la versione installata: carica e prepara quel pacchetto come nei passi 3 e 4, **saltando la creazione di `.env` dal modello e la generazione di password e VAPID**. Ripristina il `production.env` salvato: contiene password del database e chiave delle notifiche. Dopo aver preparato `/opt/tavoloflow`, esegui:
+3. Leggi `state/current` nel backup per identificare la versione. Carica e prepara lo stesso pacchetto seguendo i passi 3 e 4, **saltando la creazione di `.env` dal modello e la generazione della password del database e della chiave VAPID**. Ripristina `production.env` dal backup: contiene password del database, chiave delle notifiche e configurazione Turnstile presente al momento del backup. Dopo aver preparato `/opt/tavoloflow`, esegui:
 
    ```bash
    sudo install -o root -g root -m 600 \
      /root/tavoloflow-restore/production.env /opt/tavoloflow/.env
    ```
+
+   Se ripristini una versione con Turnstile, controlla prima interruttore e due chiavi sulla VPS con `sudo nano /opt/tavoloflow/.env`. Se mancano in un backup più vecchio, segui i [passaggi del primo aggiornamento](#primo-aggiornamento-a-una-versione-con-turnstile). Mantenendo il dominio originale dell’applicazione, il cambio di IP della VPS non richiede di ricreare gli hostname su Cloudflare. Se cambi dominio, aggiorna anche l’hostname autorizzato del widget, `DOMAIN` e `PUBLIC_ORIGIN` usato nella build.
 
 4. Esegui `install-release.sh` come nel passo 5. Crea un database vuoto e chiavi nuove, che stai per sostituire. **Non creare l'amministratore e non creare ristoranti.** Il DNS punta ancora al vecchio indirizzo, quindi è normale che Caddy non ottenga il certificato.
 5. Sostituisci database e chiavi con quelli del backup:
@@ -979,7 +1075,7 @@ sudo bash /opt/tavoloflow/tf.sh up -d caddy
 sudo bash /opt/tavoloflow/tf.sh logs --tail 80 caddy
 ```
 
-8. Controlla HTTPS, login, Storico conti e codici dei tavoli ancora aperti. Sullo stesso dominio originario, con un login ancora valido e lo stesso VAPID, le iscrizioni alle notifiche si conservano: prova un ordine a schermo bloccato. Se il login è scaduto, accedi di nuovo e attendi «attive». Poi riapri il servizio e riattiva il backup automatico (passo 7 della Parte 1).
+8. Controlla HTTPS, login, conti chiusi e codici delle visite ancora aperte. Sul dominio originale dell’applicazione, le sottoscrizioni alle notifiche possono continuare se il login è valido e si usa la VAPID originale: prova di nuovo un ordine con telefono bloccato. Con Turnstile attivo completa anche la verifica e un ordine di prova sul dominio reale, e controlla che gli ordini esistenti siano consultabili. Se il login è scaduto, accedi di nuovo e attendi che le notifiche risultino attive. Poi riapri il servizio e riattiva i backup automatici (Parte 1, passo 7).
 
 Il database torna com'era al momento del backup: quello che è successo dopo va ricontrollato a mano con il ristorante.
 
@@ -1044,6 +1140,8 @@ Prima di aprire al pubblico, e dopo ogni cambio di server:
 - [ ] La PWA si installa su Android e su iOS; suono, schermo acceso e pagina offline funzionano.
 - [ ] Con gli ordini online configurati e aperti, ogni dispositivo conferma le notifiche attive; la prova a schermo bloccato su Android e iPhone/iPad installato apre la pagina degli ordini online. Uscita e nuovo accesso seguono i controlli del passo 6.
 - [ ] Dopo ripristino o aggiornamento, VAPID è conservata e i dispositivi dello staff sono ricaricati; le notifiche sono state provate sul dominio originale.
+- [ ] L’interruttore Turnstile è configurato esplicitamente; se attivo, le chiavi vere appartengono allo stesso widget Managed, il dominio reale dell’applicazione è autorizzato e Pre-clearance è disattivato. Dopo aver ricaricato la pagina cliente, la verifica di un ordine reale passa; senza verifica l’invio è bloccato e gli ordini esistenti restano consultabili.
+- [ ] Il `production.env` del backup comprende la configurazione attuale della verifica; usando un vecchio backup per ripristinare una nuova versione, le variabili mancanti sono state controllate e aggiunte.
 - [ ] Dopo un riavvio della VPS l'app torna su da sola, con dati e login intatti.
 - [ ] Il backup notturno è attivo, un backup è stato scaricato e ripristinato con successo in un database temporaneo.
 - [ ] Sul tuo computer ci sono il pacchetto della versione attuale e quello precedente, e sai dove trovare log, rollback e reset della password.

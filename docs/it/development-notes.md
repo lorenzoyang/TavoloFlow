@@ -191,7 +191,7 @@ Il backend è un solo progetto, `backend/TavoloFlow.Api/`, organizzato per argom
 | `Kitchen/`           | coda della Cucina, piatto pronto o annullato, il Pass, con i nomi degli ordini online                                                                                                                                                                           |
 | `Billing/`           | conto, le quattro chiusure (`PAID`, `VOIDED`, `EMPTY` e, solo online, `NO_SHOW`), correzione del costo di consegna, Storico conti                                                                                                                               |
 | `Platform/`          | area amministratore: ristoranti, servizi attivi e link online, account, abbonamenti                                                                                                                                                                             |
-| `Online/`            | ordini online: impostazioni (telefono, orari, pausa, consegna), menu e invio del cliente, pagina di stato, accettazione e rifiuto; le regole uniche `OnlineAvailability` (si può ordinare adesso?) e `OnlineRequestState` (la richiesta è in attesa o scaduta?) |
+| `Online/`            | ordini online: impostazioni, menu, invio e recupero, accettazione e rifiuto; `OnlineAvailability` decide se si può ordinare e `OnlineRequestState` gestisce attesa e scadenza; limiti per browser/IP e verifica Turnstile con `OnlineVerification` |
 | `Push/`              | notifiche a schermo bloccato: la chiave VAPID, le iscrizioni dei dispositivi, la coda in memoria e l'invio (`PushSender`, l'unico `BackgroundService`)                                                                                                          |     |
 | `Data/`, `Entities/` | `ApplicationDbContext`, le mappature e le migrazioni di EF Core, i lock di riga (`RowLocks`), il servizio di eliminazione; le 18 entità                                                                                                                         |
 
@@ -332,9 +332,9 @@ Anche il path dei cookie aiuta: il browser manda il cookie Guest solo alle richi
 - Store e Platform: il cookie contiene l'ID dell'account, il ruolo e la versione delle credenziali (`credential_version`), più l'ID del ristorante per lo staff. A ogni richiesta `ValidatePrincipal` rilegge l'account dal database: se è stato disattivato o se la versione è cambiata (cambio o reset della password), il cookie viene rifiutato. Così cambiare password fa uscire subito tutti gli altri dispositivi.
 - Guest: il cookie contiene ristorante, tavolo e visita, più un identificativo casuale generato a ogni ingresso, a cui viene legato il token CSRF. Dimostra soltanto che "questo browser è entrato in questa visita"; che la visita sia ancora aperta lo controlla ogni service del cliente, a ogni richiesta. Dopo la chiusura il cookie resta nel browser, ma ogni richiesta risponde `SESSION_CLOSED`.
 
-**Il cliente online non ha un'identità.** Le pagine `/r/{slug}` e `/o/{token}` non usano cookie di login: per ritrovare il proprio ordine bastano due valori casuali che conosce solo quel dispositivo, il `clientRequestId` per il recupero dopo un errore di rete e il token della pagina di stato. L'invio, però, è una scrittura, quindi vuole il suo token CSRF, chiesto a `/api/public/csrf` e legato all'ambito Guest.
+**Il cliente online non ha un’identità di login.** Le pagine `/r/{slug}` e `/o/{token}` non usano cookie di login: il recupero si basa sul `clientRequestId` casuale dopo un errore di rete e sul token della pagina di stato. L’invio richiede un token CSRF nell’ambito Guest da `/api/public/csrf` e il cookie `TavoloFlow.OnlineBrowser`. Quest’ultimo è solo un identificatore casuale del browser firmato dal server, per limitare gli ordini in attesa nello stesso ristorante: non significa che il cliente abbia fatto login o verificato il telefono. Con Turnstile attivo, i nuovi invii richiedono anche una prova di verifica.
 
-**Nel frontend** `lib/api.ts` ha una famiglia di funzioni per ogni identità: `request`/`write` per lo staff, `publicRequest` per le letture anonime (senza cookie, come il menu pubblico), `publicWrite` per l'invio anonimo degli ordini online (manda solo il cookie del CSRF), `guestRequest`/`guestWrite` per il cliente al tavolo e `platformRequest`/`platformWrite` per l'amministratore. Ogni scrittura chiede prima un token CSRF nuovo all'endpoint `csrf` della propria identità e lo manda nell'header `X-CSRF-TOKEN`.
+**Nel frontend** `lib/api.ts` ha una famiglia di funzioni per ogni identità: `request`/`write` per lo staff, `publicRequest` per le letture anonime (senza cookie, come menu pubblico, recupero e stato degli ordini), `publicWrite` per l’invio anonimo online (richieste same-origin con cookie CSRF e identificatore del browser), `guestRequest`/`guestWrite` per il cliente al tavolo e `platformRequest`/`platformWrite` per l’amministratore. Anche la query online `ordering-context` manda i cookie same-origin, per ritrovare l’ordine in attesa di questo browser in questo ristorante. Prima di ogni scrittura, il frontend chiede un token CSRF nuovo all’endpoint `csrf` della propria identità e lo manda nell’header `X-CSRF-TOKEN`.
 
 Perché cookie e non token JWT, e come funziona la protezione CSRF, lo spiego in «Cookie, CSRF e same-origin».
 
@@ -399,15 +399,35 @@ sequenceDiagram
   actor T as Titolare (Conto)
   participant A as API
   participant D as PostgreSQL
+  participant V as Cloudflare Turnstile
   participant P as Servizi push
 
   C->>A: GET /api/public/r/{slug}/bootstrap (anonimo)
-  A-->>C: ristorante, menu e stato degli ordini online
-  C->>A: POST /api/public/r/{slug}/requests (clientRequestId, nome, telefono, righe)
-  A->>D: lock ristorante (SHARE), lock d'invio del ristorante, contatore del giorno
-  A->>D: se clientRequestId esiste già restituisce quella richiesta, altrimenti la salva in attesa per 10 minuti
-  A-->>C: numero, scadenza e token della pagina di stato
-  A-)P: dopo il commit, «Nuovo ordine online» ai dispositivi iscritti
+  A-->>C: Ristorante, menu, stato e configurazione pubblica della verifica
+  C->>A: GET ordering-context (cookie del browser)
+  A-->>C: Ordine in attesa di questo browser nel ristorante, se presente
+  Note over C: Prepara clientRequestId alla conferma
+  opt Verifica attiva
+    C->>V: Carica il widget e completa la verifica legata alla richiesta
+    V-->>C: Prova di verifica
+  end
+  Note over C: Salva l’intento completo prima della POST, senza la prova
+  C->>A: POST requests (clientRequestId, form, piatti, turnstileToken)
+  A->>D: Cerca un risultato già salvato con questo clientRequestId
+  alt Già presente
+    A-->>C: Risultato originale, senza chiamare la verifica
+  else Non ancora trovato
+    opt Verifica attiva
+      A->>V: Valida la prova con Siteverify, senza lock sul database
+      V-->>A: Esito, hostname, azione e legame alla richiesta
+    end
+    A->>D: Transazione: lock ristorante, lock invio, contatore giornaliero, nuova ricerca duplicati
+    A->>D: Solo primo invio, controlla posti per origine, disponibilità e menu, salva per 10 minuti
+    A-->>C: Numero, scadenza e token dello stato
+    opt Primo invio riuscito e transazione confermata
+      A-)P: Invia nuovo ordine online ai dispositivi iscritti
+    end
+  end
   loop ogni 10 secondi
     S->>A: GET /api/staff/online/pending (banner e Ordini online)
   end
@@ -421,7 +441,7 @@ sequenceDiagram
 ```
 
 1. **Menu.** La pagina `/r/{slug}` legge senza cookie il ristorante, il menu e lo stato degli ordini online, calcolato da una sola regola (`OnlineAvailability`): servizio sospeso, ordini online non attivi o telefono mancante, in pausa, fuori orario, troppi ordini in attesa, oppure aperto. Se non è aperto, il cliente può guardare il menu, ma non andare alla cassa.
-2. **Invio.** Come al tavolo, il frontend salva in `sessionStorage` l'intenzione completa con un `clientRequestId`, e solo dopo manda la POST. Il backend prende i lock, assegna il numero del giorno e cerca prima di tutto una richiesta con lo stesso ID: se c'è, la restituisce e annulla la transazione, così il numero non si consuma. Altrimenti controlla di nuovo lo stato, la consegna, l'eventuale codice sconto, i piatti e i prezzi e salva la richiesta, con una copia del codice e della percentuale, che resta in attesa per 10 minuti. Il cliente passa alla pagina di stato.
+2. **Invio.** Alla conferma, il frontend genera prima `clientRequestId`, così Turnstile può legare la verifica a questa richiesta. L’intento completo viene ancora salvato in `sessionStorage` solo prima della POST; la prova viaggia con la richiesta e non viene conservata. Il backend cerca prima l’originale già salvato e, se lo trova, lo restituisce. Altrimenti verifica fuori dalla transazione, poi apre la transazione, blocca il ristorante, prende il lock di invio e il contatore giornaliero e cerca di nuovo i duplicati. Un duplicato restituisce il risultato originale e annulla l’incremento del contatore, senza consumare un nuovo numero. Il primo invio controlla anche posti in attesa per browser/IP, disponibilità, consegna, codice sconto, piatti e prezzi; poi salva la richiesta, con copia del codice e della percentuale, in attesa di accettazione per 10 minuti. Il cliente apre la pagina di stato.
 3. **Avviso.** Solo dopo il commit il numero dell'ordine entra in una coda in memoria, e un servizio in background manda le notifiche push. Lo staff con l'app aperta lo vede comunque dal banner, che interroga il server ogni 10 secondi e suona finché c'è un ordine da accettare.
 4. **Accettazione.** Lo staff sceglie tra quanto sarà pronto (per la consegna, prima il costo). Il backend blocca la richiesta, controlla che sia ancora in attesa e, nella stessa transazione, crea la visita (`PICKUP` o `DELIVERY`), il suo unico ordine e le righe, copiate dalla richiesta. L'ordine nasce in quel momento, quindi per la Cucina è un ordine nuovo come gli altri, e suona. Se invece lo staff rifiuta, o nessuno risponde in tempo, non nasce niente: la richiesta resta rifiutata o scaduta.
 5. **Cucina, Pass e conto.** Da qui tutto va come per un tavolo: piatti pronti o annullati, «Servito» dal Pass (per una consegna vuol dire affidato a chi consegna), e il titolare chiude il conto al ritiro o alla consegna; se il cliente non si presenta, lo chiude come `NO_SHOW`. La pagina di stato del cliente si aggiorna ogni 10 secondi finché l'ordine non finisce.
@@ -541,7 +561,11 @@ Le due tecniche si completano: il lock pessimistico protegge i millisecondi dell
 
 Il frontend non rimanda mai la POST da solo. Dopo un risultato sconosciuto cerca l'ordine con una GET (`/api/public/sessions/{id}/orders/by-request/{requestId}`); il cliente può ricontrollare con «Verifica esito ordine» oppure toccare «Riprova ordine originale», che rimanda lo stesso ID con lo stesso identico contenuto. È sempre il cliente a decidere.
 
-Gli ordini online usano la stessa idea, con qualche differenza. Il `clientRequestId` è unico per ristorante (`uq_online_request_client_request`), e il backend lo cerca dopo aver preso il numero del giorno: una ripetizione restituisce la richiesta originale e annulla la transazione, quindi i numeri non hanno buchi. Il recupero è una GET per ID (`/api/public/r/{slug}/requests/by-client-id/{id}`): l'ID casuale lo conosce solo quel telefono, ed è lui la credenziale. C'è poi una differenza voluta. Se una riprova, dopo un risultato sconosciuto, viene rifiutata per un motivo che il backend controlla solo dopo aver cercato l'ID (per esempio ordini in pausa, fuori orario, troppi ordini in attesa, consegna non attiva o menu cambiato), quel rifiuto dimostra che la prima richiesta non esiste, e il carrello si sblocca. Per gli ordini al tavolo la regola resta quella prudente descritta sopra.
+Gli ordini online seguono la stessa idea, con qualche differenza. `clientRequestId` è unico nel ristorante (`uq_online_request_client_request`). Il backend cerca un risultato già salvato prima della verifica esterna. Se non lo trova, esegue la verifica e poi cerca di nuovo sotto lock, dopo aver preso il numero giornaliero. Anche un duplicato trovato a questo punto annulla l’incremento del contatore, senza lasciare buchi nei numeri. Non trovare un risultato alla prima lettura non significa che un altro invio ancora in corso sia fallito.
+
+Il recupero usa una GET per ID (`/api/public/r/{slug}/requests/by-client-id/{id}`). Questo ID casuale è esso stesso una credenziale, quindi non va mandato in chiaro al verificatore. Anche «Riprova lo stesso ordine» parte da una GET: se trova l’originale lo apre; solo un 404, che significa non ancora trovato, permette di rimandare stesso ID e contenuto con una nuova prova. Il 404 non dimostra comunque che l’originale sia fallito: il controllo dei duplicati sotto lock impedisce ai tentativi concorrenti di creare un altro ordine.
+
+Un’altra differenza voluta: dopo un risultato sconosciuto, se un nuovo tentativo viene rifiutato da un controllo successivo alla ricerca dei duplicati sotto lock (per esempio ordini in pausa, fuori orario, posti in attesa per browser o IP esauriti, consegna disattivata o menu cambiato), il rifiuto prova che l’originale con quell’ID non esiste e il carrello si sblocca. Verifica fallita, CSRF, limiti di frequenza e identificatore del browser mancante arrivano prima di questa prova e non permettono di scartare l’intento sconosciuto. `ONLINE_VERIFICATION_FAILED` (400) permette lo sblocco solo al primo invio esplicitamente rifiutato; 503 del verificatore, timeout e risposte perse conservano l’intento. Gli ordini al tavolo mantengono la regola prudente descritta sopra.
 
 ### Ordini online: una richiesta da accettare
 
@@ -557,6 +581,22 @@ Gli ordini online usano la stessa idea, con qualche differenza. Il `clientReques
 - **Il costo di consegna lo decide una persona.** Niente calcolo in base alla distanza: servirebbe un servizio di mappe a pagamento, e l'indirizzo del cliente andrebbe mandato a un'altra azienda. Il titolare scrive le sue regole in una nota (per zona, per importo…), e chi accetta l'ordine inserisce il costo, che entra nel conto. Se è sbagliato, il titolare lo corregge prima di chiudere, con la versione del conto.
 
 Il prezzo da pagare: lo staff deve rispondere entro 10 minuti, anche nei momenti di punta, e un ordine scaduto è perso: il cliente deve chiamare o ordinare di nuovo. Per questo c'è il banner che suona su ogni pagina e, per i telefoni bloccati, le notifiche push (vedi «PWA per lo staff»).
+
+### Limiti per origine e verifica degli ordini online
+
+**Problema.** Accettare prima di mandare in cucina permette allo staff di rifiutare ordini sospetti, ma non impedisce invii ripetuti che occupano i posti in attesa o fanno suonare continuamente banner e notifiche a schermo bloccato. Il CSRF impedisce a un altro sito di usare il browser per mandare richieste; non ferma chi apre direttamente la pagina e la usa per fare ordini malevoli.
+
+**Scelta: limitare le origini, poi aggiungere la verifica Turnstile ai nuovi invii.**
+
+- **Un solo ordine in attesa per browser e ristorante.** Un identificatore casuale del browser, firmato dal server, sta in un cookie HttpOnly, SameSite=Strict, con scadenza a 30 giorni. `ordering-context` ritrova l’ordine in attesa nel ristorante corrente e la pagina offre il link per aprirlo. Non è un’impronta del dispositivo né una verifica d’identità: cancellando i cookie si può cambiare identificatore, quindi servono anche limiti IP.
+- **Frequenza e posti in attesa hanno limiti separati.** Per impostazione predefinita, ogni IP può tentare 3 invii al minuto e 10 in dieci minuti, compresi JSON invalidi, errori CSRF e richieste ripetute. Ogni ristorante ammette inoltre al massimo 5 ordini in attesa dallo stesso IP, mantenendo il limite totale di 20. Accettazione, rifiuto o scadenza liberano i posti. Letture dello stato, recupero e nuovi invii hanno ciascuno limiti di frequenza separati.
+- **Caricare Turnstile solo quando serve inviare.** È attivo per impostazione predefinita in produzione e disattivato in Development e Demo; è una configurazione dell’installazione, non un interruttore per ristorante. Il widget si carica alla conferma o nell’area di recupero di un esito sconosciuto, nella lingua del cliente. Scadenza, fine del tentativo o cambio di contesto rendono inutilizzabile la vecchia prova per l’invio; non invia mai un altro ordine automaticamente. Sfogliare menu, privacy o pagina di stato non lo carica.
+- **La validità della verifica la decide il backend.** `OnlineVerification` manda la prova a un endpoint HTTPS Siteverify fisso, attende al massimo 5 secondi e non riprova automaticamente né segue redirect. Con chiavi vere devono corrispondere hostname, `action=online_order` e legame alla richiesta. Il legame è lo SHA-256 di `restaurantIdN:clientRequestIdN` (GUID minuscoli senza trattini), inviato come `cdata`: non espone l’ID originale usato per il recupero e impedisce di usare una prova per richieste o ristoranti diversi. La verifica non tiene lock sul database, quindi una risposta lenta di Cloudflare non lascia il ristorante bloccato.
+- **Un fallimento non crea ordini né avvisi.** Una verifica rifiutata restituisce `ONLINE_VERIFICATION_FAILED`; un guasto del verificatore restituisce `ONLINE_VERIFICATION_UNAVAILABLE`. Senza una richiesta salvata con successo non si consumano numeri o posti in attesa e non partono notifiche. Carrello e risultati sconosciuti seguono le regole di recupero sopra; le GET degli ordini salvati non dipendono da Cloudflare. Prove e Secret key non finiscono in carrelli, snapshot o log, e al verificatore non mandiamo nomi, telefoni, indirizzi o piatti.
+
+Il costo è una dipendenza esterna: con verifica attiva, sia il browser del cliente sia l’API devono raggiungere Cloudflare. Se non si può verificare, i nuovi invii vengono bloccati, senza lasciarli passare in silenzio. Prima del rilascio servono chiavi vere e configurazione del server; vedi i [passaggi per aggiornare una VPS esistente](self-hosting.md#primo-aggiornamento-a-una-versione-con-turnstile). Solo le coppie ufficiali di test riconosciute in Development accettano la risposta ufficiale con `example.com` e senza action/cdata.
+
+Queste misure rendono più costosi gli invii automatici e l’occupazione ripetuta dei posti, ma non verificano che il telefono appartenga al cliente e non garantiscono ritiro o pagamento. Una persona può ancora fare un ordine malevolo, e clienti legittimi sullo stesso IP pubblico condividono i limiti. Il ristorante deve ancora valutare le richieste sospette, chiamare se serve e decidere se accettarle. Gli ordini accettati e non ritirati restano registrati come `NO_SHOW`: l’app non recupera le perdite del ristorante. Notifiche e squillo non cambiano.
 
 ### Sconti: prezzo scontato e codici sconto
 
@@ -683,7 +723,7 @@ Il controllo lo fa `CsrfValidationFilter`, registrato in modo globale perché `A
 - **Aprire un tavolo non è idempotente.** A differenza dell'ordine, l'apertura non ha un ID di richiesta. Se la risposta si perde, il frontend rilegge la Sala e lo staff decide se riaprire; una seconda apertura sullo stesso tavolo riceve `SESSION_ALREADY_ACTIVE`, e l'indice unico garantisce comunque una sola visita aperta per tavolo. Resta un rischio, che ho accettato consapevolmente per la prima versione: una richiesta vecchia che arriva in grande ritardo, quando il tavolo è già stato chiuso, e apre una visita che nessuno voleva, da chiudere poi senza incasso. Se nell'uso reale succedesse spesso, aggiungerei un ID di richiesta anche all'apertura. Per un ordine o un conto un rischio del genere non sarebbe accettabile, ed è per questo che lì ci sono `clientRequestId` e `bill_version`.
 - **Menu: l'ultima modifica vince.** Se il titolare modifica lo stesso piatto da due dispositivi, vale l'ultimo salvataggio, senza avvisi di conflitto. Non è grave, perché quello che conta lo controlla l'ordine: il backend ricontrolla sempre prezzi, disponibilità e opzioni e, se qualcosa è cambiato, risponde `MENU_CHANGED` con l'elenco delle modifiche (per un'opzione esaurita o non più valida il motivo è `OPTIONS_CHANGED`).
 - **Un formato di errore mio invece di ProblemDetails.** ASP.NET Core supporta un formato standard per gli errori (ProblemDetails, RFC 9457), ma il frontend era già costruito attorno al campo `code`. Generare tutto da un solo filtro costava meno che passare al formato standard, che per un'API pubblica resterebbe comunque la scelta più corretta.
-- **Contatti cancellati solo con un nuovo ordine.** Nome, telefono e indirizzo dei clienti online si cancellano dopo 30 giorni, ma senza un lavoro in background: li cancella il successivo ordine online dello stesso ristorante, nella sua transazione. Se un ristorante non riceve più ordini online, i dati restano. L'informativa privacy, invece, promette 30 giorni fissi: prima dell'uso reale va sistemata una delle due cose.
+- **I contatti si cancellano solo con un nuovo ordine.** Nome, telefono, indirizzo e impronte di browser/IP separate per ristorante, più vecchi di 30 giorni, vengono cancellati dal successivo invio online riuscito dello stesso ristorante, senza un lavoro pianificato in background. Se non arrivano altri ordini, i dati restano. La sezione sulla conservazione dell’informativa privacy dice ancora che vengono cancellati 30 giorni dopo l’invio, ma non corrisponde al meccanismo reale. Il testo o la pulizia richiedono un aggiornamento separato: l’implementazione attuale non garantisce una cancellazione automatica al trentesimo giorno.
 - **Abbonamenti senza storico.** Nel progetto iniziale c'era una tabella di eventi degli abbonamenti, con lo storico delle modifiche, gli avvisi al titolare e un ID per ogni operazione contro i duplicati. L'ho eliminata quando è stato chiaro che la sola `subscription_version` bastava a impedire che due modifiche consumassero la stessa versione. Ho perso lo storico, ma per una prima versione non serviva.
 
 ## Limiti e cosa farei diversamente
