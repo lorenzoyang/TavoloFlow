@@ -408,12 +408,9 @@ function HoursCard({
                         >
                           {m.opens}
                         </Label>
-                        {/* iOS gives native time inputs a minimum width unless their appearance
-                            is reset, so they would overlap in a narrow row. */}
                         <Input
                           id={`opens-${weekday}-${index}`}
                           type="time"
-                          className="appearance-none"
                           value={slot.opens}
                           onChange={(event) =>
                             edit(
@@ -441,7 +438,6 @@ function HoursCard({
                         <Input
                           id={`closes-${weekday}-${index}`}
                           type="time"
-                          className="appearance-none"
                           value={slot.closes}
                           onChange={(event) =>
                             edit(

@@ -163,6 +163,12 @@
   fieldset {
     min-width: 0;
   }
+  /* iOS draws date and time inputs as a native menu button that forces content-box sizing and a
+     minimum width, so w-full plus padding and border overflows the container. Input draws the
+     field itself. */
+  input:is([type="date"], [type="time"]) {
+    appearance: none;
+  }
   @media (prefers-reduced-motion: reduce) {
     *,
     ::before,
