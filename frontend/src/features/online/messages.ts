@@ -50,6 +50,7 @@ const zh = {
   // Phone
   phoneTitle: "餐厅电话",
   phoneHint: "线上点单页显示这个号码，顾客可以直接拨打。不填电话时线上不会接单。",
+  phoneCountryHint: "建议以 +39 开头，方便外国手机卡拨打。",
   phone: "公开电话",
   phoneInvalid: "电话格式不对：可以以 + 开头，加 6–15 位数字，空格会被去掉。",
   savePhone: "保存电话",
@@ -166,6 +167,7 @@ export const onlineMessages: Record<Language, typeof zh> = {
     phoneTitle: "Telefono del ristorante",
     phoneHint:
       "La pagina degli ordini online mostra questo numero e i clienti possono chiamarlo. Senza telefono gli ordini online restano chiusi.",
+    phoneCountryHint: "Meglio iniziare con +39, per chi chiama da una SIM estera.",
     phone: "Telefono pubblico",
     phoneInvalid: "Telefono non valido: un + facoltativo e 6–15 cifre; gli spazi vengono tolti.",
     savePhone: "Salva telefono",
@@ -277,6 +279,7 @@ export const onlineMessages: Record<Language, typeof zh> = {
     phoneTitle: "Restaurant phone",
     phoneHint:
       "The online ordering page shows this number and customers can call it. Without a phone, online ordering stays closed.",
+    phoneCountryHint: "Starting with +39 helps customers calling from a foreign SIM.",
     phone: "Public phone",
     phoneInvalid: "Invalid phone: an optional + and 6–15 digits; spaces are removed.",
     savePhone: "Save phone",

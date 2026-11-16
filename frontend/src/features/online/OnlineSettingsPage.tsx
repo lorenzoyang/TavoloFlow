@@ -314,7 +314,9 @@ function PhoneCard({
         <form className="space-y-4" onSubmit={save} noValidate>
           <div className="space-y-1">
             <h2 className="font-semibold">{m.phoneTitle}</h2>
-            <p className="text-sm leading-6 text-muted-foreground">{m.phoneHint}</p>
+            <p className="text-sm leading-6 text-muted-foreground">
+              {m.phoneHint} <span className="block">{m.phoneCountryHint}</span>
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="online-phone">{m.phone}</Label>

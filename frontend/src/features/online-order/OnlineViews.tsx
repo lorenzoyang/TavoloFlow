@@ -485,7 +485,7 @@ export function OnlineCartPanel({
               </p>
             ) : (
               <p id="online-phone-hint" className="text-sm text-muted-foreground">
-                {m.phoneHint}
+                {m.phoneHint} <span className="block">{m.phoneForeignHint}</span>
               </p>
             )}
           </div>

@@ -677,7 +677,10 @@ because their URI paths contain endpoint secrets. Endpoints, keys and payloads a
 
 `InputRules.NormalizePhone` removes whitespace and accepts an optional `+` and 6–15 digits, stored
 without spaces (`ck_restaurant_public_phone`, `ck_online_request_phone`). It validates restaurant and
-customer phones; the frontend repeats it in `features/online/state.ts`.
+customer phones; the frontend repeats it in `features/online/state.ts`. It accepts national and
+international forms and adds no country code, so the hints do: checkout asks customers with a foreign
+number to start with `+` and the country code, and the OWNER phone card suggests `+39`, so customers
+with a foreign SIM can call the restaurant.
 
 ## Settings page
 
