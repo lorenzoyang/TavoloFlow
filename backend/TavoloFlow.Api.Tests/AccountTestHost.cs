@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -36,7 +37,8 @@ public sealed class AccountTestHost(
     PostgreSqlFixture database,
     bool lowLimits = false,
     bool production = false,
-    bool push = false
+    bool push = false,
+    Action<OnlineRateLimitOptions>? onlineLimits = null
 ) : WebApplicationFactory<Program>
 {
     // The application server key of RFC 8291 Appendix A, so tests can compare with its public key.
@@ -66,6 +68,7 @@ public sealed class AccountTestHost(
         }
         builder.ConfigureServices(services =>
         {
+            services.AddTransient<IStartupFilter, ClientIpStartupFilter>();
             services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseNpgsql(database.ConnectionString)
@@ -101,8 +104,15 @@ public sealed class AccountTestHost(
             });
             services.Configure<OnlineRateLimitOptions>(options =>
             {
+                options.SubmissionsPerIpPerMinute = lowLimits ? 3 : 1000;
                 options.SubmissionsPerIpPerTenMinutes = lowLimits ? 3 : 1000;
+                options.MaxWaitingPerIp = 20;
+                options.MenusPerIpPerMinute = 1000;
+                options.StatusChecksPerIpPerMinute = 1000;
+                options.RecoveriesPerIpPerMinute = 1000;
+                options.ContextChecksPerIpPerMinute = 1000;
                 options.CouponChecksPerIpPerTenMinutes = lowLimits ? 3 : 1000;
+                onlineLimits?.Invoke(options);
             });
             services
                 .AddHttpClient(PushSender.HttpClientName)
@@ -111,14 +121,36 @@ public sealed class AccountTestHost(
         });
     }
 
-    public HttpClient Browser() =>
-        CreateClient(
+    public HttpClient Browser(string? ip = null)
+    {
+        var client = CreateClient(
             new WebApplicationFactoryClientOptions
             {
                 BaseAddress = new Uri("https://localhost"),
                 AllowAutoRedirect = false,
             }
         );
+        if (ip is not null)
+            client.DefaultRequestHeaders.Add("X-Test-Client-IP", ip);
+        return client;
+    }
+
+    private sealed class ClientIpStartupFilter : IStartupFilter
+    {
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) =>
+            app =>
+            {
+                app.Use(
+                    async (context, proceed) =>
+                    {
+                        if (context.Request.Headers.TryGetValue("X-Test-Client-IP", out var ip))
+                            context.Connection.RemoteIpAddress = IPAddress.Parse(ip.ToString());
+                        await proceed();
+                    }
+                );
+                next(app);
+            };
+    }
 
     public static async Task<string> CsrfAsync(HttpClient client)
     {

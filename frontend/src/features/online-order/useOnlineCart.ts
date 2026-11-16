@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { ApiError, withTimeout } from "@/lib/api";
 import { randomUuid } from "@/lib/ids";
-import { isLive } from "@/lib/useLiveView";
+import { isLive, useLiveView } from "@/lib/useLiveView";
 import { useOperations } from "@/lib/useOperations";
 import type { MenuItem } from "@/features/menu/api";
 import {
@@ -17,6 +17,7 @@ import {
 import { normalizeCouponCode } from "@/features/online/state";
 import {
   onlineMenuKey,
+  onlineContextQuery,
   readCoupon,
   readOnlineMenu,
   readSubmission,
@@ -31,6 +32,7 @@ import {
   createOnlineIntent,
   emptyCheckoutForm,
   emptyOnlineCart,
+  existingSubmission,
   onlineCartAmounts,
   onlineCartKey,
   restoreOnlineCart,
@@ -81,6 +83,21 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     live.current = data;
   }, [data]);
   const ops = useOperations();
+  const view = useLiveView();
+  const contextOptions = onlineContextQuery(slug);
+  const context = useQuery({
+    ...contextOptions,
+    enabled: view.active,
+    refetchInterval: (query) => (view.active && query.state.data?.pending ? 10_000 : false),
+    refetchIntervalInBackground: false,
+  });
+  const checkoutBlocked =
+    !view.active || !context.data || context.isError || !!context.data.pending;
+  const waitingToken = context.data?.pending?.statusToken;
+  useEffect(() => {
+    const storage = deviceStorage();
+    if (waitingToken && storage) saveOrderToken(restaurantId, waitingToken, storage);
+  }, [restaurantId, waitingToken]);
 
   const remember = useCallback(
     (next: OnlineCart, required = false) => {
@@ -185,10 +202,17 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
 
   // Rereads the menu and its status, so the checkout shows current prices and the restaurant is open.
   async function checkout() {
+    if (!isLive()) return;
     if (current.current.pending || !current.current.lines.length || blocked) return;
     const work = start();
     if (!work) return;
     try {
+      const latestContext = await client.fetchQuery(contextOptions);
+      if (!work.active()) return;
+      if (latestContext.pending) {
+        setMessage("browserPending");
+        return;
+      }
       const latest = await readOnlineMenu(slug, work.signal);
       if (!work.active()) return;
       client.setQueryData(onlineMenuKey(slug), latest);
@@ -241,6 +265,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
 
   async function send(retry: boolean) {
     if (blocked || !isLive()) return;
+    if (!retry && checkoutBlocked) return;
     if ((!retry && (!review || current.current.pending)) || (retry && !current.current.pending))
       return;
     const work = start();
@@ -269,6 +294,17 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
         remember({ ...current.current, pending: null });
         setReview(null);
       }
+      if (e instanceof ApiError && e.code === "ONLINE_BROWSER_PENDING") {
+        const existing = existingSubmission(e.body.existingSubmission);
+        // A background context read started before the conflict must not overwrite this result.
+        await client.cancelQueries({ queryKey: contextOptions.queryKey });
+        if (!work.active()) return;
+        if (existing) {
+          client.setQueryData(contextOptions.queryKey, { pending: existing });
+        } else {
+          void client.invalidateQueries({ queryKey: contextOptions.queryKey });
+        }
+      }
       // A lost or failed response leaves the intent pending, and its own notice already explains that
       // and offers the GET check, the retry and the phone. An understood rejection still says why.
       const lost = sending && !(e instanceof ApiError && e.status < 500);
@@ -292,6 +328,12 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
   }
 
   return {
+    waitingOrder: context.data?.pending ?? null,
+    contextFailed: context.isError,
+    contextChecking: !context.data && !context.isError,
+    contextRefreshing: context.isFetching,
+    checkoutBlocked,
+    refreshContext: () => void context.refetch(),
     cart,
     amounts: onlineCartAmounts(cart, review, form),
     busy,

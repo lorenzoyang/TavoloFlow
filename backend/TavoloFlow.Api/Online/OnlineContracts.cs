@@ -78,6 +78,30 @@ public sealed record OnlineSettingsResponse(
 
 public static class OnlineErrors
 {
+    public static ApiException BrowserRequired() =>
+        new(
+            400,
+            "ONLINE_BROWSER_REQUIRED",
+            "Allow this site's cookies and reload before ordering."
+        );
+
+    public static ApiException BrowserPending(OnlineSubmissionResponse existing) =>
+        new(
+            409,
+            "ONLINE_BROWSER_PENDING",
+            "This browser already has an order waiting at this restaurant."
+        )
+        {
+            Extensions = new() { ["existingSubmission"] = existing },
+        };
+
+    public static ApiException IpWaitingLimit() =>
+        new(
+            409,
+            "ONLINE_IP_WAITING_LIMIT",
+            "Too many orders from this connection are waiting. Try again shortly."
+        );
+
     public static ApiException NotOffered() =>
         new(409, "ONLINE_NOT_OFFERED", "This restaurant doesn't offer online ordering.");
 

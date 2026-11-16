@@ -101,6 +101,8 @@ In the demo online ordering is off. Turning it on takes a couple of minutes, wit
 
 If more than 10 minutes pass before acceptance, the order expires: the status page says so and shows the restaurant's phone. Hours follow the restaurant's time zone (Rome), not the computer's.
 
+To try abuse protection, reopen the menu in the same browser while an order awaits acceptance: you can edit the cart, but must wait or open the existing order before checking out. Acceptance, rejection or expiry releases the slot. The site requires its own browser cookie, valid for 30 days. Each IP allows 3 submission attempts per minute and 10 per ten minutes, with at most 5 waiting orders at the same restaurant; reads have separate budgets. Use separate browser profiles to simulate different customers; they still share an IP on the same Wi-Fi. Notifications are unchanged. Settings and verification are in the [technical contract](../reference/online-ordering.md#submission-and-query-abuse-protection). [Example of the notice on a phone](../images/online-waiting-en.webp).
+
 ### How it is built
 
 The demo is a separate Compose project, [`demo/compose.yaml`](../../demo/compose.yaml), with four containers:

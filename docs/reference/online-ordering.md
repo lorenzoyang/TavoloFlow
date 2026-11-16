@@ -124,7 +124,7 @@ which loads the hours and counts waiting requests in the caller's transaction). 
 
 ## Data model
 
-A submission is one `online_requests` row. Acceptance, rejection and expiry are derived, never stored
+A submission is one `online_requests` row, with optional legacy-compatible browser/IP source digests. Acceptance, rejection and expiry are derived, never stored
 as a status:
 
 | Phase      | Rule                                                          |
@@ -162,20 +162,83 @@ request's session link is a composite `(session_id, restaurant_id)` key.
 
 ## Customer APIs
 
-All are anonymous under `/api/public` (Guest scheme, no cookie needed). The submission is a write, so
+All are anonymous under `/api/public` (Guest scheme, no login needed). The submission is a write, so
 it carries a CSRF token from `GET /api/public/csrf`; the browser must send the antiforgery cookie
 (`credentials: same-origin`).
 The customer APIs explicitly select Guest authentication while allowing anonymous access, so Store
 and Platform sign-ins can coexist in the same browser without affecting online ordering. If a Guest
 cookie is present, both CSRF issuance and submission use that identity; no Guest login is required.
+CSRF issuance also initializes the independent browser marker described below.
 
 | Method and path                                                    | Result                                        |
 | ------------------------------------------------------------------ | --------------------------------------------- |
 | `GET /api/public/r/{slug}/bootstrap`                               | Restaurant, status, `nextOpensAt`, menu       |
+| `GET /api/public/r/{slug}/ordering-context` | This browser’s waiting submission, or null |
 | `GET /api/public/r/{slug}/coupons/{code}`                          | `{ code, percentOff }`, or 404 `COUPON_INVALID` |
 | `POST /api/public/r/{slug}/requests`                               | 201 first time, 200 repeat: submission result |
 | `GET /api/public/r/{slug}/requests/by-client-id/{clientRequestId}` | Submission result, or 404 "not found yet"     |
 | `GET /api/public/online-orders/{token}`                            | Status page                                   |
+
+### Submission and query abuse protection
+
+`OnlineRateLimitMiddleware` applies endpoint metadata after routing and before authentication, CSRF
+and model binding. Every submission attempt counts, including invalid JSON, invalid CSRF and repeats.
+Each endpoint family has its own per-IP budget across restaurants; a rejection is `RATE_LIMITED` (429)
+with `Retry-After`, the ordinary error envelope and `Cache-Control: no-store`.
+
+| `OnlineRateLimits` setting | Default |
+| --- | --- |
+| `SubmissionsPerIpPerMinute` | 3 |
+| `SubmissionsPerIpPerTenMinutes` | 10 |
+| `MaxWaitingPerIp` | 5, per restaurant |
+| `MenusPerIpPerMinute` | 120 |
+| `StatusChecksPerIpPerMinute` | 240 |
+| `RecoveriesPerIpPerMinute` | 60 |
+| `ContextChecksPerIpPerMinute` | 120 |
+| `CouponChecksPerIpPerTenMinutes` | 30 |
+
+Configure these through normal .NET configuration, for example
+`OnlineRateLimits__MaxWaitingPerIp=5` on the API process. With production Compose, pass an override
+through the API service’s `environment` section; adding it only to the host `.env` does not forward it. Frequency counters remain process-local and reset on restart;
+waiting slots are checked in PostgreSQL and apply across API instances. Neither controls notification
+behavior. There is no Turnstile integration or additional service dependency.
+
+`OnlineBrowser` uses Data Protection to sign a random 32-byte marker in the host-only
+`TavoloFlow.OnlineBrowser` cookie: HttpOnly, SameSite=Strict, path `/api/public`, Secure outside
+Development (and on local HTTPS), fixed 30-day expiry without sliding renewal. It is independent of
+Store, Platform and Guest authentication. `GET /api/public/csrf` and
+`GET /api/public/r/{slug}/ordering-context` create or replace a missing, invalid or expired marker.
+Submission requires a valid marker (`ONLINE_BROWSER_REQUIRED`, 400, otherwise), rather than minting
+one during the POST. Clearing cookies can replace a marker; IP protections still apply.
+
+The new anonymous `GET /api/public/r/{slug}/ordering-context` uses same-origin credentials and returns
+`{ pending: { statusToken, number, expiresAt } | null }` for this browser and restaurant only. No phone
+lookup or other customers' orders are exposed. Ordinary public menu, recovery and status reads still
+omit cookies. A restaurant's legacy requests without source metadata retain their original recovery
+links and count toward the restaurant's 20-request cap, but have no inferred browser/IP owner.
+
+Every new request records restaurant-scoped SHA-256 digests `browser_key` and `ip_key`, both present
+or both NULL (`ck_online_request_source`). The IP comes from `RemoteIpAddress` after trusted-proxy
+processing, with IPv4-mapped IPv6 normalized; unavailable IPs share the `unknown` bucket. These are
+linkage keys, not anonymization guarantees. They are never returned or logged and are cleared together
+with contact data older than 30 days on the next successful submission. The existing waiting index
+bounds source checks; there are no extra queue counters or cleanup jobs.
+
+After the existing request-ID duplicate check, inside the same restaurant submission transaction:
+
+- An existing waiting request for this browser rejects a new ID with `ONLINE_BROWSER_PENDING` (409)
+  and `existingSubmission: { statusToken, number, expiresAt }`.
+- Five waiting requests from this IP reject a new ID with `ONLINE_IP_WAITING_LIMIT` (409), without
+  disclosing any of those orders.
+- Accepted, rejected and expired requests release their slots through `OnlineRequestState.Waiting`.
+  Failed submissions roll back their daily number. An original request ID still returns its stored
+  result before source limits; repeated POSTs remain subject to the outer frequency budget.
+
+These two source-cap codes prove the current ID was not stored and may free an unknown intent.
+`RATE_LIMITED` and `ONLINE_BROWSER_REQUIRED` occur before that proof and must retain an unknown intent.
+GET recovery has its own budget and does not depend on the browser marker.
+
+### Menu and submission contracts
 
 The bootstrap reads restaurant, hours, waiting count and `MenuReader` in one Repeatable Read
 transaction. It returns `restaurant { id, name, currencyCode, defaultLanguage, theme, publicPhone,
@@ -219,13 +282,13 @@ check confirmed and the percentage the customer saw, both required (a malformed 
 7. Inserts the request with a random 32-byte Base64URL status token, `expires_at` ten minutes after
    submission and the coupon's code and percentage, and returns `{ statusToken, number, expiresAt }`.
    Acceptance never checks the coupon again: the customer was promised that total.
-8. In the same transaction, clears the name, phone, address and notes of the restaurant's requests
+8. In the same transaction, clears the name, phone, address, notes and source digests of the restaurant's requests
    submitted more than 30 days before this one (`OnlineRequestService.ContactRetention`), reading only
    uncleared rows through `ix_online_requests_contact`. The lines stay. There is no background job: a
    restaurant's old contact data is cleared by its next submission.
 
-A rejected submission rolls back and uses no number. Submissions are limited to 10 per IP address per
-ten minutes (`OnlineRateLimits:SubmissionsPerIpPerTenMinutes`, `RATE_LIMITED` with `Retry-After`).
+A rejected submission rolls back and uses no number. Submissions use both the minute and ten-minute
+per-IP budgets above (`RATE_LIMITED` with `Retry-After`).
 Repeats and rejected submissions roll back, cleanup included.
 
 Recovery takes the random `clientRequestId` as its credential: only the submitting device knows it. It
@@ -277,6 +340,14 @@ explained by a text-only notice below it and keeps the checkout closed; browsing
 stay possible. A remembered order still in
 progress shows "you have an order in progress" with a link to its status page.
 
+The menu also reads the same-origin ordering context on load, focus/reconnect and before checkout.
+While a request waits, it refreshes that context every ten seconds while visible and online. The menu
+and cart stay editable, but checkout is blocked with the existing order's link. A context failure
+retains known data, blocks checkout and offers an explicit GET retry. Acceptance, rejection or expiry
+releases checkout after the next read. A submission-time browser conflict keeps the new cart and
+shows the old order separately; it never clears the new cart as if it had succeeded. All new notices
+are available in Chinese, Italian and English.
+
 The cart lives in `sessionStorage` under `tavoloflow:cart:{restaurantId}:online` (version 2: lines
 carry the dish's sale price and the pending intent its coupon; separate from every QR cart, other
 versions discarded as damaged), with the QR cart's limits. Checkout is two steps: "Checkout" rereads the bootstrap,
@@ -312,6 +383,7 @@ offers "check the result", "retry the same order" (the identical saved request w
 and the phone. After an unknown result, a retry frees the intent only when it is rejected with a code
 the server returns after its duplicate check (`SERVICE_SUSPENDED`, `ONLINE_NOT_OFFERED`,
 `ONLINE_PAUSED`, `ONLINE_CLOSED`, `ONLINE_BUSY`, `DELIVERY_NOT_OFFERED`, `COUPON_INVALID`,
+`ONLINE_BROWSER_PENDING`, `ONLINE_IP_WAITING_LIMIT`,
 `MENU_CHANGED`): that check
 runs inside the transaction holding the restaurant's cross-day submission lock and the day's counter
 row, so such a rejection proves no request with
@@ -616,6 +688,8 @@ discarded.
 - `OnlineConcurrencyTests`: cross-midnight retries after commit or rollback; the cap across midnight
   and independent restaurant locks; rejection waiting past expiry; acceptance racing service disable
   (including expiry while waiting) and suspension, with both lock acquisition orders.
+- Abuse protection: `OnlineAbuseTests` covers independent rate budgets, invalid attempts, cookies,
+  concurrent browser/IP slots, recovery, number rollback and slot release.
 - Frontend: `tests/online.test.ts` (phone, time inputs, week validation, banner, countdown on
   the server's clock, progress, session labels), `tests/kitchen.test.ts` (shared freshness for writes
   and ringing), `tests/navigation.test.ts`,

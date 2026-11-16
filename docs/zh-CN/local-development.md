@@ -101,6 +101,8 @@ docker compose -f demo/compose.yaml up -d --build
 
 如果接单前超过 10 分钟，订单就会失效：订单状态页会说明，并显示餐厅电话。营业时间按餐厅的时区（罗马）计算，不是电脑的时区。
 
+测试防滥用限制时，可以在订单等待接单期间，用同一浏览器重新打开菜单：仍能编辑购物车，但需要等待处理或查看原订单后再结账。接单、拒绝或过期都会释放名额。本站需要一个有效期 30 天的浏览器 Cookie。同一 IP 每分钟最多尝试提交 3 次、每十分钟 10 次，在同一家店最多有 5 单等待接单；查询使用独立额度。模拟多位顾客时请使用不同浏览器配置文件，但同一 Wi-Fi 下仍会共享 IP。通知保持原样。配置与验证方法见[技术契约](../reference/online-ordering.md#submission-and-query-abuse-protection)。 [手机端提示示例](../images/online-waiting-zh.webp)。
+
 ### 结构
 
 演示是一个独立的 Compose 项目 [`demo/compose.yaml`](../../demo/compose.yaml)，包含四个容器：

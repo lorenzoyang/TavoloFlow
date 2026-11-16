@@ -22,6 +22,12 @@ internal sealed class OnlineRequestConfiguration : IEntityTypeConfiguration<Onli
                     "fulfillment IN ('PICKUP', 'DELIVERY')"
                 );
                 table.HasCheckConstraint("ck_online_request_number", "number > 0");
+                table.HasCheckConstraint(
+                    "ck_online_request_source",
+                    "(browser_key IS NULL AND ip_key IS NULL) OR "
+                        + "(browser_key IS NOT NULL AND ip_key IS NOT NULL AND "
+                        + "browser_key ~ '^[0-9a-f]{64}$' AND ip_key ~ '^[0-9a-f]{64}$')"
+                );
                 table.HasCheckConstraint("ck_online_request_total", "items_total_cents > 0");
                 table.HasCheckConstraint(
                     "ck_online_request_language",
@@ -76,6 +82,11 @@ internal sealed class OnlineRequestConfiguration : IEntityTypeConfiguration<Onli
         builder.Property(request => request.Id).HasColumnName("id");
         builder.Property(request => request.RestaurantId).HasColumnName("restaurant_id");
         builder.Property(request => request.ClientRequestId).HasColumnName("client_request_id");
+        builder
+            .Property(request => request.BrowserKey)
+            .HasColumnName("browser_key")
+            .HasMaxLength(64);
+        builder.Property(request => request.IpKey).HasColumnName("ip_key").HasMaxLength(64);
         builder
             .Property(request => request.StatusToken)
             .HasColumnName("status_token")

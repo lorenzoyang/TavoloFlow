@@ -7,6 +7,7 @@ import {
   createOnlineIntent,
   deliveryNote,
   emptyOnlineCart,
+  existingSubmission,
   onlineCartAmounts,
   onlineCartKey,
   orderEnded,
@@ -463,4 +464,27 @@ test("an unknown submission keeps its saved coupon amount after reload, ahead of
     discountCents: 0,
     totalCents: 990,
   });
+});
+
+test("source-cap refusals prove an unknown submission was not stored, browser-cookie failures do not", () => {
+  for (const code of ["ONLINE_BROWSER_PENDING", "ONLINE_IP_WAITING_LIMIT"]) {
+    assert.equal(submissionFailure(409, code, false), "editable");
+    assert.equal(submissionFailure(409, code, true), "editable");
+  }
+  assert.equal(submissionFailure(400, "ONLINE_BROWSER_REQUIRED", false), "editable");
+  assert.equal(submissionFailure(400, "ONLINE_BROWSER_REQUIRED", true), "unknown");
+});
+
+test("a browser conflict link requires a valid token, number and expiry", () => {
+  const submission = { statusToken: "A".repeat(43), number: 1, expiresAt: "2026-11-16T12:10:00Z" };
+  assert.deepEqual(existingSubmission(submission), submission);
+  for (const value of [
+    null,
+    {},
+    { ...submission, number: -1 },
+    { ...submission, statusToken: "/unsafe" },
+    { ...submission, expiresAt: "invalid" },
+  ]) {
+    assert.equal(existingSubmission(value), null);
+  }
 });

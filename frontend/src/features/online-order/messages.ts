@@ -21,6 +21,11 @@ const zh = {
   notOffered: "这家餐厅现在不接受线上点单，这里只显示菜单。",
   suspended: "这家餐厅的服务已暂停，暂时无法线上下单。",
   activeOrder: "你有一个进行中的订单。",
+  browserPending: "这个浏览器已有订单等待餐厅接单。购物车已保留，请先查看已有订单。",
+  ipWaitingLimit: "这个网络下已有较多订单等待接单，这一单尚未提交。请稍后再试。",
+  browserRequired: "浏览器未能保存下单 Cookie。请允许本站 Cookie 后刷新页面。",
+  contextChecking: "正在检查待接单订单…",
+  contextFailed: "暂时无法检查待接单订单，请重试后再结账。",
   viewOrder: "查看订单",
   privacy: "隐私说明",
   // Cart and checkout
@@ -147,7 +152,7 @@ const zh = {
     },
     {
       heading: "浏览器存储",
-      body: "本页只使用技术上必需的存储：购物车、语言选择、订单状态链接和防伪验证的 Cookie。没有统计、广告或第三方追踪。",
+      body: "本页只使用技术上必需的存储：购物车、语言选择、订单状态链接、防伪验证 Cookie 和防止重复占位的浏览器 Cookie（30 天）。服务器还保存按餐厅区分的浏览器及 IP 来源摘要，用于限制待接单占位，并随超过 30 天的联系信息清除。没有统计、广告或第三方追踪。",
     },
   ],
 };
@@ -177,6 +182,15 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     notOffered: "Questo ristorante ora non accetta ordini online: qui c’è solo il menu.",
     suspended: "Il servizio del ristorante è sospeso: per ora non si può ordinare online.",
     activeOrder: "Hai un ordine in corso.",
+    browserPending:
+      "Questo browser ha già un ordine in attesa. Il carrello è conservato: controlla l’ordine precedente.",
+    ipWaitingLimit:
+      "Troppi ordini da questa rete sono in attesa. Questo ordine non è stato inviato: riprova tra poco.",
+    browserRequired:
+      "Il browser non ha salvato il cookie per ordinare. Consenti i cookie di questo sito e ricarica la pagina.",
+    contextChecking: "Controllo degli ordini in attesa…",
+    contextFailed:
+      "Impossibile controllare gli ordini in attesa. Riprova prima di andare alla cassa.",
     viewOrder: "Vedi l’ordine",
     privacy: "Privacy",
     cart: "Carrello",
@@ -313,7 +327,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       },
       {
         heading: "Memoria del browser",
-        body: "Questa pagina usa solo la memoria tecnicamente necessaria: carrello, lingua scelta, link allo stato dell’ordine e il cookie di verifica anti-falsificazione. Nessuna statistica, pubblicità o tracciamento di terzi.",
+        body: "Questa pagina usa solo la memoria tecnicamente necessaria: carrello, lingua scelta, link allo stato dell’ordine, cookie anti-falsificazione e cookie del browser per limitare gli ordini in attesa (30 giorni). Il server conserva impronte del browser e dell’IP separate per ristorante per limitare gli ordini in attesa, cancellate insieme ai contatti più vecchi di 30 giorni. Nessuna statistica, pubblicità o tracciamento di terzi.",
       },
     ],
   },
@@ -338,6 +352,14 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     notOffered: "This restaurant isn’t taking online orders right now; this is just the menu.",
     suspended: "This restaurant’s service is suspended, so online ordering isn’t available.",
     activeOrder: "You have an order in progress.",
+    browserPending:
+      "This browser already has an order awaiting acceptance. Your cart is saved: check the existing order first.",
+    ipWaitingLimit:
+      "Too many orders from this network are awaiting acceptance. This order was not submitted: try again shortly.",
+    browserRequired:
+      "The browser could not save the ordering cookie. Allow this site’s cookies and reload the page.",
+    contextChecking: "Checking for orders awaiting acceptance…",
+    contextFailed: "Could not check for orders awaiting acceptance. Retry before checking out.",
     viewOrder: "View order",
     privacy: "Privacy",
     cart: "Your cart",
@@ -472,7 +494,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       },
       {
         heading: "Browser storage",
-        body: "This page uses only technically necessary storage: the cart, your language, the order status link and the anti-forgery cookie. No analytics, advertising or third-party tracking.",
+        body: "This page uses only technically necessary storage: the cart, your language, the order status link, the anti-forgery cookie and a browser cookie to limit waiting orders (30 days). The server also stores restaurant-specific browser and IP digests to limit waiting orders, cleared along with contact data older than 30 days. No analytics, advertising or third-party tracking.",
       },
     ],
   },
@@ -492,6 +514,9 @@ export type OnlineOrderMessage =
   | "invalid"
   | "csrf"
   | "rateLimited"
+  | "browserPending"
+  | "ipWaitingLimit"
+  | "browserRequired"
   | "couponInvalid"
   | "notFound"
   | "offline"
@@ -518,6 +543,9 @@ export const onlineOrderError = (code: string): OnlineOrderMessage =>
       VALIDATION_FAILED: "invalid",
       CSRF_VALIDATION_FAILED: "csrf",
       RATE_LIMITED: "rateLimited",
+      ONLINE_BROWSER_PENDING: "browserPending",
+      ONLINE_IP_WAITING_LIMIT: "ipWaitingLimit",
+      ONLINE_BROWSER_REQUIRED: "browserRequired",
       ONLINE_REQUEST_NOT_FOUND: "notFound",
       COUPON_INVALID: "couponInvalid",
     }) as Record<string, OnlineOrderMessage>

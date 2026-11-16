@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Options;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Entities;
+using TavoloFlow.Api.Online;
 using TavoloFlow.Api.Push;
 using static TavoloFlow.Api.Tests.AccountTestHost;
 
@@ -18,6 +19,12 @@ namespace TavoloFlow.Api.Tests;
 internal static class OnlineTestData
 {
     // For services constructed outside the host: push is off, so nothing is queued.
+    public static readonly IOptions<OnlineRateLimitOptions> SubmissionLimits = Options.Create(
+        new OnlineRateLimitOptions()
+    );
+
+    public static OnlineSubmissionSource Source() => new(Guid.NewGuid().ToString("N"), "192.0.2.1");
+
     public static readonly PushQueue NoPush = new(new PushKeys(Options.Create(new PushOptions())));
 
     public static OrderLineSnapshot Line(

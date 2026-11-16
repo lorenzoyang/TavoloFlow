@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Data.Configurations;
@@ -16,7 +17,8 @@ namespace TavoloFlow.Api.Online;
 public sealed class OnlineRequestService(
     ApplicationDbContext db,
     TimeProvider clock,
-    PushQueue push
+    PushQueue push,
+    IOptions<OnlineRateLimitOptions> limits
 )
 {
     public static readonly TimeSpan WaitingTime = TimeSpan.FromMinutes(10);
@@ -30,6 +32,7 @@ public sealed class OnlineRequestService(
     public async Task<OnlineSubmission> SubmitAsync(
         string slug,
         OnlineRequestInput input,
+        OnlineSubmissionSource source,
         CancellationToken ct
     )
     {
@@ -80,6 +83,20 @@ public sealed class OnlineRequestService(
             return new(original, false);
         }
 
+        var browserKey = OnlineSubmissionSource.Key(restaurantId, source.BrowserId);
+        var ipKey = OnlineSubmissionSource.Key(restaurantId, source.IpAddress);
+        // The existing waiting index bounds these reads to at most twenty current requests.
+        // Both checks share the cross-day submission lock with the eventual insert.
+        var existing = await PendingAsync(restaurantId, browserKey, now.UtcDateTime, ct);
+        if (existing is not null)
+            throw OnlineErrors.BrowserPending(existing);
+        if (
+            await db
+                .OnlineRequests.Waiting(restaurantId, now.UtcDateTime)
+                .CountAsync(r => r.IpKey == ipKey, ct) >= limits.Value.MaxWaitingPerIp
+        )
+            throw OnlineErrors.IpWaitingLimit();
+
         var (_, availability) = await OnlineAvailability.ReadAsync(db, restaurant, now, ct);
         if (!availability.IsOpen)
             throw OnlineErrors.NotOpen(availability);
@@ -110,6 +127,8 @@ public sealed class OnlineRequestService(
             Id = Guid.CreateVersion7(),
             RestaurantId = restaurantId,
             ClientRequestId = form.ClientRequestId,
+            BrowserKey = browserKey,
+            IpKey = ipKey,
             StatusToken = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32)),
             BusinessDate = businessDate,
             Number = number,
@@ -140,7 +159,9 @@ public sealed class OnlineRequestService(
                     u.SetProperty(r => r.CustomerName, (string?)null)
                         .SetProperty(r => r.CustomerPhone, (string?)null)
                         .SetProperty(r => r.DeliveryAddress, (string?)null)
-                        .SetProperty(r => r.DeliveryNotes, (string?)null),
+                        .SetProperty(r => r.DeliveryNotes, (string?)null)
+                        .SetProperty(r => r.BrowserKey, (string?)null)
+                        .SetProperty(r => r.IpKey, (string?)null),
                 ct
             );
         // Read back PostgreSQL's timestamp precision, so a repeat returns exactly the same response.
@@ -150,6 +171,45 @@ public sealed class OnlineRequestService(
         push.Enqueue(new(restaurantId, number, request.ExpiresAt));
         return new(saved!, true);
     }
+
+    public async Task<OnlineOrderingContextResponse> ContextAsync(
+        string slug,
+        string browserId,
+        CancellationToken ct
+    )
+    {
+        if (!InputRules.IsSlug(slug))
+            throw OnlineErrors.LinkNotFound();
+        var restaurantId =
+            await db
+                .Restaurants.Where(r => r.Slug == slug)
+                .Select(r => (Guid?)r.Id)
+                .SingleOrDefaultAsync(ct)
+            ?? throw OnlineErrors.LinkNotFound();
+        return new(
+            await PendingAsync(
+                restaurantId,
+                OnlineSubmissionSource.Key(restaurantId, browserId),
+                clock.GetUtcNow().UtcDateTime,
+                ct
+            )
+        );
+    }
+
+    private Task<OnlineSubmissionResponse?> PendingAsync(
+        Guid restaurantId,
+        string browserKey,
+        DateTime now,
+        CancellationToken ct
+    ) =>
+        db
+            .OnlineRequests.AsNoTracking()
+            .Waiting(restaurantId, now)
+            .Where(r => r.BrowserKey == browserKey)
+            .OrderBy(r => r.SubmittedAt)
+            .ThenBy(r => r.Id)
+            .Select(r => new OnlineSubmissionResponse(r.StatusToken, r.Number, r.ExpiresAt))
+            .FirstOrDefaultAsync(ct);
 
     // Recovery after an unknown result: the random request ID, known only to the submitting device, is the
     // credential. 404 only means "not found yet".

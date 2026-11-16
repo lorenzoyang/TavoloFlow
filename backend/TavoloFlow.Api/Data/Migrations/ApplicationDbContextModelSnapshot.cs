@@ -554,6 +554,11 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("timestamptz")
                         .HasColumnName("accepted_at");
 
+                    b.Property<string>("BrowserKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("browser_key");
+
                     b.Property<DateOnly>("BusinessDate")
                         .HasColumnType("date")
                         .HasColumnName("business_date");
@@ -610,6 +615,11 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)")
                         .HasColumnName("fulfillment");
+
+                    b.Property<string>("IpKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("ip_key");
 
                     b.Property<long>("ItemsTotalCents")
                         .HasColumnType("bigint")
@@ -763,6 +773,8 @@ namespace TavoloFlow.Api.Data.Migrations
                             t.HasCheckConstraint("ck_online_request_pickup_address", "fulfillment = 'DELIVERY' OR (delivery_address IS NULL AND delivery_notes IS NULL)");
 
                             t.HasCheckConstraint("ck_online_request_reject_reason", "reject_reason IS NULL OR (rejected_at IS NOT NULL AND (reject_reason IN ('SOLD_OUT', 'BUSY', 'CLOSING') OR (reject_reason = 'OUT_OF_RANGE' AND fulfillment = 'DELIVERY')))");
+
+                            t.HasCheckConstraint("ck_online_request_source", "(browser_key IS NULL AND ip_key IS NULL) OR (browser_key IS NOT NULL AND ip_key IS NOT NULL AND browser_key ~ '^[0-9a-f]{64}$' AND ip_key ~ '^[0-9a-f]{64}$')");
 
                             t.HasCheckConstraint("ck_online_request_total", "items_total_cents > 0");
                         });

@@ -63,6 +63,8 @@ public sealed record CouponDiscountResponse(string Code, int PercentOff, long Di
 // The first submission and every repeat of it return the same values.
 public sealed record OnlineSubmissionResponse(string StatusToken, int Number, DateTime ExpiresAt);
 
+public sealed record OnlineOrderingContextResponse(OnlineSubmissionResponse? Pending);
+
 public sealed record OnlineSubmission(OnlineSubmissionResponse Response, bool Created);
 
 // Id lets the page reuse the customer's language choice for this restaurant.

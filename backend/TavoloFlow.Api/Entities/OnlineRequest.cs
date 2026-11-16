@@ -25,6 +25,10 @@ public sealed class OnlineRequest
     public Guid RestaurantId { get; set; }
     public Guid ClientRequestId { get; set; }
 
+    // Restaurant-scoped source digests, absent only on requests predating source limits.
+    public string? BrowserKey { get; set; }
+    public string? IpKey { get; set; }
+
     // A random secret: the customer's status page link /o/{token}.
     public required string StatusToken { get; set; }
 

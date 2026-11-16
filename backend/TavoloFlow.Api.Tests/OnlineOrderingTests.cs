@@ -161,8 +161,8 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
         Assert.Equal(HttpStatusCode.OK, repeat.StatusCode);
         Assert.Equal(first, await repeat.Content.ReadFromJsonAsync<OnlineSubmissionResponse>());
         await AssertErrorAsync(
-            await SubmitAsync(
-                client,
+            await SubmitNewCustomerAsync(
+                host,
                 shop,
                 Body(Guid.NewGuid(), shop.Dish, fulfillment: "DELIVERY", address: "Via Roma 1")
             ),
@@ -171,7 +171,7 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
         );
         Assert.Equal(
             HttpStatusCode.Created,
-            (await SubmitAsync(client, shop, Body(Guid.NewGuid(), shop.Dish))).StatusCode
+            (await SubmitNewCustomerAsync(host, shop, Body(Guid.NewGuid(), shop.Dish))).StatusCode
         );
     }
 
@@ -203,17 +203,17 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
 
         // A rejected submission uses no number either.
         await AssertErrorAsync(
-            await SubmitAsync(client, shop, Body(Guid.NewGuid(), shop.Dish, price: 1)),
+            await SubmitNewCustomerAsync(host, shop, Body(Guid.NewGuid(), shop.Dish, price: 1)),
             HttpStatusCode.Conflict,
             "MENU_CHANGED"
         );
-        Assert.Equal(2, await NumberAsync(client, shop, Guid.NewGuid()));
-        Assert.Equal(3, await NumberAsync(client, shop, Guid.NewGuid()));
+        Assert.Equal(2, await NumberAsync(host, shop, Guid.NewGuid()));
+        Assert.Equal(3, await NumberAsync(host, shop, Guid.NewGuid()));
 
         // Numbers restart on the restaurant's local date: 00:30 on Tuesday in Rome is still Monday in UTC.
         host.Clock.Set(Rome(11, 17, 0, 30));
         var tuesday = Guid.NewGuid();
-        Assert.Equal(1, await NumberAsync(client, shop, tuesday));
+        Assert.Equal(1, await NumberAsync(host, shop, tuesday));
         await using var db = database.CreateContext();
         var saved = await db.OnlineRequests.SingleAsync(r => r.ClientRequestId == tuesday);
         Assert.Equal(new DateOnly(2026, 11, 17), saved.BusinessDate);
@@ -283,7 +283,7 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
 
         // The last moment to order is exclusive; the opening minute is inclusive.
         host.Clock.Set(Rome(11, 16, 15));
-        var closed = await SubmitAsync(client, shop, Body(Guid.NewGuid(), shop.Dish));
+        var closed = await SubmitNewCustomerAsync(host, shop, Body(Guid.NewGuid(), shop.Dish));
         await AssertErrorAsync(closed, HttpStatusCode.Conflict, "ONLINE_CLOSED");
         Assert.Equal(
             Rome(11, 16, 18).UtcDateTime,
@@ -295,20 +295,20 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
         host.Clock.Set(Rome(11, 16, 11));
         Assert.Equal(
             HttpStatusCode.Created,
-            (await SubmitAsync(client, shop, Body(Guid.NewGuid(), shop.Dish))).StatusCode
+            (await SubmitNewCustomerAsync(host, shop, Body(Guid.NewGuid(), shop.Dish))).StatusCode
         );
 
-        // Summer time: 15:30 in Rome on 29 March is 13:30 UTC, so the 11:00-15:00 slot has ended.
-        host.Clock.Set(Rome(3, 29, 15, 30));
+        // Summer time: 15:30 in Rome on 29 March 2027 is 13:30 UTC, so the 11:00-15:00 slot has ended.
+        host.Clock.Set(Rome(3, 29, 15, 30).AddYears(1));
         await AssertErrorAsync(
-            await SubmitAsync(client, shop, Body(Guid.NewGuid(), shop.Dish)),
+            await SubmitNewCustomerAsync(host, shop, Body(Guid.NewGuid(), shop.Dish)),
             HttpStatusCode.Conflict,
             "ONLINE_CLOSED"
         );
-        host.Clock.Set(Rome(3, 29, 14, 30));
+        host.Clock.Set(Rome(3, 29, 14, 30).AddYears(1));
         Assert.Equal(
             HttpStatusCode.Created,
-            (await SubmitAsync(client, shop, Body(Guid.NewGuid(), shop.Dish))).StatusCode
+            (await SubmitNewCustomerAsync(host, shop, Body(Guid.NewGuid(), shop.Dish))).StatusCode
         );
 
         // A pause lapses on its own.
@@ -318,19 +318,19 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
             u => u.SetProperty(r => r.OnlinePausedUntil, MondayNoon.UtcDateTime.AddMinutes(5))
         );
         await AssertErrorAsync(
-            await SubmitAsync(client, shop, Body(Guid.NewGuid(), shop.Dish)),
+            await SubmitNewCustomerAsync(host, shop, Body(Guid.NewGuid(), shop.Dish)),
             HttpStatusCode.Conflict,
             "ONLINE_PAUSED"
         );
         host.Clock.Advance(TimeSpan.FromMinutes(5));
         Assert.Equal(
             HttpStatusCode.Created,
-            (await SubmitAsync(client, shop, Body(Guid.NewGuid(), shop.Dish))).StatusCode
+            (await SubmitNewCustomerAsync(host, shop, Body(Guid.NewGuid(), shop.Dish))).StatusCode
         );
 
         await AssertErrorAsync(
-            await SubmitAsync(
-                client,
+            await SubmitNewCustomerAsync(
+                host,
                 shop,
                 Body(Guid.NewGuid(), shop.Dish, fulfillment: "DELIVERY", address: "Via Roma 1")
             ),
@@ -339,7 +339,7 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
         );
         await UpdateRestaurantAsync(shop, u => u.SetProperty(r => r.PublicPhone, (string?)null));
         await AssertErrorAsync(
-            await SubmitAsync(client, shop, Body(Guid.NewGuid(), shop.Dish)),
+            await SubmitNewCustomerAsync(host, shop, Body(Guid.NewGuid(), shop.Dish)),
             HttpStatusCode.Conflict,
             "ONLINE_NOT_OFFERED"
         );
@@ -350,7 +350,7 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
                     .SetProperty(r => r.OnlineEnabled, false)
         );
         await AssertErrorAsync(
-            await SubmitAsync(client, shop, Body(Guid.NewGuid(), shop.Dish)),
+            await SubmitNewCustomerAsync(host, shop, Body(Guid.NewGuid(), shop.Dish)),
             HttpStatusCode.Conflict,
             "ONLINE_NOT_OFFERED"
         );
@@ -361,13 +361,13 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
                     .SetProperty(r => r.ServiceStatus, RestaurantServiceStatus.Suspended)
         );
         await AssertErrorAsync(
-            await SubmitAsync(client, shop, Body(Guid.NewGuid(), shop.Dish)),
+            await SubmitNewCustomerAsync(host, shop, Body(Guid.NewGuid(), shop.Dish)),
             HttpStatusCode.Conflict,
             "SERVICE_SUSPENDED"
         );
         await AssertErrorAsync(
-            await SubmitAsync(
-                client,
+            await SubmitNewCustomerAsync(
+                host,
                 shop with
                 {
                     Slug = "link-sconosciuto",
@@ -588,7 +588,7 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
 
         async Task<string> Reason(object body)
         {
-            var response = await SubmitAsync(client, shop, body);
+            var response = await SubmitNewCustomerAsync(host, shop, body);
             await AssertErrorAsync(response, HttpStatusCode.Conflict, "MENU_CHANGED");
             return JsonDocument
                 .Parse(await response.Content.ReadAsStringAsync())
@@ -608,8 +608,8 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
         Assert.Equal(
             HttpStatusCode.Created,
             (
-                await SubmitAsync(
-                    client,
+                await SubmitNewCustomerAsync(
+                    host,
                     shop,
                     Body(withOption, shop.Spicy, price: 1450, optionIds: [shop.HotOptionId])
                 )
@@ -641,8 +641,8 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
         Assert.Equal(
             HttpStatusCode.Created,
             (
-                await SubmitAsync(
-                    client,
+                await SubmitNewCustomerAsync(
+                    host,
                     shop,
                     Body(onSale, shop.Spicy, price: 1250, optionIds: [shop.HotOptionId])
                 )
@@ -673,12 +673,12 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
         await SeedRequestsAsync(shop, MondayNoon.UtcDateTime.AddMinutes(-10), 20, firstNumber: 100);
         Assert.Equal(
             HttpStatusCode.Created,
-            (await SubmitAsync(client, shop, Body(Guid.NewGuid(), shop.Dish))).StatusCode
+            (await SubmitNewCustomerAsync(host, shop, Body(Guid.NewGuid(), shop.Dish))).StatusCode
         );
 
         await SeedRequestsAsync(shop, MondayNoon.UtcDateTime, 19, firstNumber: 200);
         await AssertErrorAsync(
-            await SubmitAsync(client, shop, Body(Guid.NewGuid(), shop.Dish)),
+            await SubmitNewCustomerAsync(host, shop, Body(Guid.NewGuid(), shop.Dish)),
             HttpStatusCode.Conflict,
             "ONLINE_BUSY"
         );
@@ -691,7 +691,7 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
                 .ExecuteUpdateAsync(u => u.SetProperty(r => r.RejectedAt, MondayNoon.UtcDateTime));
         Assert.Equal(
             HttpStatusCode.Created,
-            (await SubmitAsync(client, shop, Body(Guid.NewGuid(), shop.Dish))).StatusCode
+            (await SubmitNewCustomerAsync(host, shop, Body(Guid.NewGuid(), shop.Dish))).StatusCode
         );
     }
 
@@ -705,9 +705,11 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
         for (var i = 0; i < 3; i++)
             Assert.Equal(
                 HttpStatusCode.Created,
-                (await SubmitAsync(client, shop, Body(Guid.NewGuid(), shop.Dish))).StatusCode
+                (
+                    await SubmitNewCustomerAsync(host, shop, Body(Guid.NewGuid(), shop.Dish))
+                ).StatusCode
             );
-        var limited = await SubmitAsync(client, shop, Body(Guid.NewGuid(), shop.Dish));
+        var limited = await SubmitNewCustomerAsync(host, shop, Body(Guid.NewGuid(), shop.Dish));
         await AssertErrorAsync(limited, HttpStatusCode.TooManyRequests, "RATE_LIMITED");
         Assert.NotNull(limited.Headers.RetryAfter);
     }
@@ -867,6 +869,11 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
         var boundary = OnlineTestData.Request(shop.RestaurantId, noon.AddDays(-30), 2);
         var recent = OnlineTestData.Request(shop.RestaurantId, noon.AddDays(-29), 1);
         var foreign = OnlineTestData.Request(other.RestaurantId, noon.AddDays(-31), 1);
+        foreach (var request in new[] { old, boundary, recent, foreign })
+        {
+            request.BrowserKey = OnlineSubmissionSource.Key(request.RestaurantId, "browser");
+            request.IpKey = OnlineSubmissionSource.Key(request.RestaurantId, "192.0.2.1");
+        }
         await using (var db = database.CreateContext())
         {
             db.AddRange(old, boundary, recent, foreign);
@@ -876,7 +883,7 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
 
         // A rejected submission rolls back, cleanup included.
         await AssertErrorAsync(
-            await SubmitAsync(client, shop, Body(Guid.NewGuid(), shop.Dish, price: 1)),
+            await SubmitNewCustomerAsync(host, shop, Body(Guid.NewGuid(), shop.Dish, price: 1)),
             HttpStatusCode.Conflict,
             "MENU_CHANGED"
         );
@@ -885,7 +892,7 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
                 (await db.OnlineRequests.SingleAsync(r => r.Id == old.Id)).CustomerPhone
             );
 
-        await NumberAsync(client, shop, Guid.NewGuid());
+        await NumberAsync(host, shop, Guid.NewGuid());
 
         await using var check = database.CreateContext();
         var stored = await check.OnlineRequests.AsNoTracking().ToDictionaryAsync(r => r.Id);
@@ -900,6 +907,12 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
             )
         );
         Assert.Single(cleared.Lines);
+        Assert.Null(cleared.BrowserKey);
+        Assert.Null(cleared.IpKey);
+        Assert.All(
+            new[] { boundary, recent, foreign },
+            kept => Assert.NotNull(stored[kept.Id].BrowserKey)
+        );
         foreach (var kept in new[] { boundary, recent, foreign })
             Assert.Equal(
                 ("Marco", "+393331234567"),
@@ -984,7 +997,12 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
         var submitDb = submitFirst ? firstDb : secondDb;
         var servicesDb = submitFirst ? secondDb : firstDb;
         async Task<object> Submit() =>
-            await new OnlineRequestService(submitDb, host.Clock, OnlineTestData.NoPush).SubmitAsync(
+            await new OnlineRequestService(
+                submitDb,
+                host.Clock,
+                OnlineTestData.NoPush,
+                OnlineTestData.SubmissionLimits
+            ).SubmitAsync(
                 shop.Slug,
                 new OnlineRequestInput(
                     Guid.NewGuid(),
@@ -996,6 +1014,7 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
                     [new OrderLineInput(shop.Dish.Id, 1, 1200, null, [])],
                     null
                 ),
+                OnlineTestData.Source(),
                 default
             );
         async Task<object> TurnOff() =>
@@ -1078,8 +1097,19 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
             await PublicCsrfAsync(client)
         );
 
-    private static async Task<int> NumberAsync(HttpClient client, Shop shop, Guid id)
+    private static async Task<HttpResponseMessage> SubmitNewCustomerAsync(
+        AccountTestHost host,
+        Shop shop,
+        object body
+    )
     {
+        using var client = host.Browser();
+        return await SubmitAsync(client, shop, body);
+    }
+
+    private static async Task<int> NumberAsync(AccountTestHost host, Shop shop, Guid id)
+    {
+        using var client = host.Browser();
         var response = await SubmitAsync(client, shop, Body(id, shop.Dish));
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<OnlineSubmissionResponse>())!.Number;

@@ -18,7 +18,7 @@ import { messages as menuMessages } from "@/features/public-menu/messages";
 import { CartBar, LanguageToggle, MenuList } from "@/features/public-menu/PublicMenuViews";
 import { onlineMenuQuery, type OnlineMenu } from "./api";
 import { onlineOrderMessages } from "./messages";
-import { ActiveOrder, OnlineCartPanel, OnlineHeader } from "./OnlineViews";
+import { ActiveOrder, OnlineCartPanel, OnlineHeader, OrderingContextNotice } from "./OnlineViews";
 import { useRestaurantLanguage } from "./useRestaurantLanguage";
 import { useOnlineCart } from "./useOnlineCart";
 
@@ -116,7 +116,10 @@ function MenuContent({
       />
       <div className="mx-auto max-w-6xl px-4 pb-36 lg:grid lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start lg:gap-8 lg:pb-12">
         <main className="min-w-0 space-y-5 pt-5">
-          <ActiveOrder restaurantId={data.restaurant.id} language={language} />
+          <OrderingContextNotice model={cart} language={language} />
+          {!cart.waitingOrder && (
+            <ActiveOrder restaurantId={data.restaurant.id} language={language} />
+          )}
           {closed ? (
             // Text only: the header keeps the restaurant's phone right above it.
             <Notice tone="warning">{closed}</Notice>

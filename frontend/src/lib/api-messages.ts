@@ -55,6 +55,9 @@ const zhErrors = {
   COUPON_LIMIT: "每家餐厅最多保留 50 张优惠券，请先删除不用的。",
   ONLINE_REQUEST_CHANGED: "这个线上订单已被处理或已超时，请刷新列表。",
   ONLINE_REQUEST_NOT_FOUND: "线上订单不存在。",
+  ONLINE_BROWSER_REQUIRED: "请允许本站 Cookie 后刷新页面再下单。",
+  ONLINE_BROWSER_PENDING: "这个浏览器已有订单等待接单，请先查看原订单。",
+  ONLINE_IP_WAITING_LIMIT: "这个网络下等待接单的订单太多，请稍后再试。",
   OPTION_GROUPS_CHANGED: "选项组已有变化，请刷新菜单后重新排序。",
   ORDERS_PENDING: "仍有待出餐菜品，请先到厨房完成或按实际情况取消。",
   ORDER_ITEM_CHANGED: "菜品状态已变化，请重新读取并确认。",
@@ -125,6 +128,10 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
       "Un ristorante può tenere al massimo 50 codici sconto: eliminane uno che non usi.",
     ONLINE_REQUEST_CHANGED: "L’ordine online è già stato gestito o è scaduto: aggiorna l’elenco.",
     ONLINE_REQUEST_NOT_FOUND: "Ordine online non trovato.",
+    ONLINE_BROWSER_REQUIRED: "Consenti i cookie di questo sito e ricarica prima di ordinare.",
+    ONLINE_BROWSER_PENDING:
+      "Questo browser ha già un ordine in attesa: controlla l’ordine precedente.",
+    ONLINE_IP_WAITING_LIMIT: "Troppi ordini da questa rete sono in attesa: riprova tra poco.",
     OPTION_GROUPS_CHANGED: "I gruppi di opzioni sono cambiati. Aggiorna il menu e riordinali.",
     ORDERS_PENDING: "Ci sono piatti ancora da preparare: completali in cucina o annullali.",
     ORDER_ITEM_CHANGED: "Lo stato del piatto è cambiato. Ricarica e verifica.",
@@ -199,6 +206,11 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
     ONLINE_REQUEST_CHANGED:
       "This online order was already handled or has expired: refresh the list.",
     ONLINE_REQUEST_NOT_FOUND: "Online order not found.",
+    ONLINE_BROWSER_REQUIRED: "Allow this site’s cookies and reload before ordering.",
+    ONLINE_BROWSER_PENDING:
+      "This browser already has an order awaiting acceptance: check it first.",
+    ONLINE_IP_WAITING_LIMIT:
+      "Too many orders from this network are awaiting acceptance. Try again shortly.",
     OPTION_GROUPS_CHANGED: "The option groups have changed. Refresh the menu and reorder them.",
     ORDERS_PENDING: "Some dishes are still waiting: finish them in the kitchen or cancel them.",
     ORDER_ITEM_CHANGED: "The dish status has changed. Reload and check.",

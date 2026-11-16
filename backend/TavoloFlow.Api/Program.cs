@@ -67,6 +67,7 @@ builder
     .ValidateDataAnnotations()
     .ValidateOnStart();
 builder.Services.AddSingleton<OnlineRateLimiter>();
+builder.Services.AddSingleton<OnlineBrowser>();
 
 // Lock-screen push: off unless the VAPID key is configured.
 builder
@@ -151,6 +152,8 @@ else
     app.UseHttpsRedirection();
 }
 
+app.UseRouting();
+app.UseMiddleware<OnlineRateLimitMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

@@ -93,6 +93,12 @@ code at checkout and see the discounted total; the bill keeps the discount in pr
 are cancelled, and staff repeat it on the till that issues the receipt (see
 [online ordering](online-ordering.md#coupons)).
 
+Online requests also have source limits: one waiting request per browser and restaurant, five per IP
+and restaurant, and independent IP budgets for submissions and public reads. Browsing and cart editing
+remain available while a request waits; checkout resumes after acceptance, rejection or expiry. The
+browser marker requires a first-party cookie, no login or external verification service. See
+[online ordering](online-ordering.md#submission-and-query-abuse-protection).
+
 Carts are private to a browser tab and table, with the observed visit attached.
 A draft made before opening requires explicit confirmation of its first visit.
 Drafts from an ended visit never migrate into the next visit.

@@ -84,6 +84,54 @@ export function OnlineHeader({
   );
 }
 
+// Shared by the menu and cart sheet to explain disabled checkout.
+export function OrderingContextNotice({
+  model,
+  language,
+}: {
+  model: ReturnType<typeof useOnlineCart>;
+  language: Language;
+}) {
+  const m = onlineOrderMessages[language];
+  return (
+    <>
+      {model.waitingOrder && (
+        <Notice
+          action={
+            <Link
+              to="/o/$token"
+              params={{ token: model.waitingOrder.statusToken }}
+              className={buttonVariants({ variant: "outline" })}
+            >
+              {m.viewOrder}
+            </Link>
+          }
+        >
+          {m.browserPending}
+        </Notice>
+      )}
+      {model.contextFailed ? (
+        <Notice
+          tone="error"
+          action={
+            <Button
+              variant="outline"
+              disabled={model.contextRefreshing}
+              onClick={model.refreshContext}
+            >
+              {m.retry}
+            </Button>
+          }
+        >
+          {m.contextFailed}
+        </Notice>
+      ) : model.contextChecking ? (
+        <Notice>{m.contextChecking}</Notice>
+      ) : null}
+    </>
+  );
+}
+
 // Reopening the menu points back to the latest order still in progress at this restaurant.
 export function ActiveOrder({
   restaurantId,
@@ -193,7 +241,7 @@ export function OnlineCartPanel({
         </div>
         {headerAction}
       </div>
-      {model.message && (
+      {model.message && model.message !== "browserPending" && (
         <Notice
           tone={messageTone(model.message)}
           // The pending notice below carries the phone while a submission is unresolved.
@@ -205,6 +253,7 @@ export function OnlineCartPanel({
       {model.blocked && model.message !== model.blocked && (
         <Notice tone="error">{m[model.blocked]}</Notice>
       )}
+      <OrderingContextNotice model={model} language={language} />
       {pending && (
         <Notice
           tone="warning"
@@ -452,7 +501,11 @@ export function OnlineCartPanel({
             {delivery ? m.asapDelivery : m.asap}
           </p>
           <div className="grid gap-2">
-            <Button type="submit" size="lg" disabled={model.busy || !!model.blocked}>
+            <Button
+              type="submit"
+              size="lg"
+              disabled={model.busy || !!model.blocked || model.checkoutBlocked}
+            >
               {model.busy ? m.working : m.placeOrder}
             </Button>
             <Button
@@ -481,7 +534,9 @@ export function OnlineCartPanel({
           <Button
             size="lg"
             className="w-full"
-            disabled={model.busy || !!model.blocked || closedNotice !== null}
+            disabled={
+              model.busy || !!model.blocked || model.checkoutBlocked || closedNotice !== null
+            }
             onClick={() => void model.checkout()}
           >
             {model.busy ? m.working : m.checkout}

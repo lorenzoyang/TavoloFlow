@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Guests;
+using TavoloFlow.Api.Online;
 
 namespace TavoloFlow.Api.Controllers;
 
@@ -12,14 +13,18 @@ public sealed class GuestController(
     GuestService guests,
     IAntiforgery antiforgery,
     GuestRateLimiter limiter,
+    OnlineBrowser onlineBrowser,
     TimeProvider clock,
     ILogger<GuestController> logger
 ) : ControllerBase
 {
     [AllowAnonymous]
     [HttpGet("api/public/csrf")]
-    public IActionResult Csrf() =>
-        Ok(new { token = antiforgery.GetAndStoreTokens(HttpContext).RequestToken });
+    public IActionResult Csrf()
+    {
+        onlineBrowser.GetOrCreate(HttpContext);
+        return Ok(new { token = antiforgery.GetAndStoreTokens(HttpContext).RequestToken });
+    }
 
     [AllowAnonymous]
     [HttpPost("api/public/qr/{token}/join")]

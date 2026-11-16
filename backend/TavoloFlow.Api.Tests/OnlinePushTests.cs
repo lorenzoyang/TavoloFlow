@@ -92,9 +92,10 @@ public sealed class OnlinePushTests(PostgreSqlFixture database) : IClassFixture<
         );
         await baseHost.PushService.WaitForAsync(1);
         // The sender processes orders in sequence; the next send proves the first has completed.
+        using var nextCustomer = host.CreateClient();
         Assert.Equal(
             HttpStatusCode.Created,
-            (await SubmitAsync(customer, shop, Guid.NewGuid())).StatusCode
+            (await SubmitAsync(nextCustomer, shop, Guid.NewGuid())).StatusCode
         );
         await baseHost.PushService.WaitForAsync(2);
         Assert.DoesNotContain(
@@ -183,9 +184,10 @@ public sealed class OnlinePushTests(PostgreSqlFixture database) : IClassFixture<
 
         // A repeat notifies nobody: the next push is the next order's.
         Assert.Equal(HttpStatusCode.OK, (await SubmitAsync(customer, shop, id)).StatusCode);
+        using var nextCustomer = host.Browser();
         Assert.Equal(
             HttpStatusCode.Created,
-            (await SubmitAsync(customer, shop, Guid.NewGuid())).StatusCode
+            (await SubmitAsync(nextCustomer, shop, Guid.NewGuid())).StatusCode
         );
         var next = (await host.PushService.WaitForAsync(4))[2..];
         Assert.All(next, push => Assert.NotEqual(otherDevice.Endpoint, push.Endpoint.ToString()));
@@ -284,9 +286,10 @@ public sealed class OnlinePushTests(PostgreSqlFixture database) : IClassFixture<
 
         // The browser still holds its subscription; the new sign-in registers it again.
         await RegisterAsync(staff, staffDevice);
+        using var nextCustomer = host.Browser();
         Assert.Equal(
             HttpStatusCode.Created,
-            (await SubmitAsync(customer, shop, Guid.NewGuid())).StatusCode
+            (await SubmitAsync(nextCustomer, shop, Guid.NewGuid())).StatusCode
         );
         var again = (await host.PushService.WaitForAsync(3))[1..];
         Assert.Equal(

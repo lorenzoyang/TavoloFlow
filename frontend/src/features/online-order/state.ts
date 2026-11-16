@@ -1,6 +1,6 @@
 // Pure online ordering rules for customers, node-tested: the tab's cart and its pending submission,
 // the checkout form, the remembered status link and what the status page says.
-import type { CouponPreview, OnlineMenu, OnlineOrder } from "./api.ts";
+import type { CouponPreview, OnlineMenu, OnlineOrder, OnlineSubmission } from "./api.ts";
 import type { Language } from "../../lib/language.ts";
 import { isUuid } from "../../lib/ids.ts";
 import { normalizeCouponCode, normalizePhone, validCouponPercent } from "../online/state.ts";
@@ -230,6 +230,8 @@ const rejectedAfterDuplicateCheck = [
   "SERVICE_SUSPENDED",
   "DELIVERY_NOT_OFFERED",
   "COUPON_INVALID",
+  "ONLINE_BROWSER_PENDING",
+  "ONLINE_IP_WAITING_LIMIT",
 ];
 
 // Whether a failed submission frees the cart. Any understood rejection of a first attempt does. After an
@@ -248,6 +250,7 @@ export function submissionFailure(
     "ONLINE_LINK_NOT_FOUND",
     "CSRF_VALIDATION_FAILED",
     "RATE_LIMITED",
+    "ONLINE_BROWSER_REQUIRED",
   ].includes(code ?? "")
     ? "editable"
     : "unknown";
@@ -256,6 +259,21 @@ export function submissionFailure(
 // The status link of the customer's latest order at a restaurant, kept on the device so reopening the
 // menu can point back to an order still in progress.
 export const orderTokenKey = (restaurantId: string) => `tavoloflow:online-order:${restaurantId}`;
+
+// A browser conflict points to another order; it must never clear this cart as a successful submission.
+export function existingSubmission(value: unknown): OnlineSubmission | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as Record<string, unknown>;
+  return typeof v.statusToken === "string" &&
+    /^[A-Za-z0-9_-]{43}$/.test(v.statusToken) &&
+    typeof v.number === "number" &&
+    Number.isSafeInteger(v.number) &&
+    v.number > 0 &&
+    typeof v.expiresAt === "string" &&
+    Number.isFinite(Date.parse(v.expiresAt))
+    ? { statusToken: v.statusToken, number: v.number, expiresAt: v.expiresAt }
+    : null;
+}
 
 export function readOrderToken(
   restaurantId: string,

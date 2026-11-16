@@ -1,5 +1,5 @@
 import { queryOptions, type Query } from "@tanstack/react-query";
-import { ApiError, publicRequest, publicWrite } from "@/lib/api";
+import { ApiError, guestRequest, publicRequest, publicWrite, withTimeout } from "@/lib/api";
 import type { Language, Names } from "@/lib/language";
 import type { OptionSnapshot } from "@/lib/options";
 import type { RestaurantTheme } from "@/lib/theme";
@@ -34,6 +34,7 @@ export type OnlineMenu = {
 
 // The first submission and every repeat or recovery return the same values.
 export type OnlineSubmission = { statusToken: string; number: number; expiresAt: string };
+export type OnlineOrderingContext = { pending: OnlineSubmission | null };
 
 // A coupon valid today at checkout, and the one an order used: discountCents is percentOff of the dishes
 // still charged, rounded down (never the delivery fee). Staff pages and bills read the same shape.
@@ -86,6 +87,18 @@ export const onlineOrderKey = (token: string) => ["public", "online-order", toke
 type OnlineOrderKey = ReturnType<typeof onlineOrderKey>;
 
 const linkPath = (slug: string) => `/api/public/r/${encodeURIComponent(slug)}`;
+
+// This read needs the anonymous browser cookie; ordinary public menu/status reads still omit cookies.
+export const onlineContextQuery = (slug: string) =>
+  queryOptions({
+    queryKey: ["public", "online-context", slug] as const,
+    queryFn: ({ signal }) =>
+      guestRequest<OnlineOrderingContext>(`${linkPath(slug)}/ordering-context`, {
+        signal: withTimeout(signal),
+      }),
+    retry: false,
+    staleTime: 0,
+  });
 
 export const readOnlineMenu = (slug: string, signal?: AbortSignal) =>
   publicRequest<OnlineMenu>(`${linkPath(slug)}/bootstrap`, { signal });

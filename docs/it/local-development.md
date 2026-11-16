@@ -101,6 +101,8 @@ Nella demo gli ordini online sono spenti. Per accenderli bastano un paio di minu
 
 Se passano più di 10 minuti prima dell'accettazione, l'ordine scade: la pagina di stato lo dice e mostra il telefono del ristorante. Gli orari seguono il fuso orario del ristorante (Roma), non quello del computer.
 
+Per provare i limiti antiabuso, riapri il menu nello stesso browser mentre l’ordine è in attesa: puoi modificare il carrello, ma prima di andare alla cassa devi attendere o aprire l’ordine precedente. L’accettazione, il rifiuto o la scadenza liberano il posto. Il sito richiede un cookie proprio del browser, valido 30 giorni. Per IP si possono tentare 3 invii al minuto e 10 in dieci minuti, con al massimo 5 ordini in attesa nello stesso ristorante; le letture hanno limiti separati. Per simulare più clienti usa profili browser distinti, che sullo stesso Wi-Fi condividono comunque l’IP. Le notifiche non cambiano. Impostazioni e verifiche sono nel [contratto tecnico](../reference/online-ordering.md#submission-and-query-abuse-protection). [Esempio del messaggio su telefono](../images/online-waiting-it.webp).
+
 ### Com'è fatta
 
 La demo è un progetto Compose a parte, [`demo/compose.yaml`](../../demo/compose.yaml), con quattro container:
