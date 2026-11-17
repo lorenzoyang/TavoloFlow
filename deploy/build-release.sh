@@ -28,9 +28,15 @@ docker image inspect --format '{{.Id}}' "tavoloflow-api:$release" > "$stage/imag
 
 printf '%s\n' "$release" > "$stage/release.txt"
 printf '%s\n' "$public_origin" > "$stage/public-origin.txt"
+# The migration IDs this release contains, for upgrade.sh's confirmation. Each ID is the value of a
+# [Migration("...")] attribute: the same value EF records in __EFMigrationsHistory once applied.
+grep -ho '\[Migration("[^"]*")\]' backend/TavoloFlow.Api/Data/Migrations/*.Designer.cs \
+  | sed -e 's/^\[Migration("//' -e 's/")\]$//' | LC_ALL=C sort > "$stage/migrations.txt"
+[[ -s "$stage/migrations.txt" ]] || { echo 'No migration IDs found.' >&2; exit 1; }
 # An explicit allow-list prevents local deployment state or secrets entering the package.
-for file in compose.yaml Caddyfile .env.example lib.sh tf.sh install-release.sh bootstrap-admin.sh \
-  backup.sh rollback.sh validate-turnstile.py tavoloflow-backup.service tavoloflow-backup.timer; do
+for file in compose.yaml Caddyfile .env.example lib.sh tf.sh install-release.sh upgrade.sh \
+  bootstrap-admin.sh backup.sh rollback.sh validate-turnstile.py \
+  tavoloflow-backup.service tavoloflow-backup.timer; do
   cp "deploy/$file" "$stage/ops/$file"
 done
 

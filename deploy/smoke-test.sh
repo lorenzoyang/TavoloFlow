@@ -125,6 +125,11 @@ printf 'smokeadmin\nDeployment-smoke-123\nDeployment-smoke-123\n' | bash "$TAVOL
 # Repeated bootstrap and migrations must be harmless.
 printf 'smokeadmin\nDeployment-smoke-123\nDeployment-smoke-123\n' | bash "$TAVOLOFLOW_ROOT/bootstrap-admin.sh"
 tf run --rm -T --no-deps --entrypoint /app/efbundle api
+# upgrade.sh previews migrations from the package's list: it must name exactly what EF applied.
+# shellcheck disable=SC2016
+diff <(LC_ALL=C sort "$work/first/migrations.txt") \
+  <(tf exec -T db sh -c 'exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -At' \
+    <<<'SELECT "MigrationId" FROM "__EFMigrationsHistory";' | LC_ALL=C sort)
 [[ "$(tf exec -T api id -u)" != 0 ]]
 curl --silent --show-error --fail -D "$work/redirect.headers" -o /dev/null \
   -H "Host: $domain" http://127.0.0.1:18080/staff
