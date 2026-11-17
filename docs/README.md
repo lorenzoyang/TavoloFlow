@@ -15,6 +15,7 @@ Start with the [project README](../README.md) to run the local demo. The documen
 | Development notes | Why the project exists, architecture, request flow and design choices | [English](en/development-notes.md) · [Italiano](it/development-notes.md) · [中文](zh-CN/development-notes.md) |
 | Local development | Docker demo, native development, tests and testing from a phone       | [English](en/local-development.md) · [Italiano](it/local-development.md) · [中文](zh-CN/local-development.md) |
 | Self-hosting      | First deployment, releases, explicit migrations, backups and recovery | [English](en/self-hosting.md) · [Italiano](it/self-hosting.md) · [中文](zh-CN/self-hosting.md)                |
+| Releasing         | Everyday releases with two scripts: build and upload, then install    | [English](en/releasing.md) · [Italiano](it/releasing.md) · [中文](zh-CN/releasing.md)                         |
 | Learning notes    | The maintainer's own notes on the technologies, tied to this code     | [Italiano](it/learning-notes.md) (in progress)                                                                |
 
 The [frontend README](../frontend/README.md) gives English frontend commands and configuration notes.

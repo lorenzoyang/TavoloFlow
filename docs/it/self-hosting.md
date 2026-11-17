@@ -10,7 +10,7 @@ Come leggerla:
 
 - la **Panoramica** spiega i pezzi e cosa ti serve: leggila prima di toccare qualsiasi cosa;
 - la **Parte 1** è la prima installazione, da fare una volta sola;
-- la **Parte 2** contiene le operazioni che ripeterai: nuovi rilasci, backup, manutenzione;
+- la **Parte 2** contiene le operazioni che ripeterai: nuovi rilasci, backup, manutenzione. Per i rilasci di tutti i giorni c'è una guida a parte, [Rilasciare con gli script](releasing.md);
 - la **Parte 3** è per le emergenze: verificare un backup e ripartire su un server nuovo;
 - alla fine ci sono i problemi che ho incontrato e un riferimento rapido con la checklist.
 
@@ -35,6 +35,8 @@ flowchart LR
 ```
 
 Così il server resta piccolo e pulito, e ogni versione installata corrisponde esattamente a un archivio che hai ancora sul tuo computer: puoi reinstallarlo, oppure usarlo per tornare indietro o per ricostruire un server da zero.
+
+Dopo la prima installazione, due script fanno questi passaggi per te, uno sul tuo computer e uno sulla VPS: vedi [Rilasciare con gli script](releasing.md).
 
 ### Architettura di produzione
 
@@ -83,6 +85,7 @@ Sul server tutto quello che non sta nei volumi vive in `/opt/tavoloflow`. Dopo l
 ├── compose.yaml, Caddyfile       configurazione                         644
 ├── lib.sh, tf.sh                 funzioni comuni e scorciatoia Compose  644
 ├── install-release.sh            installazione e aggiornamento          644
+├── upgrade.sh                    rilascio con gli script (releasing.md) 644
 ├── rollback.sh                   ritorno a una versione precedente      644
 ├── bootstrap-admin.sh            primo amministratore, reset password   644
 ├── backup.sh                     backup                                 644
@@ -656,40 +659,32 @@ Poi scarica subito il primo backup sul tuo computer, come spiegato in Parte 2, �
 
 ### Rilasciare una nuova versione
 
-Usa lo stesso metodo di build e installazione del primo rilascio, senza ricreare l’amministratore o `.env`. Conserva la configurazione esistente, aggiungi le variabili richieste dalla nuova versione seguendo i passaggi sotto, poi installa. Vale soprattutto per un server in uso da tempo a cui aggiungi Turnstile solo ora: la nuova versione attiva la verifica per impostazione predefinita in produzione, quindi l’installer rifiuta l’aggiornamento se nel vecchio `.env` mancano le chiavi.
+Per i rilasci di tutti i giorni segui la guida [Rilasciare con gli script](releasing.md): due comandi, uno sul tuo computer e uno sulla VPS, che eseguono per te la procedura manuale descritta qui sotto, con qualche controllo in più. Qui restano:
 
-**Prima di iniziare:**
+- i passaggi da fare **una volta sola**, quando una nuova versione richiede una configurazione nuova nel `.env` del server;
+- la [procedura manuale](#procedura-manuale), per quando gli script non sono disponibili o per capire che cosa fanno.
 
-1. Il codice è testato e **committato**.
-2. Docker è in esecuzione sul tuo computer.
-3. Controlla se ci sono nuove migrazioni. L'ID della versione in produzione (`sudo cat /opt/tavoloflow/state/current` sulla VPS) finisce con l'hash del commit da cui è stata costruita:
+Qualunque strada scegli, conserva la configurazione esistente: non ricreare l’amministratore o `.env`. Se la nuova versione richiede variabili nuove, aggiungile prima di installarla, con i passaggi qui sotto. Vale soprattutto per un server in uso da tempo a cui aggiungi Turnstile solo ora: la nuova versione attiva la verifica per impostazione predefinita in produzione, quindi l’installer rifiuta l’aggiornamento se nel vecchio `.env` mancano le chiavi.
 
-   ```bash
-   # Sul tuo computer: sostituisci 4c9535b con l'hash della versione in produzione.
-   # Nessun output = nessuna nuova migrazione
-   git log --oneline 4c9535b..HEAD -- backend/TavoloFlow.Api/Data/Migrations
-   ```
+#### Prima versione con le notifiche push
 
-4. Se ci sono migrazioni, o è un aggiornamento importante, scarica prima l'ultimo backup sul tuo computer.
-5. Scegli un orario di chiusura: mentre l'installer fa backup e migrazioni e riavvia l'API, le pagine si aprono ma ogni richiesta a `/api` fallisce.
+Solo se nel `.env` del server manca `VAPID_PRIVATE_KEY`. Dal terminale del tuo computer accedi prima alla VPS (sostituisci `VPS_IP` con l'indirizzo IP del server; se hai già una sessione SSH aperta, puoi usarla):
 
-6. **Prima versione con push, solo se manca `VAPID_PRIVATE_KEY`:** dal terminale del tuo computer accedi prima alla VPS (sostituisci `VPS_IP` con l'indirizzo IP del server; se hai già una sessione SSH aperta, puoi usarla):
+```bash
+ssh -o IdentitiesOnly=yes -i ~/.ssh/tavoloflow deploy@VPS_IP
+```
 
-   ```bash
-   ssh -o IdentitiesOnly=yes -i ~/.ssh/tavoloflow deploy@VPS_IP
-   ```
+Dopo l'accesso, esegui le operazioni di configurazione sulla VPS. Controlla `.env` con `sudo nano /opt/tavoloflow/.env`. Se la variabile esiste già, conserva il suo valore e salta i comandi seguenti. Se manca:
 
-   Dopo l'accesso, esegui le operazioni di configurazione sulla VPS. Controlla `.env` con `sudo nano /opt/tavoloflow/.env`. Se la variabile esiste già, conserva il suo valore e salta i comandi seguenti. Se manca:
+```bash
+# Solo sulla VPS, se VAPID_PRIVATE_KEY non è ancora presente
+openssl rand -hex 32
+sudo nano /opt/tavoloflow/.env
+```
 
-   ```bash
-   # Solo sulla VPS, se VAPID_PRIVATE_KEY non è ancora presente
-   openssl rand -hex 32
-   sudo nano /opt/tavoloflow/.env
-   ```
+Aggiungi `VAPID_PRIVATE_KEY=` seguito dai 64 caratteri appena generati. Non modificare `POSTGRES_PASSWORD`, non ricreare `.env` dal modello e non rigenerare la chiave a ogni rilascio. Se il valore manca o è invalido, l'installer rifiuta il rilascio prima di fermare l'API; correggi la configurazione e riprova. Per un valore esistente segnalato come invalido, controlla l'inserimento e il backup prima di sostituirlo.
 
-   Aggiungi `VAPID_PRIVATE_KEY=` seguito dai 64 caratteri appena generati. Non modificare `POSTGRES_PASSWORD`, non ricreare `.env` dal modello e non rigenerare la chiave a ogni rilascio. Se il valore manca o è invalido, l'installer rifiuta il rilascio prima di fermare l'API; correggi la configurazione e riprova. Per un valore esistente segnalato come invalido, controlla l'inserimento e il backup prima di sostituirlo.
-
-   Al termine, usa `exit` per tornare al terminale locale oppure apri un altro terminale sul tuo computer, quindi continua con la creazione e il caricamento del pacchetto qui sotto.
+Al termine, usa `exit` per tornare al terminale locale oppure apri un altro terminale sul tuo computer, quindi continua con il rilascio.
 
 #### Primo aggiornamento a una versione con Turnstile
 
@@ -729,11 +724,32 @@ Questi passaggi aggiungono la configurazione a un server esistente. Servono solo
    exit
    ```
 
-   Il comando chiude la sessione SSH e ti riporta al terminale del computer. Puoi anche tenere aperta la sessione della VPS e usare un altro terminale locale per la build e il caricamento sotto. Con la configurazione già corretta, i rilasci successivi possono partire dalla prossima sezione.
+   Il comando chiude la sessione SSH e ti riporta al terminale del computer. Puoi anche tenere aperta la sessione della VPS e usare un altro terminale locale per la build e il caricamento. Poi prosegui con il rilascio, con gli script ([Rilasciare con gli script](releasing.md)) o con la procedura manuale qui sotto. Con la configurazione già corretta, i rilasci successivi non ripetono questi passaggi.
 
 Se scegli esplicitamente di non usare la verifica esterna, nello stesso file imposta `TURNSTILE_ENABLED` a `false`. Le due chiavi non sono necessarie; restano i limiti per browser, IP e ordini in attesa. È una scelta di chi gestisce l’installazione, non un ripiego automatico quando mancano le chiavi.
 
-#### Build, caricamento e installazione
+**Dopo la prima attivazione di Turnstile, prova anche l’ordine del cliente.** Ricarica `/r/{slug}` sul dominio reale dell’applicazione: non continuare con una pagina rimasta aperta da prima dell’aggiornamento, perché non invierà la nuova prova di verifica. In un ristorante chiaramente indicato come test, aggiungi piatti, vai alla conferma, completa la verifica e invia un ordine. Accettalo come staff e controlla stato, cucina e conto. Il widget di solito completa i controlli automaticamente e potrebbe non richiedere un clic. Controlla anche la pagina di stato dell’ordine esistente, le notifiche e lo squillo dello staff, che devono funzionare come prima. Gestisci gli ordini di prova con il flusso normale, senza cancellarli con SQL.
+
+Una verifica incompleta, scaduta o che non si carica non deve creare un nuovo ordine. Il carrello deve restare conservato; se il caricamento fallisce devono esserci un pulsante per riprovare e il telefono del ristorante. Se la rete cade o il risultato è sconosciuto, usa prima il controllo dell’esito nella pagina per ritrovare l’ordine originale. «Riprova lo stesso ordine» fa prima una GET e usa una nuova verifica per ritentare la stessa richiesta solo se non l’ha ancora trovata. Non svuotare il carrello per fare un altro ordine al posto del controllo. Quando il verificatore non è disponibile, i nuovi invii sono bloccati ma gli ordini esistenti restano consultabili e recuperabili.
+
+#### Procedura manuale
+
+Sono gli stessi passaggi che i due script della guida [Rilasciare con gli script](releasing.md) eseguono per te.
+
+**Prima di iniziare:**
+
+1. Il codice è testato e **committato**.
+2. Docker è in esecuzione sul tuo computer.
+3. Controlla se ci sono nuove migrazioni. L'ID della versione in produzione (`sudo cat /opt/tavoloflow/state/current` sulla VPS) finisce con l'hash del commit da cui è stata costruita:
+
+   ```bash
+   # Sul tuo computer: sostituisci 4c9535b con l'hash della versione in produzione.
+   # Nessun output = nessuna nuova migrazione
+   git log --oneline 4c9535b..HEAD -- backend/TavoloFlow.Api/Data/Migrations
+   ```
+
+4. Se ci sono migrazioni, o è un aggiornamento importante, scarica prima l'ultimo backup sul tuo computer.
+5. Scegli un orario di chiusura: mentre l'installer fa backup e migrazioni e riavvia l'API, le pagine si aprono ma ogni richiesta a `/api` fallisce.
 
 **Sul tuo computer:**
 
@@ -790,15 +806,7 @@ ferma l'API → backup → migrazioni → nuova API → sposta web/current → r
 - **L'API si ferma prima del backup**, così durante il backup nessuno scrive e la copia è coerente.
 - **Il backup viene prima delle migrazioni**: se una migrazione va male, c'è la copia di com'era prima.
 
-**Le pagine già aperte.** Una Cucina rimasta aperta tutto il giorno ha in memoria il frontend vecchio, e quando cambia pagina carica pezzi di codice (il router divide il codice per pagina) che si chiamano come nella versione vecchia. Per questo `web/assets/` conserva i file di **tutte** le versioni: con l'hash nel nome non si sovrascrivono mai, e una pagina vecchia trova sempre i suoi. Il codice nuovo arriva solo quando la pagina viene ricaricata o l'app riaperta. Nel frattempo, però, la pagina vecchia parla con l'API nuova: le modifiche all'API devono restare compatibili con i client della versione precedente, altrimenti bisogna far ricaricare tutti i dispositivi.
-
-**Dopo il rilascio** ricarica la pagina su ogni dispositivo dello staff, così usa anche la nuova logica delle notifiche e dell'uscita. Controlla login, una lettura (Cucina o Conto) e cambio di pagina nella PWA; sui dispositivi con notifiche attivate aspetta la conferma «attive» e ripeti una prova a schermo bloccato. Se una scrittura mostra un esito da verificare, segui l'interfaccia: l'app controlla con una GET, e reinviare alla cieca potrebbe ripetere l'operazione.
-
-**Dopo la prima attivazione di Turnstile, prova anche l’ordine del cliente.** Ricarica `/r/{slug}` sul dominio reale dell’applicazione: non continuare con una pagina rimasta aperta da prima dell’aggiornamento, perché non invierà la nuova prova di verifica. In un ristorante chiaramente indicato come test, aggiungi piatti, vai alla conferma, completa la verifica e invia un ordine. Accettalo come staff e controlla stato, cucina e conto. Il widget di solito completa i controlli automaticamente e potrebbe non richiedere un clic. Controlla anche la pagina di stato dell’ordine esistente, le notifiche e lo squillo dello staff, che devono funzionare come prima. Gestisci gli ordini di prova con il flusso normale, senza cancellarli con SQL.
-
-Una verifica incompleta, scaduta o che non si carica non deve creare un nuovo ordine. Il carrello deve restare conservato; se il caricamento fallisce devono esserci un pulsante per riprovare e il telefono del ristorante. Se la rete cade o il risultato è sconosciuto, usa prima il controllo dell’esito nella pagina per ritrovare l’ordine originale. «Riprova lo stesso ordine» fa prima una GET e usa una nuova verifica per ritentare la stessa richiesta solo se non l’ha ancora trovata. Non svuotare il carrello per fare un altro ordine al posto del controllo. Quando il verificatore non è disponibile, i nuovi invii sono bloccati ma gli ordini esistenti restano consultabili e recuperabili.
-
-Se il rilascio ha cambiato `tavoloflow-backup.service` o `.timer`, l'installer aggiorna solo le copie in `/opt/tavoloflow`: ripeti le due righe `install` e `daemon-reload` del passo 7 della Parte 1.
+**Dopo il rilascio** segui il passo [Dopo il rilascio](releasing.md#3-dopo-il-rilascio) di «Rilasciare con gli script»: ricaricare i dispositivi dello staff e i controlli valgono anche per la procedura manuale, e lì si spiega anche perché [le pagine già aperte](releasing.md#le-pagine-già-aperte) continuano a funzionare. Se il rilascio ha cambiato `tavoloflow-backup.service` o `.timer`, l'installer aggiorna solo le copie in `/opt/tavoloflow`: ripeti le due righe `install` e `daemon-reload` del passo 7 della Parte 1 (con gli script te lo segnala `upgrade.sh`).
 
 ### Quando un rilascio va male
 
@@ -810,7 +818,7 @@ sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api db caddy
 
 - **Non cancellare volumi e non ripristinare subito il database.** Un errore dello script non cancella dati.
 - Se l'API è rimasta ferma, tieni il ristorante fuori servizio finché non hai capito.
-- **Se è fallito solo il controllo preliminare della configurazione Turnstile:** l’API esistente è ancora in esecuzione e la cartella della nuova release frontend non è stata creata. Correggi con `sudo nano /opt/tavoloflow/.env`, poi ripeti il controllo e l’installazione con lo stesso pacchetto: non serve ricostruirlo o estrarlo di nuovo.
+- **Se è fallito solo il controllo preliminare della configurazione Turnstile:** l’API esistente è ancora in esecuzione e la cartella della nuova release frontend non è stata creata. Correggi con `sudo nano /opt/tavoloflow/.env`, poi ripeti il controllo e l’installazione con lo stesso pacchetto: non serve ricostruirlo o estrarlo di nuovo. Con gli script basta rilanciare `bash /opt/tavoloflow/upgrade.sh`.
 - **Se l’installazione è arrivata a una fase successiva:** controlla prima log e stato dei container. Se esiste già `web/releases/VERSIONE`, l’installer rifiuta lo stesso ID. Dopo aver corretto il codice o il problema di installazione, costruisci e pubblica con un **nuovo ID**; non cancellare a mano la cartella della release per forzare un tentativo. Il bundle salta le migrazioni già applicate.
 
 Se fallisce proprio la prima installazione, `state/current` non esiste ancora e `tf.sh` non sa quale versione usare. Passala tu, con `env` dopo `sudo`, perché `sudo` cancella le variabili d'ambiente scritte prima:
@@ -956,7 +964,7 @@ sudo docker image rm tavoloflow-api:VERSIONE_VECCHIA
 
 | Cosa                           | Cresce di, per rilascio | Si pulisce?                                                      |
 | ------------------------------ | ----------------------- | ---------------------------------------------------------------- |
-| cartella di appoggio           | circa 230 MB            | sì, quando la versione è installata e hai il pacchetto in locale |
+| cartella di appoggio           | circa 230 MB            | sì: `upgrade.sh` la pulisce da solo; con la procedura manuale, quando la versione è installata e hai il pacchetto in locale |
 | immagini `tavoloflow-api`      | qualche decina di MB    | sì, tranne la versione attuale e la precedente                   |
 | `web/releases/`, `web/assets/` | circa 1 MB              | no: servono alle pagine vecchie e al rollback                    |
 | backup                         | —                       | no: dopo 7 giorni spariscono da soli                             |
@@ -1116,8 +1124,10 @@ Il database torna com'era al momento del backup: quello che è successo dopo va 
 # Dal tuo computer
 ssh -i ~/.ssh/tavoloflow deploy@VPS_IP
 PUBLIC_ORIGIN=https://app.esempio.it bash deploy/build-release.sh
+tf-upload                                              # costruisce e carica (releasing.md)
 
 # Sulla VPS
+bash /opt/tavoloflow/upgrade.sh                        # controlla e installa l'ultimo pacchetto caricato
 sudo bash /opt/tavoloflow/tf.sh ps                     # stato dei container
 sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api    # log dell'API
 sudo bash /opt/tavoloflow/backup.sh                    # backup immediato

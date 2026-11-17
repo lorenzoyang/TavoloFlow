@@ -10,7 +10,7 @@ How to read it:
 
 - the **Overview** explains the pieces and what you need: read it before touching anything;
 - **Part 1** is the first installation, to do only once;
-- **Part 2** contains the operations you will repeat: new releases, backups, maintenance;
+- **Part 2** contains the operations you will repeat: new releases, backups, maintenance. Everyday releases have a guide of their own, [Releasing with the scripts](releasing.md);
 - **Part 3** is for emergencies: verifying a backup and starting again on a new server;
 - at the end there are the problems I ran into and a quick reference with the checklist.
 
@@ -35,6 +35,8 @@ flowchart LR
 ```
 
 This way the server stays small and clean, and every installed version corresponds exactly to an archive you still have on your computer: you can reinstall it, or use it to roll back or to rebuild a server from scratch.
+
+After the first installation, two scripts do these steps for you, one on your computer and one on the VPS: see [Releasing with the scripts](releasing.md).
 
 ### Production architecture
 
@@ -83,6 +85,7 @@ On the server, everything that isn't in the volumes lives in `/opt/tavoloflow`. 
 ├── compose.yaml, Caddyfile       configuration                          644
 ├── lib.sh, tf.sh                 shared functions and Compose shortcut  644
 ├── install-release.sh            installation and upgrade               644
+├── upgrade.sh                    scripted release (releasing.md)        644
 ├── rollback.sh                   back to a previous version             644
 ├── bootstrap-admin.sh            first administrator, password reset    644
 ├── backup.sh                     backup                                 644
@@ -656,40 +659,32 @@ Then download the first backup to your computer right away, as explained in Part
 
 ### Releasing a new version
 
-Use the same build and installation method as for the first release, without recreating the administrator or `.env`. Keep existing settings, add the variables required by the new version using the configuration steps below, then install. This matters especially for servers that have been running for some time and are only now adding Turnstile: the new version enables verification by default in production, so the installer rejects an upgrade if the old `.env` has no keys.
+For everyday releases follow [Releasing with the scripts](releasing.md): two commands, one on your computer and one on the VPS, that run the manual procedure below for you, with a few extra checks. What stays here:
 
-**Before starting:**
+- the steps to do **only once**, when a new version needs new configuration in the server's `.env`;
+- the [manual procedure](#manual-procedure), for when the scripts are not available or to understand what they do.
 
-1. The code is tested and **committed**.
-2. Docker is running on your computer.
-3. Check whether there are new migrations. The ID of the version in production (`sudo cat /opt/tavoloflow/state/current` on the VPS) ends with the hash of the commit it was built from:
+Whichever way you choose, keep the existing settings: do not recreate the administrator or `.env`. If the new version needs new variables, add them before installing it, with the steps below. This matters especially for servers that have been running for some time and are only now adding Turnstile: the new version enables verification by default in production, so the installer rejects an upgrade if the old `.env` has no keys.
 
-   ```bash
-   # On your computer: replace 4c9535b with the hash of the version in production.
-   # No output = no new migrations
-   git log --oneline 4c9535b..HEAD -- backend/TavoloFlow.Api/Data/Migrations
-   ```
+#### First release with push notifications
 
-4. If there are migrations, or it's a major update, first download the latest backup to your computer.
-5. Pick a time when the restaurant is closed: while the installer takes the backup, runs the migrations and restarts the API, pages open but every request to `/api` fails.
+Only if `VAPID_PRIVATE_KEY` is missing from the server's `.env`. First log in to the VPS from a terminal on your computer (replace `VPS_IP` with the server's IP address; you can reuse an existing SSH session):
 
-6. **First release with push, only if `VAPID_PRIVATE_KEY` is missing:** first log in to the VPS from a terminal on your computer (replace `VPS_IP` with the server's IP address; you can reuse an existing SSH session):
+```bash
+ssh -o IdentitiesOnly=yes -i ~/.ssh/tavoloflow deploy@VPS_IP
+```
 
-   ```bash
-   ssh -o IdentitiesOnly=yes -i ~/.ssh/tavoloflow deploy@VPS_IP
-   ```
+After logging in, carry out the configuration steps on the VPS. Inspect `.env` with `sudo nano /opt/tavoloflow/.env`. If the variable exists, keep its value and skip the following commands. If it is missing:
 
-   After logging in, carry out the configuration steps on the VPS. Inspect `.env` with `sudo nano /opt/tavoloflow/.env`. If the variable exists, keep its value and skip the following commands. If it is missing:
+```bash
+# On the VPS, only when VAPID_PRIVATE_KEY is not present yet
+openssl rand -hex 32
+sudo nano /opt/tavoloflow/.env
+```
 
-   ```bash
-   # On the VPS, only when VAPID_PRIVATE_KEY is not present yet
-   openssl rand -hex 32
-   sudo nano /opt/tavoloflow/.env
-   ```
+Add `VAPID_PRIVATE_KEY=` followed by the generated 64 characters. Do not change `POSTGRES_PASSWORD`, recreate `.env` from its template or generate a new key for each release. A missing or invalid key makes the installer reject the release before stopping the API; fix the configuration and retry. If an existing value is reported invalid, check the entry and backup before replacing it.
 
-   Add `VAPID_PRIVATE_KEY=` followed by the generated 64 characters. Do not change `POSTGRES_PASSWORD`, recreate `.env` from its template or generate a new key for each release. A missing or invalid key makes the installer reject the release before stopping the API; fix the configuration and retry. If an existing value is reported invalid, check the entry and backup before replacing it.
-
-   When finished, run `exit` to return to your local terminal or open another terminal on your computer, then continue with the build and upload steps below.
+When finished, run `exit` to return to your local terminal or open another terminal on your computer, then continue with the release.
 
 #### First upgrade to a version with Turnstile
 
@@ -729,11 +724,32 @@ These steps add configuration to an existing server. Do them once when first ena
    exit
    ```
 
-   This closes the SSH session and returns to your computer’s terminal. Alternatively, keep the VPS session open and use another local terminal for the build and upload below. Once the settings are correct, future releases can start at the next section.
+   This closes the SSH session and returns to your computer’s terminal. Alternatively, keep the VPS session open and use another local terminal for the build and upload. Then continue with the release, with the scripts ([Releasing with the scripts](releasing.md)) or with the manual procedure below. Once the settings are correct, future releases don't repeat these steps.
 
 If you explicitly choose not to use external verification, set `TURNSTILE_ENABLED` to `false` in the same file. Neither key is then required; browser, IP and waiting-slot limits still apply. This is a deliberate choice by the operator, not an automatic fallback when keys are missing.
 
-#### Build, upload and installation
+**After first enabling Turnstile, also test customer ordering.** Reload `/r/{slug}` on the real application domain rather than continuing with a page left open before the upgrade: the old page will not send the new verification proof. In a clearly marked test restaurant, add dishes, go to confirmation, complete verification and submit an order. Accept it as staff and check the status, kitchen and bill. The widget usually completes its checks automatically and may not require a click. Also check that the existing order’s status page works, and that staff notifications and ringing behave as before. Process test orders through the normal flow; do not delete them with SQL.
+
+An incomplete, expired or failed-to-load verification must not create a new order. The cart must remain saved; a loading failure must offer retry and the restaurant’s phone. If the network fails or the result is unknown, use the page’s lookup action to recover the original order first. “Retry the same order” first sends a GET and only uses a fresh verification to retry the same request if it has not been found yet. Do not clear the cart and create another order instead of checking. When the verifier is unavailable, new submissions are blocked but existing orders remain queryable and recoverable.
+
+#### Manual procedure
+
+These are the same steps that the two scripts of [Releasing with the scripts](releasing.md) run for you.
+
+**Before starting:**
+
+1. The code is tested and **committed**.
+2. Docker is running on your computer.
+3. Check whether there are new migrations. The ID of the version in production (`sudo cat /opt/tavoloflow/state/current` on the VPS) ends with the hash of the commit it was built from:
+
+   ```bash
+   # On your computer: replace 4c9535b with the hash of the version in production.
+   # No output = no new migrations
+   git log --oneline 4c9535b..HEAD -- backend/TavoloFlow.Api/Data/Migrations
+   ```
+
+4. If there are migrations, or it's a major update, first download the latest backup to your computer.
+5. Pick a time when the restaurant is closed: while the installer takes the backup, runs the migrations and restarts the API, pages open but every request to `/api` fails.
 
 **On your computer:**
 
@@ -790,15 +806,7 @@ stop the API → backup → migrations → new API → move web/current → recr
 - **The API stops before the backup**, so nobody writes during the backup and the copy is consistent.
 - **The backup comes before the migrations**: if a migration goes wrong, there is a copy of how things were before.
 
-**Pages already open.** A Kitchen left open all day has the old frontend in memory, and when it changes page it loads pieces of code (the router splits the code by page) named as in the old version. That's why `web/assets/` keeps the files of **every** version: with the hash in their name they are never overwritten, and an old page always finds its own. New code only arrives when the page is reloaded or the app reopened. In the meantime, though, the old page talks to the new API: API changes must stay compatible with the previous version's clients, otherwise every device has to be reloaded.
-
-**After the release** reload every staff device to use the new notification and sign-out logic. Check sign-in, a read (Kitchen or Bill) and PWA navigation; on devices with notifications enabled, wait for “on” and repeat a lock-screen test. If a write shows a result to verify, follow the interface: the app checks with a GET, and resending blindly could repeat the operation.
-
-**After first enabling Turnstile, also test customer ordering.** Reload `/r/{slug}` on the real application domain rather than continuing with a page left open before the upgrade: the old page will not send the new verification proof. In a clearly marked test restaurant, add dishes, go to confirmation, complete verification and submit an order. Accept it as staff and check the status, kitchen and bill. The widget usually completes its checks automatically and may not require a click. Also check that the existing order’s status page works, and that staff notifications and ringing behave as before. Process test orders through the normal flow; do not delete them with SQL.
-
-An incomplete, expired or failed-to-load verification must not create a new order. The cart must remain saved; a loading failure must offer retry and the restaurant’s phone. If the network fails or the result is unknown, use the page’s lookup action to recover the original order first. “Retry the same order” first sends a GET and only uses a fresh verification to retry the same request if it has not been found yet. Do not clear the cart and create another order instead of checking. When the verifier is unavailable, new submissions are blocked but existing orders remain queryable and recoverable.
-
-If the release changed `tavoloflow-backup.service` or `.timer`, the installer updates only the copies in `/opt/tavoloflow`: repeat the two `install` lines and `daemon-reload` from step 7 of Part 1.
+**After the release** follow the step [After the release](releasing.md#3-after-the-release) of "Releasing with the scripts": reloading the staff devices and the checks apply to the manual procedure too, and it also explains why [pages already open](releasing.md#pages-already-open) keep working. If the release changed `tavoloflow-backup.service` or `.timer`, the installer updates only the copies in `/opt/tavoloflow`: repeat the two `install` lines and `daemon-reload` from step 7 of Part 1 (with the scripts, `upgrade.sh` points this out).
 
 ### When a release goes wrong
 
@@ -810,7 +818,7 @@ sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api db caddy
 
 - **Don't delete volumes and don't restore the database right away.** A script error doesn't delete data.
 - If the API stayed stopped, keep the restaurant out of service until you understand.
-- **If only the Turnstile configuration preflight failed:** the existing API is still running and the new frontend release directory has not been created. Fix the settings with `sudo nano /opt/tavoloflow/.env`, then rerun the preflight and installer with the same package; no rebuild or second extraction is needed.
+- **If only the Turnstile configuration preflight failed:** the existing API is still running and the new frontend release directory has not been created. Fix the settings with `sudo nano /opt/tavoloflow/.env`, then rerun the preflight and installer with the same package; no rebuild or second extraction is needed. With the scripts, just run `bash /opt/tavoloflow/upgrade.sh` again.
 - **If installation reached a later stage:** inspect logs and container status first. If `web/releases/VERSION` already exists, the installer refuses the same ID. After fixing the code or installation issue, build and release with a **new ID**; do not delete the release directory by hand to force a retry. The migration bundle skips migrations already applied.
 
 If the very first installation fails, `state/current` doesn't exist yet and `tf.sh` doesn't know which version to use. Pass it yourself, with `env` after `sudo`, because `sudo` clears environment variables written before it:
@@ -956,7 +964,7 @@ sudo docker image rm tavoloflow-api:OLD_VERSION
 
 | What                           | Grows by, per release | Is it cleaned up?                                                   |
 | ------------------------------ | --------------------- | ------------------------------------------------------------------- |
-| staging folder                 | about 230 MB          | yes, once the version is installed and you have the package locally |
+| staging folder                 | about 230 MB          | yes: `upgrade.sh` cleans it on its own; with the manual procedure, once the version is installed and you have the package locally |
 | `tavoloflow-api` images        | a few tens of MB      | yes, except the current and the previous version                    |
 | `web/releases/`, `web/assets/` | about 1 MB            | no: they serve old pages and rollback                               |
 | backups                        | —                     | no: after 7 days they disappear by themselves                       |
@@ -1116,8 +1124,10 @@ The database goes back to how it was at the time of the backup: whatever happene
 # From your computer
 ssh -i ~/.ssh/tavoloflow deploy@VPS_IP
 PUBLIC_ORIGIN=https://app.example.com bash deploy/build-release.sh
+tf-upload                                              # build and upload (releasing.md)
 
 # On the VPS
+bash /opt/tavoloflow/upgrade.sh                        # check and install the latest uploaded package
 sudo bash /opt/tavoloflow/tf.sh ps                     # container status
 sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api    # API logs
 sudo bash /opt/tavoloflow/backup.sh                    # immediate backup
