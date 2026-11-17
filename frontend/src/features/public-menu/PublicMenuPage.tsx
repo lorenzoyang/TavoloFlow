@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw, X } from "lucide-react";
 import { BrandMark } from "@/components/brand";
-import { SourceLink } from "@/components/source-link";
 import { Notice } from "@/components/notice";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
@@ -14,7 +13,7 @@ import { useDocumentTheme } from "@/lib/useDocumentTheme";
 import { publicMenuQuery, type PublicMenu } from "./api";
 import { readLanguage, saveLanguage, selectedLanguage } from "./language";
 import { messages } from "./messages";
-import { CartBar, LanguageToggle, MenuHeader, MenuList } from "./PublicMenuViews";
+import { CartBar, LanguageToggle, MenuHeader, MenuList, MenuSkeleton } from "./PublicMenuViews";
 import { GuestPanel } from "@/features/guests/GuestPanel";
 import { guestKeys } from "@/features/guests/api";
 import { useGuestVisit } from "@/features/guests/useGuestVisit";
@@ -180,7 +179,6 @@ function MenuContent({
               )}
               <footer className="border-t pt-5 text-xs leading-6 text-muted-foreground">
                 <p>{m.allergyHint}</p>
-                <SourceLink label={m.sourceCode} />
               </footer>
             </>
           )}
@@ -261,6 +259,7 @@ export function PublicMenuPage({ token }: { token: string }) {
       />
     );
   const failed = query.isError || query.fetchStatus === "paused";
+  if (query.data === undefined && !failed) return <MenuSkeleton language={language} />;
   return (
     <main
       lang={language}
@@ -271,9 +270,7 @@ export function PublicMenuPage({ token }: { token: string }) {
         {PRODUCT_NAME} · {m.menu}
       </h1>
       <LanguageToggle language={language} select={setLanguage} />
-      <Notice tone={query.data === null || failed ? "error" : "info"}>
-        {query.data === null ? m.invalid : failed ? m.error : m.loading}
-      </Notice>
+      <Notice tone="error">{query.data === null ? m.invalid : m.error}</Notice>
       <Button variant="outline" disabled={query.isFetching} onClick={() => void query.refetch()}>
         <RefreshCw />
         {m.retry}

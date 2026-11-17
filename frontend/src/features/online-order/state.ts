@@ -336,6 +336,17 @@ export function orderView(order: ViewInput): OrderView {
 export const orderEnded = (order: ViewInput) =>
   ["expired", "rejected", "collected", "closed"].includes(orderView(order));
 
+// How far an order going ahead has come: sent, accepted, ready, collected or delivered. Orders that
+// did not go ahead, or closed without being collected, have no progress to show.
+export type OrderStep = 0 | 1 | 2 | 3;
+const steps: Partial<Record<OrderView, OrderStep>> = {
+  waiting: 0,
+  preparing: 1,
+  ready: 2,
+  collected: 3,
+};
+export const orderProgress = (view: OrderView): OrderStep | null => steps[view] ?? null;
+
 // The message key of each state; pickup and delivery differ where the customer's next step does.
 export type StatusCopy =
   | "waiting"

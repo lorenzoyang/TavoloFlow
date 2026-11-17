@@ -11,6 +11,7 @@ import {
   onlineCartAmounts,
   onlineCartKey,
   orderEnded,
+  orderProgress,
   orderTokenKey,
   orderView,
   readOrderToken,
@@ -19,6 +20,7 @@ import {
   statusCopy,
   submissionFailure,
   type OnlineCart,
+  type OrderView,
 } from "../src/features/online-order/state.ts";
 import { addItem, cartKey, CartError, editLine } from "../src/features/orders/state.ts";
 import type { OnlineOrder } from "../src/features/online-order/api.ts";
@@ -377,6 +379,21 @@ test("the status page follows the phase, then the session and its dishes", () =>
     assert.equal(statusCopy(value), copy, JSON.stringify(patch));
     assert.equal(orderEnded(value), ended, JSON.stringify(patch));
   }
+});
+
+test("only an order going ahead shows its progress", () => {
+  const expected: Record<OrderView, number | null> = {
+    waiting: 0,
+    preparing: 1,
+    ready: 2,
+    collected: 3,
+    expired: null,
+    rejected: null,
+    allCancelled: null,
+    closed: null,
+  };
+  for (const [view, step] of Object.entries(expected))
+    assert.equal(orderProgress(view as OrderView), step, view);
 });
 
 test("a confirmed coupon travels in the intent and restores only exactly as saved", () => {

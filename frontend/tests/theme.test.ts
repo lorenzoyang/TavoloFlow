@@ -99,6 +99,9 @@ test("every theme keeps text readable (WCAG AA) on its surfaces", () => {
       ["secondary-foreground", "secondary", 4.5],
       ["destructive", "background", 4.5],
       ["success", "background", 3],
+      // The guest and online headers sit on an accent band, with secondary text and service icons.
+      ["muted-foreground", "accent", 4.5],
+      ["primary", "accent", 3],
     ];
     for (const [text, surface, minimum] of pairs) {
       const ratio = contrast(p[text], p[surface]);

@@ -1,12 +1,5 @@
-import { useState } from "react";
-import {
-  ChevronUp,
-  Plus,
-  RefreshCw,
-  ShoppingBag,
-  TriangleAlert,
-  UtensilsCrossed,
-} from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { ChevronUp, Plus, RefreshCw, ShoppingBag, UtensilsCrossed } from "lucide-react";
 import { DishPrice } from "@/components/dish-price";
 import { EmptyState } from "@/components/empty-state";
 import { FilterChips } from "@/components/filter-chips";
@@ -91,33 +84,116 @@ export function MenuHeader({
 }) {
   const m = messages[language];
   return (
-    <header className="border-b bg-card pt-safe">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-start justify-between gap-3 px-4 py-4">
-        <div className="min-w-0 flex-1 basis-48">
-          <h1 className="font-display text-2xl leading-tight font-semibold wrap-break-word">
-            {data.restaurant.name}
+    <RestaurantHeader
+      name={data.restaurant.name}
+      language={language}
+      selectLanguage={selectLanguage}
+      details={
+        <p className="flex min-h-11 items-center font-medium text-muted-foreground wrap-break-word">
+          {m.table} {data.table.tableLabel}
+        </p>
+      }
+      refresh={
+        <Button
+          variant="outline"
+          size="icon"
+          aria-label={m.retry}
+          disabled={refreshing}
+          onClick={refresh}
+        >
+          <RefreshCw className={cn(refreshing && "animate-spin")} />
+        </Button>
+      }
+    />
+  );
+}
+
+// The restaurant's name on a band of its own accent colour, shared by the QR and online pages. The
+// language switch keeps the name's row, so phones spend one row less on the header; details (the
+// table, the services) and actions (the phone) sit below, with the refresh button at their right.
+export function RestaurantHeader({
+  name,
+  language,
+  selectLanguage,
+  details,
+  actions,
+  refresh,
+}: {
+  name: string;
+  language: Language;
+  selectLanguage: (value: Language) => void;
+  details?: ReactNode;
+  actions?: ReactNode;
+  refresh?: ReactNode;
+}) {
+  return (
+    <header className="border-b border-border/70 bg-linear-to-b from-accent to-background pt-safe">
+      <div className="mx-auto max-w-6xl space-y-3 px-4 pt-5 pb-4">
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="min-w-0 flex-1 pt-1.5 font-display text-2xl leading-tight font-semibold wrap-break-word sm:pt-1 sm:text-3xl">
+            {name}
           </h1>
-          <p className="mt-1 font-medium text-muted-foreground wrap-break-word">
-            {m.table} {data.table.tableLabel}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
           <LanguageToggle language={language} select={selectLanguage} />
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label={m.retry}
-            disabled={refreshing}
-            onClick={refresh}
-          >
-            <RefreshCw className={cn(refreshing && "animate-spin")} />
-          </Button>
         </div>
+        {(details || actions || refresh) && (
+          <div className="flex items-end justify-between gap-3">
+            <div className="min-w-0 flex-1 space-y-3">
+              {details}
+              {actions}
+            </div>
+            {refresh}
+          </div>
+        )}
       </div>
     </header>
   );
 }
 
+// Shown while the first menu read is in flight. The restaurant, its colours and its language are not
+// known yet, so it keeps the default palette and announces loading in the page's fallback language.
+export function MenuSkeleton({ language }: { language: Language }) {
+  const m = messages[language];
+  const block = "animate-pulse rounded-lg bg-muted";
+  return (
+    <div lang={language} className="min-h-dvh">
+      <p role="status" className="sr-only">
+        {m.loading}
+      </p>
+      <div aria-hidden="true">
+        <div className="border-b border-border/70 bg-linear-to-b from-accent to-background pt-safe">
+          <div className="mx-auto max-w-6xl space-y-3 px-4 pt-5 pb-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className={cn(block, "mt-1 h-8 w-48 min-w-0")} />
+              <div className={cn(block, "h-11 w-34 shrink-0")} />
+            </div>
+            <div className={cn(block, "h-6 w-36")} />
+          </div>
+        </div>
+        {/* From lg the right padding leaves the cart column's width (24rem plus its gap) empty. */}
+        <div className="mx-auto max-w-6xl space-y-3 px-4 pt-5 lg:pr-108">
+          <div className="flex gap-2 overflow-hidden py-1">
+            {["w-20", "w-28", "w-24", "w-28"].map((width, index) => (
+              <div key={index} className={cn(block, "h-11 shrink-0 rounded-full", width)} />
+            ))}
+          </div>
+          {[0, 1, 2].map((index) => (
+            <div key={index} className="flex gap-3 rounded-2xl border bg-card p-4">
+              <div className="min-w-0 flex-1 space-y-2.5">
+                <div className={cn(block, "h-5 w-2/3")} />
+                <div className={cn(block, "h-4 w-full")} />
+                <div className={cn(block, "h-4 w-1/2")} />
+              </div>
+              <div className={cn(block, "size-24 shrink-0 rounded-xl")} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Allergens are information every dish carries, not a warning: plain text keeps the warning colour
+// for what it means everywhere else (waiting, new, due soon).
 function Allergens({ item, language }: { item: MenuItem; language: Language }) {
   const m = messages[language];
   if (!item.allergenReviewed)
@@ -125,17 +201,9 @@ function Allergens({ item, language }: { item: MenuItem; language: Language }) {
   if (item.allergenCodes.length === 0)
     return <p className="text-xs text-muted-foreground">{m.reviewedEmpty}</p>;
   return (
-    <p className="flex items-start gap-1.5 text-xs leading-5">
-      <TriangleAlert
-        aria-hidden="true"
-        className="mt-0.5 size-3.5 shrink-0 text-warning-foreground"
-      />
-      <span>
-        <span className="font-medium">{m.allergens}: </span>
-        {item.allergenCodes
-          .map((code) => allergenNames[language][code] ?? m.unreviewed)
-          .join(" · ")}
-      </span>
+    <p className="text-xs leading-5 text-muted-foreground">
+      <span className="font-medium text-foreground">{m.allergens}: </span>
+      {item.allergenCodes.map((code) => allergenNames[language][code] ?? m.unreviewed).join(" · ")}
     </p>
   );
 }
@@ -178,8 +246,13 @@ function DishRow({
       onClick={add}
     >
       <Plus />
+      {/* Inverted against the button, so it stands out in every theme (ink's primary is nearly the
+          foreground colour); a new count remounts it to replay the pop. */}
       {count > 0 && (
-        <span className="absolute -top-1.5 -right-1.5 flex min-w-6 items-center justify-center rounded-full border-2 border-card bg-foreground px-1 text-xs font-semibold text-background tabular-nums">
+        <span
+          key={count}
+          className="absolute -top-1.5 -right-1.5 flex min-w-6 animate-in items-center justify-center rounded-full border-2 border-primary bg-card px-1 text-xs font-semibold text-primary tabular-nums duration-200 zoom-in-50"
+        >
           {count}
         </span>
       )}
@@ -210,7 +283,7 @@ function DishRow({
       <div className="flex shrink-0 flex-col items-end justify-between gap-3">
         <DishPrice
           stacked
-          className="font-semibold"
+          className="font-semibold text-primary"
           regular={item.salePriceCents === null ? null : formatMoney(item.priceCents, language)}
           regularLabel={orderMessages[language].regularPrice}
         >
@@ -221,7 +294,8 @@ function DishRow({
             <DishPhoto
               imageId={photo.shown}
               onError={photo.fail}
-              className={cn("size-24 sm:size-28", soldOut && "opacity-60 grayscale")}
+              // Two columns from xl make each card about a phone's width again.
+              className={cn("size-24 sm:size-28 xl:size-24", soldOut && "opacity-60 grayscale")}
             />
             {addButton}
           </div>
@@ -261,7 +335,8 @@ export function MenuList({
   if (data.menu.items.length === 0) return <EmptyState icon={UtensilsCrossed} title={m.empty} />;
   return (
     <div className="space-y-6">
-      <div className="sticky top-0 z-20 -mx-4 bg-background/95 px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 backdrop-blur">
+      {/* The fade below the bar lets cards slide under it instead of being cut off. */}
+      <div className="sticky top-0 z-20 -mx-4 bg-background/95 px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 backdrop-blur after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-3 after:bg-linear-to-b after:from-background/95 after:to-transparent">
         <FilterChips
           label={m.menu}
           value={selected?.id ?? ""}
@@ -287,12 +362,13 @@ export function MenuList({
             <h2
               id={`category-${category.id}`}
               lang={name.language}
-              className="font-display text-xl font-semibold wrap-break-word"
+              className="flex items-start gap-2.5 font-display text-xl font-semibold"
             >
-              {name.text}
+              <span aria-hidden="true" className="mt-1 h-5 w-1 shrink-0 rounded-full bg-primary" />
+              <span className="min-w-0 wrap-break-word">{name.text}</span>
             </h2>
             {items.length ? (
-              <ul className="grid gap-3">
+              <ul className="grid gap-3 xl:grid-cols-2">
                 {items.map((item) => (
                   <DishRow
                     key={item.id}
@@ -348,7 +424,7 @@ export function CartBar({
   const portions = cart.cart.lines.reduce((n, line) => n + line.quantity, 0);
   const pending = !!cart.cart.pending;
   return (
-    <div className="pb-safe fixed inset-x-0 bottom-0 z-30 bg-linear-to-t from-background via-background/95 to-transparent px-4 pt-6">
+    <div className="pb-safe fixed inset-x-0 bottom-0 z-30 animate-in bg-linear-to-t from-background via-background/95 to-transparent px-4 pt-6 duration-200 fade-in slide-in-from-bottom-4">
       <button
         type="button"
         onClick={open}

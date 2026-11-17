@@ -220,7 +220,7 @@ To install it, at a quiet time:
 ```
 
 - **The checks come before the build**, which takes a few minutes: uncommitted changes, Docker not running or an unreachable VPS show up at once, not after the wait.
-- **The reminder** appears when the commit is not on GitHub yet. It is only a reminder; the script continues. The hosted service should run code that is also in the public repository, because the pages show the link to the source code (AGPL license). Git knows GitHub's state only from the last time it talked to it (`git fetch` or `git push`): that is why the message says "as of your last fetch or push".
+- **The reminder** appears when the commit is not on GitHub yet. It is only a reminder; the script continues. The hosted service should run code that is also in the public repository. Git knows GitHub's state only from the last time it talked to it (`git fetch` or `git push`): that is why the message says "as of your last fetch or push".
 - **A single SSH connection** serves all the work on the VPS: creating the staging folder, uploading, checking. If your key has a passphrase, it is asked once, at the start, before the build.
 - **`OK` is the check run on the VPS**, on the file that arrived there: the upload is intact.
 - The package also stays in `artifacts/` on your computer: keep at least the one in production and the previous one, you need them to roll back or rebuild the server.

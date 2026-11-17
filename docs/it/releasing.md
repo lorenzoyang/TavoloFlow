@@ -220,7 +220,7 @@ To install it, at a quiet time:
 ```
 
 - **I controlli vengono prima della build**, che dura qualche minuto: modifiche non committate, Docker spento o una VPS irraggiungibile li scopri subito, non dopo l'attesa.
-- **Il promemoria** compare quando il commit non è ancora su GitHub. È solo un promemoria, lo script prosegue. Il servizio ospitato dovrebbe eseguire codice che si trova anche nel repository pubblico, perché le pagine mostrano il link al codice sorgente (licenza AGPL). Git conosce lo stato di GitHub solo dall'ultima volta che ci ha parlato (`git fetch` o `git push`): per questo il messaggio dice «as of your last fetch or push».
+- **Il promemoria** compare quando il commit non è ancora su GitHub. È solo un promemoria, lo script prosegue. Il servizio ospitato dovrebbe eseguire codice che si trova anche nel repository pubblico. Git conosce lo stato di GitHub solo dall'ultima volta che ci ha parlato (`git fetch` o `git push`): per questo il messaggio dice «as of your last fetch or push».
 - **Una sola connessione SSH** serve per tutto il lavoro sulla VPS: creare la cartella di appoggio, caricare, controllare. Se la tua chiave ha una passphrase, la chiede una volta sola, all'inizio, prima della build.
 - **`OK` è il controllo fatto sulla VPS**, sul file arrivato: il caricamento è integro.
 - Il pacchetto resta anche in `artifacts/` sul tuo computer: tieni almeno quello della versione in produzione e quello precedente, servono per tornare indietro o ricostruire il server.

@@ -398,7 +398,7 @@ visible and online, stopping once the order has ended). Reads use `publicRequest
 antiforgery cookie. The language follows the QR menu's rule and storage key
 (`tavoloflow:menu-language:{restaurantId}`), so a customer's choice is shared by a restaurant's QR and
 online pages; the status response carries the restaurant `id` for this. Loaded pages apply the
-restaurant theme, and every page ends with the source link.
+restaurant theme.
 
 The menu reuses the QR page's `MenuList`, option picker, `CartBar` and the cart's line list
 (`CartLines`); their props take any cart with `{ lines, pending }`, and the pure line rules in

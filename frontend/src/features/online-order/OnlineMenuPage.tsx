@@ -4,7 +4,6 @@ import { Link } from "@tanstack/react-router";
 import { RefreshCw, X } from "lucide-react";
 import { BrandMark } from "@/components/brand";
 import { Notice } from "@/components/notice";
-import { SourceLink } from "@/components/source-link";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
 import { PRODUCT_NAME } from "@/lib/brand";
@@ -15,7 +14,12 @@ import { useMediaQuery, WIDE_SCREEN } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/utils";
 import { orderMessages } from "@/features/orders/messages";
 import { messages as menuMessages } from "@/features/public-menu/messages";
-import { CartBar, LanguageToggle, MenuList } from "@/features/public-menu/PublicMenuViews";
+import {
+  CartBar,
+  LanguageToggle,
+  MenuList,
+  MenuSkeleton,
+} from "@/features/public-menu/PublicMenuViews";
 import { onlineMenuQuery, type OnlineMenu } from "./api";
 import { onlineOrderMessages } from "./messages";
 import { ActiveOrder, OnlineCartPanel, OnlineHeader, OrderingContextNotice } from "./OnlineViews";
@@ -99,7 +103,7 @@ function MenuContent({
       <OnlineHeader
         name={data.restaurant.name}
         phone={phone}
-        subtitle={data.restaurant.deliveryEnabled ? m.pickupOrDelivery : m.pickupOnly}
+        delivery={data.restaurant.deliveryEnabled}
         language={language}
         selectLanguage={selectLanguage}
         action={
@@ -153,11 +157,11 @@ function MenuContent({
                 {m.privacy}
               </Link>
             </p>
-            <SourceLink label={mm.sourceCode} />
           </footer>
         </main>
         {wide && (
-          <aside className="sticky top-6 mt-5 max-h-[calc(100dvh-3rem)] overflow-y-auto rounded-2xl border bg-card p-5 shadow-xs">
+          // The panel scrolls its own body between a fixed head and footer, and pads itself.
+          <aside className="sticky top-6 mt-5 flex max-h-[calc(100dvh-3rem)] flex-col overflow-hidden rounded-2xl border bg-card shadow-xs">
             {cartPanel}
           </aside>
         )}
@@ -179,7 +183,7 @@ function MenuContent({
               aria-labelledby="cart-title"
               className="max-h-[90dvh] gap-0 rounded-t-3xl"
             >
-              <div className="pb-safe overflow-y-auto px-4 pt-5">{cartPanel}</div>
+              {cartPanel}
             </SheetContent>
           </Sheet>
         </>
@@ -205,6 +209,7 @@ export function OnlineMenuPage({ slug }: { slug: string }) {
     );
   const m = onlineOrderMessages[language];
   const failed = query.isError || query.fetchStatus === "paused";
+  if (query.data === undefined && !failed) return <MenuSkeleton language={language} />;
   return (
     <main
       lang={language}
@@ -215,14 +220,11 @@ export function OnlineMenuPage({ slug }: { slug: string }) {
         {PRODUCT_NAME} · {m.title}
       </h1>
       <LanguageToggle language={language} select={setLanguage} />
-      <Notice tone={query.data === null || failed ? "error" : "info"}>
-        {query.data === null ? m.invalidLink : failed ? m.error : m.loading}
-      </Notice>
+      <Notice tone="error">{query.data === null ? m.invalidLink : m.error}</Notice>
       <Button variant="outline" disabled={query.isFetching} onClick={() => void query.refetch()}>
         <RefreshCw />
         {m.retry}
       </Button>
-      <SourceLink label={menuMessages[language].sourceCode} />
     </main>
   );
 }

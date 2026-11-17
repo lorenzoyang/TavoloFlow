@@ -4,7 +4,6 @@ import { Link } from "@tanstack/react-router";
 import { Check, ChefHat, Clock, RefreshCw, X, type LucideIcon } from "lucide-react";
 import { BrandMark } from "@/components/brand";
 import { Notice } from "@/components/notice";
-import { SourceLink } from "@/components/source-link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -16,12 +15,18 @@ import { optionSummary } from "@/lib/options";
 import { useDocumentTheme } from "@/lib/useDocumentTheme";
 import { cn } from "@/lib/utils";
 import { LanguageToggle } from "@/features/public-menu/PublicMenuViews";
-import { messages as menuMessages } from "@/features/public-menu/messages";
 import { onlineOrderQuery, type OnlineOrder } from "./api";
 import { onlineOrderMessages } from "./messages";
 import { OnlineHeader, PhoneLink } from "./OnlineViews";
 import { useRestaurantLanguage } from "./useRestaurantLanguage";
-import { orderEnded, orderView, statusCopy, type OrderView } from "./state";
+import {
+  orderEnded,
+  orderProgress,
+  orderView,
+  statusCopy,
+  type OrderStep,
+  type OrderView,
+} from "./state";
 
 // Each state's icon on a round badge. State colours keep one meaning in every theme; an accepted
 // order in preparation takes the restaurant's own accent.
@@ -37,6 +42,70 @@ const viewIcons: Record<OrderView, { Icon: LucideIcon; className: string }> = {
   rejected: failed,
   allCancelled: failed,
 };
+
+// The steps of an order going ahead. Steps behind take the restaurant's colour; the current one takes
+// its state's colour, with the same meaning as the badge above.
+const currentStep: Record<OrderStep, string> = {
+  0: "bg-warning text-warning-foreground",
+  1: "bg-accent text-accent-foreground ring-2 ring-primary",
+  2: "bg-success text-success-foreground",
+  3: "bg-success text-success-foreground",
+};
+const stepIcons: LucideIcon[] = [Clock, ChefHat, Check, Check];
+
+function OrderProgress({
+  step,
+  delivery,
+  language,
+}: {
+  step: OrderStep;
+  delivery: boolean;
+  language: Language;
+}) {
+  const m = onlineOrderMessages[language].progress;
+  const labels = [
+    m.sent,
+    m.accepted,
+    delivery ? m.readyDelivery : m.readyPickup,
+    delivery ? m.collectedDelivery : m.collectedPickup,
+  ];
+  return (
+    <ol aria-label={onlineOrderMessages[language].progressLabel} className="grid grid-cols-4 pt-1">
+      {labels.map((label, index) => {
+        const Icon = index < step ? Check : stepIcons[index];
+        return (
+          <li
+            key={index}
+            aria-current={index === step ? "step" : undefined}
+            className={cn(
+              // The line from the previous step's dot to this one; the dots paint over its ends.
+              "relative flex min-w-0 flex-col items-center gap-1.5 text-center text-xs leading-4 before:absolute before:top-3.5 before:right-1/2 before:-left-1/2 before:h-0.5 before:-translate-y-1/2 first:before:hidden",
+              index <= step ? "before:bg-primary" : "before:bg-border",
+            )}
+          >
+            <span
+              className={cn(
+                "relative flex size-7 items-center justify-center rounded-full",
+                index < step
+                  ? "bg-primary text-primary-foreground"
+                  : index === step
+                    ? currentStep[step]
+                    : "border bg-card text-muted-foreground",
+              )}
+            >
+              {index > step ? (
+                <span className="font-medium tabular-nums">{index + 1}</span>
+              ) : (
+                <Icon aria-hidden="true" className="size-4" />
+              )}
+            </span>
+            <span className={index > step ? "text-muted-foreground" : "font-medium"}>{label}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
 function OrderContent({
   order,
@@ -56,6 +125,7 @@ function OrderContent({
   useDocumentTheme(order.restaurant.theme);
   const m = onlineOrderMessages[language];
   const view = orderView(order);
+  const step = orderProgress(view);
   const ended = orderEnded(order);
   const phone = order.restaurant.publicPhone;
   // When the order did not go ahead, calling the restaurant is the customer's next step.
@@ -126,6 +196,8 @@ function OrderContent({
                 </p>
               </div>
             </div>
+            {/* Outside the status region, so a step change is announced once, by the status text. */}
+            {step !== null && <OrderProgress step={step} delivery={delivery} language={language} />}
             {view === "waiting" && (
               <p className="text-sm leading-6">
                 {m.waitingHint(formatTime(order.expiresAt, language))} {m.updating}
@@ -239,9 +311,6 @@ function OrderContent({
             {m.backToMenu}
           </Link>
         )}
-        <footer className="border-t pt-5">
-          <SourceLink label={menuMessages[language].sourceCode} />
-        </footer>
       </main>
     </div>
   );
@@ -281,7 +350,6 @@ export function OnlineOrderPage({ token }: { token: string }) {
           {m.retry}
         </Button>
       )}
-      <SourceLink label={menuMessages[language].sourceCode} />
     </main>
   );
 }

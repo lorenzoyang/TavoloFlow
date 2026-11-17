@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { ChevronRight, Download, KeyRound } from "lucide-react";
 import { Notice } from "@/components/notice";
 import { PageHeader } from "@/components/page-header";
-import { SourceLink } from "@/components/source-link";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
@@ -167,7 +166,6 @@ function Home({ account, passwordChanged }: { account: CurrentAccount; passwordC
       </section>
       {account.services.online && <PushSection />}
       <InstallSection />
-      <SourceLink />
     </div>
   );
 }

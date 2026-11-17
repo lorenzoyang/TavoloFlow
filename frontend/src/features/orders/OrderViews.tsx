@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { Minus, Plus, RefreshCw } from "lucide-react";
+import { Minus, Plus, RefreshCw, ShoppingBag } from "lucide-react";
 import { LoadingState } from "@/components/loading-state";
 import { Notice, type NoticeTone } from "@/components/notice";
 import { Badge } from "@/components/ui/badge";
@@ -113,6 +113,18 @@ function OrderCard({ order, language }: { order: Order; language: Language }) {
 // The cart, its review step and the receipt. Rendered once: a side column on wide screens, a bottom
 // sheet on phones, which adds its close button beside the title and closes itself through
 // onUnverified/onDone.
+// A cart without dishes, shared by the QR and online carts; each passes its own wording.
+export function EmptyCart({ label }: { label: string }) {
+  return (
+    <div className="flex flex-col items-center gap-3 py-8 text-center text-muted-foreground">
+      <span className="flex size-12 items-center justify-center rounded-full bg-accent text-accent-foreground">
+        <ShoppingBag aria-hidden="true" className="size-5" />
+      </span>
+      <p>{label}</p>
+    </div>
+  );
+}
+
 export function CartPanel({
   cart: model,
   guest,
@@ -186,9 +198,7 @@ export function CartPanel({
         </div>
       )}
       {!lines.length ? (
-        model.message !== "success" && (
-          <p className="py-6 text-center text-muted-foreground">{m.empty}</p>
-        )
+        model.message !== "success" && <EmptyCart label={m.empty} />
       ) : (
         <CartLines
           lines={lines}

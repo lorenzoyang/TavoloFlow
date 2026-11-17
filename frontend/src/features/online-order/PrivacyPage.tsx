@@ -4,13 +4,11 @@ import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { BrandMark } from "@/components/brand";
 import { Notice } from "@/components/notice";
-import { SourceLink } from "@/components/source-link";
 import { buttonVariants } from "@/components/ui/button-variants";
 import type { Language } from "@/lib/language";
 import { useDocumentTheme } from "@/lib/useDocumentTheme";
 import { cn } from "@/lib/utils";
 import { LanguageToggle } from "@/features/public-menu/PublicMenuViews";
-import { messages as menuMessages } from "@/features/public-menu/messages";
 import { onlineMenuQuery, type OnlineMenu } from "./api";
 import { onlineOrderMessages } from "./messages";
 import { OnlineHeader } from "./OnlineViews";
@@ -47,9 +45,6 @@ function PrivacyContent({ slug, data }: { slug: string; data: OnlineMenu }) {
             <p className="leading-7 wrap-break-word">{section.body}</p>
           </section>
         ))}
-        <footer className="border-t pt-5">
-          <SourceLink label={menuMessages[language].sourceCode} />
-        </footer>
       </main>
     </div>
   );
@@ -72,7 +67,6 @@ export function PrivacyPage({ slug }: { slug: string }) {
       <Notice tone={query.data === null || failed ? "error" : "info"}>
         {query.data === null ? m.invalidLink : failed ? m.error : m.loading}
       </Notice>
-      <SourceLink label={menuMessages[language].sourceCode} />
     </main>
   );
 }

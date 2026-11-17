@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { TriangleAlert, X } from "lucide-react";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -76,15 +76,10 @@ function Choices({
             {name.text}
           </SheetTitle>
           {allergens.length > 0 && (
-            <p className="flex items-start gap-1.5 text-xs leading-5">
-              <TriangleAlert
-                aria-hidden="true"
-                className="mt-0.5 size-3.5 shrink-0 text-warning-foreground"
-              />
-              <span>
-                <span className="font-medium">{menu.allergens}: </span>
-                {allergens.map((code) => allergenNames[language][code] ?? code).join(" · ")}
-              </span>
+            // Plain text like the menu's allergen line: information, not a warning.
+            <p className="text-xs leading-5 text-muted-foreground">
+              <span className="font-medium text-foreground">{menu.allergens}: </span>
+              {allergens.map((code) => allergenNames[language][code] ?? code).join(" · ")}
             </p>
           )}
         </div>

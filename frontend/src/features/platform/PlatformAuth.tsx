@@ -3,7 +3,6 @@ import { Navigate, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, UserRound } from "lucide-react";
 import { BrandMark } from "@/components/brand";
-import { SourceLink } from "@/components/source-link";
 import { LoadingState } from "@/components/loading-state";
 import { Notice } from "@/components/notice";
 import { PageHeader } from "@/components/page-header";
@@ -49,10 +48,9 @@ export function PlatformLayout({ children }: { children: ReactNode }) {
           {identity && <AccountMenu key={identity.userId} account={identity} />}
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 pt-6 pb-6">{children}</main>
-      <footer className="mx-auto max-w-5xl px-4 pb-safe">
-        <SourceLink />
-      </footer>
+      <main className="mx-auto max-w-5xl px-4 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        {children}
+      </main>
     </div>
   );
 }

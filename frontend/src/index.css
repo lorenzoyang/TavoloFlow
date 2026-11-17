@@ -14,8 +14,13 @@
     "Geist Variable", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC",
     "Noto Sans CJK SC", system-ui, sans-serif;
   --font-heading: var(--font-sans);
-  /* Only for the brand wordmark, the guest menu's restaurant and category names and table cards. */
-  --font-display: "Fraunces Variable", var(--font-sans);
+  /* Only for the brand wordmark, the guest and online pages' restaurant and category names, headings
+     and order numbers. Fraunces has no CJK glyphs: Chinese falls back to a system serif where the
+     device has one (iOS and macOS), otherwise to the sans stack. Never SimSun or the generic serif,
+     which Windows draws poorly. Printed table cards draw their own fonts (features/tables). */
+  --font-display:
+    "Fraunces Variable", "Songti SC", "Noto Serif SC", "Noto Serif CJK SC", "Source Han Serif SC",
+    var(--font-sans);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
