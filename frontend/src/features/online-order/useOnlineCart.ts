@@ -160,8 +160,9 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     }
   }
 
-  function start() {
-    const op = ops.start("order");
+  function start(kind: "checkout" | "order") {
+    if (ops.running()) return null;
+    const op = ops.start(kind);
     if (!op) return null;
     setBusy(true);
     setMessage(null);
@@ -188,7 +189,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
 
   const recover = useCallback(async () => {
     const pending = current.current.pending;
-    if (!pending || !isLive()) return;
+    if (!pending || !isLive() || ops.running()) return;
     const op = ops.start("order");
     if (!op) return;
     setBusy(true);
@@ -219,7 +220,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
   async function checkout() {
     if (!isLive()) return;
     if (current.current.pending || !current.current.lines.length || blocked) return;
-    const work = start();
+    const work = start("checkout");
     if (!work) return;
     try {
       const latestContext = await client.fetchQuery(contextOptions);
@@ -258,6 +259,13 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     }
   }
 
+  function back() {
+    if (current.current.pending) return;
+    // Closing during checkout preparation must not let a late response restore the review.
+    if (ops.has("checkout")) cancel();
+    setReview(null);
+  }
+
   // Asks the restaurant whether a typed code works today before showing its discount; the order then
   // sends that percentage, which the server checks again.
   async function applyCoupon(text: string) {
@@ -267,7 +275,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
       setMessage("couponInvalid");
       return;
     }
-    const work = start();
+    const work = start("checkout");
     if (!work) return;
     try {
       const coupon = await readCoupon(slug, code, work.signal);
@@ -289,7 +297,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     if (form.fulfillment !== "DELIVERY") return;
     const address = form.address.trim();
     if (!address || address.length > MAX_ADDRESS_LENGTH) return;
-    const work = start();
+    const work = start("checkout");
     if (!work) return;
     const answer = (quote: Awaited<ReturnType<typeof readDeliveryQuote>>) =>
       setForm((value) =>
@@ -320,7 +328,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
       return;
     if ((!retry && (!review || current.current.pending)) || (retry && !current.current.pending))
       return;
-    const work = start();
+    const work = start("order");
     if (!work) return;
     let sending = false;
     try {
@@ -445,6 +453,6 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     confirm: (token: string | null) => send(false, token),
     retry: (token: string | null) => send(true, token),
     recover,
-    back: () => setReview(null),
+    back,
   };
 }

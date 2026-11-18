@@ -531,9 +531,12 @@ on success, keeps `{ code, percentOff }` in the checkout form: the totals then s
 coupon line with its discount (`couponDiscountCents`, rounded down like the server) and the discounted
 total, and "Remove" drops it. The panel and mobile cart bar share `onlineCartAmounts`: a coupon counts
 while confirming, and an unresolved submission keeps the coupon saved in its intent, including after a
-reload. Returning to ordinary cart editing shows the item total before the coupon. An unusable code says so
-without touching the cart. With delivery on, the header says "pickup or delivery" and
-the confirmation starts with a pickup/delivery choice; delivery adds the address and the optional
+reload. The back arrow returns to the editable cart. Before submission, closing the mobile sheet
+returns to the menu and restores the add buttons. Both keep the cart and checkout form. Closing
+cancels in-flight checkout preparation and keeps any submission or recovery in progress. Ordinary
+cart editing shows the item total before the coupon. An unusable code says so without touching the
+cart. With delivery on, the header says "pickup or delivery" and confirmation starts with a
+pickup/delivery choice; delivery adds the address and the optional
 doorbell/floor notes, the price list ("within 3 km € 2.00", free bands as "free", and "no delivery
 beyond" the farthest band, `formatKm`), the restaurant's note in the customer's language (falling back
 to the default language, then Italian, Chinese and English; `deliveryNote` in `state.ts`) and a line
@@ -928,7 +931,11 @@ discarded.
   and follow it to the status page; open the privacy page; reopen the menu to see the order in
   progress; simulate a lost response (recovered by GET, one POST), a request that never arrived
   (manual retry resends it unchanged), a reload during an unknown result, and a retry rejected by a
-  pause (the cart is freed); pause and check that the checkout stays closed. Staff side at 360px in zh,
+  pause (the cart is freed); pause and check that the checkout stays closed. With a delivery cart
+  below the minimum, close confirmation, add dishes from the menu, and reopen the cart. Check that
+  the next checkout keeps the form and updates the shortfall. Close during a delayed checkout read
+  and verify that the cart is editable. Close during an unresolved submission and verify that the
+  original request remains available to recover. Staff side at 360px in zh,
   it and en: the banner and its tap hint on every staff page, the ringing continuing with the kitchen
   sound off, accept and reject (with the dialog), a lost accept response, the kitchen, pass, bills and
   history labels with a 30-character name, checkout of a pickup order, and closing one as not

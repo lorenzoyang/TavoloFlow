@@ -176,7 +176,13 @@ function MenuContent({
               open={() => setCartOpen(true)}
             />
           )}
-          <Sheet open={cartOpen} onOpenChange={setCartOpen}>
+          <Sheet
+            open={cartOpen}
+            onOpenChange={(open) => {
+              if (!open) cart.back();
+              setCartOpen(open);
+            }}
+          >
             <SheetContent
               side="bottom"
               showCloseButton={false}
