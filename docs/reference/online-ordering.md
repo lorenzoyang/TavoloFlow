@@ -534,10 +534,10 @@ says the dishes don't reach the minimum and rereads the menu.
 With automatic quotes (`deliveryAutoQuote`), the fee of the typed address is asked for only when the
 customer taps "Calculate delivery fee" (`lookupFee`; a failed request counts as `UNKNOWN`), so no
 address goes to Geoapify unasked; the hint beside it says the address goes to the map service. The
-request sends the same trimmed text as the order, so only the server's normalization binds the quote.
-The answer belongs to that normalized address only: any other change makes it stale (`currentQuote`,
-`feeStatus`); a quote already given keeps counting for the amounts and the order even if automatic
-quotes stop meanwhile. `QUOTED` shows "delivery to {town} · fee X" with a hint to add the town
+request sends the trimmed text the order will send, which the server binds the quote to, and the
+answer belongs to that text only: any other change, spacing included, makes it stale (`currentQuote`,
+`feeStatus`). If automatic quotes stop meanwhile, a `QUOTED` answer keeps counting for the amounts, the
+order and the credits, while any other answer falls back to the price list. `QUOTED` shows "delivery to {town} · fee X" with a hint to add the town
 or postcode if the town is wrong, and the footer shows the items total, the fee and the total
 (`onlineCartAmounts`' `deliveryFeeCents` and `payableCents`; the delivery minimum still compares the
 dishes). `OUT_OF_RANGE` says the address is outside the area, offers the phone and keeps "Place order"
@@ -545,8 +545,9 @@ disabled. `UNKNOWN` shows the price list and "the restaurant confirms the fee", 
 without automatic quotes, and lets the customer order. While the address has not been priced, the
 submit button reads "Calculate delivery fee" and its tap asks for the fee instead of placing the
 order. The box credits "Powered by Geoapify · © OpenStreetMap contributors", linked to geoapify.com and
-OpenStreetMap's copyright page, and with automatic quotes the privacy line no longer says the data go
-only to the restaurant: it adds that the address also goes to Geoapify to calculate the fee. The intent carries
+OpenStreetMap's copyright page, whenever automatic quotes apply or a quote is shown. The delivery
+privacy line says the data go to the restaurant, without "only", since the address may also reach
+Geoapify and Google Maps (see the privacy page). The intent carries
 `deliveryQuote: { quote, feeCents }` (null otherwise), saved and read back with the rest; a
 `DELIVERY_QUOTE_INVALID` refusal frees the intent, drops the quote so checkout asks again, and rereads
 the menu. If "Checkout" finds delivery turned
