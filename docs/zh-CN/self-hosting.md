@@ -369,7 +369,7 @@ SHA256SUMS           每个文件的校验和
 
 **可选：在本地完整测试。** [`deploy/smoke-test.sh`](../../deploy/smoke-test.sh) 会把发布包安装到一个临时的、隔离的 Docker 里（Docker-in-Docker，使用本地测试证书），检查安装、迁移、HTTPS、三种身份的 cookie 和 CSRF、连续两次发布、备份、恢复和回滚，然后清理本次测试创建的资源。它使用发布包里写的地址，所以任何 `PUBLIC_ORIGIN` 都可以：
 
-它还检查 VAPID 密钥缺失或无效、Turnstile 配置缺失或使用生产禁止的测试密钥、Geoapify key 格式不对时，会在停止旧 API 前拒绝发布，以及升级、重启、恢复 `production.env`、回滚后 VAPID 公钥保持一致。演练明确关闭 Turnstile，并使用一个假的 Geoapify key，不调用真实验证服务和 Geoapify，也不发送真实推送：真实密钥的验证、通知送达与声音需要按第 6 步在手机上验收。
+冒烟测试还检查 VAPID 密钥缺失或无效、Turnstile 配置不合法时，发布会在旧 API 停止前退出，并核对升级、重启、恢复 `production.env` 和回滚后 VAPID 公钥保持一致。安装器的 Geoapify 用例覆盖引号、注释、变量展开和进程环境覆盖。测试也会在安装后应用 key。演练使用假 key 并关闭 Turnstile。真实服务及通知的手机验收见第 6 步。
 
 ```bash
 PUBLIC_ORIGIN=https://app.example.com bash deploy/build-release.sh
@@ -444,27 +444,27 @@ TURNSTILE_SECRET_KEY=REPLACE_WITH_TURNSTILE_SECRET_KEY
 
 #### 配送费自动报价（可选）
 
-不做这项配置，配送也能用：结账时顾客看到餐厅的档位价目表，由接单的人选档位。配置了 [Geoapify](https://www.geoapify.com/) key 后，API 会根据地址和从餐厅出发的驾车路程算出配送费，顾客下单前就能看到。key 对整个部署生效；每家餐厅只要店主设置好坐标和档位，就会用上。
+[Geoapify](https://www.geoapify.com/) key 对整个部署生效。餐厅正在接单，并设置好坐标和档位且开启配送时，顾客可以在下单前查价。算出的驾车路程超过最远档位时，结账页会阻止提交配送单。没有 key 或查价失败时，顾客看到价目表，由接单的人选择档位。
 
 1. **在自己电脑的浏览器里创建 key。** 在 Geoapify 打开 **My projects**，创建一个项目，从 **API keys** 复制 key。免费版不用绑卡，允许商用；它要求的署名（Geoapify 和 OpenStreetMap 贡献者，带链接）结账页已经有了。
-2. **把 key 限制在 VPS 的 IP 上。** 在同一页面点 **「Add IP filter」**，填 VPS 的公网 IPv4 地址。这个 key 只有 API 使用，浏览器从不使用，所以不需要 Referer 和 Origin 过滤；加了 IP 过滤，不小心泄露的 key 在别处也用不了。开发时另用一个 key：这个 key 在你的电脑上用不了。
+2. **把 key 限制在 VPS 的 IP 上。** 在 key 的限制设置中，允许 VPS 访问互联网时实际使用的公网出口 IP。只有 API 使用这个 key，设置 IP 限制即可。开发时另用一个 key。
 3. **加到服务器的 `.env` 里**，在 VPS 上用 `sudo nano /opt/tavoloflow/.env`：
 
    ```dotenv
    GEOAPIFY_API_KEY=REPLACE_WITH_GEOAPIFY_KEY
    ```
 
-   用复制的 key 替换整个占位值，不加引号，`=` 两边不加空格。留空则功能保持关闭。安装器会在停止旧 API 之前检查这个 key：少于 10 个字符、含有空格或仍是占位值时，安装器会停下，生产环境的版本照常运行。在安装支持它的版本之前加好，安装时就会生效。如果这个版本已经装好，加好之后重建 API 容器（API 会中断几秒钟）：
+   用复制的 key 替换整个占位值。按示例书写，不加引号，`=` 两边不加空格。留空会关闭自动报价。发布前加 key 时，安装器会在停服务前校验 Compose 实际传给 API 的值。如果已安装带有下列命令的版本，请在打烊后应用修改。命令会先做同样的检查，通过后才重建 API 容器，服务会短暂中断。
 
    ```bash
-   sudo bash /opt/tavoloflow/tf.sh up -d --no-deps --force-recreate --wait --wait-timeout 120 api
+   sudo bash /opt/tavoloflow/tf.sh apply-geoapify-key
    ```
 
-   这条命令不经过安装器的检查。如果 `--wait` 失败，说明 API 启动时拒绝了这个 key：日志（`sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api`）里会有 `Set Geoapify:ApiKey to a complete key`。改正 key，或者把它清空，再运行同一条命令。
+   如果预检提示 `Set GEOAPIFY_API_KEY`，原 API 会继续运行。改正或清空该值，再运行同一命令。如果容器重建后等待健康检查失败，请先检查容器状态，并用 `sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api` 查看日志。日志中的 `Set Geoapify:ApiKey to a complete key` 表明 API 启动时拒绝了 key 的格式。
 
-4. **试下一单。** 在正式域名上打开一家已设置配送的餐厅的 `/r/{slug}`，选**「配送」**，填一个带门牌号的真实地址，点**「计算配送费」**：应该出现「配送到 … · 配送费 …」。如果总是显示价目表，检查餐厅的坐标和档位，并用 `sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api` 查看日志：Geoapify 出错时日志里只有 HTTP 状态码，不会有地址或 key。
+4. **试下一单。** 在正式域名上新开 `/r/{slug}`，选**「配送」**，填一个配送范围内带门牌号的地址，再点**「计算配送费」**。核对配送费，若显示城市也一并核对。如果计算后仍只显示价目表，检查餐厅坐标和档位，并用 `sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api` 查看日志。日志会记录 HTTP 状态码或异常类型，不记录地址或 key。
 
-一次走到路线计算的报价消耗每日免费额度（3000）中的两个 credits；地址查不到时只消耗一个。API 会更早停下：每家餐厅每天最多 200 次报价，整个部署最多 1200 次，另外还有按 IP 的限流；到了上限，或者 Geoapify 没有回应，结账就退回价目表，订单照常进行。只有顾客点「计算配送费」时，地址才会通过欧盟入口 `api-eu.geoapify.com` 发给 Geoapify，只用来计算路程：餐厅的隐私说明里已经写明。
+免费版每天有 3000 个 credits。通常查地址用一个，计算本地路线再用一个。API 默认每家餐厅最多 200 次报价、整个部署最多 1200 次，按 24 小时窗口计数，重启会清零，另有按 IP 的限流。达到任一上限，或 Geoapify 无响应、拒绝请求时，结账会退回价目表，由餐厅确认配送费。只有顾客点「计算配送费」时，地址才会发往 `api-eu.geoapify.com`，用于计算路程，隐私说明中也有写明。
 
 #### `.env` 文件
 
@@ -483,7 +483,7 @@ TURNSTILE_SECRET_KEY=REPLACE_WITH_TURNSTILE_SECRET_KEY
 
 - **数据库密码只在第一次生效。** PostgreSQL 只在数据卷为空时，用 `POSTGRES_PASSWORD` 创建用户。之后在 `.env` 里改密码，数据库并不知道，API 就再也连不上了。用十六进制，是因为它只包含 `0-9` 和 `a-f`：无论在 Compose 里还是在连接字符串里，都没有需要转义的字符。
 - **通知密钥需要跨版本保留。** API 从 `VAPID_PRIVATE_KEY` 推导公钥并签名推送；更换后旧订阅失效，每台设备都需要重新开启通知。它必须与数据库密码分别生成。Compose 自动把推送联系地址设为 `https://` + `DOMAIN`。 即使目前只使用桌台扫码点单，也必须配置通知密钥。它必须是有效的 P-256 私钥；安装器会在停止旧 API 前检查格式和取值范围。
-- **停止旧 API 前，安装器会检查配置：** 数据库密码是 64 个十六进制字符、通知密钥是 64 个十六进制字符且为有效 P-256 私钥、邮箱不是模板值，以及 `https://` + `DOMAIN` 与发布包里的 `public-origin.txt` 一致。启用 Turnstile 时，还会检查完整密钥、占位值、生产禁止的测试密钥和主机名格式。`GEOAPIFY_API_KEY` 不为空时，检查它是完整的 key：10–256 个字符，没有空格，不是占位值。这些是离线检查，不能证明 Cloudflare 和 Geoapify 的密钥真实有效。
+- **停止旧 API 前，安装器会检查配置。** 数据库密码和 VAPID 密钥都须是 64 个十六进制字符，VAPID 密钥须符合 P-256，邮箱须替换模板值，`https://` + `DOMAIN` 须匹配 `public-origin.txt`。启用 Turnstile 时检查密钥是否完整、是否为占位值或禁止的测试密钥，以及主机名格式。Geoapify 由新镜像按启动规则检查 Compose 传入的值。可以留空，否则去掉首尾空白后须有 10–256 个字符，内部不能有空白，也不能是占位值。格式检查不会请求外部服务。
 - `PROXY_SUBNET`、`PROXY_DYNAMIC_RANGE` 和 `CADDY_IP` 定义 Caddy 与 API 之间的网络，以及 Caddy 的固定 IP。只有当 VPS 上已经有另一个 Docker 网络在用 `172.30.80.0/24` 时才需要修改，而且三个要一起改，并在第一次启动之前改。
 - 安装程序已经会用 `docker compose config --quiet` 检查配置；安装之后，你可以自己用 `sudo bash /opt/tavoloflow/tf.sh config --quiet` 检查。不加 `--quiet` 会打印全部内容，包括密码。
 
@@ -622,7 +622,7 @@ sudo bash /opt/tavoloflow/bootstrap-admin.sh
 2. 确认没有暂停接单，当前时间处于保存的营业时段内，页面提示顾客可以下单。电话和营业时间缺一不可；「扫码接单」开关不控制线上订单。
 3. 用另一台手机打开链接，加入菜品并进入订单确认。启用 Turnstile 时，确认验证组件出现；验证未完成前不能提交，完成后才能下单。只浏览菜单、打开隐私页或查询订单状态时不应加载验证组件。
 4. 提交一笔到店自取订单。在 `/staff/online` 选择预计时间并接单，再检查厨房、传菜、店主结账和顾客状态页 `/o/{token}`。容器健康、部署预检通过，都不能代替这次真实域名和真实密钥的检查。
-5. 如果餐厅提供配送：店主在「线上点单设置」的「配送」卡片里，粘贴从 Google 地图复制的餐厅坐标并用地图链接核对，设置配送档位（需要的话再设起送金额），然后打开「提供配送」。再提交一笔配送订单：有 Geoapify key 时点「计算配送费」并核对配送费；没有时，接单时选一个档位。
+5. 如果餐厅提供配送，店主在「线上点单设置」打开「配送」卡片，粘贴 Google 地图上的坐标并用地图链接核对，设置档位和可选的起送金额，打开「提供配送」后点「保存配送设置」。新开顾客页面准备一笔配送单。使用 Geoapify 时，先点「计算配送费」，核对金额后再提交。接单后核对报价保持一致。若要由餐厅确认费用，接单时选档位，再到顾客订单页核对费用。
 
 仅线上点单的餐厅跳过桌位和桌台步骤。管理员不能代替店主结账。测试订单会保留在历史中，因此请使用明确标记的测试餐厅，不要用 SQL 手动删除记录。
 
@@ -762,10 +762,10 @@ sudo nano /opt/tavoloflow/.env
 
 适用于从“接配送单时手填配送费”的版本升级。不需要新的变量：Geoapify key 是可选的，按[配送费自动报价](#配送费自动报价可选)添加即可，也可以在安装之前加。
 
-- **三个迁移。** `upgrade.sh` 的摘要（手动流程里是 `git log`）会列出 `DeliveryMinOrder`、`DeliveryTiers` 和 `DeliveryQuotes`。它们新增可为空的列、`delivery_tiers` 表和几个约束：和每次带迁移的发布一样，先下载一份备份。
-- **所有餐厅的配送都会被关闭。** 现在提供配送需要餐厅坐标和至少一个档位，而还没有餐厅设置过：`DeliveryTiers` 会把开着的配送关掉，配送说明保留。事先告诉店主：在他们重新打开之前，线上订单只能自取。升级之后，每位店主按[第一家餐厅](#第一家餐厅)线上点单的第 5 步设置并重新打开配送。
+- **三个迁移。** `upgrade.sh` 摘要中会看到分别以 `DeliveryMinOrder`、`DeliveryTiers` 和 `DeliveryQuotes` 结尾的 ID。手动流程用 `git diff --name-only` 查看新增文件。迁移会添加可空列、`delivery_tiers` 表和约束。安装前先下载一份备份。
+- **所有餐厅的配送都会被关闭。** `DeliveryTiers` 会关闭已有的配送开关，并保留配送说明。提前告诉店主，在恢复配送前线上订单只能自取。升级后先刷新所有员工设备，再由店主按[第一家餐厅](#第一家餐厅)第 5 步设置并开启配送。验收时新开顾客页面。
 - **照常在打烊后安装**：还在等待的配送请求只能选当前的某个档位来接单，没有档位时卡片会提示打电话或拒单。
-- **回滚。** 用 `--schema-compatible` 回滚到上一个版本是可以的：旧代码不使用新的列和表。但在旧代码里，没有坐标的餐厅打不开配送：约束 `ck_restaurant_delivery_ready` 会让保存失败。
+- **回滚。** 使用 `--schema-compatible` 前，先暂停线上点单并处理所有待接单。旧版本会忽略待接单已显示给顾客的报价和起送金额，接单时恢复手填费用。已开账单保留记下的费用。回滚会保留迁移以及迁移关闭的配送开关。没有坐标时，`ck_restaurant_delivery_ready` 约束会阻止旧版本开启配送。回滚后先刷新设备，再恢复营业。
 
 #### 手动流程
 
@@ -779,8 +779,8 @@ sudo nano /opt/tavoloflow/.env
 
    ```bash
    # 在你的电脑上：把 4c9535b 换成生产环境版本的哈希。
-   # 没有输出 = 没有新的迁移
-   git log --oneline 4c9535b..HEAD -- backend/TavoloFlow.Api/Data/Migrations
+   # 列出新增的迁移文件，排除 Designer 文件。
+   git diff --name-only --diff-filter=A 4c9535b HEAD -- ':(glob)backend/TavoloFlow.Api/Data/Migrations/[0-9]*.cs' ':(exclude,glob)**/*.Designer.cs'
    ```
 
 4. 如果有迁移，或者是一次重要的更新，先把最新的备份下载到你的电脑上。
@@ -830,7 +830,7 @@ sudo bash /opt/tavoloflow/tf.sh ps
 sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api
 ```
 
-安装器会再次检查包内每个文件、原有配置及 Turnstile 配置。检查在停止旧 API 之前进行：缺少密钥时不会先中断营业。发现已经装有某个版本时，通过检查后的流程是：
+安装前会重新检查包内文件和原有配置，包括 Turnstile 与 Geoapify。检查在停止旧 API 前完成。已经安装过版本且检查通过时，流程如下。
 
 ```text
 停止 API → 备份 → 迁移 → 新 API → 切换 web/current → 重新创建 Caddy 容器 → 保存版本
@@ -841,7 +841,7 @@ sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api
 - **备份之前先停止 API**，这样备份期间没有人写入，备份是一致的。
 - **备份在迁移之前**：如果某个迁移出了问题，还有一份之前的副本。
 
-**发布后**按「用脚本发布新版本」里的[发布之后](releasing.md#3-发布之后)操作：重新加载员工设备和各项检查同样适用于手动流程，那里也解释了[已经打开的页面](releasing.md#已经打开的页面)为什么还能继续工作。如果这次发布修改了 `tavoloflow-backup.service` 或 `.timer`，安装程序只会更新 `/opt/tavoloflow` 里的副本：请重复第 1 部分第 7 步里的两行 `install` 和 `daemon-reload`（用脚本发布时，`upgrade.sh` 会提醒你）。
+**发布后**同样按「用脚本发布新版本」里的[发布之后](releasing.md#3-发布之后)操作。[已经打开的页面](releasing.md#已经打开的页面)一节说明了旧页面如何与新 API 交互。如果发布修改了 `tavoloflow-backup.service` 或 `.timer`，请重复第 1 部分第 7 步的 `install` 和 `daemon-reload` 命令。使用发布脚本时，`upgrade.sh` 会提醒你。
 
 ### 发布出问题时
 
@@ -853,7 +853,7 @@ sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api db caddy
 
 - **不要删除卷，也不要马上恢复数据库。** 脚本出错不会删除数据。
 - 如果 API 处于停止状态，在查明原因之前，先别让餐厅恢复使用系统。
-- **只在 Turnstile 配置预检失败时：** 旧 API 仍在运行，新版本的前端目录尚未创建。用 `sudo nano /opt/tavoloflow/.env` 修正后，可以重新运行预检和同一发布包的安装命令，无需重新打包或再次解压。用脚本时，重新运行 `bash /opt/tavoloflow/upgrade.sh` 即可。
+- **如果 Turnstile 或 Geoapify 预检失败，**旧 API 仍在运行，新前端目录尚未创建。按错误提示修正，必要时用 `sudo nano /opt/tavoloflow/.env` 修改配置。然后用同一发布包重试。使用发布脚本时，重新运行 `bash /opt/tavoloflow/upgrade.sh` 即可。
 - **已经进入后续安装阶段时：** 先查日志和容器状态；如果已创建 `web/releases/版本`，安装器会拒绝再次使用同一个 ID。修复代码或安装问题后，用一个**新的 ID** 打包发布，不要手动删除版本目录来强行重试。迁移包会跳过已执行的迁移。
 
 如果失败的正是首次安装，`state/current` 还不存在，`tf.sh` 不知道该用哪个版本。你需要自己传给它，在 `sudo` 后面用 `env`，因为 `sudo` 会清除写在它前面的环境变量：
@@ -903,7 +903,7 @@ sudo bash /opt/tavoloflow/rollback.sh --schema-compatible 上一个版本
 | 新增了一张表或一个可为空的列 | 通常可以：它不知道也不使用它们   |
 | 删除或重命名了一列           | 不行：它会去找一个已经不存在的列 |
 | 新增了一个没有默认值的必填列 | 不行：它的 INSERT 不会填写这一列 |
-| 新增了一个约束（CHECK）      | 能运行，但违反约束的写入会失败   |
+| 新增了一个约束（CHECK）      | 旧代码的写入也必须符合新约束   |
 
 `--schema-compatible` 选项是必需的，就是为了让你停下来想一想：没有它，脚本会拒绝执行。如果数据库结构不兼容，最好的办法是修复后发布一个新版本；另一种办法是在打烊时恢复备份，但会丢失备份之后发生的一切。
 
@@ -1187,7 +1187,7 @@ df -h
 - [ ] 线上点单已配置并开放，每台设备确认通知已开启；Android 和已安装的 iPhone/iPad 锁屏测试后，点击通知进入线上订单页面。退出与重新登录符合第 6 步的检查结果。
 - [ ] 恢复或升级后保留原 VAPID 密钥、重新加载员工设备，并在原业务域名下验证通知。
 - [ ] Turnstile 开关已明确配置；启用时使用同一 Managed 组件的真实密钥，允许实际业务域名，关闭 Pre-clearance。刷新顾客页面后，真实下单验证通过；未通过验证不能提交，原订单仍可查询。
-- [ ] 如果使用配送费自动报价：Geoapify key 已加上 VPS 的 IP 过滤，并且配送范围内的真实地址在结账时点「计算配送费」后能得到配送费。
+- [ ] 如果使用配送费自动报价，key 已限制为 VPS 的公网出口 IP。在新开的顾客页面用范围内的地址点「计算配送费」，核对费用后提交，并确认接单后费用保持一致。
 - [ ] 备份的 `production.env` 包含当前验证配置；使用旧备份恢复新版本时，已检查并补齐缺少的变量。
 - [ ] VPS 重启后应用自动恢复，数据和登录都完好。
 - [ ] 每晚备份已启用，并且已经下载过一个备份、成功恢复到临时数据库里。

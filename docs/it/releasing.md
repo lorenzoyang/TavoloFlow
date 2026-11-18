@@ -192,7 +192,7 @@ Installando il pacchetto, l'installer copia anche `upgrade.sh` in `/opt/tavolofl
    Lo script comunque si rifiuta di partire con modifiche non committate, compresi i file nuovi non ancora aggiunti a Git.
 
 2. Docker è in esecuzione sul tuo computer (nel mio caso, Docker Desktop aperto). Anche questo lo controlla lo script.
-3. Guarda se la guida al self-hosting, in [Rilasciare una nuova versione](self-hosting.md#rilasciare-una-nuova-versione), ha una sezione «Primo aggiornamento…» per questa versione: una configurazione nuova nel `.env` da aggiungere prima, o cose da sapere sulle sue migrazioni (per esempio la consegna che si spegne finché il titolare non imposta le fasce). Se c'è, seguila prima di installare. L'installer controlla la configurazione prima di fermare l'API: se manca qualcosa o non è valido, il servizio non si interrompe.
+3. Guarda se [Rilasciare una nuova versione](self-hosting.md#rilasciare-una-nuova-versione) ha una sezione «Primo aggiornamento…» per questa versione. Seguila per preparare eventuali modifiche a `.env` e pianificare gli effetti delle migrazioni, come la consegna che va riattivata dopo l’aggiornamento. Se un controllo preliminare fallisce, l’installer si ferma mentre l’API in servizio è ancora in esecuzione.
 4. Per l'installazione scegli un orario di chiusura. Il caricamento può avvenire prima, anche ore prima.
 
 ### 1. Sul tuo computer: costruire e caricare
@@ -297,7 +297,7 @@ Quando hai finito, torna al tuo computer con `exit`.
 
 ### 3. Dopo il rilascio
 
-Ricarica l'app su ogni dispositivo dello staff, così usa il frontend nuovo (vedi [Le pagine già aperte](#le-pagine-già-aperte)). Controlla login, una lettura (Cucina o Conto) e cambio di pagina nella PWA; sui dispositivi con notifiche attivate aspetta la conferma «attive» e ripeti una prova a schermo bloccato. Se una scrittura mostra un esito da verificare, segui l'interfaccia: l'app controlla con una GET, e reinviare alla cieca potrebbe ripetere l'operazione.
+Ricarica l’app su ogni dispositivo dello staff prima di riattivare la consegna (vedi [Le pagine già aperte](#le-pagine-già-aperte)). Per verificare la consegna, apri una nuova pagina cliente. Controlla login, una lettura (Cucina o Conto) e cambio di pagina nella PWA. Sui dispositivi con notifiche attivate aspetta la conferma «attive» e ripeti una prova a schermo bloccato. Se una scrittura mostra un esito da verificare, segui l’interfaccia. Per un ordine dall’esito sconosciuto, controlla la richiesta originale prima di inviarne una nuova.
 
 ## Se qualcosa va storto
 
@@ -376,4 +376,4 @@ Non installa mai niente: tutto ciò che cambia la produzione avviene sulla VPS, 
 
 ## Le pagine già aperte
 
-Una Cucina rimasta aperta tutto il giorno ha in memoria il frontend vecchio, e quando cambia pagina carica pezzi di codice (il router divide il codice per pagina) che si chiamano come nella versione vecchia. Per questo `web/assets/` conserva i file di **tutte** le versioni: con l'hash nel nome non si sovrascrivono mai, e una pagina vecchia trova sempre i suoi. Il codice nuovo arriva solo quando la pagina viene ricaricata o l'app riaperta. Nel frattempo, però, la pagina vecchia parla con l'API nuova: le modifiche all'API devono restare compatibili con i client della versione precedente, altrimenti bisogna far ricaricare tutti i dispositivi.
+Una pagina aperta carica i file con l’hash della sua versione da `web/assets/` e comunica con l’API in servizio. Per esempio, dopo l’aggiornamento per le fasce di consegna, le vecchie impostazioni non inviano le fasce richieste e la vecchia pagina degli ordini propone ancora il costo a mano, che la nuova API rifiuta se il costo è già stato mostrato al cliente. Una vecchia pagina cliente può anche inviare una consegna senza preventivo. Per usare il nuovo frontend ricarica la pagina o riapri l’app. Ricarica anche dopo un rollback, perché un frontend nuovo può aspettarsi dati che l’API vecchia non restituisce.

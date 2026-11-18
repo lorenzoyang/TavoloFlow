@@ -26,11 +26,12 @@ registratore di cassa.
 - **I clienti** scansionano il QR fisso del tavolo, consultano il menu con foto e allergeni, entrano
   nella visita del tavolo con un codice di quattro caratteri e ordinano tutte le volte che vogliono
   durante il pasto.
-- **I clienti online** ordinano dal link del ristorante, per il ritiro o, se il ristorante consegna,
-  per la consegna, e vedono il costo di consegna prima di ordinare: calcolato dalla distanza su strada
-  fino al loro indirizzo, oppure dal listino del ristorante per distanza. Possono inserire il codice
-  sconto del ristorante per una percentuale di sconto sui piatti, pagano al ritiro o alla consegna e
-  seguono l'ordine da una pagina di stato.
+- **I clienti online** ordinano dal link del ristorante per il ritiro o, dove disponibile, la
+  consegna. Se il calcolo per l'indirizzo riesce, vedono il costo prima di ordinare. Altrimenti vedono
+  il listino per distanza e il ristorante conferma il costo quando accetta. Se il calcolo trova
+  l'indirizzo fuori zona, la cassa blocca la consegna. I clienti possono usare un codice per uno
+  sconto percentuale sui piatti, pagare al ritiro o alla consegna e seguire l'ordine dalla pagina di
+  stato.
 - **Lo staff** apre i tavoli in Sala, segue gli ordini in Cucina (raggruppati per piatto o per ordine,
   con un avviso sonoro e le categorie filtrate per schermo) e segna i piatti serviti dal Pass. Accetta
   o rifiuta gli ordini online, scegliendo il tempo previsto e, per una consegna senza costo calcolato

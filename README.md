@@ -24,11 +24,12 @@ online orders. The app does not process online payments and does not replace a f
 
 - **Guests** scan the table's fixed QR code, browse the menu with photos and allergens, join the
   table's visit with a four-character code, and order as many times as they like during the meal.
-- **Online customers** order from the restaurant's own link for pickup or, where the restaurant
-  delivers, delivery, and see the delivery fee before ordering: worked out from the road distance to
-  their address, or the restaurant's price list by distance. They can enter the restaurant's coupon
-  code for a percentage off the dishes, pay on collection or delivery and follow the order on a status
-  page.
+- **Online customers** order from the restaurant's link for pickup or, where offered, delivery.
+  When checkout can calculate the fee for their address, they see it before ordering. Otherwise
+  they see the price list by distance and the restaurant confirms the fee on acceptance. If the
+  calculation finds the address is out of range, checkout blocks delivery. Customers can use a
+  coupon for a percentage off the dishes, pay on collection or delivery, and follow their order
+  on a status page.
 - **Staff** open tables on the Floor, follow orders in the Kitchen (grouped by dish or by order, with
   an alert sound and per-screen category filters), and mark dishes served on the Pass screen. They
   accept or reject online orders, choosing the estimated time and, for a delivery not priced at

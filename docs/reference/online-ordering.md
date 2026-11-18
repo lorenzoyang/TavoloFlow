@@ -105,11 +105,13 @@ accepts picks a band (see the online orders page).
 
 ## Automatic delivery quotes
 
-Optional, deployment-wide: `Geoapify:ApiKey` (production `.env` `GEOAPIFY_API_KEY`, passed by Compose;
-empty turns quotes off; a placeholder or malformed key fails startup, and `install-release.sh` refuses
-it before stopping the old API with the same rule) enables them, and a restaurant
-uses them when it has coordinates and bands (`deliveryAutoQuote` in the bootstrap). Without them
-nothing changes: checkout shows the price list and whoever accepts picks a band.
+Production Compose passes the optional deployment-wide `GEOAPIFY_API_KEY` to `Geoapify:ApiKey`. An
+empty value turns quotes off. Before stopping the API, `install-release.sh` runs the startup
+validator in the new image with the actual Compose environment. On an installed release,
+`tf.sh apply-geoapify-key` runs the same check before recreating the API. These checks neither
+disclose the value nor contact Geoapify. The bootstrap exposes `deliveryAutoQuote` when a key,
+restaurant coordinates and bands are present. With automatic quotes off, checkout shows the price
+list and whoever accepts picks a band.
 
 `POST /api/public/r/{slug}/delivery-quote` `{ address }` is anonymous with the public CSRF token, a
 POST so the address stays out of URLs and access logs; it changes nothing and persists no browser
@@ -143,10 +145,10 @@ status or exception type and never the address, key, coordinates or a response b
 
 `DeliveryQuoteLimits` keeps two process-local `FixedWindowLimiter`s of one day, checked just before
 calling Geoapify: per restaurant (`Geoapify:DailyQuotesPerRestaurant`, 200) and site-wide
-(`Geoapify:DailyQuotes`, 1200, below the roughly 1,500 quotes the free credits cover; Geoapify's limits
-are soft and persistent overuse may restrict the account). Windows start at the first quote and reset
-on restart; a reached cap only means the price list. Per IP, quotes have their own budget
-(`OnlineRateLimits:QuotesPerIpPerTenMinutes`, 10), so asking for fees never uses up submissions.
+(`Geoapify:DailyQuotes`, 1200). Windows start at the first quote and reset on restart. A local cap
+or a request refused by Geoapify falls back to the price list. Geoapify also applies its own credit
+and request limits. Per IP, quotes have a separate budget
+(`OnlineRateLimits:QuotesPerIpPerTenMinutes`, 10) and leave the submission budget available.
 
 `DeliveryQuotes` signs a quote with Data Protection whose purpose names the restaurant
 (`TavoloFlow.Online.DeliveryQuote.v1`, like join codes), over the normalized address, the restaurant's
