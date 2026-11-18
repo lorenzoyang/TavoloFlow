@@ -4,6 +4,7 @@ import type { Language, Names } from "@/lib/language";
 import type { OptionSnapshot } from "@/lib/options";
 import type { RestaurantTheme } from "@/lib/theme";
 import type { OnlineStatus } from "@/features/online/api";
+import type { DeliveryTier } from "@/features/online/state";
 import type { PublicMenu } from "@/features/public-menu/api";
 import type { OrderItemStatus } from "@/features/orders/api";
 import { orderEnded, type OnlineIntent } from "./state";
@@ -25,6 +26,10 @@ export type OnlineMenu = {
     deliveryNoteZh: string | null;
     deliveryNoteIt: string | null;
     deliveryNoteEn: string | null;
+    // A delivery order's dishes, after the coupon, must reach it; null for no minimum.
+    deliveryMinOrderCents: number | null;
+    // The fee bands by road distance, nearest first; the last is the farthest the restaurant delivers.
+    deliveryTiers: DeliveryTier[];
   };
   turnstile: { siteKey: string } | null;
   status: OnlineStatus;

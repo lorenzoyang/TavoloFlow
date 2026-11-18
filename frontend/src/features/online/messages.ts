@@ -78,15 +78,35 @@ const zh = {
   // Delivery
   deliveryTitle: "配送",
   deliveryHint:
-    "开启后，顾客结账时可以选择配送。说明里写配送范围和收费规则，结账时按顾客的语言显示；配送费由接单的人按地址和说明填写。",
+    "开启后，顾客结账时可以选择配送，并看到按路程分档的配送费。接单的人看着从餐厅出发的路线，按路程选一档。",
+  originLabel: "餐厅坐标",
+  originHint:
+    "在 Google 地图里长按（电脑上右键）餐厅门口，点一下显示的「纬度, 经度」复制，粘贴到这里。",
+  originCheck: "在 Google 地图中查看",
+  originInvalid:
+    "坐标格式不对：请粘贴「纬度, 经度」，例如 43.88015, 11.09612。分享链接里没有坐标。",
+  tiersTitle: "配送档位",
+  tiersHint: "按路程从近到远，最多 5 档；最远一档就是最远配送距离。配送费填 0 表示免费。",
+  tierKm: "最远（公里）",
+  tierFee: "配送费（€）",
+  tierKmLabel: (index: number) => `第 ${index} 档：最远公里数`,
+  tierFeeLabel: (index: number) => `第 ${index} 档：配送费`,
+  removeTier: (index: number) => `删除第 ${index} 档`,
+  addTier: "添加一档",
+  tierKmInvalid: (index: number) => `第 ${index} 档：公里数要在 0.1–30 之间，最多一位小数。`,
+  tierFeeInvalid: (index: number) => `第 ${index} 档：请填写配送费，例如 2 或 2.50；免费填 0。`,
+  tierRepeated: (index: number) => `第 ${index} 档：和另一档的距离相同。`,
+  setupIncomplete: "开启配送前，请先填写餐厅坐标和至少一档。",
   deliveryEnabled: "提供配送",
   deliveryOn: "顾客可以选择配送",
   deliveryOff: "只能到店自取",
   deliveryNote: (language: string) => `配送说明（${language}）`,
   noteLanguages: { zh: "中文", it: "意大利语", en: "英语" },
-  deliveryPlaceholder: "例如：5 公里内满 20 € 免配送费，否则 2 €。",
-  deliveryNoNote: "还没有写配送说明：顾客结账时只会看到「配送费以餐厅确认为准」。",
+  deliveryPlaceholder: "例如：只送 Prato 市区；雨天可能晚一些。",
   deliveryTooLong: (language: string) => `${language}说明最多 500 个字符。`,
+  deliveryMinOrder: "起送金额（€，可选）",
+  deliveryMinOrderHint: "只对配送：扣掉优惠券后的菜品金额要达到它，不含配送费。留空表示不设。",
+  deliveryMinOrderInvalid: "起送金额要大于 0，例如 15 或 15.50；不设就留空。",
   saveDelivery: "保存配送设置",
   // Coupons
   couponsTitle: "优惠券",
@@ -193,16 +213,40 @@ export const onlineMessages: Record<Language, typeof zh> = {
       }`,
     deliveryTitle: "Consegna a domicilio",
     deliveryHint:
-      "Se attiva, al momento dell’ordine i clienti possono scegliere la consegna. Nella nota scrivi zona e costi: compare nella lingua del cliente. Chi accetta l’ordine inserisce il costo in base all’indirizzo e alla nota.",
+      "Se attiva, al momento dell’ordine i clienti possono scegliere la consegna e vedono i costi per fasce di distanza. Chi accetta l’ordine guarda il percorso dal ristorante e sceglie la fascia.",
+    originLabel: "Posizione del ristorante",
+    originHint:
+      "Su Google Maps tieni premuto (sul computer: tasto destro) sull’ingresso del ristorante, tocca le coordinate «latitudine, longitudine» per copiarle e incollale qui.",
+    originCheck: "Controlla su Google Maps",
+    originInvalid:
+      "Coordinate non valide: incolla «latitudine, longitudine», ad es. 43.88015, 11.09612. I link di condivisione non contengono le coordinate.",
+    tiersTitle: "Fasce di consegna",
+    tiersHint:
+      "Dalla più vicina, al massimo 5; l’ultima è la distanza massima di consegna. Costo 0 vuol dire consegna gratuita.",
+    tierKm: "Fino a (km)",
+    tierFee: "Costo (€)",
+    tierKmLabel: (index) => `Fascia ${index}: chilometri massimi`,
+    tierFeeLabel: (index) => `Fascia ${index}: costo di consegna`,
+    removeTier: (index) => `Elimina la fascia ${index}`,
+    addTier: "Aggiungi fascia",
+    tierKmInvalid: (index) =>
+      `Fascia ${index}: i chilometri vanno da 0,1 a 30, con al massimo un decimale.`,
+    tierFeeInvalid: (index) => `Fascia ${index}: inserisci il costo, ad es. 2 o 2,50; 0 se gratis.`,
+    tierRepeated: (index) => `Fascia ${index}: stessa distanza di un’altra fascia.`,
+    setupIncomplete:
+      "Prima di attivare la consegna inserisci la posizione del ristorante e almeno una fascia.",
     deliveryEnabled: "Offri la consegna",
     deliveryOn: "I clienti possono scegliere la consegna",
     deliveryOff: "Solo ritiro",
     deliveryNote: (language) => `Nota sulla consegna (${language})`,
     noteLanguages: { zh: "cinese", it: "italiano", en: "inglese" },
-    deliveryPlaceholder: "Es.: entro 5 km gratis sopra 20 €, altrimenti 2 €.",
-    deliveryNoNote:
-      "Nessuna nota: al momento dell’ordine i clienti vedranno solo che il costo di consegna lo conferma il ristorante.",
+    deliveryPlaceholder: "Es.: solo Prato centro; con la pioggia può tardare.",
     deliveryTooLong: (language) => `La nota in ${language} può avere al massimo 500 caratteri.`,
+    deliveryMinOrder: "Ordine minimo (€, facoltativo)",
+    deliveryMinOrderHint:
+      "Solo per la consegna: i piatti, tolto lo sconto, devono arrivare a questa cifra; la consegna non conta. Lascia vuoto per nessun minimo.",
+    deliveryMinOrderInvalid:
+      "L’ordine minimo deve essere maggiore di 0, ad es. 15 o 15,50; lascia vuoto per nessun minimo.",
     saveDelivery: "Salva consegna",
     couponsTitle: "Codici sconto",
     couponsHint:
@@ -305,16 +349,39 @@ export const onlineMessages: Record<Language, typeof zh> = {
       }`,
     deliveryTitle: "Delivery",
     deliveryHint:
-      "When on, customers can choose delivery at checkout. Write the delivery area and fee rules in the note; it appears in the customer’s language. Whoever accepts the order enters the fee from the address and the note.",
+      "When on, customers can choose delivery at checkout and see the fees by distance band. Whoever accepts the order checks the route from the restaurant and picks the band.",
+    originLabel: "Restaurant location",
+    originHint:
+      "In Google Maps, press and hold (right-click on a computer) the restaurant’s entrance, tap the “latitude, longitude” shown to copy it and paste it here.",
+    originCheck: "Check on Google Maps",
+    originInvalid:
+      "Not valid coordinates: paste “latitude, longitude”, e.g. 43.88015, 11.09612. Share links don’t contain coordinates.",
+    tiersTitle: "Delivery bands",
+    tiersHint:
+      "Nearest first, at most 5; the last one is the farthest you deliver. A fee of 0 means free delivery.",
+    tierKm: "Up to (km)",
+    tierFee: "Fee (€)",
+    tierKmLabel: (index) => `Band ${index}: maximum kilometres`,
+    tierFeeLabel: (index) => `Band ${index}: delivery fee`,
+    removeTier: (index) => `Remove band ${index}`,
+    addTier: "Add band",
+    tierKmInvalid: (index) => `Band ${index}: kilometres from 0.1 to 30, with at most one decimal.`,
+    tierFeeInvalid: (index) => `Band ${index}: enter the fee, e.g. 2 or 2.50; 0 if free.`,
+    tierRepeated: (index) => `Band ${index}: same distance as another band.`,
+    setupIncomplete:
+      "Before turning delivery on, add the restaurant’s location and at least one band.",
     deliveryEnabled: "Offer delivery",
     deliveryOn: "Customers can choose delivery",
     deliveryOff: "Pickup only",
     deliveryNote: (language) => `Delivery note (${language})`,
     noteLanguages: { zh: "Chinese", it: "Italian", en: "English" },
-    deliveryPlaceholder: "E.g. within 5 km free over €20, otherwise €2.",
-    deliveryNoNote:
-      "No note yet: at checkout customers will only see that the restaurant confirms the delivery fee.",
+    deliveryPlaceholder: "E.g. central Prato only; may run late when it rains.",
     deliveryTooLong: (language) => `The ${language} note takes at most 500 characters.`,
+    deliveryMinOrder: "Minimum order (€, optional)",
+    deliveryMinOrderHint:
+      "Delivery only: the dishes, after any coupon, must reach it; the delivery fee doesn’t count. Leave empty for none.",
+    deliveryMinOrderInvalid:
+      "The minimum order must be above 0, e.g. 15 or 15.50; leave empty for none.",
     saveDelivery: "Save delivery",
     couponsTitle: "Coupons",
     couponsHint:
@@ -364,12 +431,15 @@ const ordersZh = {
   acceptWith: "接单并选择预计取餐时间",
   minutes: (minutes: number) => `${minutes} 分钟`,
   acceptLabel: (number: number, minutes: number) => `接单 #${number}，${minutes} 分钟后可取`,
-  acceptWithDelivery: "填写配送费，再选择预计送达时间",
+  acceptWithDelivery: "接单并选择预计送达时间",
   acceptDeliveryLabel: (number: number, minutes: number) =>
     `接单 #${number}，${minutes} 分钟内送达`,
-  deliveryFee: "配送费（€）",
-  deliveryFeeHint: "按地址和配送说明填写；免费填 0。",
-  feeInvalid: "请填写配送费，例如 2 或 2.50；免费填 0。",
+  tierChoice: "配送档位",
+  tierOption: (distance: string, fee: string) => `${distance} 内 · ${fee}`,
+  free: "免费",
+  tierHint: "点开地址查看从餐厅出发的路线和路程，按路程选一档。",
+  noTiers: "餐厅没有配送档位，选不了配送费：请打电话和顾客商量，或拒单。",
+  route: "查看从餐厅出发的路线",
   deliveryTotal: (subtotal: string, fee: string, total: string) =>
     `小计 ${subtotal} + 配送费 ${fee} = 合计 ${total}`,
   doorbell: (notes: string) => `门铃、楼层：${notes}`,
@@ -430,12 +500,17 @@ export const onlineOrdersMessages: Record<Language, typeof ordersZh> = {
     acceptWith: "Accetta e scegli tra quanto sarà pronto",
     minutes: (minutes) => `${minutes} min`,
     acceptLabel: (number, minutes) => `Accetta #${number}, pronto tra ${minutes} minuti`,
-    acceptWithDelivery: "Inserisci il costo di consegna, poi scegli tra quanto arriva",
+    acceptWithDelivery: "Accetta e scegli tra quanto arriva",
     acceptDeliveryLabel: (number, minutes) =>
       `Accetta #${number}, consegna entro ${minutes} minuti`,
-    deliveryFee: "Costo di consegna (€)",
-    deliveryFeeHint: "In base all’indirizzo e alla nota sulla consegna; 0 se gratis.",
-    feeInvalid: "Inserisci il costo di consegna, ad es. 2 o 2,50; 0 se gratis.",
+    tierChoice: "Fascia di consegna",
+    tierOption: (distance, fee) => `Entro ${distance} · ${fee}`,
+    free: "gratis",
+    tierHint:
+      "Apri l’indirizzo per vedere percorso e distanza dal ristorante, poi scegli la fascia.",
+    noTiers:
+      "Il ristorante non ha fasce di consegna, quindi non c’è un costo da scegliere: chiama il cliente o rifiuta l’ordine.",
+    route: "Vedi il percorso dal ristorante",
     deliveryTotal: (subtotal, fee, total) =>
       `Subtotale ${subtotal} + consegna ${fee} = totale ${total}`,
     doorbell: (notes) => `Citofono, piano: ${notes}`,
@@ -493,12 +568,17 @@ export const onlineOrdersMessages: Record<Language, typeof ordersZh> = {
     acceptWith: "Accept and choose when it’s ready",
     minutes: (minutes) => `${minutes} min`,
     acceptLabel: (number, minutes) => `Accept #${number}, ready in ${minutes} minutes`,
-    acceptWithDelivery: "Enter the delivery fee, then choose when it arrives",
+    acceptWithDelivery: "Accept and choose when it arrives",
     acceptDeliveryLabel: (number, minutes) =>
       `Accept #${number}, delivered within ${minutes} minutes`,
-    deliveryFee: "Delivery fee (€)",
-    deliveryFeeHint: "From the address and the delivery note; 0 if free.",
-    feeInvalid: "Enter the delivery fee, e.g. 2 or 2.50; 0 if free.",
+    tierChoice: "Delivery band",
+    tierOption: (distance, fee) => `Within ${distance} · ${fee}`,
+    free: "free",
+    tierHint:
+      "Open the address to see the route and distance from the restaurant, then pick the band.",
+    noTiers:
+      "The restaurant has no delivery bands, so there is no fee to pick: call the customer or reject the order.",
+    route: "See the route from the restaurant",
     deliveryTotal: (subtotal, fee, total) =>
       `Subtotal ${subtotal} + delivery ${fee} = total ${total}`,
     doorbell: (notes) => `Doorbell, floor: ${notes}`,

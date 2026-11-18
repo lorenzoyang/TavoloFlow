@@ -30,6 +30,7 @@ import { onlineOrderError, type OnlineOrderMessage } from "./messages";
 import { deviceStorage } from "./useRestaurantLanguage";
 import {
   createOnlineIntent,
+  deliveryShortfallCents,
   emptyCheckoutForm,
   emptyOnlineCart,
   existingSubmission,
@@ -94,6 +95,13 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
   });
   const checkoutBlocked =
     !view.active || !context.data || context.isError || !!context.data.pending;
+  const amounts = onlineCartAmounts(cart, review, form);
+  // Delivery only: what the amount shown still lacks to reach the minimum. A new delivery order
+  // cannot be sent while it is positive; the server checks again.
+  const minOrderShortfall =
+    form.fulfillment === "DELIVERY" && !cart.pending
+      ? deliveryShortfallCents(amounts.totalCents, data.restaurant.deliveryMinOrderCents)
+      : 0;
   const waitingToken = context.data?.pending?.statusToken;
   useEffect(() => {
     const storage = deviceStorage();
@@ -267,7 +275,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
 
   async function send(retry: boolean, turnstileToken: string | null) {
     if (blocked || !isLive()) return;
-    if (!retry && checkoutBlocked) return;
+    if (!retry && (checkoutBlocked || minOrderShortfall > 0)) return;
     if ((!retry && (!review || current.current.pending)) || (retry && !current.current.pending))
       return;
     const work = start();
@@ -340,7 +348,11 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
               ? onlineOrderError(e.code)
               : "offline",
       );
-      if (e instanceof ApiError && (e.code === "MENU_CHANGED" || e.code === "DELIVERY_NOT_OFFERED"))
+      // The menu carries the prices, the delivery switch and the minimum the server compared with.
+      if (
+        e instanceof ApiError &&
+        ["MENU_CHANGED", "DELIVERY_NOT_OFFERED", "DELIVERY_MIN_ORDER"].includes(e.code)
+      )
         void client.invalidateQueries({ queryKey: onlineMenuKey(slug) });
       // The code no longer works: drop it, so the next checkout shows the full total.
       if (e instanceof ApiError && e.code === "COUPON_INVALID")
@@ -357,9 +369,10 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     contextChecking: !context.data && !context.isError,
     contextRefreshing: context.isFetching,
     checkoutBlocked,
+    minOrderShortfall,
     refreshContext: () => void context.refetch(),
     cart,
-    amounts: onlineCartAmounts(cart, review, form),
+    amounts,
     busy,
     message,
     review,

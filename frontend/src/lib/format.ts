@@ -26,6 +26,12 @@ export function formatMoney(cents: number, language: Language = "zh"): string {
   return `€ ${language === "it" ? amount.replace(".", ",") : amount}`;
 }
 
+// "2.5 km", from metres; Italian uses a decimal comma.
+export function formatKm(meters: number, language: Language = "zh"): string {
+  const km = String(Math.round(meters / 100) / 10);
+  return `${language === "it" ? km.replace(".", ",") : km} km`;
+}
+
 // Locales for dates and times. English uses the British day/month order of the restaurant's region.
 const locales: Record<Language, string> = { zh: "zh-CN", it: "it-IT", en: "en-GB" };
 

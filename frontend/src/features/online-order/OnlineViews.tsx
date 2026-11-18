@@ -8,7 +8,7 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { formatMoney } from "@/lib/format";
+import { formatKm, formatMoney } from "@/lib/format";
 import type { Language } from "@/lib/language";
 import { cn } from "@/lib/utils";
 import { RestaurantHeader } from "@/features/public-menu/PublicMenuViews";
@@ -263,6 +263,8 @@ export function OnlineCartPanel({
   const delivery = form.fulfillment === "DELIVERY";
   const note = delivery ? deliveryNote(data.restaurant, language) : null;
   const { coupon, itemsCents, discountCents, totalCents } = model.amounts;
+  const minOrderCents = data.restaurant.deliveryMinOrderCents;
+  const tiers = data.restaurant.deliveryTiers;
   function applyCoupon() {
     void model.applyCoupon(couponText);
   }
@@ -504,14 +506,40 @@ export function OnlineCartPanel({
                     </p>
                   )}
                 </div>
-                <div className="space-y-1 rounded-xl border p-3 text-sm leading-6">
+                <div className="space-y-2 rounded-xl border p-3 text-sm leading-6">
+                  {tiers.length > 0 && (
+                    <div>
+                      <p className="font-medium">{m.feeTitle}</p>
+                      <ul>
+                        {tiers.map((tier) => (
+                          <li
+                            key={tier.maxMeters}
+                            className="flex items-baseline justify-between gap-3"
+                          >
+                            <span>{m.tierLine(formatKm(tier.maxMeters, language))}</span>
+                            <span className="shrink-0 tabular-nums">
+                              {tier.feeCents === 0 ? m.free : formatMoney(tier.feeCents, language)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="text-muted-foreground">
+                        {m.beyondTiers(formatKm(tiers[tiers.length - 1].maxMeters, language))}
+                      </p>
+                    </div>
+                  )}
+                  {minOrderCents !== null && (
+                    <p className="font-medium">
+                      {m.minOrderLine(formatMoney(minOrderCents, language))}
+                    </p>
+                  )}
                   {note && (
-                    <>
+                    <div>
                       <p className="font-medium">{m.deliveryNoteTitle}</p>
                       <p lang={note.language} className="whitespace-pre-wrap wrap-break-word">
                         {note.text}
                       </p>
-                    </>
+                    </div>
                   )}
                   <p className="text-muted-foreground">{m.feeConfirmed}</p>
                 </div>
@@ -608,6 +636,14 @@ export function OnlineCartPanel({
               <span>{model.review && delivery ? m.itemsTotal : m.total}</span>
               <span className="text-xl tabular-nums">{formatMoney(totalCents, language)}</span>
             </p>
+            {model.minOrderShortfall > 0 && minOrderCents !== null && (
+              <p className="rounded-lg bg-secondary px-3 py-2 text-sm font-medium">
+                {m.minOrderShort(
+                  formatMoney(minOrderCents, language),
+                  formatMoney(model.minOrderShortfall, language),
+                )}
+              </p>
+            )}
           </div>
           {!pending && !model.review && (
             <>
@@ -633,7 +669,11 @@ export function OnlineCartPanel({
               size="lg"
               className="w-full"
               disabled={
-                model.busy || !!model.blocked || model.checkoutBlocked || (!!siteKey && !token)
+                model.busy ||
+                !!model.blocked ||
+                model.checkoutBlocked ||
+                model.minOrderShortfall > 0 ||
+                (!!siteKey && !token)
               }
             >
               {model.busy ? m.working : m.placeOrder}

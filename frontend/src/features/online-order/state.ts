@@ -91,6 +91,12 @@ export function onlineCartAmounts(
   return { itemsCents, coupon, discountCents, totalCents: itemsCents - discountCents };
 }
 
+// How much a delivery order still lacks to reach the minimum: 0 when it does or there is none. Pass
+// onlineCartAmounts' total: during checkout it is the dishes after the coupon, which the server compares
+// (OnlineDelivery.MeetsMinimum); the fee never counts.
+export const deliveryShortfallCents = (totalCents: number, minOrderCents: number | null) =>
+  minOrderCents === null ? 0 : Math.max(0, minOrderCents - totalCents);
+
 const validCoupon = (coupon: CouponPreview | null) =>
   coupon === null ||
   (normalizeCouponCode(coupon.code) === coupon.code && validCouponPercent(coupon.percentOff));
@@ -230,6 +236,7 @@ const rejectedAfterDuplicateCheck = [
   "SERVICE_SUSPENDED",
   "DELIVERY_NOT_OFFERED",
   "COUPON_INVALID",
+  "DELIVERY_MIN_ORDER",
   "ONLINE_BROWSER_PENDING",
   "ONLINE_IP_WAITING_LIMIT",
 ];

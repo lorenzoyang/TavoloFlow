@@ -6,6 +6,7 @@ import {
   couponDiscountCents,
   createOnlineIntent,
   deliveryNote,
+  deliveryShortfallCents,
   emptyOnlineCart,
   existingSubmission,
   onlineCartAmounts,
@@ -233,6 +234,7 @@ test("an understood rejection frees the cart; after an unknown result only one t
     "SERVICE_SUSPENDED",
     "DELIVERY_NOT_OFFERED",
     "COUPON_INVALID",
+    "DELIVERY_MIN_ORDER",
     "ONLINE_LINK_NOT_FOUND",
     "CSRF_VALIDATION_FAILED",
     "RATE_LIMITED",
@@ -245,6 +247,7 @@ test("an understood rejection frees the cart; after an unknown result only one t
     "ONLINE_BUSY",
     "SERVICE_SUSPENDED",
     "COUPON_INVALID",
+    "DELIVERY_MIN_ORDER",
   ])
     assert.equal(submissionFailure(409, code, true), "editable", code);
   for (const code of [
@@ -458,6 +461,18 @@ test("the panel and bar apply a coupon only during checkout, using the reviewed 
     discountCents: 0,
     totalCents: 990,
   });
+});
+
+test("the delivery minimum compares the total shown, which takes the coupon off during checkout", () => {
+  const cart = addItem(addItem(emptyOnlineCart(restaurant), item), item);
+  const checkout = { ...delivery, coupon: { code: "ESTATE10", percentOff: 10 } };
+  const shown = (review: OnlineCart | null) => onlineCartAmounts(cart, review, checkout).totalCents;
+  assert.equal(deliveryShortfallCents(shown(null), null), 0);
+  // 24 € of dishes reach 24 € while editing; with 10% off at checkout they fall 2.40 € short.
+  assert.equal(deliveryShortfallCents(shown(null), 2400), 0);
+  assert.equal(deliveryShortfallCents(shown(cart), 2400), 240);
+  assert.equal(deliveryShortfallCents(shown(cart), 2160), 0);
+  assert.equal(deliveryShortfallCents(shown(cart), 2161), 1);
 });
 
 test("an unknown submission keeps its saved coupon amount after reload, ahead of the form", () => {

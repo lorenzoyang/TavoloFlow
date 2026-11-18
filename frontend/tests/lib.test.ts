@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   formatCents,
   formatDateTime,
+  formatKm,
   formatMoney,
   formatTime,
   formatWeekdayTime,
@@ -59,6 +60,13 @@ test("cents format without floating-point rounding; Italian uses a decimal comma
   assert.equal(formatMoney(705), "€ 7.05");
   assert.equal(formatMoney(705, "it"), "€ 7,05");
   assert.equal(formatMoney(705, "en"), "€ 7.05");
+});
+
+test("distances show kilometres with at most one decimal; Italian uses a decimal comma", () => {
+  assert.equal(formatKm(3000), "3 km");
+  assert.equal(formatKm(2500, "it"), "2,5 km");
+  assert.equal(formatKm(2500, "en"), "2.5 km");
+  assert.equal(formatKm(30_000, "zh"), "30 km");
 });
 
 test("only the three supported languages are accepted", () => {

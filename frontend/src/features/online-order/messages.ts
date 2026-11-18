@@ -52,8 +52,14 @@ const zh = {
   deliveryNotes: "门铃、楼层（选填）",
   deliveryNotesProblem: "门铃、楼层备注最多 100 个字符。",
   deliveryNoteTitle: "配送说明",
-  feeConfirmed: "配送费以餐厅确认为准，接单后显示在订单页。",
+  feeConfirmed: "餐厅按实际路程确认配送费，接单后显示在订单页。",
+  feeTitle: "配送费（按路程）",
+  tierLine: (distance: string) => `${distance} 内`,
+  free: "免费",
+  beyondTiers: (distance: string) => `超过 ${distance} 不配送。`,
   itemsTotal: "菜品合计",
+  minOrderLine: (amount: string) => `配送起送 ${amount}（按扣掉优惠后的菜品金额）`,
+  minOrderShort: (minimum: string, missing: string) => `配送起送 ${minimum}，还差 ${missing}`,
   subtotal: "小计",
   coupon: "优惠码（选填）",
   couponHint: "填写餐厅分享的优惠码，只减菜品金额，不含配送费。",
@@ -76,6 +82,7 @@ const zh = {
   linkGone: "这个线上点单链接已失效，订单没有提交。",
   invalid: "请检查姓名、电话、地址和菜品数量。",
   deliveryOff: "餐厅现在不提供配送，可以改为到店自取。",
+  minOrder: "菜品金额没到配送起送金额，订单没有提交。可以加菜，或改为到店自取。",
   csrf: "页面验证已过期，请再提交一次。",
   rateLimited: "提交次数太多，请稍后再试。",
   verificationRequired: "请完成安全验证后再提交；查询原订单不需要验证。",
@@ -237,8 +244,14 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     deliveryNotesProblem: "Citofono e piano: al massimo 100 caratteri.",
     deliveryNoteTitle: "Consegna",
     feeConfirmed:
-      "Il costo di consegna lo conferma il ristorante: lo vedrai nella pagina dell’ordine dopo l’accettazione.",
+      "Il ristorante conferma il costo in base alla distanza su strada: lo vedrai nella pagina dell’ordine dopo l’accettazione.",
+    feeTitle: "Costo di consegna (per distanza su strada)",
+    tierLine: (distance) => `Entro ${distance}`,
+    free: "gratis",
+    beyondTiers: (distance) => `Oltre ${distance} non consegniamo.`,
     itemsTotal: "Totale piatti",
+    minOrderLine: (amount) => `Minimo per la consegna: ${amount} di piatti, al netto dello sconto.`,
+    minOrderShort: (minimum, missing) => `Minimo ${minimum} per la consegna: mancano ${missing}`,
     subtotal: "Subtotale",
     coupon: "Codice sconto (facoltativo)",
     couponHint:
@@ -264,6 +277,8 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     linkGone: "Questo link per ordinare online non vale più: l’ordine non è stato inviato.",
     invalid: "Controlla nome, telefono, indirizzo e quantità.",
     deliveryOff: "Ora il ristorante non fa consegne: puoi scegliere il ritiro.",
+    minOrder:
+      "I piatti non arrivano al minimo per la consegna: l’ordine non è stato inviato. Aggiungi qualcosa o scegli il ritiro.",
     csrf: "La verifica della pagina è scaduta: invia di nuovo.",
     rateLimited: "Troppi invii: riprova tra poco.",
     verificationRequired:
@@ -427,8 +442,14 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     deliveryNotesProblem: "Doorbell and floor: up to 100 characters.",
     deliveryNoteTitle: "Delivery",
     feeConfirmed:
-      "The restaurant confirms the delivery fee; you’ll see it on the order page once accepted.",
+      "The restaurant confirms the fee from the road distance; you’ll see it on the order page once accepted.",
+    feeTitle: "Delivery fee (by road distance)",
+    tierLine: (distance) => `Within ${distance}`,
+    free: "free",
+    beyondTiers: (distance) => `No delivery beyond ${distance}.`,
     itemsTotal: "Items total",
+    minOrderLine: (amount) => `Minimum for delivery: ${amount} of dishes, after any coupon.`,
+    minOrderShort: (minimum, missing) => `Delivery minimum ${minimum}: ${missing} to go`,
     subtotal: "Subtotal",
     coupon: "Coupon code (optional)",
     couponHint:
@@ -454,6 +475,8 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     linkGone: "This online ordering link no longer works; the order wasn’t sent.",
     invalid: "Check the name, phone, address and quantities.",
     deliveryOff: "The restaurant isn’t delivering right now; you can choose pickup.",
+    minOrder:
+      "The dishes don’t reach the minimum for delivery, so the order wasn’t sent. Add something or choose pickup.",
     csrf: "The page check expired. Please send again.",
     rateLimited: "Too many attempts. Try again shortly.",
     verificationRequired:
@@ -571,6 +594,7 @@ export type OnlineOrderMessage =
   | "closed"
   | "notOffered"
   | "deliveryOff"
+  | "minOrder"
   | "suspended"
   | "linkGone"
   | "invalid"
@@ -603,6 +627,7 @@ export const onlineOrderError = (code: string): OnlineOrderMessage =>
       ONLINE_CLOSED: "closed",
       ONLINE_NOT_OFFERED: "notOffered",
       DELIVERY_NOT_OFFERED: "deliveryOff",
+      DELIVERY_MIN_ORDER: "minOrder",
       SERVICE_SUSPENDED: "suspended",
       ONLINE_LINK_NOT_FOUND: "linkGone",
       VALIDATION_FAILED: "invalid",
