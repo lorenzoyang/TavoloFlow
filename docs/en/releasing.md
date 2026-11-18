@@ -192,7 +192,7 @@ When it installs the package, the installer also copies `upgrade.sh` to `/opt/ta
    Even if you forget, the script refuses to start with uncommitted changes, including new files not yet added to Git.
 
 2. Docker is running on your computer (in my case, Docker Desktop is open). The script checks this too.
-3. If the new version needs new configuration in the server's `.env`, add it first, as explained in the self-hosting guide, [Releasing a new version](self-hosting.md#releasing-a-new-version). The installer checks the configuration before stopping the API: if something is missing, the service is not interrupted.
+3. Check whether the self-hosting guide, under [Releasing a new version](self-hosting.md#releasing-a-new-version), has a "First upgrade…" section for this version: new configuration to add to the `.env` first, or things to know about its migrations (for example delivery switching off until the owner sets up the bands). If it does, follow it before installing. The installer checks the configuration before stopping the API: if something is missing or invalid, the service is not interrupted.
 4. Install when the restaurant is closed. The upload can happen earlier, even hours earlier.
 
 ### 1. On your computer: build and upload

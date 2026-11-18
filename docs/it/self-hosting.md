@@ -369,7 +369,7 @@ Tieni sul tuo computer almeno il pacchetto della versione in produzione e quello
 
 **Facoltativo: provare tutto in locale.** [`deploy/smoke-test.sh`](../../deploy/smoke-test.sh) installa il pacchetto dentro un Docker temporaneo e isolato (Docker-in-Docker, con un certificato di prova locale) e controlla installazione, migrazioni, HTTPS, cookie e CSRF delle tre identità, la chiave delle notifiche, due rilasci di fila, backup, ripristino e rollback, poi cancella tutto quello che ha creato. Usa l'indirizzo scritto nel pacchetto, quindi funziona con qualsiasi `PUBLIC_ORIGIN`:
 
-Controlla anche che chiavi VAPID mancanti o invalide, configurazioni Turnstile mancanti e chiavi di test vietate in produzione siano rifiutate prima di fermare l’API esistente, e che la chiave pubblica VAPID resti identica dopo aggiornamento, riavvio, ripristino di `production.env` e rollback. La prova disattiva esplicitamente Turnstile: non chiama il servizio di verifica reale e non invia notifiche push reali. La verifica con chiavi vere, la consegna delle notifiche e il suono si provano sul telefono al passo 6.
+Controlla anche che chiavi VAPID mancanti o invalide, configurazioni Turnstile mancanti, chiavi di test vietate in produzione e chiavi Geoapify malformate siano rifiutate prima di fermare l’API esistente, e che la chiave pubblica VAPID resti identica dopo aggiornamento, riavvio, ripristino di `production.env` e rollback. La prova disattiva esplicitamente Turnstile e usa una chiave Geoapify finta: non chiama il servizio di verifica reale né Geoapify e non invia notifiche push reali. La verifica con chiavi vere, la consegna delle notifiche e il suono si provano sul telefono al passo 6.
 
 ```bash
 PUBLIC_ORIGIN=https://app.esempio.it bash deploy/build-release.sh
@@ -446,23 +446,25 @@ Per un’installazione che sceglie esplicitamente di non usare il verificatore, 
 
 Senza questa configurazione la consegna funziona già: alla cassa il cliente vede il listino delle fasce del ristorante e chi accetta l’ordine sceglie la fascia. Con una chiave [Geoapify](https://www.geoapify.com/) l’API calcola invece il costo dall’indirizzo, con la distanza in auto dal ristorante, e il cliente lo vede prima di ordinare. La chiave vale per tutta l’installazione; ogni ristorante lo usa appena il titolare ha impostato posizione e fasce.
 
-1. **Crea la chiave nel browser del tuo computer.** Su Geoapify apri **My projects**, crea un progetto e copia la chiave da **API keys**. Il piano gratuito non chiede la carta. Prima di usarlo con clienti veri, controlla nei termini di Geoapify le condizioni del piano gratuito per l’uso commerciale.
-2. **Limita la chiave all’IP della VPS.** Nella stessa pagina tocca **«Add IP filter»** e inserisci l’indirizzo IPv4 pubblico della VPS. La chiave la usa solo l’API, mai il browser, quindi i filtri per Referer e Origin non servono; con il filtro IP, una chiave copiata per errore non funziona altrove.
+1. **Crea la chiave nel browser del tuo computer.** Su Geoapify apri **My projects**, crea un progetto e copia la chiave da **API keys**. Il piano gratuito non chiede la carta e permette l’uso commerciale; l’attribuzione che richiede (Geoapify e i contributori di OpenStreetMap, con i link) è già nella cassa.
+2. **Limita la chiave all’IP della VPS.** Nella stessa pagina tocca **«Add IP filter»** e inserisci l’indirizzo IPv4 pubblico della VPS. La chiave la usa solo l’API, mai il browser, quindi i filtri per Referer e Origin non servono; con il filtro IP, una chiave copiata per errore non funziona altrove. Per lo sviluppo usa un’altra chiave: questa, dal tuo computer, non funziona.
 3. **Aggiungila al `.env` del server**, sulla VPS con `sudo nano /opt/tavoloflow/.env`:
 
    ```dotenv
-   GEOAPIFY_API_KEY=LA_TUA_CHIAVE
+   GEOAPIFY_API_KEY=REPLACE_WITH_GEOAPIFY_KEY
    ```
 
-   Niente virgolette né spazi attorno a `=`. Lasciata vuota, la funzione resta spenta. La chiave passa all’API solo con una versione che la supporta: su una versione già installata, dopo averla aggiunta ricrea il container API (l’API si interrompe per qualche secondo):
+   Sostituisci tutto il segnaposto con la chiave copiata, senza virgolette né spazi attorno a `=`. Lasciata vuota, la funzione resta spenta. L’installer controlla la chiave prima di fermare l’API in servizio: se è più corta di 10 caratteri, contiene spazi o è ancora un segnaposto, si ferma e la versione in produzione continua a funzionare. Se aggiungi la chiave prima di installare la versione che la supporta, entra in uso con l’installazione. Se quella versione è già installata, dopo averla aggiunta ricrea il container API (l’API si interrompe per qualche secondo):
 
    ```bash
    sudo bash /opt/tavoloflow/tf.sh up -d --no-deps --force-recreate --wait --wait-timeout 120 api
    ```
 
+   Questo comando non passa dai controlli dell’installer. Se `--wait` fallisce, l’API ha rifiutato la chiave all’avvio: nei log (`sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api`) compare `Set Geoapify:ApiKey to a complete key`. Correggi la chiave, o svuotala, e ripeti lo stesso comando.
+
 4. **Prova un ordine.** Sul dominio reale apri `/r/{slug}` di un ristorante con la consegna configurata, scegli **«Consegna»**, scrivi un indirizzo vero con il civico e tocca **«Calcola la consegna»**: deve comparire «Consegna a … · costo …». Se compare sempre il listino, controlla posizione e fasce del ristorante e i log con `sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api`: un errore di Geoapify vi lascia solo lo stato HTTP, mai indirizzo o chiave.
 
-Ogni preventivo usa due crediti della quota giornaliera gratuita (3000). L’API si ferma prima: al massimo 200 preventivi al giorno per ristorante e 1200 in tutto, oltre a un limite per IP; raggiunto un limite, o se Geoapify non risponde, la cassa torna al listino e gli ordini continuano. Gli indirizzi inviati a Geoapify servono solo a calcolare la distanza, e l’informativa privacy dei ristoranti lo dice già.
+Un preventivo che arriva al percorso usa due crediti della quota giornaliera gratuita (3000); uno solo, se l’indirizzo non si trova. L’API si ferma prima: al massimo 200 preventivi al giorno per ristorante e 1200 in tutto, oltre a un limite per IP; raggiunto un limite, o se Geoapify non risponde, la cassa torna al listino e gli ordini continuano. L’indirizzo parte verso Geoapify solo quando il cliente tocca «Calcola la consegna», attraverso l’indirizzo europeo `api-eu.geoapify.com`, e serve solo a calcolare la distanza: l’informativa privacy dei ristoranti lo dice già.
 
 #### Il file `.env`
 
@@ -481,7 +483,7 @@ Il resto lascialo com'è. Niente virgolette e niente spazi attorno a `=`.
 
 - **La password del database vale solo la prima volta.** PostgreSQL crea l'utente con `POSTGRES_PASSWORD` solo quando il volume dei dati è vuoto. Se poi la cambi in `.env`, il database non lo sa, e l'API non riesce più a collegarsi. È in esadecimale perché contiene solo `0-9` e `a-f`: nessun carattere da proteggere né in Compose né nella stringa di connessione.
 - **La chiave delle notifiche non va cambiata.** Con `VAPID_PRIVATE_KEY` l'API firma le notifiche a schermo bloccato dei nuovi ordini online, e ne ricava la chiave pubblica con cui ogni dispositivo le attiva. Se la cambi, le notifiche già attivate smettono di arrivare e ogni dispositivo le deve riattivare dalla Home. Anche questa è esadecimale, come la password, ma i due valori devono essere diversi. Come contatto, i servizi di notifica (Apple, Google, Mozilla, Microsoft) vedono `https://` + `DOMAIN`, che il Compose imposta da solo. La chiave è obbligatoria anche se per ora usi solo i QR dei tavoli. Deve essere una chiave privata P-256 valida: l'installer controlla formato e intervallo prima di fermare l'API in servizio.
-- **Prima di fermare l’API esistente, l’installer controlla la configurazione:** password del database di 64 caratteri esadecimali, chiave delle notifiche di 64 caratteri esadecimali e valida per P-256, email diversa dal modello e `https://` + `DOMAIN` uguale a `public-origin.txt` del pacchetto. Con Turnstile attivo controlla anche chiavi complete, segnaposto, chiavi di test vietate in produzione e formato dell’hostname. Sono controlli offline: non possono confermare che le chiavi Cloudflare siano autentiche e valide.
+- **Prima di fermare l’API esistente, l’installer controlla la configurazione:** password del database di 64 caratteri esadecimali, chiave delle notifiche di 64 caratteri esadecimali e valida per P-256, email diversa dal modello e `https://` + `DOMAIN` uguale a `public-origin.txt` del pacchetto. Con Turnstile attivo controlla anche chiavi complete, segnaposto, chiavi di test vietate in produzione e formato dell’hostname. Se `GEOAPIFY_API_KEY` non è vuota, controlla che sia una chiave completa: 10–256 caratteri, senza spazi né segnaposto. Sono controlli offline: non possono confermare che le chiavi di Cloudflare e Geoapify siano autentiche e valide.
 - `PROXY_SUBNET`, `PROXY_DYNAMIC_RANGE` e `CADDY_IP` definiscono la rete tra Caddy e API e l'IP fisso di Caddy. Cambiali, tutti e tre insieme e prima del primo avvio, solo se sulla VPS c'è già un'altra rete Docker che usa `172.30.80.0/24`.
 - L'installer controlla già la configurazione con `docker compose config --quiet`; dopo l'installazione puoi farlo tu con `sudo bash /opt/tavoloflow/tf.sh config --quiet`. Senza `--quiet` stampa tutto, password comprese.
 
@@ -620,6 +622,7 @@ Chiede nome utente e password (6–128 caratteri; mentre scrivi non si vede nien
 2. Controlla che non ci sia una pausa e che l'orario attuale sia dentro una fascia salvata: la pagina deve indicare che i clienti possono ordinare. Il telefono e gli orari sono necessari; l'interruttore «Ordini dal QR» non regola gli ordini online.
 3. Apri il link su un altro telefono, aggiungi dei piatti e vai alla conferma dell’ordine. Con Turnstile attivo controlla che compaia il widget: l’invio deve restare bloccato finché la verifica non è completata. Sfogliare il menu, aprire l’informativa privacy o controllare lo stato dell’ordine non deve caricare il widget.
 4. Invia un ordine da ritirare. Accettalo con un tempo previsto su `/staff/online`, poi controlla Cucina, Pass, chiusura del conto da parte del titolare e pagina del cliente `/o/{token}`. Container sani e controlli preliminari superati non sostituiscono questa prova sul dominio reale con chiavi vere.
+5. Se il ristorante consegna: in «Impostazioni ordini online», nella scheda «Consegna a domicilio», il titolare incolla la posizione del ristorante da Google Maps e la controlla con il link della mappa, imposta le fasce (ed eventualmente l’ordine minimo) e accende «Offri la consegna». Poi invia un ordine a domicilio: con la chiave Geoapify tocca «Calcola la consegna» e controlla il costo; senza, accettalo scegliendo la fascia.
 
 Un ristorante con soli ordini online salta tutti i passi dei tavoli e della Sala. L'amministratore non può chiudere conti al posto del titolare. Gli ordini di prova restano nello storico: usa un ristorante chiaramente di prova, senza cancellare righe a mano con SQL.
 
@@ -754,6 +757,15 @@ Se scegli esplicitamente di non usare la verifica esterna, nello stesso file imp
 **Dopo la prima attivazione di Turnstile, prova anche l’ordine del cliente.** Ricarica `/r/{slug}` sul dominio reale dell’applicazione: non continuare con una pagina rimasta aperta da prima dell’aggiornamento, perché non invierà la nuova prova di verifica. In un ristorante chiaramente indicato come test, aggiungi piatti, vai alla conferma, completa la verifica e invia un ordine. Accettalo come staff e controlla stato, cucina e conto. Il widget di solito completa i controlli automaticamente e potrebbe non richiedere un clic. Controlla anche la pagina di stato dell’ordine esistente, le notifiche e lo squillo dello staff, che devono funzionare come prima. Gestisci gli ordini di prova con il flusso normale, senza cancellarli con SQL.
 
 Una verifica incompleta, scaduta o che non si carica non deve creare un nuovo ordine. Il carrello deve restare conservato; se il caricamento fallisce devono esserci un pulsante per riprovare e il telefono del ristorante. Se la rete cade o il risultato è sconosciuto, usa prima il controllo dell’esito nella pagina per ritrovare l’ordine originale. «Riprova lo stesso ordine» fa prima una GET e usa una nuova verifica per ritentare la stessa richiesta solo se non l’ha ancora trovata. Non svuotare il carrello per fare un altro ordine al posto del controllo. Quando il verificatore non è disponibile, i nuovi invii sono bloccati ma gli ordini esistenti restano consultabili e recuperabili.
+
+#### Primo aggiornamento alla versione con il costo di consegna per distanza
+
+Riguarda chi aggiorna da una versione in cui chi accettava un ordine a domicilio scriveva il costo a mano. Non servono variabili nuove: la chiave Geoapify è facoltativa e si aggiunge come in [Preventivo automatico della consegna](#preventivo-automatico-della-consegna-facoltativo), anche prima di installare.
+
+- **Tre migrazioni.** Il riepilogo di `upgrade.sh` (o `git log` nella procedura manuale) mostra `DeliveryMinOrder`, `DeliveryTiers` e `DeliveryQuotes`. Aggiungono colonne facoltative, la tabella `delivery_tiers` e alcuni vincoli: come per ogni rilascio con migrazioni, scarica prima un backup.
+- **La consegna si spegne in ogni ristorante.** Ora la consegna richiede la posizione del ristorante e almeno una fascia, che nessun ristorante ha ancora: `DeliveryTiers` la spegne dove era attiva e conserva le note di consegna. Avvisa prima i titolari: finché non la riaccendono, gli ordini online sono solo da ritirare. Dopo l’aggiornamento ogni titolare la imposta e la riaccende come al passo 5 di [Il primo ristorante](#il-primo-ristorante).
+- **Installa a ristorante chiuso**, come sempre: una richiesta a domicilio ancora in attesa si accetta solo scegliendo una delle fasce attuali, e finché non ce ne sono la scheda dice di chiamare il cliente o di rifiutare.
+- **Tornare indietro.** Il rollback alla versione precedente funziona con `--schema-compatible`: il codice vecchio ignora le colonne e la tabella nuove. Con il codice vecchio, però, la consegna non si riaccende in un ristorante senza posizione: il vincolo `ck_restaurant_delivery_ready` fa fallire il salvataggio.
 
 #### Procedura manuale
 
@@ -891,6 +903,7 @@ sudo bash /opt/tavoloflow/rollback.sh --schema-compatible VERSIONE_PRECEDENTE
 | ha aggiunto una tabella o una colonna nullable     | di solito sì: non le conosce e non le usa |
 | ha cancellato o rinominato una colonna             | no: cerca una colonna che non c'è più     |
 | ha aggiunto una colonna obbligatoria senza default | no: i suoi INSERT non la riempiono        |
+| ha aggiunto un vincolo (CHECK)                     | sì, ma le scritture che lo violano falliscono |
 
 L'opzione `--schema-compatible` è obbligatoria proprio per farti fermare a pensarci: senza, lo script si rifiuta. Se lo schema non è compatibile, la strada migliore è correggere e rilasciare una versione nuova; l'alternativa è ripristinare il backup a ristorante chiuso, perdendo quello che è successo dopo.
 
@@ -1174,7 +1187,7 @@ Prima di aprire al pubblico, e dopo ogni cambio di server:
 - [ ] Con gli ordini online configurati e aperti, ogni dispositivo conferma le notifiche attive; la prova a schermo bloccato su Android e iPhone/iPad installato apre la pagina degli ordini online. Uscita e nuovo accesso seguono i controlli del passo 6.
 - [ ] Dopo ripristino o aggiornamento, VAPID è conservata e i dispositivi dello staff sono ricaricati; le notifiche sono state provate sul dominio originale.
 - [ ] L’interruttore Turnstile è configurato esplicitamente; se attivo, le chiavi vere appartengono allo stesso widget Managed, il dominio reale dell’applicazione è autorizzato e Pre-clearance è disattivato. Dopo aver ricaricato la pagina cliente, la verifica di un ordine reale passa; senza verifica l’invio è bloccato e gli ordini esistenti restano consultabili.
-- [ ] Se usi il preventivo automatico della consegna, la chiave Geoapify ha il filtro IP della VPS e un indirizzo reale nella zona riceve il costo alla cassa.
+- [ ] Se usi il preventivo automatico della consegna, la chiave Geoapify ha il filtro IP della VPS e un indirizzo reale nella zona riceve il costo alla cassa dopo «Calcola la consegna».
 - [ ] Il `production.env` del backup comprende la configurazione attuale della verifica; usando un vecchio backup per ripristinare una nuova versione, le variabili mancanti sono state controllate e aggiunte.
 - [ ] Dopo un riavvio della VPS l'app torna su da sola, con dati e login intatti.
 - [ ] Il backup notturno è attivo, un backup è stato scaricato e ripristinato con successo in un database temporaneo.

@@ -106,7 +106,8 @@ accepts picks a band (see the online orders page).
 ## Automatic delivery quotes
 
 Optional, deployment-wide: `Geoapify:ApiKey` (production `.env` `GEOAPIFY_API_KEY`, passed by Compose;
-empty turns quotes off, a placeholder or malformed key fails startup) enables them, and a restaurant
+empty turns quotes off; a placeholder or malformed key fails startup, and `install-release.sh` refuses
+it before stopping the old API with the same rule) enables them, and a restaurant
 uses them when it has coordinates and bands (`deliveryAutoQuote` in the bootstrap). Without them
 nothing changes: checkout shows the price list and whoever accepts picks a band.
 
