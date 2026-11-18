@@ -29,6 +29,7 @@ import {
   PICKUP_MINUTES,
   rejectReasons,
   requestTimes,
+  type DeliveryTier,
   type RejectReason,
 } from "./state";
 import { useOnlineOrders } from "./useOnlineOrders";
@@ -71,16 +72,20 @@ function PendingCard({
   const disabled = !model.fresh || !!model.busy || times.remainingSeconds === 0;
   const delivery = request.fulfillment === "DELIVERY";
   // Delivery is accepted with one of the restaurant's current fee bands, picked by the road distance
-  // on the route from the restaurant. A band edited away meanwhile is no longer picked.
+  // on the route from the restaurant. A band edited or removed meanwhile is no longer picked, so a
+  // new fee is never sent without being chosen again.
   const tiers = page.delivery?.tiers ?? [];
   const origin =
     page.delivery?.originLat != null && page.delivery.originLng != null
       ? { lat: page.delivery.originLat, lng: page.delivery.originLng }
       : null;
-  const [tierMeters, setTierMeters] = useState<number | null>(null);
+  const [picked, setPicked] = useState<DeliveryTier | null>(null);
   // A fee quoted to the customer is kept as it is; acceptance sends none.
   const quoted = request.deliveryFeeCents;
-  const fee = quoted ?? tiers.find((tier) => tier.maxMeters === tierMeters)?.feeCents ?? null;
+  const tier = tiers.find(
+    (t) => t.maxMeters === picked?.maxMeters && t.feeCents === picked.feeCents,
+  );
+  const fee = quoted ?? tier?.feeCents ?? null;
   // The coupon comes off the dishes only; the band's fee is added in full.
   const discount = request.coupon?.discountCents ?? 0;
   const due = request.itemsTotalCents - discount;
@@ -187,9 +192,11 @@ function PendingCard({
                 <p className="text-sm text-muted-foreground">{m.tierHint}</p>
                 <RadioGroup
                   aria-labelledby={tierLabelId}
-                  value={fee === null ? "" : String(tierMeters)}
+                  value={tier ? String(tier.maxMeters) : ""}
                   disabled={disabled}
-                  onValueChange={(value) => setTierMeters(Number(value))}
+                  onValueChange={(value) =>
+                    setPicked(tiers.find((t) => String(t.maxMeters) === value) ?? null)
+                  }
                   className="grid-cols-1 sm:grid-cols-2"
                 >
                   {tiers.map((tier) => (

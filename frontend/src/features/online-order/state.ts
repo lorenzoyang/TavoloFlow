@@ -101,11 +101,12 @@ type QuoteForm = Pick<CheckoutForm, "fulfillment" | "address" | "quote">;
 export const currentQuote = (form: Pick<CheckoutForm, "address" | "quote">) =>
   form.quote && form.quote.address === normalizeAddress(form.address) ? form.quote : null;
 
-// What checkout says about the delivery fee: "manual" when the restaurant has no automatic quotes (it
-// confirms the fee), "lookup" while this address has not been asked about, otherwise the answer.
+// What checkout says about the delivery fee: the answer for this address when there is one (the
+// amounts and the order use the same quote), otherwise "lookup" while it can be asked for, or
+// "manual" when the restaurant has no automatic quotes (it confirms the fee).
 export type FeeStatus = "manual" | "lookup" | DeliveryQuote["result"];
 export const feeStatus = (form: QuoteForm, autoQuote: boolean): FeeStatus =>
-  autoQuote ? (currentQuote(form)?.result ?? "lookup") : "manual";
+  currentQuote(form)?.result ?? (autoQuote ? "lookup" : "manual");
 
 // The signed fee a delivery order carries: the quote for the current address, or null.
 function intentQuote(form: QuoteForm): OnlineIntent["deliveryQuote"] {

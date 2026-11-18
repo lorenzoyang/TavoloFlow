@@ -490,7 +490,6 @@ export function OnlineCartPanel({
                     aria-invalid={shown("address")}
                     aria-describedby={shown("address") ? "online-address-problem" : undefined}
                     onChange={(event) => model.setForm({ ...form, address: event.target.value })}
-                    onBlur={() => void model.lookupFee()}
                   />
                   {shown("address") && (
                     <p id="online-address-problem" className="text-sm text-destructive">
@@ -540,7 +539,7 @@ export function OnlineCartPanel({
                       type="button"
                       variant="outline"
                       disabled={model.busy || !form.address.trim()}
-                      onClick={() => void model.lookupFee(true)}
+                      onClick={() => void model.lookupFee()}
                     >
                       {m.lookupFee}
                     </Button>
@@ -583,7 +582,25 @@ export function OnlineCartPanel({
                     <p className="text-muted-foreground">{m.feeConfirmed}</p>
                   )}
                   {data.restaurant.deliveryAutoQuote && (
-                    <p className="text-xs text-muted-foreground">{m.attribution}</p>
+                    <p className="text-xs text-muted-foreground">
+                      <a
+                        href="https://www.geoapify.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline"
+                      >
+                        {m.attribution.geoapify}
+                      </a>
+                      {" · "}
+                      <a
+                        href="https://www.openstreetmap.org/copyright"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline"
+                      >
+                        {m.attribution.osm}
+                      </a>
+                    </p>
                   )}
                 </div>
               </>
@@ -645,7 +662,11 @@ export function OnlineCartPanel({
               {delivery ? m.asapDelivery : m.asap}
             </p>
             <p className="text-xs leading-5 wrap-break-word text-muted-foreground">
-              {(delivery ? m.privacyLineDelivery : m.privacyLine)(data.restaurant.name)}{" "}
+              {(delivery
+                ? data.restaurant.deliveryAutoQuote
+                  ? m.privacyLineQuote
+                  : m.privacyLineDelivery
+                : m.privacyLine)(data.restaurant.name)}{" "}
               <Link to="/r/$slug/privacy" params={{ slug }} className="underline">
                 {m.privacy}
               </Link>

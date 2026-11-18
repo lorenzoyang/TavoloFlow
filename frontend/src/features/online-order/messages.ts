@@ -58,13 +58,13 @@ const zh = {
   free: "免费",
   beyondTiers: (distance: string) => `超过 ${distance} 不配送。`,
   lookupFee: "计算配送费",
-  quoteHint: "填好地址后会按路程自动计算配送费。",
+  quoteHint: "点「计算配送费」按路程算出配送费；地址会发给地图服务 Geoapify，只用来计算路程。",
   quotedTo: (town: string, fee: string) => `配送到 ${town} · 配送费 ${fee}`,
   quotedFee: (fee: string) => `配送费 ${fee}`,
   quoteTownHint: "城市不对时，请在地址里加上城市名或邮编再计算。",
   outOfRange: "这个地址超出配送范围，不能选择配送。可以致电餐厅，或改为到店自取。",
   quoteUnknown: "没能自动算出配送费，请检查地址拼写。仍然可以下单，配送费按价目表由餐厅确认。",
-  attribution: "Powered by Geoapify · © OpenStreetMap",
+  attribution: { geoapify: "Powered by Geoapify", osm: "© OpenStreetMap contributors" },
   itemsTotal: "菜品合计",
   minOrderLine: (amount: string) => `配送起送 ${amount}（按扣掉优惠后的菜品金额）`,
   minOrderShort: (minimum: string, missing: string) => `配送起送 ${minimum}，还差 ${missing}`,
@@ -81,6 +81,8 @@ const zh = {
     `你的姓名和电话只交给 ${restaurant} 处理这一单，30 天后删除。`,
   privacyLineDelivery: (restaurant: string) =>
     `你的姓名、电话和地址只交给 ${restaurant} 处理这一单，30 天后删除。`,
+  privacyLineQuote: (restaurant: string) =>
+    `你的姓名、电话和地址交给 ${restaurant} 处理这一单，30 天后删除；计算配送费时，地址还会发给地图服务 Geoapify。`,
   unknown: "订单结果待确认。在查到原来的结果之前，购物车已锁定，不会重复下单。",
   lookup: "查询订单结果",
   retryOriginal: "重试原来的订单",
@@ -191,8 +193,8 @@ const zh = {
       body: "若启用了安全验证，结账时浏览器会直接连接 Cloudflare Turnstile，用于防止自动刷单。Cloudflare 因此会处理你的 IP 地址以及浏览器和设备的技术信息（如 User-Agent），处理可能发生在欧盟或欧洲经济区以外，适用 Cloudflare 的 Turnstile 隐私说明。我们自己只发送验证凭证及餐厅与请求的绑定摘要，不发送姓名、电话、地址或菜品内容。",
     },
     {
-      heading: "配送费计算",
-      body: "餐厅启用自动配送费时，你结账时填写的配送地址会发给 Geoapify（欧盟的地图服务），只用来算出从餐厅出发的路程；不发送姓名、电话或菜品。Geoapify 的请求记录最多保留 24 小时。订单里保存的路程和配送费不是个人信息；地址仍按上面的规则删除。",
+      heading: "地图服务",
+      body: "餐厅启用自动配送费时，你点「计算配送费」后，填写的配送地址会发给 Geoapify（欧盟的地图服务，请求只在欧盟处理），只用来算出从餐厅出发的路程；不发送姓名、电话或菜品。Geoapify 的请求记录通常最多保留 24 小时；遇到可疑或欺诈活动等特殊情况，个别请求的细节最多保留 2 个月。订单里保存路程和配送费，不保存查到的位置；地址按上面的规则删除。送餐时，餐厅员工可能在 Google 地图中打开你的地址，查看位置和路线，这时 Google 会收到这个地址，处理可能发生在欧盟以外，适用 Google 的隐私政策。",
     },
   ],
 };
@@ -264,7 +266,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     beyondTiers: (distance) => `Oltre ${distance} non consegniamo.`,
     lookupFee: "Calcola la consegna",
     quoteHint:
-      "Inserito l’indirizzo, calcoliamo il costo di consegna in base alla distanza su strada.",
+      "Tocca «Calcola la consegna» per il costo in base alla distanza su strada: l’indirizzo va al servizio di mappe Geoapify solo per calcolarla.",
     quotedTo: (town, fee) => `Consegna a ${town} · costo ${fee}`,
     quotedFee: (fee) => `Costo di consegna ${fee}`,
     quoteTownHint: "Se il comune non è giusto, aggiungi comune o CAP all’indirizzo e ricalcola.",
@@ -272,7 +274,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       "Questo indirizzo è fuori dalla zona di consegna. Puoi chiamare il ristorante o scegliere il ritiro.",
     quoteUnknown:
       "Non riusciamo a calcolare il costo da soli: controlla l’indirizzo. Puoi ordinare lo stesso; il ristorante conferma il costo secondo le tariffe.",
-    attribution: "Powered by Geoapify · © OpenStreetMap",
+    attribution: { geoapify: "Powered by Geoapify", osm: "© OpenStreetMap contributors" },
     itemsTotal: "Totale piatti",
     minOrderLine: (amount) => `Minimo per la consegna: ${amount} di piatti, al netto dello sconto.`,
     minOrderShort: (minimum, missing) => `Minimo ${minimum} per la consegna: mancano ${missing}`,
@@ -292,6 +294,8 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       `Nome e telefono vanno solo a ${restaurant} per questo ordine e si cancellano dopo 30 giorni.`,
     privacyLineDelivery: (restaurant) =>
       `Nome, telefono e indirizzo vanno solo a ${restaurant} per questo ordine e si cancellano dopo 30 giorni.`,
+    privacyLineQuote: (restaurant) =>
+      `Nome, telefono e indirizzo vanno a ${restaurant} per questo ordine e si cancellano dopo 30 giorni; per calcolare la consegna, l’indirizzo va anche al servizio di mappe Geoapify.`,
     unknown:
       "L’esito dell’ordine va verificato. Il carrello resta bloccato finché non si conosce l’esito dell’invio originale, così non parte un doppione.",
     lookup: "Verifica l’esito",
@@ -412,8 +416,8 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
         body: "Se la verifica di sicurezza è attiva, alla cassa il browser si collega direttamente a Cloudflare Turnstile per bloccare gli invii automatici. Cloudflare tratta quindi il tuo indirizzo IP e informazioni tecniche sul browser e sul dispositivo (come lo user agent), eventualmente anche fuori dall’UE o dallo SEE, secondo l’informativa privacy di Cloudflare per Turnstile. Noi inviamo solo la prova e un’impronta del ristorante e della richiesta, senza nome, telefono, indirizzo o piatti.",
       },
       {
-        heading: "Calcolo del costo di consegna",
-        body: "Se il ristorante calcola il costo di consegna in automatico, l’indirizzo che inserisci alla cassa viene inviato a Geoapify (servizio di mappe nell’UE) solo per calcolare la distanza su strada dal ristorante; nome, telefono e piatti non vengono inviati. Geoapify conserva i registri delle richieste al massimo 24 ore. La distanza e il costo salvati con l’ordine non sono dati personali; l’indirizzo viene cancellato come indicato sopra.",
+        heading: "Servizi di mappe",
+        body: "Se il ristorante calcola il costo di consegna in automatico, quando tocchi «Calcola la consegna» l’indirizzo che hai inserito viene inviato a Geoapify (servizio di mappe dell’UE, che tratta la richiesta nell’UE) solo per calcolare la distanza su strada dal ristorante; nome, telefono e piatti non vengono inviati. Di norma Geoapify conserva i registri delle richieste al massimo 24 ore; in casi eccezionali, come attività sospette o fraudolente, può conservare i dettagli di singole richieste fino a 2 mesi. L’ordine conserva la distanza e il costo, non il punto trovato; l’indirizzo viene cancellato come indicato sopra. Per la consegna, il personale del ristorante può aprire il tuo indirizzo in Google Maps per vedere posizione e percorso: Google riceve così l’indirizzo, eventualmente anche fuori dall’UE, secondo l’informativa privacy di Google.",
       },
     ],
   },
@@ -478,7 +482,8 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     free: "free",
     beyondTiers: (distance) => `No delivery beyond ${distance}.`,
     lookupFee: "Calculate delivery fee",
-    quoteHint: "Once you enter the address, the delivery fee is calculated from the road distance.",
+    quoteHint:
+      "Tap «Calculate delivery fee» to get the fee from the road distance; the address goes to the Geoapify map service only to work it out.",
     quotedTo: (town, fee) => `Delivery to ${town} · fee ${fee}`,
     quotedFee: (fee) => `Delivery fee ${fee}`,
     quoteTownHint:
@@ -487,7 +492,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       "This address is outside the delivery area. You can call the restaurant or choose pickup.",
     quoteUnknown:
       "We couldn’t calculate the fee automatically; check the address spelling. You can still order: the restaurant confirms the fee from the price list.",
-    attribution: "Powered by Geoapify · © OpenStreetMap",
+    attribution: { geoapify: "Powered by Geoapify", osm: "© OpenStreetMap contributors" },
     itemsTotal: "Items total",
     minOrderLine: (amount) => `Minimum for delivery: ${amount} of dishes, after any coupon.`,
     minOrderShort: (minimum, missing) => `Delivery minimum ${minimum}: ${missing} to go`,
@@ -507,6 +512,8 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       `Your name and phone go only to ${restaurant} for this order and are deleted after 30 days.`,
     privacyLineDelivery: (restaurant) =>
       `Your name, phone and address go only to ${restaurant} for this order and are deleted after 30 days.`,
+    privacyLineQuote: (restaurant) =>
+      `Your name, phone and address go to ${restaurant} for this order and are deleted after 30 days; to calculate the delivery fee, the address also goes to the Geoapify map service.`,
     unknown:
       "The order result needs checking. The cart stays locked until the original result is known, so nothing is sent twice.",
     lookup: "Check the result",
@@ -625,8 +632,8 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
         body: "When security verification is enabled, your browser connects directly to Cloudflare Turnstile at checkout to block automated orders. Cloudflare therefore processes your IP address and technical browser and device information (such as the user agent), possibly outside the EU/EEA, under Cloudflare’s Turnstile privacy policy. We send only the proof and a restaurant/request binding digest, not names, phones, addresses or dishes.",
       },
       {
-        heading: "Delivery fee calculation",
-        body: "If the restaurant calculates delivery fees automatically, the delivery address you enter at checkout is sent to Geoapify (an EU mapping service) only to work out the road distance from the restaurant; names, phones and dishes are not sent. Geoapify keeps request logs for at most 24 hours. The distance and fee saved with the order are not personal data; the address is deleted as described above.",
+        heading: "Map services",
+        body: "If the restaurant calculates delivery fees automatically, when you tap «Calculate delivery fee» the delivery address you entered is sent to Geoapify (an EU mapping service that processes the request within the EU) only to work out the road distance from the restaurant; names, phones and dishes are not sent. Geoapify normally keeps request logs for at most 24 hours; in exceptional cases, such as suspicious or fraudulent activity, it may keep details of individual requests for up to 2 months. The order keeps the distance and the fee, not the point found; the address is deleted as described above. To deliver, restaurant staff may open your address in Google Maps to see the location and route: Google then receives the address, possibly outside the EU, under Google’s privacy policy.",
       },
     ],
   },

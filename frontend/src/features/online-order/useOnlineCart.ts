@@ -280,15 +280,17 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     }
   }
 
-  // Asks the server for the fee of the address as typed, when it leaves the field or on request. The
-  // answer belongs to that address only: changing the address makes it stale (currentQuote). A failed
-  // request counts as no automatic quote, so the price list shows and the customer can ask again.
-  async function lookupFee(force = false) {
+  // Asks the server for the fee of the address as typed, only when the customer taps to calculate it,
+  // so no address leaves for the map service unasked. The answer belongs to that address only:
+  // changing the address makes it stale (currentQuote). A failed request counts as no automatic
+  // quote, so the price list shows and the customer can ask again. The request sends the same text
+  // the order will, so the server's own normalization binds the quote; the browser's only tells
+  // when it is stale.
+  async function lookupFee() {
     if (current.current.pending || !isLive() || !live.current.restaurant.deliveryAutoQuote) return;
     if (form.fulfillment !== "DELIVERY") return;
     const address = normalizeAddress(form.address);
     if (!address || address.length > MAX_ADDRESS_LENGTH) return;
-    if (!force && form.quote?.address === address) return;
     const work = start();
     if (!work) return;
     const answer = (quote: Awaited<ReturnType<typeof readDeliveryQuote>>) =>
@@ -298,7 +300,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
           : value,
       );
     try {
-      const quote = await readDeliveryQuote(slug, address, work.signal);
+      const quote = await readDeliveryQuote(slug, form.address.trim(), work.signal);
       if (work.active()) answer(quote);
     } catch {
       if (work.active())

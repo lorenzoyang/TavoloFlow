@@ -565,7 +565,9 @@ test("a delivery quote counts only for the address it was asked about", () => {
   const form = { ...delivery, quote: quoted };
   assert.equal(currentQuote(form), quoted);
   assert.equal(feeStatus(form, true), "QUOTED");
-  assert.equal(feeStatus(form, false), "manual");
+  // A quote already given stays with the amounts and the order even if automatic quotes stop.
+  assert.equal(feeStatus(form, false), "QUOTED");
+  assert.equal(feeStatus({ ...delivery, quote: null }, false), "manual");
   // Spacing does not change the address; anything else needs a new lookup.
   assert.equal(feeStatus({ ...form, address: " Via Roma  1, Milano" }, true), "QUOTED");
   assert.equal(feeStatus({ ...form, address: "Via Roma 10, Milano" }, true), "lookup");
