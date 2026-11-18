@@ -86,8 +86,9 @@ the delivery rules).
 
 Fees go by road distance from the restaurant. The owner pastes the restaurant's coordinates as Google
 Maps copies them ("latitude, longitude": a right click on the restaurant on a computer, then a click
-on the numbers). The hint asks for a computer, because the phone apps show a dropped pin's
-coordinates only briefly and don't make them easy to copy; the platform administrator usually sets
+on the numbers). The hint recommends a computer and only mentions that a long press on a phone
+shows them but makes them awkward to copy, because the phone apps show a dropped pin's coordinates
+only briefly; the platform administrator usually sets
 this up when creating the restaurant. Coordinates in parentheses, as the iPhone app shows them, are
 accepted too; share links hold none. The placeholder reads
 "e.g. …" so an empty field never looks filled, and the page links to that point so the owner can check

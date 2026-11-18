@@ -86,7 +86,7 @@ const zh = {
     "开启后，顾客结账时可以选择配送：输入地址后，按从餐厅出发的路程自动算出配送费。地址算不出来时，顾客看到价目表，由接单的人选一档。",
   originLabel: "餐厅位置",
   originHint:
-    "请在电脑上操作：在 Google 地图上右键点餐厅，再点弹出菜单最上面的数字，就复制好了，粘贴到这里。手机上的 Google 地图不方便复制坐标。粘贴后，点「在 Google 地图中查看」核对位置。",
+    "建议在电脑上操作：在 Google 地图上右键点餐厅，再点弹出菜单最上面的数字，就复制好了，粘贴到这里。手机上长按地图也能看到坐标，但不方便复制。粘贴后，点「在 Google 地图中查看」核对位置。",
   originPlaceholder: "例如 43.88015, 11.09612",
   originCheck: "在 Google 地图中查看",
   originInvalid:
@@ -229,7 +229,7 @@ export const onlineMessages: Record<Language, typeof zh> = {
       "Se attiva, al momento dell’ordine i clienti possono scegliere la consegna: inserito l’indirizzo, il costo si calcola da solo in base alla distanza su strada dal ristorante. Se l’indirizzo non si trova, vedono il listino e chi accetta l’ordine sceglie la fascia.",
     originLabel: "Posizione del ristorante",
     originHint:
-      "Fallo dal computer: in Google Maps fai clic destro sul ristorante e clicca le coordinate in cima al menu per copiarle, poi incollale qui. Dal telefono Google Maps non le fa copiare facilmente. Dopo averle incollate, tocca «Controlla su Google Maps» per verificare.",
+      "Meglio farlo dal computer: in Google Maps fai clic destro sul ristorante e clicca le coordinate in cima al menu per copiarle, poi incollale qui. Dal telefono si vedono tenendo premuto sulla mappa, ma è scomodo copiarle. Dopo averle incollate, tocca «Controlla su Google Maps» per verificare.",
     originPlaceholder: "Es. 43.88015, 11.09612",
     originCheck: "Controlla su Google Maps",
     originInvalid:
@@ -372,7 +372,7 @@ export const onlineMessages: Record<Language, typeof zh> = {
       "When on, customers can choose delivery at checkout: once they enter their address, the fee is worked out from the road distance from the restaurant. If the address can’t be found, they see the price list and whoever accepts the order picks the band.",
     originLabel: "Restaurant location",
     originHint:
-      "Do this on a computer: right-click the restaurant in Google Maps, click the numbers at the top of the menu to copy them and paste them here. The phone app doesn’t make them easy to copy. After pasting, tap “Check on Google Maps” to make sure.",
+      "Best done on a computer: right-click the restaurant in Google Maps, click the numbers at the top of the menu to copy them and paste them here. On a phone, pressing and holding the map shows them, but they’re awkward to copy. After pasting, tap “Check on Google Maps” to make sure.",
     originPlaceholder: "E.g. 43.88015, 11.09612",
     originCheck: "Check on Google Maps",
     originInvalid:
