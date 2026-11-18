@@ -85,14 +85,13 @@ dishes: their total after the coupon, never the fee (`OnlineDelivery.MeetsMinimu
 the delivery rules).
 
 Fees go by road distance from the restaurant. The owner pastes the restaurant's coordinates as Google
-Maps copies them ("latitude, longitude": a right click on the restaurant on a computer, then a click
-on the numbers). The hint recommends a computer and only mentions that a long press on a phone
-shows them but makes them awkward to copy, because the phone apps show a dropped pin's coordinates
-only briefly; the platform administrator usually sets
-this up when creating the restaurant. Coordinates in parentheses, as the iPhone app shows them, are
-accepted too; share links hold none. The placeholder reads
-"e.g. …" so an empty field never looks filled, and the page links to that point so the owner can check
-the pin
+Maps copies them after a right click on a computer and a click on the numbers: decimal degrees with a
+point, latitude first, a comma, then the longitude (`43.88015, 11.09612`, Google's own example being
+`41.40338, 2.17403`; `41,40338, 2,17403` is refused). The hint recommends a computer and only
+mentions that a long press on a phone shows them but makes them awkward to copy, because the phone
+apps show a dropped pin's coordinates only briefly; the platform administrator usually sets this up
+when creating the restaurant. Share links hold no coordinates. The placeholder reads "e.g. …" so an
+empty field never looks filled, and the page links to that point so the owner can check the pin
 (`parseOrigin`, `originMapsUrl`). They are stored in `delivery_origin_lat`/`delivery_origin_lng`
 (`numeric(8,6)`/`numeric(9,6)`, rounded to six decimals, both or neither, in range:
 `ck_restaurant_delivery_origin`) and never leave staff pages. The fee bands live in `delivery_tiers`
