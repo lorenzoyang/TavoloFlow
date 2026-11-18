@@ -30,6 +30,8 @@ export type OnlineMenu = {
     deliveryMinOrderCents: number | null;
     // The fee bands by road distance, nearest first; the last is the farthest the restaurant delivers.
     deliveryTiers: DeliveryTier[];
+    // Whether checkout can price the address automatically (readDeliveryQuote).
+    deliveryAutoQuote: boolean;
   };
   turnstile: { siteKey: string } | null;
   status: OnlineStatus;
@@ -81,7 +83,8 @@ export type OnlineOrder = {
     status: OrderItemStatus | null;
   })[];
   coupon: CouponDiscount | null;
-  // Set once a delivery is accepted; the total then includes it while any dish counts.
+  // A quoted fee before acceptance, the bill's fee after it; the total includes it while any dish
+  // counts. Null while the restaurant has yet to confirm the fee.
   deliveryFeeCents: number | null;
   // Already less the coupon.
   totalAmountCents: number;
@@ -124,6 +127,21 @@ export const onlineMenuQuery = (slug: string) =>
       }
     },
   });
+
+// The fee for an address: QUOTED with the town, road distance, fee and the signed quote the order sends;
+// OUT_OF_RANGE beyond the farthest band; UNKNOWN when it can't be priced automatically, so the price
+// list applies and the restaurant confirms the fee.
+export type DeliveryQuote = {
+  result: "QUOTED" | "OUT_OF_RANGE" | "UNKNOWN";
+  town: string | null;
+  distanceMeters: number | null;
+  feeCents: number | null;
+  quote: string | null;
+};
+
+// A POST so the address stays out of URLs; it changes nothing and has its own per-connection limit.
+export const readDeliveryQuote = (slug: string, address: string, signal: AbortSignal) =>
+  publicWrite<DeliveryQuote>(`${linkPath(slug)}/delivery-quote`, { address }, signal);
 
 // 404 COUPON_INVALID for a code that doesn't exist or no longer works; limited per connection.
 export const readCoupon = (slug: string, code: string, signal: AbortSignal) =>

@@ -78,7 +78,9 @@ function PendingCard({
       ? { lat: page.delivery.originLat, lng: page.delivery.originLng }
       : null;
   const [tierMeters, setTierMeters] = useState<number | null>(null);
-  const fee = tiers.find((tier) => tier.maxMeters === tierMeters)?.feeCents ?? null;
+  // A fee quoted to the customer is kept as it is; acceptance sends none.
+  const quoted = request.deliveryFeeCents;
+  const fee = quoted ?? tiers.find((tier) => tier.maxMeters === tierMeters)?.feeCents ?? null;
   // The coupon comes off the dishes only; the band's fee is added in full.
   const discount = request.coupon?.discountCents ?? 0;
   const due = request.itemsTotalCents - discount;
@@ -166,10 +168,19 @@ function PendingCard({
       <div className="space-y-2">
         {delivery && (
           <div className="space-y-2">
-            <p id={tierLabelId} className="text-sm font-medium">
-              {m.tierChoice}
-            </p>
-            {tiers.length === 0 ? (
+            {quoted !== null ? (
+              <p className="text-sm font-medium">
+                {m.quotedFee(
+                  amount(quoted, language),
+                  formatKm(request.deliveryDistanceMeters ?? 0, language),
+                )}
+              </p>
+            ) : (
+              <p id={tierLabelId} className="text-sm font-medium">
+                {m.tierChoice}
+              </p>
+            )}
+            {quoted !== null ? null : tiers.length === 0 ? (
               <Notice tone="warning">{m.noTiers}</Notice>
             ) : (
               <>
@@ -228,7 +239,9 @@ function PendingCard({
                   ? m.acceptDeliveryLabel(request.number, minutes)
                   : m.acceptLabel(request.number, minutes)
               }
-              onClick={() => void model.accept(request, minutes, delivery ? fee : null)}
+              onClick={() =>
+                void model.accept(request, minutes, delivery && quoted === null ? fee : null)
+              }
             >
               {m.minutes(minutes)}
             </Button>

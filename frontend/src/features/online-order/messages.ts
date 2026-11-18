@@ -57,6 +57,14 @@ const zh = {
   tierLine: (distance: string) => `${distance} 内`,
   free: "免费",
   beyondTiers: (distance: string) => `超过 ${distance} 不配送。`,
+  lookupFee: "计算配送费",
+  quoteHint: "填好地址后会按路程自动计算配送费。",
+  quotedTo: (town: string, fee: string) => `配送到 ${town} · 配送费 ${fee}`,
+  quotedFee: (fee: string) => `配送费 ${fee}`,
+  quoteTownHint: "城市不对时，请在地址里加上城市名或邮编再计算。",
+  outOfRange: "这个地址超出配送范围，不能选择配送。可以致电餐厅，或改为到店自取。",
+  quoteUnknown: "没能自动算出配送费，请检查地址拼写。仍然可以下单，配送费按价目表由餐厅确认。",
+  attribution: "Powered by Geoapify · © OpenStreetMap",
   itemsTotal: "菜品合计",
   minOrderLine: (amount: string) => `配送起送 ${amount}（按扣掉优惠后的菜品金额）`,
   minOrderShort: (minimum: string, missing: string) => `配送起送 ${minimum}，还差 ${missing}`,
@@ -83,6 +91,7 @@ const zh = {
   invalid: "请检查姓名、电话、地址和菜品数量。",
   deliveryOff: "餐厅现在不提供配送，可以改为到店自取。",
   minOrder: "菜品金额没到配送起送金额，订单没有提交。可以加菜，或改为到店自取。",
+  quoteChanged: "配送费已失效或有变化，订单没有提交。请重新计算配送费再提交。",
   csrf: "页面验证已过期，请再提交一次。",
   rateLimited: "提交次数太多，请稍后再试。",
   verificationRequired: "请完成安全验证后再提交；查询原订单不需要验证。",
@@ -181,6 +190,10 @@ const zh = {
       heading: "安全验证",
       body: "若启用了安全验证，结账时浏览器会直接连接 Cloudflare Turnstile，用于防止自动刷单。Cloudflare 因此会处理你的 IP 地址以及浏览器和设备的技术信息（如 User-Agent），处理可能发生在欧盟或欧洲经济区以外，适用 Cloudflare 的 Turnstile 隐私说明。我们自己只发送验证凭证及餐厅与请求的绑定摘要，不发送姓名、电话、地址或菜品内容。",
     },
+    {
+      heading: "配送费计算",
+      body: "餐厅启用自动配送费时，你结账时填写的配送地址会发给 Geoapify（欧盟的地图服务），只用来算出从餐厅出发的路程；不发送姓名、电话或菜品。Geoapify 的请求记录最多保留 24 小时。订单里保存的路程和配送费不是个人信息；地址仍按上面的规则删除。",
+    },
   ],
 };
 
@@ -249,6 +262,17 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     tierLine: (distance) => `Entro ${distance}`,
     free: "gratis",
     beyondTiers: (distance) => `Oltre ${distance} non consegniamo.`,
+    lookupFee: "Calcola la consegna",
+    quoteHint:
+      "Inserito l’indirizzo, calcoliamo il costo di consegna in base alla distanza su strada.",
+    quotedTo: (town, fee) => `Consegna a ${town} · costo ${fee}`,
+    quotedFee: (fee) => `Costo di consegna ${fee}`,
+    quoteTownHint: "Se il comune non è giusto, aggiungi comune o CAP all’indirizzo e ricalcola.",
+    outOfRange:
+      "Questo indirizzo è fuori dalla zona di consegna. Puoi chiamare il ristorante o scegliere il ritiro.",
+    quoteUnknown:
+      "Non riusciamo a calcolare il costo da soli: controlla l’indirizzo. Puoi ordinare lo stesso; il ristorante conferma il costo secondo le tariffe.",
+    attribution: "Powered by Geoapify · © OpenStreetMap",
     itemsTotal: "Totale piatti",
     minOrderLine: (amount) => `Minimo per la consegna: ${amount} di piatti, al netto dello sconto.`,
     minOrderShort: (minimum, missing) => `Minimo ${minimum} per la consegna: mancano ${missing}`,
@@ -279,6 +303,8 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     deliveryOff: "Ora il ristorante non fa consegne: puoi scegliere il ritiro.",
     minOrder:
       "I piatti non arrivano al minimo per la consegna: l’ordine non è stato inviato. Aggiungi qualcosa o scegli il ritiro.",
+    quoteChanged:
+      "Il costo di consegna è scaduto o cambiato: l’ordine non è stato inviato. Ricalcolalo e invia di nuovo.",
     csrf: "La verifica della pagina è scaduta: invia di nuovo.",
     rateLimited: "Troppi invii: riprova tra poco.",
     verificationRequired:
@@ -385,6 +411,10 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
         heading: "Verifica di sicurezza",
         body: "Se la verifica di sicurezza è attiva, alla cassa il browser si collega direttamente a Cloudflare Turnstile per bloccare gli invii automatici. Cloudflare tratta quindi il tuo indirizzo IP e informazioni tecniche sul browser e sul dispositivo (come lo user agent), eventualmente anche fuori dall’UE o dallo SEE, secondo l’informativa privacy di Cloudflare per Turnstile. Noi inviamo solo la prova e un’impronta del ristorante e della richiesta, senza nome, telefono, indirizzo o piatti.",
       },
+      {
+        heading: "Calcolo del costo di consegna",
+        body: "Se il ristorante calcola il costo di consegna in automatico, l’indirizzo che inserisci alla cassa viene inviato a Geoapify (servizio di mappe nell’UE) solo per calcolare la distanza su strada dal ristorante; nome, telefono e piatti non vengono inviati. Geoapify conserva i registri delle richieste al massimo 24 ore. La distanza e il costo salvati con l’ordine non sono dati personali; l’indirizzo viene cancellato come indicato sopra.",
+      },
     ],
   },
   en: {
@@ -447,6 +477,17 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     tierLine: (distance) => `Within ${distance}`,
     free: "free",
     beyondTiers: (distance) => `No delivery beyond ${distance}.`,
+    lookupFee: "Calculate delivery fee",
+    quoteHint: "Once you enter the address, the delivery fee is calculated from the road distance.",
+    quotedTo: (town, fee) => `Delivery to ${town} · fee ${fee}`,
+    quotedFee: (fee) => `Delivery fee ${fee}`,
+    quoteTownHint:
+      "If the town is wrong, add the town or postcode to the address and calculate again.",
+    outOfRange:
+      "This address is outside the delivery area. You can call the restaurant or choose pickup.",
+    quoteUnknown:
+      "We couldn’t calculate the fee automatically; check the address spelling. You can still order: the restaurant confirms the fee from the price list.",
+    attribution: "Powered by Geoapify · © OpenStreetMap",
     itemsTotal: "Items total",
     minOrderLine: (amount) => `Minimum for delivery: ${amount} of dishes, after any coupon.`,
     minOrderShort: (minimum, missing) => `Delivery minimum ${minimum}: ${missing} to go`,
@@ -477,6 +518,8 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     deliveryOff: "The restaurant isn’t delivering right now; you can choose pickup.",
     minOrder:
       "The dishes don’t reach the minimum for delivery, so the order wasn’t sent. Add something or choose pickup.",
+    quoteChanged:
+      "The delivery fee expired or changed, so the order wasn’t sent. Calculate it again and resend.",
     csrf: "The page check expired. Please send again.",
     rateLimited: "Too many attempts. Try again shortly.",
     verificationRequired:
@@ -581,6 +624,10 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
         heading: "Security verification",
         body: "When security verification is enabled, your browser connects directly to Cloudflare Turnstile at checkout to block automated orders. Cloudflare therefore processes your IP address and technical browser and device information (such as the user agent), possibly outside the EU/EEA, under Cloudflare’s Turnstile privacy policy. We send only the proof and a restaurant/request binding digest, not names, phones, addresses or dishes.",
       },
+      {
+        heading: "Delivery fee calculation",
+        body: "If the restaurant calculates delivery fees automatically, the delivery address you enter at checkout is sent to Geoapify (an EU mapping service) only to work out the road distance from the restaurant; names, phones and dishes are not sent. Geoapify keeps request logs for at most 24 hours. The distance and fee saved with the order are not personal data; the address is deleted as described above.",
+      },
     ],
   },
 };
@@ -595,6 +642,7 @@ export type OnlineOrderMessage =
   | "notOffered"
   | "deliveryOff"
   | "minOrder"
+  | "quoteChanged"
   | "suspended"
   | "linkGone"
   | "invalid"
@@ -628,6 +676,7 @@ export const onlineOrderError = (code: string): OnlineOrderMessage =>
       ONLINE_NOT_OFFERED: "notOffered",
       DELIVERY_NOT_OFFERED: "deliveryOff",
       DELIVERY_MIN_ORDER: "minOrder",
+      DELIVERY_QUOTE_INVALID: "quoteChanged",
       SERVICE_SUSPENDED: "suspended",
       ONLINE_LINK_NOT_FOUND: "linkGone",
       VALIDATION_FAILED: "invalid",

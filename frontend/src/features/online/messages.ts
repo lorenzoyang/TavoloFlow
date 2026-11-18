@@ -440,6 +440,7 @@ const ordersZh = {
   tierHint: "点开地址查看从餐厅出发的路线和路程，按路程选一档。",
   noTiers: "餐厅没有配送档位，选不了配送费：请打电话和顾客商量，或拒单。",
   route: "查看从餐厅出发的路线",
+  quotedFee: (fee: string, distance: string) => `配送费 ${fee} · 约 ${distance} · 已向顾客报价`,
   deliveryTotal: (subtotal: string, fee: string, total: string) =>
     `小计 ${subtotal} + 配送费 ${fee} = 合计 ${total}`,
   doorbell: (notes: string) => `门铃、楼层：${notes}`,
@@ -511,6 +512,7 @@ export const onlineOrdersMessages: Record<Language, typeof ordersZh> = {
     noTiers:
       "Il ristorante non ha fasce di consegna, quindi non c’è un costo da scegliere: chiama il cliente o rifiuta l’ordine.",
     route: "Vedi il percorso dal ristorante",
+    quotedFee: (fee, distance) => `Consegna ${fee} · circa ${distance} · già indicata al cliente`,
     deliveryTotal: (subtotal, fee, total) =>
       `Subtotale ${subtotal} + consegna ${fee} = totale ${total}`,
     doorbell: (notes) => `Citofono, piano: ${notes}`,
@@ -579,6 +581,8 @@ export const onlineOrdersMessages: Record<Language, typeof ordersZh> = {
     noTiers:
       "The restaurant has no delivery bands, so there is no fee to pick: call the customer or reject the order.",
     route: "See the route from the restaurant",
+    quotedFee: (fee, distance) =>
+      `Delivery fee ${fee} · about ${distance} · quoted to the customer`,
     deliveryTotal: (subtotal, fee, total) =>
       `Subtotal ${subtotal} + delivery ${fee} = total ${total}`,
     doorbell: (notes) => `Doorbell, floor: ${notes}`,

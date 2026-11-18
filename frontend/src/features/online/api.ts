@@ -80,6 +80,10 @@ export type OnlinePendingRequest = {
   // Before the coupon; its discount comes off this, and acceptance adds any delivery fee.
   itemsTotalCents: number;
   coupon: CouponDiscount | null;
+  // Both set when the customer accepted an automatic quote, which acceptance keeps; both null when
+  // whoever accepts picks the band.
+  deliveryFeeCents: number | null;
+  deliveryDistanceMeters: number | null;
 };
 // Set while a delivery request waits: whoever accepts picks one of the restaurant's current fee bands,
 // judging the distance on the route drawn from its coordinates.
