@@ -90,13 +90,19 @@ public sealed class OnlineDeliveryQuoteTests(PostgreSqlFixture database)
             );
         Assert.Equal(calls + 3, host.GeoapifyService.Calls.Count);
 
-        // Malformed answers are not priced: a match without coordinates, a negative distance and a
-        // route without its distance.
-        foreach (var address in new[] { "Via Senza Punto 4", "Via Rovescia 5" })
+        // Malformed answers are not priced: a match without coordinates (no route is asked for), a
+        // negative distance and a route without its distance (both after the route call).
+        foreach (
+            var (address, callsMade) in new[] { ("Via Senza Punto 4", 1), ("Via Rovescia 5", 2) }
+        )
+        {
+            calls = host.GeoapifyService.Calls.Count;
             Assert.Equal(
                 DeliveryQuoteResponse.Unknown,
                 (await QuoteAsync(client, shop, address)).Result
             );
+            Assert.Equal(calls + callsMade, host.GeoapifyService.Calls.Count);
+        }
         host.GeoapifyService.RouteWithoutDistance = true;
         Assert.Equal(
             DeliveryQuoteResponse.Unknown,
