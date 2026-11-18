@@ -78,6 +78,8 @@ POSTGRES_PASSWORD=$(openssl rand -hex 32)
 VAPID_PRIVATE_KEY=$(openssl rand -hex 32)
 # Infrastructure smoke tests do not depend on an external verification service.
 TURNSTILE_ENABLED=false
+# A well-formed key the installer and the API both accept; no quote is asked for, so it is never sent.
+GEOAPIFY_API_KEY=smoke-geoapify-key-0123456789
 PROXY_SUBNET=172.30.81.0/24
 PROXY_DYNAMIC_RANGE=172.30.81.128/25
 CADDY_IP=172.30.81.2
@@ -218,6 +220,25 @@ for name, overrides in turnstile_cases.items():
     assert (root/'state/current').read_bytes() == current
     assert api_state() == before, f'Running API changed for Turnstile {name}'
     print(f'Invalid Turnstile configuration rejected without stopping the installed API: {name}')
+
+geoapify_cases = {
+    'placeholder': 'YOUR_GEOAPIFY_KEY',
+    'too short': 'abc123',
+    'inner space': 'smoke-geoapify key-0123456789',
+}
+for name, key in geoapify_cases.items():
+    lines=[line for line in original.decode().splitlines() if not line.startswith('GEOAPIFY_API_KEY=')]
+    lines.append('GEOAPIFY_API_KEY='+key)
+    try:
+        env.write_text('\n'.join(lines)+'\n')
+        result=subprocess.run(['bash',str(package/'ops/install-release.sh'),str(package),str(root)],capture_output=True,text=True)
+    finally:
+        env.write_bytes(original)
+    assert result.returncode != 0, f'Installer accepted Geoapify {name}'
+    assert 'GEOAPIFY_API_KEY' in result.stderr, f'Geoapify {name} did not fail during preflight'
+    assert (root/'state/current').read_bytes() == current
+    assert api_state() == before, f'Running API changed for Geoapify {name}'
+    print(f'Invalid Geoapify key rejected without stopping the installed API: {name}')
 PY
 python3 "$repo/deploy/smoke-http.py" verify "$work" 18443
 # Reproduce the previous deployment bug, including the parent directory and .env.
@@ -270,4 +291,4 @@ python3 "$repo/deploy/smoke-http.py" verify "$work" 18443
 bash "$TAVOLOFLOW_ROOT/rollback.sh" --schema-compatible "$first"
 assert_permissions
 python3 "$repo/deploy/smoke-http.py" verify "$work" 18443
-printf '\nDeployment smoke test passed: root ownership and write protection, VAPID preflight before downtime, migrations, HTTPS, cookies/CSRF, two releases, restart, backup restore and rollback with the same VAPID key.\n'
+printf '\nDeployment smoke test passed: root ownership and write protection, VAPID, Turnstile and Geoapify preflight before downtime, migrations, HTTPS, cookies/CSRF, two releases, restart, backup restore and rollback with the same VAPID key.\n'

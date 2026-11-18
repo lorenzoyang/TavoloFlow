@@ -33,6 +33,8 @@ public sealed class GeoapifyOptions
     public bool Enabled => !string.IsNullOrWhiteSpace(ApiKey);
 }
 
+// deploy/install-release.sh repeats this rule before stopping the old API, so a release never stops
+// production over a malformed key: change both together.
 internal sealed class GeoapifyOptionsValidator : IValidateOptions<GeoapifyOptions>
 {
     public ValidateOptionsResult Validate(string? name, GeoapifyOptions options)

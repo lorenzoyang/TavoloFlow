@@ -40,6 +40,12 @@ if not re.fullmatch(r'[0-9a-fA-F]{64}',values.get('VAPID_PRIVATE_KEY','')):
 curve_order=int('FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551',16)
 if not 0 < int(values['VAPID_PRIVATE_KEY'],16) < curve_order:
     sys.exit('VAPID_PRIVATE_KEY is not a valid P-256 private key; generate another with openssl rand -hex 32.')
+# Optional: empty keeps automatic delivery quotes off. The API refuses anything else that is not a
+# complete key at startup (GeoapifyOptionsValidator), which would happen after the old API stopped.
+geoapify=values.get('GEOAPIFY_API_KEY','')
+if geoapify and not (10 <= len(geoapify) <= 256 and not re.search(r'\s',geoapify)
+                     and 'replace' not in geoapify.lower() and 'your_' not in geoapify.lower()):
+    sys.exit('Set GEOAPIFY_API_KEY to a complete Geoapify key, or leave it empty to keep automatic delivery quotes off.')
 PY
 python3 "$package/ops/validate-turnstile.py" "$TF_ROOT/.env"
 chmod 600 "$TF_ROOT/.env"
