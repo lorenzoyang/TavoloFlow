@@ -1,6 +1,12 @@
 // Pure online ordering rules for customers, node-tested: the tab's cart and its pending submission,
 // the checkout form, the remembered status link and what the status page says.
-import type { CouponPreview, OnlineMenu, OnlineOrder, OnlineSubmission } from "./api.ts";
+import type {
+  CouponPreview,
+  DeliveryQuote,
+  OnlineMenu,
+  OnlineOrder,
+  OnlineSubmission,
+} from "./api.ts";
 import type { Language } from "../../lib/language.ts";
 import { isUuid } from "../../lib/ids.ts";
 import { normalizeCouponCode, normalizePhone, validCouponPercent } from "../online/state.ts";
@@ -19,7 +25,8 @@ export type Fulfillment = "PICKUP" | "DELIVERY";
 
 // What the tab sends; saved and read back before the POST, so a lost result is recovered by GET.
 // The address and notes are delivery only and null for pickup. The coupon carries the percentage the
-// customer saw, which the server checks like a line's expected price; null without one.
+// customer saw, which the server checks like a line's expected price; null without one. The delivery
+// quote is the signed fee the customer saw for this address, null when the restaurant confirms it.
 export type OnlineIntent = {
   clientRequestId: string;
   fulfillment: Fulfillment;
@@ -29,12 +36,14 @@ export type OnlineIntent = {
   deliveryNotes: string | null;
   items: OrderLineInput[];
   coupon: CouponPreview | null;
+  deliveryQuote: { quote: string; feeCents: number } | null;
 };
 
-// The online cart of one restaurant in this tab. A pending submission freezes the lines. Version 2:
-// lines carry the dish's sale price and the pending intent its coupon; other versions are damaged.
+// The online cart of one restaurant in this tab. A pending submission freezes the lines. Version 3:
+// lines carry the dish's sale price and the pending intent its coupon and delivery quote; other
+// versions are damaged.
 export type OnlineCart = {
-  version: 2;
+  version: 3;
   restaurantId: string;
   lines: CartLine[];
   pending: OnlineIntent | null;
@@ -44,7 +53,7 @@ export type OnlineCart = {
 export const onlineCartKey = (restaurantId: string) => cartKey(restaurantId, "online");
 
 export const emptyOnlineCart = (restaurantId: string): OnlineCart => ({
-  version: 2,
+  version: 3,
   restaurantId,
   lines: [],
   pending: null,
@@ -55,6 +64,8 @@ export const MAX_ADDRESS_LENGTH = 200;
 export const MAX_DELIVERY_NOTES_LENGTH = 100;
 
 // coupon is the code the restaurant confirmed at checkout (readCoupon), not what is being typed.
+// quote is the server's answer for the address it was asked about, which counts only while the
+// address is still the same (currentQuote).
 export type CheckoutForm = {
   fulfillment: Fulfillment;
   name: string;
@@ -62,7 +73,9 @@ export type CheckoutForm = {
   address: string;
   notes: string;
   coupon: CouponPreview | null;
+  quote: AddressQuote | null;
 };
+export type AddressQuote = DeliveryQuote & { address: string };
 export type CheckoutProblem = "name" | "phone" | "address" | "notes";
 
 export const emptyCheckoutForm: CheckoutForm = {
@@ -72,24 +85,80 @@ export const emptyCheckoutForm: CheckoutForm = {
   address: "",
   notes: "",
   coupon: null,
+  quote: null,
 };
 
 // The server's rounding (OnlineCoupons.DiscountCents): the percentage of the dishes, down to the cent.
 export const couponDiscountCents = (itemsCents: number, percentOff: number) =>
   Number((BigInt(itemsCents) * BigInt(percentOff)) / 100n);
 
-// The checkout panel and mobile bar share these amounts. A pending intent keeps its own coupon,
-// including null; a form's coupon counts only while reviewing the order.
+type QuoteForm = Pick<CheckoutForm, "fulfillment" | "address" | "quote">;
+
+// The fee lookup for the address now in the form; null when there is none or the address changed.
+// The quote was asked for with the trimmed text the order sends, which the server binds it to, so
+// any other change, spacing included, needs a new lookup.
+export const currentQuote = (form: Pick<CheckoutForm, "address" | "quote">) =>
+  form.quote && form.quote.address === form.address.trim() ? form.quote : null;
+
+// What checkout says about the delivery fee for this address: the answer while automatic quotes
+// apply, or "lookup" until it is asked for; without them "manual" (the restaurant confirms the fee).
+// A fee already quoted stays either way, since the amounts and the order carry it.
+export type FeeStatus = "manual" | "lookup" | DeliveryQuote["result"];
+export function feeStatus(form: QuoteForm, autoQuote: boolean): FeeStatus {
+  const result = currentQuote(form)?.result;
+  if (result === "QUOTED") return result;
+  return autoQuote ? (result ?? "lookup") : "manual";
+}
+
+// The signed fee a delivery order carries: the quote for the current address, or null.
+function intentQuote(form: QuoteForm): OnlineIntent["deliveryQuote"] {
+  const quote = form.fulfillment === "DELIVERY" ? currentQuote(form) : null;
+  return quote?.result === "QUOTED" && quote.quote && quote.feeCents !== null
+    ? { quote: quote.quote, feeCents: quote.feeCents }
+    : null;
+}
+
+// The checkout panel and mobile bar share these amounts. A pending intent keeps its own coupon and
+// delivery fee, including none; a form's coupon and quoted fee count only while reviewing the order.
+// totalCents is the dishes after the coupon, which the delivery minimum compares; payableCents adds
+// the quoted fee.
 export function onlineCartAmounts(
   cart: OnlineCart,
   review: OnlineCart | null,
-  form: Pick<CheckoutForm, "coupon">,
+  form: Pick<CheckoutForm, "coupon"> & QuoteForm,
 ) {
   const itemsCents = totalCents(review?.lines ?? cart.lines);
   const coupon = cart.pending ? cart.pending.coupon : review ? form.coupon : null;
   const discountCents = coupon ? couponDiscountCents(itemsCents, coupon.percentOff) : 0;
-  return { itemsCents, coupon, discountCents, totalCents: itemsCents - discountCents };
+  const deliveryFeeCents = cart.pending
+    ? (cart.pending.deliveryQuote?.feeCents ?? null)
+    : review
+      ? (intentQuote(form)?.feeCents ?? null)
+      : null;
+  const total = itemsCents - discountCents;
+  return {
+    itemsCents,
+    coupon,
+    discountCents,
+    totalCents: total,
+    deliveryFeeCents,
+    payableCents: total + (deliveryFeeCents ?? 0),
+  };
 }
+
+// How much a delivery order still lacks to reach the minimum: 0 when it does or there is none. Pass
+// onlineCartAmounts' total: during checkout it is the dishes after the coupon, which the server compares
+// (OnlineDelivery.MeetsMinimum); the fee never counts.
+export const deliveryShortfallCents = (totalCents: number, minOrderCents: number | null) =>
+  minOrderCents === null ? 0 : Math.max(0, minOrderCents - totalCents);
+
+const validQuote = (quote: OnlineIntent["deliveryQuote"]) =>
+  quote === null ||
+  (typeof quote.quote === "string" &&
+    quote.quote.length > 0 &&
+    quote.quote.length <= 4096 &&
+    Number.isSafeInteger(quote.feeCents) &&
+    quote.feeCents >= 0);
 
 const validCoupon = (coupon: CouponPreview | null) =>
   coupon === null ||
@@ -147,6 +216,8 @@ export function createOnlineIntent(
   if (form.fulfillment !== "PICKUP" && form.fulfillment !== "DELIVERY")
     throw new CartError("limits");
   if (checkoutProblems(form).length || !validCoupon(form.coupon)) throw new CartError("limits");
+  const deliveryQuote = intentQuote(form);
+  if (!validQuote(deliveryQuote)) throw new CartError("limits");
   const delivery = form.fulfillment === "DELIVERY";
   return {
     clientRequestId: requestId,
@@ -157,6 +228,7 @@ export function createOnlineIntent(
     deliveryNotes: delivery ? form.notes.trim() || null : null,
     items: intentItems(cart.lines),
     coupon: form.coupon && { code: form.coupon.code, percentOff: form.coupon.percentOff },
+    deliveryQuote,
   };
 }
 
@@ -166,9 +238,9 @@ export function restoreOnlineCart(raw: string | null, restaurantId: string): Onl
   if (raw === null) return emptyOnlineCart(restaurantId);
   try {
     const value = JSON.parse(raw) as OnlineCart;
-    if (value.version !== 2 || value.restaurantId !== restaurantId) throw new Error();
+    if (value.version !== 3 || value.restaurantId !== restaurantId) throw new Error();
     const cart: OnlineCart = validateCart({
-      version: 2,
+      version: 3,
       restaurantId,
       lines: restoreLines(value.lines),
       pending: null,
@@ -185,6 +257,16 @@ export function restoreOnlineCart(raw: string | null, restaurantId: string): Onl
           address: p.deliveryAddress ?? "",
           notes: p.deliveryNotes ?? "",
           coupon: p.coupon ?? null,
+          quote: p.deliveryQuote
+            ? {
+                address: p.deliveryAddress ?? "",
+                result: "QUOTED",
+                town: null,
+                distanceMeters: null,
+                feeCents: p.deliveryQuote.feeCents,
+                quote: p.deliveryQuote.quote,
+              }
+            : null,
         },
         p.clientRequestId,
       );
@@ -205,6 +287,10 @@ export function restoreOnlineCart(raw: string | null, restaurantId: string): Onl
             optionIds: l.optionIds,
           })),
           coupon: p.coupon && { code: p.coupon.code, percentOff: p.coupon.percentOff },
+          deliveryQuote: p.deliveryQuote && {
+            quote: p.deliveryQuote.quote,
+            feeCents: p.deliveryQuote.feeCents,
+          },
         })
       )
         throw new Error();
@@ -230,6 +316,8 @@ const rejectedAfterDuplicateCheck = [
   "SERVICE_SUSPENDED",
   "DELIVERY_NOT_OFFERED",
   "COUPON_INVALID",
+  "DELIVERY_MIN_ORDER",
+  "DELIVERY_QUOTE_INVALID",
   "ONLINE_BROWSER_PENDING",
   "ONLINE_IP_WAITING_LIMIT",
 ];

@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import type { CurrentAccount } from "@/features/accounts/api";
 import type { KitchenOrder } from "@/features/kitchen/api";
 import { DeliveryAddress } from "@/features/online/DeliveryAddress";
-import { acceptFee } from "@/features/online/state";
+import { typedDeliveryFee } from "@/features/online/state";
 import { displayName } from "@/lib/language";
 import { optionSummary } from "@/lib/options";
 import {
@@ -343,7 +343,7 @@ export function ActiveBillPanel({
   const busy = closure.busy.includes(sessionId);
   // A fee correction and a closure never run together on one bill.
   const locked = busy || fees.busy || closure.pending.some((p) => p.sessionId === sessionId);
-  const fee = feeEdit ? acceptFee(feeEdit.text, billAmounts(feeEdit.bill).items) : null;
+  const fee = feeEdit ? typedDeliveryFee(feeEdit.text, billAmounts(feeEdit.bill).items) : null;
   const feeChanged =
     !!feeEdit && (!bill || confirmationChanged({ kind: "PAID", bill: feeEdit.bill }, bill));
   useEffect(() => {

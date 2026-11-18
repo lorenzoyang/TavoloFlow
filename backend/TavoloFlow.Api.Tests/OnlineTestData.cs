@@ -1,6 +1,7 @@
 using System.Data.Common;
 using System.Net;
 using System.Security.Cryptography;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
@@ -38,6 +39,9 @@ internal static class OnlineTestData
     }
 
     public static readonly PushQueue NoPush = new(new PushKeys(Options.Create(new PushOptions())));
+
+    // Quotes signed with a throwaway key: services built outside the host never see one.
+    public static readonly DeliveryQuotes Quotes = new(new EphemeralDataProtectionProvider());
 
     public static OrderLineSnapshot Line(
         Guid menuItemId,

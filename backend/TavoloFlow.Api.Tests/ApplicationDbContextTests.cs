@@ -28,6 +28,7 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database)
         Assert.Equal(
             new[]
             {
+                "delivery_tiers",
                 "dining_sessions",
                 "menu_categories",
                 "menu_item_images",
@@ -597,6 +598,12 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database)
                         RestaurantId = visit.RestaurantId,
                         BusinessDate = waiting.BusinessDate,
                         LastNumber = 2,
+                    },
+                    new DeliveryTier
+                    {
+                        RestaurantId = visit.RestaurantId,
+                        MaxMeters = 3000,
+                        FeeCents = 200,
                     }
                 );
                 var order = NewOrder(visit);
@@ -639,14 +646,14 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database)
         Assert.False(
             await context.Restaurants.AnyAsync(restaurant => restaurant.Id == deleted.RestaurantId)
         );
-        Assert.Equal(new int[10], await GetRestaurantRowCountsAsync(context, deleted.RestaurantId));
+        Assert.Equal(new int[11], await GetRestaurantRowCountsAsync(context, deleted.RestaurantId));
         Assert.True(
             await context.Restaurants.AnyAsync(restaurant =>
                 restaurant.Id == preserved.RestaurantId
             )
         );
         Assert.Equal(
-            new[] { 2, 1, 1, 1, 2, 2, 2, 1, 1, 2 },
+            new[] { 2, 1, 1, 1, 2, 2, 2, 1, 1, 2, 1 },
             await GetRestaurantRowCountsAsync(context, preserved.RestaurantId)
         );
         // Photos have no restaurant_id: they cascade through their dish.
@@ -926,6 +933,7 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database)
             await context.OnlineRequests.CountAsync(request =>
                 request.RestaurantId == restaurantId
             ),
+            await context.DeliveryTiers.CountAsync(tier => tier.RestaurantId == restaurantId),
         ];
 
     private sealed record VisitData(

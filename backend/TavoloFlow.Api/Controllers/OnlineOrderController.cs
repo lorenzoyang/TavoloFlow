@@ -14,6 +14,7 @@ public sealed class OnlineOrderController(
     OnlineMenuService menus,
     OnlineRequestService requests,
     OnlineOrderStatusService statuses,
+    DeliveryQuoteService quotes,
     OnlineBrowser browser
 ) : ControllerBase
 {
@@ -26,6 +27,16 @@ public sealed class OnlineOrderController(
     [OnlineLimit(OnlineLimit.Coupon)]
     public async Task<IActionResult> Coupon(string slug, string code, CancellationToken ct) =>
         Ok(await menus.CouponAsync(slug, code, ct));
+
+    // A POST, so the address stays out of URLs and access logs; it changes nothing.
+    [HttpPost("api/public/r/{slug}/delivery-quote")]
+    [OnlineLimit(OnlineLimit.Quote)]
+    [RequestSizeLimit(4096)]
+    public async Task<IActionResult> DeliveryQuote(
+        string slug,
+        DeliveryQuoteInput input,
+        CancellationToken ct
+    ) => Ok(await quotes.QuoteAsync(slug, input, ct));
 
     [HttpGet("api/public/r/{slug}/ordering-context")]
     [OnlineLimit(OnlineLimit.Context)]

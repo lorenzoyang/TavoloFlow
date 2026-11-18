@@ -136,8 +136,8 @@ function OrderContent({
   // While the order is prepared, the estimated time is the one thing to remember: it stands alone.
   const estimate =
     view === "preparing" && order.estimatedAt ? formatTime(order.estimatedAt, language) : null;
-  // Before acceptance a delivery order has no fee yet: the restaurant confirms it when accepting.
-  const itemsOnly = delivery && order.phase !== "ACCEPTED";
+  // A delivery without an automatic quote has no fee until the restaurant confirms it on acceptance.
+  const itemsOnly = delivery && order.deliveryFeeCents === null;
   const feePending = itemsOnly && order.phase === "WAITING";
   return (
     <div lang={language} className="min-h-dvh">

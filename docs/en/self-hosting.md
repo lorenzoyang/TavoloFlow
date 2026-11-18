@@ -369,7 +369,7 @@ Keep on your computer at least the package of the version in production and the 
 
 **Optional: test everything locally.** [`deploy/smoke-test.sh`](../../deploy/smoke-test.sh) installs the package inside a temporary, isolated Docker (Docker-in-Docker, with a local test certificate) and checks installation, migrations, HTTPS, cookies and CSRF of the three identities, two releases in a row, backup, restore and rollback, then removes everything it created. It uses the address written in the package, so it works with any `PUBLIC_ORIGIN`:
 
-It also checks that missing or invalid VAPID keys, missing Turnstile configuration and test keys forbidden in production are rejected before stopping the existing API, and that the VAPID public key stays identical after upgrade, restart, restoring `production.env` and rollback. The smoke test explicitly disables Turnstile, calls no real verification service and sends no real push notifications: test real-key verification, notification delivery and sound on phones in step 6.
+It also checks that missing or invalid VAPID keys and invalid Turnstile configuration are rejected before stopping the API, and that the VAPID public key stays the same after upgrade, restart, restoring `production.env`, and rollback. The Geoapify installer cases cover quotes, comments, expansion, and environment overrides. The test also applies a key after installation. It uses a fake key and disables Turnstile. Step 6 covers checks on phones with real providers and notifications.
 
 ```bash
 PUBLIC_ORIGIN=https://app.example.com bash deploy/build-release.sh
@@ -442,6 +442,30 @@ The installer checks configuration, placeholders and test keys before stopping t
 
 An installation explicitly choosing to omit this verifier may set `TURNSTILE_ENABLED=false`; IP, cookie and waiting-slot protection remains. Development and Demo already default to disabled. Notifications are unchanged. When upgrading an existing server, add the settings before running the new installer. Do not print or publish the secret key.
 
+#### Automatic delivery quotes (optional)
+
+The [Geoapify](https://www.geoapify.com/) key applies to the whole installation. When the restaurant is open for orders and has enabled delivery with a location and fee bands, customers can ask for the fee before ordering. If the calculated road distance exceeds the farthest band, checkout blocks delivery submission. With no key or when the calculation fails, customers see the price list and whoever accepts the order picks a band.
+
+1. **Create the key in your computer's browser.** On Geoapify open **My projects**, create a project and copy the key from **API keys**. The free plan doesn't ask for a card and allows commercial use; the attribution it requires (Geoapify and the OpenStreetMap contributors, with links) is already at checkout.
+2. **Restrict the key to the VPS IP.** In the key's restrictions, allow the public IP address the VPS uses to reach the internet. Only the API uses the key, so IP restrictions are enough. Use a separate key for development.
+3. **Add it to the server's `.env`**, on the VPS with `sudo nano /opt/tavoloflow/.env`:
+
+   ```dotenv
+   GEOAPIFY_API_KEY=REPLACE_WITH_GEOAPIFY_KEY
+   ```
+
+   Replace the whole placeholder with the copied key. Use the format shown, with no quotes or spaces around `=`. Leave the value empty to disable quotes. If you add the key before the release, the installer checks the value Compose passes to the API before stopping the service. If a release with the command below is already installed, apply the change after closing. The command runs the same check, then recreates the API container, briefly interrupting service.
+
+   ```bash
+   sudo bash /opt/tavoloflow/tf.sh apply-geoapify-key
+   ```
+
+   If the check reports `Set GEOAPIFY_API_KEY`, the existing API keeps running. Fix or clear the value and repeat the command. If the wait after recreation fails, check the container state and read the logs with `sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api`. The message `Set Geoapify:ApiKey to a complete key` identifies a key format error at startup.
+
+4. **Try an order.** Open a fresh `/r/{slug}` page on the real domain, choose **"Delivery"**, enter an address in the area with its house number, and tap **"Calculate delivery fee"**. Check the fee and the town if shown. If you still see the price list after calculating, check the restaurant’s location and bands and read the logs with `sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api`. The logs report the HTTP status or exception type and omit addresses and keys.
+
+The free plan includes 3,000 credits per day. An address search typically uses one credit and a local route uses another. By default the API allows 200 quotes per restaurant and 1,200 per installation in 24-hour windows that reset on restart, with an additional per-IP limit. If one of these limits is reached or Geoapify fails to answer or refuses the request, checkout returns to the price list and the restaurant confirms the fee. The address goes to `api-eu.geoapify.com` only when the customer taps "Calculate delivery fee" and is used to calculate the distance, as described in the privacy notice.
+
 #### The `.env` file
 
 | Variable            | What to write                                                                                                      |
@@ -453,12 +477,13 @@ An installation explicitly choosing to omit this verifier may set `TURNSTILE_ENA
 | `TURNSTILE_ENABLED` | `true` enables online order verification (the production default); use `false` to explicitly disable it, rather than leaving it empty |
 | `TURNSTILE_SITE_KEY` | the complete Site key of the Cloudflare Managed widget; required when verification is enabled |
 | `TURNSTILE_SECRET_KEY` | the complete Secret key of the same widget; required when verification is enabled, kept only on the server |
+| `GEOAPIFY_API_KEY` | optional: the Geoapify key for automatic delivery quotes; empty, the feature is off |
 
 Leave the rest as it is. No quotes and no spaces around `=`.
 
 - **The database password only counts the first time.** PostgreSQL creates the user with `POSTGRES_PASSWORD` only when the data volume is empty. If you later change it in `.env`, the database doesn't know, and the API can no longer connect. It is hexadecimal because it contains only `0-9` and `a-f`: no character to escape, neither in Compose nor in the connection string.
 - **Keep the notification key across releases.** The API derives its public key from `VAPID_PRIVATE_KEY` and signs pushes with it. Replacing it stops existing subscriptions; every device must enable notifications again. Generate it separately from the database password. Compose automatically sets the push contact to `https://` + `DOMAIN`. The key is required even if you currently use only table QR ordering. It must be a valid P-256 private key: the installer checks its format and range before stopping the running API.
-- **Before stopping the existing API, the installer checks the configuration:** a 64-character hexadecimal database password, a 64-character hexadecimal and valid P-256 notification key, a non-template email, and `https://` + `DOMAIN` matching the package’s `public-origin.txt`. When Turnstile is enabled, it also checks complete keys, placeholders, test keys forbidden in production and hostname format. These checks are offline and cannot establish whether the Cloudflare keys are genuine and valid.
+- **The installer checks the configuration before stopping the existing API.** It checks the 64-character hexadecimal database password and VAPID key, P-256 validity, a non-template email, and that `https://` + `DOMAIN` matches `public-origin.txt`. With Turnstile enabled it checks complete keys, placeholders, forbidden test keys, and hostname format. For Geoapify, the new image checks the value from Compose using the startup rule. The value can be empty or have 10–256 characters after trimming, with no internal whitespace or placeholders. The format checks run offline.
 - `PROXY_SUBNET`, `PROXY_DYNAMIC_RANGE` and `CADDY_IP` define the network between Caddy and the API and Caddy's fixed IP. Change them, all three together and before the first start, only if the VPS already has another Docker network using `172.30.80.0/24`.
 - The installer already checks the configuration with `docker compose config --quiet`; after installation you can do it yourself with `sudo bash /opt/tavoloflow/tf.sh config --quiet`. Without `--quiet` it prints everything, passwords included.
 
@@ -597,6 +622,7 @@ It asks for a username and password (6–128 characters; nothing shows while you
 2. Check that ordering is not paused and the current time is inside a saved slot: the page must say customers can order. Phone and hours are required; the “QR ordering” switch does not control online orders.
 3. Open the link on another phone, add dishes and go to order confirmation. With Turnstile enabled, check that the widget appears: submission must stay disabled until verification completes. Simply browsing the menu, opening the privacy page or checking order status must not load the widget.
 4. Submit a pickup order. Accept it with an estimated time on `/staff/online`, then check Kitchen, Pass, owner bill closure and the customer status page `/o/{token}`. Healthy containers and successful deployment preflight do not replace this test on the real domain with real keys.
+5. If the restaurant delivers, the owner opens the "Delivery" card in "Online ordering settings", pastes the coordinates from Google Maps, checks them with the map link, sets the bands and optional minimum, turns on "Offer delivery", and taps "Save delivery". Start a delivery order from a fresh customer page. If you use Geoapify, tap "Calculate delivery fee" and check the fee before submitting. Accept the order and verify it keeps the quoted fee. If the restaurant needs to confirm the fee, pick a band on acceptance and verify the fee on the customer’s page.
 
 Online-only restaurants skip the table and Floor steps. Platform administrators cannot close bills for owners. Test orders stay in history: use a clearly marked test restaurant and do not delete rows manually with SQL.
 
@@ -664,7 +690,7 @@ For everyday releases follow [Releasing with the scripts](releasing.md): two com
 - the steps to do **only once**, when a new version needs new configuration in the server's `.env`;
 - the [manual procedure](#manual-procedure), for when the scripts are not available or to understand what they do.
 
-Whichever way you choose, keep the existing settings: do not recreate the administrator or `.env`. If the new version needs new variables, add them before installing it, with the steps below. This matters especially for servers that have been running for some time and are only now adding Turnstile: the new version enables verification by default in production, so the installer rejects an upgrade if the old `.env` has no keys.
+Whichever way you choose, keep the existing settings: do not recreate the administrator or `.env`. If the new version needs new variables, add them before installing it, with the steps below. Optional ones, like `GEOAPIFY_API_KEY`, can also be added later. This matters especially for servers that have been running for some time and are only now adding Turnstile: the new version enables verification by default in production, so the installer rejects an upgrade if the old `.env` has no keys.
 
 #### First release with push notifications
 
@@ -732,6 +758,15 @@ If you explicitly choose not to use external verification, set `TURNSTILE_ENABLE
 
 An incomplete, expired or failed-to-load verification must not create a new order. The cart must remain saved; a loading failure must offer retry and the restaurant’s phone. If the network fails or the result is unknown, use the page’s lookup action to recover the original order first. “Retry the same order” first sends a GET and only uses a fresh verification to retry the same request if it has not been found yet. Do not clear the cart and create another order instead of checking. When the verifier is unavailable, new submissions are blocked but existing orders remain queryable and recoverable.
 
+#### First upgrade to the version with distance-based delivery fees
+
+For upgrades from a version where whoever accepted a delivery order typed the fee by hand. No new variables are needed: the Geoapify key is optional and is added as in [Automatic delivery quotes](#automatic-delivery-quotes-optional), also before installing.
+
+- **Three migrations.** The IDs in the `upgrade.sh` summary end in `DeliveryMinOrder`, `DeliveryTiers`, and `DeliveryQuotes`. In the manual procedure, check the added files with `git diff --name-only`. These migrations add nullable columns, the `delivery_tiers` table, and constraints. Download a backup before installing.
+- **Delivery switches off in every restaurant.** `DeliveryTiers` turns off delivery wherever it was enabled and keeps the notes. Tell owners in advance that online orders will be pickup only until delivery is restored. After upgrading, reload the pages on all staff devices. Then the owner sets up and enables delivery as in step 5 of [The first restaurant](#the-first-restaurant). Open a fresh customer page for the test.
+- **Install after closing**, as always: a delivery request still waiting can only be accepted by picking one of the current bands, and while there are none the card says to call the customer or reject.
+- **Going back.** Before using `--schema-compatible`, pause online ordering and decide all waiting requests. The old version ignores the fee already quoted on a waiting request and the delivery minimum, and returns to entering the fee by hand. Open bills keep their recorded fee. Rollback leaves the migrations applied and delivery off wherever the migration turned it off. Without coordinates, `ck_restaurant_delivery_ready` prevents the old version from turning delivery on. After rollback, reload devices before resuming service.
+
 #### Manual procedure
 
 These are the same steps that the two scripts of [Releasing with the scripts](releasing.md) run for you.
@@ -744,8 +779,8 @@ These are the same steps that the two scripts of [Releasing with the scripts](re
 
    ```bash
    # On your computer: replace 4c9535b with the hash of the version in production.
-   # No output = no new migrations
-   git log --oneline 4c9535b..HEAD -- backend/TavoloFlow.Api/Data/Migrations
+   # List the new migration files, excluding Designer files.
+   git diff --name-only --diff-filter=A 4c9535b HEAD -- ':(glob)backend/TavoloFlow.Api/Data/Migrations/[0-9]*.cs' ':(exclude,glob)**/*.Designer.cs'
    ```
 
 4. If there are migrations, or it's a major update, first download the latest backup to your computer.
@@ -795,7 +830,7 @@ sudo bash /opt/tavoloflow/tf.sh ps
 sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api
 ```
 
-The installer checks every file in the package, the existing settings and the Turnstile settings again. These checks run before stopping the existing API: missing keys do not first interrupt service. When a version is already installed, the sequence after successful checks is:
+The installer rechecks every file in the package and the existing configuration, including Turnstile and Geoapify, before stopping the running API. If a release is already installed and the checks pass, the sequence is as follows.
 
 ```text
 stop the API → backup → migrations → new API → move web/current → recreate Caddy → save the version
@@ -806,7 +841,7 @@ stop the API → backup → migrations → new API → move web/current → recr
 - **The API stops before the backup**, so nobody writes during the backup and the copy is consistent.
 - **The backup comes before the migrations**: if a migration goes wrong, there is a copy of how things were before.
 
-**After the release** follow the step [After the release](releasing.md#3-after-the-release) of "Releasing with the scripts": reloading the staff devices and the checks apply to the manual procedure too, and it also explains why [pages already open](releasing.md#pages-already-open) keep working. If the release changed `tavoloflow-backup.service` or `.timer`, the installer updates only the copies in `/opt/tavoloflow`: repeat the two `install` lines and `daemon-reload` from step 7 of Part 1 (with the scripts, `upgrade.sh` points this out).
+**After the release**, follow [After the release](releasing.md#3-after-the-release) in "Releasing with the scripts" for the manual procedure too. See [Pages already open](releasing.md#pages-already-open) for how they interact with the new API. If the release changed `tavoloflow-backup.service` or `.timer`, repeat the `install` and `daemon-reload` commands from step 7 of Part 1. With the scripts, `upgrade.sh` points this out.
 
 ### When a release goes wrong
 
@@ -818,7 +853,7 @@ sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api db caddy
 
 - **Don't delete volumes and don't restore the database right away.** A script error doesn't delete data.
 - If the API stayed stopped, keep the restaurant out of service until you understand.
-- **If only the Turnstile configuration preflight failed:** the existing API is still running and the new frontend release directory has not been created. Fix the settings with `sudo nano /opt/tavoloflow/.env`, then rerun the preflight and installer with the same package; no rebuild or second extraction is needed. With the scripts, just run `bash /opt/tavoloflow/upgrade.sh` again.
+- **If the Turnstile or Geoapify preflight failed,** the existing API is still running and the new frontend directory has not been created. Fix the reported problem, editing `.env` with `sudo nano /opt/tavoloflow/.env` if needed. Then retry the install with the same package. With the scripts, rerun `bash /opt/tavoloflow/upgrade.sh`.
 - **If installation reached a later stage:** inspect logs and container status first. If `web/releases/VERSION` already exists, the installer refuses the same ID. After fixing the code or installation issue, build and release with a **new ID**; do not delete the release directory by hand to force a retry. The migration bundle skips migrations already applied.
 
 If the very first installation fails, `state/current` doesn't exist yet and `tf.sh` doesn't know which version to use. Pass it yourself, with `env` after `sudo`, because `sudo` clears environment variables written before it:
@@ -868,6 +903,7 @@ sudo bash /opt/tavoloflow/rollback.sh --schema-compatible PREVIOUS_VERSION
 | added a table or a nullable column        | usually yes: it doesn't know them or use them |
 | deleted or renamed a column               | no: it looks for a column that's gone         |
 | added a required column without a default | no: its INSERTs don't fill it in              |
+| added a constraint (CHECK)                | writes must satisfy it even if the old code does not know about it |
 
 The `--schema-compatible` option is mandatory precisely to make you stop and think: without it, the script refuses. If the schema isn't compatible, the best way is to fix and release a new version; the alternative is to restore the backup with the restaurant closed, losing what happened afterwards.
 
@@ -879,7 +915,7 @@ Every run of [`backup.sh`](../../deploy/backup.sh) creates an archive in `/opt/t
 tavoloflow-20261027T023000Z-12345.tar.gz    UTC time and process number
 ├── database.dump      the database, with pg_dump
 ├── keys.tar.gz        the Data Protection keys
-├── production.env     .env copy, including database password, VAPID and Turnstile settings
+├── production.env     .env copy, including database password, VAPID, Turnstile settings and the Geoapify key
 ├── compose.yaml, Caddyfile
 ├── state/             the versions installed at that moment
 └── SHA256SUMS
@@ -1151,6 +1187,7 @@ Before opening to the public, and after every server change:
 - [ ] With online ordering configured and open, each device confirms notifications are on; lock-screen tests on Android and installed iPhone/iPad open the online orders page. Sign-out and sign-in follow the checks in step 6.
 - [ ] After recovery or upgrade, VAPID is preserved and staff devices are reloaded; notifications have been tested on the original domain.
 - [ ] The Turnstile switch is explicitly configured; when enabled, real keys from the same Managed widget allow the actual application domain and Pre-clearance is off. After reloading the customer page, real order verification passes; submission without verification is blocked and existing orders remain queryable.
+- [ ] If you use automatic delivery quotes, the key is restricted to the VPS’s public outgoing IP. In a fresh customer page, use "Calculate delivery fee" to verify the fee for an address in the area, submit the order, and check that acceptance keeps the fee.
 - [ ] The backup’s `production.env` includes current verification settings; any missing variables have been checked and added when restoring a new version from an older backup.
 - [ ] After a VPS reboot the app comes back by itself, with data and logins intact.
 - [ ] The nightly backup is enabled, a backup has been downloaded and successfully restored into a temporary database.

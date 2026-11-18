@@ -192,7 +192,7 @@ When it installs the package, the installer also copies `upgrade.sh` to `/opt/ta
    Even if you forget, the script refuses to start with uncommitted changes, including new files not yet added to Git.
 
 2. Docker is running on your computer (in my case, Docker Desktop is open). The script checks this too.
-3. If the new version needs new configuration in the server's `.env`, add it first, as explained in the self-hosting guide, [Releasing a new version](self-hosting.md#releasing-a-new-version). The installer checks the configuration before stopping the API: if something is missing, the service is not interrupted.
+3. Check [Releasing a new version](self-hosting.md#releasing-a-new-version) for a "First upgrade…" section for this release. Follow it to prepare any `.env` changes and plan for migration effects, such as delivery needing to be re-enabled after the upgrade. If a preflight check fails, the installer exits while the existing API is still running.
 4. Install when the restaurant is closed. The upload can happen earlier, even hours earlier.
 
 ### 1. On your computer: build and upload
@@ -297,7 +297,7 @@ When you are done, go back to your computer with `exit`.
 
 ### 3. After the release
 
-Reload the app on every staff device, so it uses the new frontend (see [Pages already open](#pages-already-open)). Check sign-in, a read (Kitchen or Bill) and PWA navigation; on devices with notifications enabled, wait for "on" and repeat a lock-screen test. If a write shows a result to verify, follow the interface: the app checks with a GET, and resending blindly could repeat the operation.
+Reload the app on every staff device before turning delivery back on (see [Pages already open](#pages-already-open)). Open a fresh customer page to verify delivery. Check sign-in, a read (Kitchen or Bill), and PWA navigation. On devices with notifications enabled, wait for "on" and repeat a lock-screen test. If a write shows an outcome to verify, follow the interface. If an order’s outcome is unknown, look up the original request before submitting a new one.
 
 ## When something goes wrong
 
@@ -376,4 +376,4 @@ It never installs anything: everything that changes production happens on the VP
 
 ## Pages already open
 
-A Kitchen left open all day has the old frontend in memory, and when it changes page it loads pieces of code (the router splits the code by page) named as in the old version. That's why `web/assets/` keeps the files of **every** version: with the hash in their name they are never overwritten, and an old page always finds its own. New code only arrives when the page is reloaded or the app reopened. In the meantime, though, the old page talks to the new API: API changes must stay compatible with the previous version's clients, otherwise every device has to be reloaded.
+An open page loads the hashed files for its version from `web/assets/` and talks to the running API. For example, after the delivery-band upgrade, the old settings page omits the required bands and the old orders page still offers manual fee entry, which the new API rejects when the fee has already been quoted to the customer. An old customer page can also submit a delivery without a quote. Reload the page or reopen the app to use the new frontend. Reload after a rollback too, because a new frontend may expect fields the old API does not return.

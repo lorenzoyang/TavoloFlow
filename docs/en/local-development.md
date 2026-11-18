@@ -94,7 +94,7 @@ All normal tabs of a browser share the same staff-area login: to use owner and s
 In the demo online ordering is off. Turning it on takes a couple of minutes, with the demo accounts:
 
 1. Sign in as **administrator** at `/platform/login` and open **Demo Ramen**. In the **Features** section, next to "Online link", tap **"Set"**, type for example `demo-ramen`, tap **"Check and continue"** and confirm. Then turn on the **"Online ordering"** switch and confirm. The link comes first: without it, the switch stays disabled.
-2. Sign in as **owner**. From Home open **Online ordering settings**: enter the phone and tap **"Save phone"**; then, under **Hours**, add a slot for today that includes the current time (the end is the last moment to order) and tap **"Save hours"**. The status at the top must become **"Open"**; otherwise the reason is shown just below. To try delivery too, turn on **"Offer delivery"** and tap **"Save delivery"**. To try a coupon, under **Coupons** enter for example `ESTATE10` and `10` and tap **"Add coupon"**.
+2. Sign in as **owner**. From Home open **Online ordering settings**: enter the phone and tap **"Save phone"**; then, under **Hours**, add a slot for today that includes the current time (the end is the last moment to order) and tap **"Save hours"**. The status at the top must become **"Open"**; otherwise the reason is shown just below. To try delivery too, in the **Delivery** section paste coordinates into **"Restaurant location"**, for example `43.88015, 11.09612`, tap **"Add band"** and enter for example `3` km and `2` €, then turn on **"Offer delivery"** and tap **"Save delivery"**: without a location and at least one band, delivery won't turn on. To try a coupon, under **Coupons** enter for example `ESTATE10` and `10` and tap **"Add coupon"**.
 3. In a private window or another profile, so there is no staff login, open the link shown under **Online link**, for example <http://127.0.0.1:8080/r/demo-ramen>. Add a few dishes, open the cart and tap **"Checkout"**. If you created a coupon, enter it in **"Coupon code (optional)"** and tap **"Apply"**: the total shows the discount. Enter a name and phone and send with **"Place order"**. The order's status page opens.
 4. Go back to the staff area: at the top of every page the banner shows the order to accept (here too, the browser wants a tap on the page before it plays sound). Tap **"View"**, or **Online orders** from Home, and accept by tapping one of the times (10, 20, 30 or 45 min). The customer's status page shows the order accepted, with the expected time.
 5. The order is now in the **Kitchen** as "Pickup #1": mark the dishes **"Ready"** and, from the **Pass**, **"Served"**. Finally, as owner, open **Bill**, choose "Pickup #1" and tap **"Collected, check payment"**; tick the confirmation and close with **"Collected and paid"**.
@@ -328,6 +328,28 @@ Reload the customer page; the widget should no longer load. Real production keys
 
 [360px example: the app notice when the provider is unavailable](../images/online-verification-en.webp) (mocked SDK; this does not depict the Cloudflare widget).
 
+### Trying automatic delivery quotes
+
+Without a Geoapify key, automatic quotes are off, as in the demo: at checkout delivery shows the price list of bands and whoever accepts picks the band. To try them you need a free [Geoapify](https://www.geoapify.com/) key (**My projects → API keys**). Put it in the local secrets and restart the API:
+
+```bash
+dotnet user-secrets set 'Geoapify:ApiKey' 'YOUR_KEY' --project backend/TavoloFlow.Api
+```
+
+Then, as owner, set up delivery as in "Trying online ordering", but with the coordinates of a real point: in Google Maps press and hold (on a computer, right-click) the point and tap "latitude, longitude" to copy them. Add a few bands, for example 3, 6 and 10 km. At checkout choose **"Delivery"** and type a real address with the house number, then tap **"Calculate delivery fee"**: "Delivery to … · fee …" appears, and the total includes delivery. An address beyond the last band is outside the area; one without a house number or misspelled shows the price list, and the order can still be sent. In the staff area, an order with a quote shows fee and distance, with no band to pick.
+
+Each quote uses two credits of the free plan, which has 3,000 a day. The integration tests use none: a mocked service answers instead of Geoapify, and the test host ignores the key in the local secrets. To run them on their own, from the repository root:
+
+```bash
+dotnet test TavoloFlow.slnx --filter 'FullyQualifiedName~OnlineDeliveryQuoteTests'
+```
+
+To turn quotes off again, remove the key and restart the API:
+
+```bash
+dotnet user-secrets remove 'Geoapify:ApiKey' --project backend/TavoloFlow.Api
+```
+
 ## Part 3: tests and checks
 
 ### Backend
@@ -492,6 +514,7 @@ Remove-NetFirewallRule -DisplayName "TavoloFlow Dev 5173"
 | Constant logouts, CSRF errors                                           | demo and development both open from `localhost`: open the demo from `127.0.0.1`                                                                                                                                                            |
 | Floor shows "The restaurant's service isn't active yet or is suspended" | the restaurant is suspended: the administrator activates it with "Activate service"                                                                                                                                                        |
 | Home has no "Online orders" and "Online ordering settings"              | the restaurant doesn't have online ordering: the administrator sets the link and then turns on "Online ordering" in Features (see "Trying online ordering")                                                                                |
+| At checkout delivery always shows the price list instead of the fee | Check the `Geoapify:ApiKey` key in the local secrets (then restart the API), the restaurant's location and bands, and that the address has a house number. If Geoapify answers with an error, the API logs show the HTTP status. |
 | The online ordering page only lets customers browse the menu            | the status in Online ordering settings says why: phone or hours missing, paused, outside hours or too many waiting orders; hours follow the restaurant's time zone                                                                         |
 | Verification enabled, but no widget at confirmation | Check that settings reach the API process as `Turnstile__*`, rather than only being written to the root `.env` or frontend settings. Restart the API and reload the customer page. Development and Demo disable verification by default. |
 | API reports invalid Turnstile configuration, or test verification keeps failing | Check that test keys match the intended types in the official table and that the environment is Development. Real keys also require `Turnstile__Hostname` matching the browser’s hostname and dashboard settings. |

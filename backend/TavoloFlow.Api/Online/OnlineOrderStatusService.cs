@@ -97,8 +97,11 @@ public sealed class OnlineOrderStatusService(ApplicationDbContext db, TimeProvid
             bill?.CloseReason,
             items,
             coupon,
-            bill?.DeliveryFeeCents,
-            bill?.TotalAmountCents ?? request.ItemsTotalCents - (coupon?.DiscountCents ?? 0)
+            bill is null ? request.DeliveryFeeCents : bill.DeliveryFeeCents,
+            bill?.TotalAmountCents
+                ?? request.ItemsTotalCents
+                    - (coupon?.DiscountCents ?? 0)
+                    + (request.DeliveryFeeCents ?? 0)
         );
     }
 }

@@ -171,7 +171,7 @@ function MenuContent({
           {cart.cart.lines.length > 0 && (
             <CartBar
               cart={cart}
-              amountCents={cart.amounts.totalCents}
+              amountCents={cart.amounts.payableCents}
               language={language}
               open={() => setCartOpen(true)}
             />

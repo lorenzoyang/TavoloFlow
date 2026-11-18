@@ -88,7 +88,7 @@ public sealed class OnlineSettingsService(ApplicationDbContext db, TimeProvider 
     }
 
     // Turning delivery off only stops new delivery submissions: waiting delivery requests can still be
-    // accepted or rejected, and accepted ones close as usual.
+    // accepted or rejected, and accepted ones close as usual. The bands are replaced whole, like the week.
     public async Task<OnlineSettingsResponse> SetDeliveryAsync(
         Guid restaurantId,
         OnlineDeliveryInput input,
@@ -98,7 +98,35 @@ public sealed class OnlineSettingsService(ApplicationDbContext db, TimeProvider 
         var zh = DeliveryNote(input.NoteZh, "noteZh");
         var it = DeliveryNote(input.NoteIt, "noteIt");
         var en = DeliveryNote(input.NoteEn, "noteEn");
+        var minOrder = OnlineDelivery.ValidMinOrder(input.MinOrderCents)
+            ? input.MinOrderCents
+            : throw ApiException.Validation(
+                "Enter the minimum order in whole cents above 0, or null for none.",
+                "minOrderCents",
+                "Invalid minimum."
+            );
+        var (lat, lng) =
+            OnlineDelivery.Origin(input.OriginLat, input.OriginLng)
+            ?? throw ApiException.Validation(
+                "Send both coordinates (latitude -90 to 90, longitude -180 to 180), or neither.",
+                "originLat",
+                "Invalid coordinates."
+            );
+        var tiers =
+            OnlineDelivery.Tiers(input.Tiers)
+            ?? throw ApiException.Validation(
+                $"Send at most {OnlineDelivery.MaxTiers} tiers at distinct distances of 1 to {OnlineDelivery.MaxMeters} metres, each with a fee of 0 or more cents.",
+                "tiers",
+                "Invalid tiers."
+            );
         var enabled = input.Enabled!.Value;
+        // The same request carries the switch and its setup, so a contradiction is invalid input.
+        if (enabled && (lat is null || tiers.Length == 0))
+            throw ApiException.Validation(
+                "Delivery needs the restaurant's coordinates and at least one tier.",
+                "enabled",
+                "Setup incomplete."
+            );
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var restaurant = await LockOfferedAsync(restaurantId, ct);
         await db
@@ -108,13 +136,29 @@ public sealed class OnlineSettingsService(ApplicationDbContext db, TimeProvider 
                     u.SetProperty(r => r.DeliveryEnabled, enabled)
                         .SetProperty(r => r.DeliveryNoteZh, zh)
                         .SetProperty(r => r.DeliveryNoteIt, it)
-                        .SetProperty(r => r.DeliveryNoteEn, en),
+                        .SetProperty(r => r.DeliveryNoteEn, en)
+                        .SetProperty(r => r.DeliveryMinOrderCents, minOrder)
+                        .SetProperty(r => r.DeliveryOriginLat, lat)
+                        .SetProperty(r => r.DeliveryOriginLng, lng),
                 ct
             );
+        await db.DeliveryTiers.Where(t => t.RestaurantId == restaurantId).ExecuteDeleteAsync(ct);
+        db.DeliveryTiers.AddRange(
+            tiers.Select(t => new DeliveryTier
+            {
+                RestaurantId = restaurantId,
+                MaxMeters = t.MaxMeters,
+                FeeCents = t.FeeCents,
+            })
+        );
+        await db.SaveChangesAsync(ct);
         restaurant.DeliveryEnabled = enabled;
         restaurant.DeliveryNoteZh = zh;
         restaurant.DeliveryNoteIt = it;
         restaurant.DeliveryNoteEn = en;
+        restaurant.DeliveryMinOrderCents = minOrder;
+        restaurant.DeliveryOriginLat = lat;
+        restaurant.DeliveryOriginLng = lng;
         var response = await ResponseAsync(restaurant, ct);
         await transaction.CommitAsync(ct);
         return response;
@@ -295,6 +339,10 @@ public sealed class OnlineSettingsService(ApplicationDbContext db, TimeProvider 
             restaurant.DeliveryNoteZh,
             restaurant.DeliveryNoteIt,
             restaurant.DeliveryNoteEn,
+            restaurant.DeliveryMinOrderCents,
+            restaurant.DeliveryOriginLat,
+            restaurant.DeliveryOriginLng,
+            await OnlineDelivery.TiersAsync(db, restaurant.Id, ct),
             coupons
                 .Select(c => new OnlineCouponResponse(
                     c.Id,

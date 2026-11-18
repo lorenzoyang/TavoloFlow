@@ -39,12 +39,20 @@ public sealed class Restaurant
     public string? PublicPhone { get; set; }
     public DateTime? OnlinePausedUntil { get; set; }
 
-    // Restaurant-run delivery (OWNER): the switch and an optional zh/it/en note shown at checkout with
-    // the delivery area and fee rules. Whoever accepts a delivery order enters its fee.
+    // Restaurant-run delivery (OWNER): the switch and an optional zh/it/en note shown at checkout.
+    // Fees come from the restaurant's DeliveryTiers by road distance; whoever accepts picks a tier.
     public bool DeliveryEnabled { get; set; }
     public string? DeliveryNoteZh { get; set; }
     public string? DeliveryNoteIt { get; set; }
     public string? DeliveryNoteEn { get; set; }
+
+    // The least a delivery order's dishes may come to after its coupon; null for no minimum.
+    public long? DeliveryMinOrderCents { get; set; }
+
+    // Where deliveries start, pasted from Google Maps; both set or both null, and required while
+    // delivery is on. Staff pages draw the route from here to the customer's address.
+    public decimal? DeliveryOriginLat { get; set; }
+    public decimal? DeliveryOriginLng { get; set; }
 
     public DateTime CreatedAt { get; set; }
     public string? GoogleMapsUrl { get; set; }

@@ -93,6 +93,15 @@ code at checkout and see the discounted total; the bill keeps the discount in pr
 are cancelled, and staff repeat it on the till that issues the receipt (see
 [online ordering](online-ordering.md#coupons)).
 
+Delivery fees go by road distance. OWNER sets the restaurant's location, up to five fee bands (the
+farthest is the delivery limit) and an optional minimum order, compared with the dishes after the
+coupon. With a deployment Geoapify key, customers can ask for the fee at checkout. A successful
+quote shows the fee before ordering and keeps it on acceptance. If the calculated road distance
+exceeds the farthest band, checkout blocks the delivery request. With no key or when no quote or
+range result is available, checkout shows the price list and whoever accepts the order checks the
+route, picks a band, and confirms the fee. See
+[automatic delivery quotes](online-ordering.md#automatic-delivery-quotes).
+
 Production deployments enable Managed Turnstile verification for new online requests by default.
 It is checked on the server and bound to restaurant/request; existing-result recovery remains
 available during provider failures. Local development and Demo default to disabled. An explicit
@@ -190,7 +199,7 @@ Permanent deletion requires a suspended restaurant and removes all its tenant da
 ## Out of scope
 
 Online payments/refunds, fiscal receipts, order printers, stock, third-party delivery platforms,
-distance-based delivery fees, reservations,
+reservations,
 membership and loyalty schemes, fixed-amount, per-customer or dine-in coupons, scheduled sales,
 all-you-can-eat rules, split bills and sales reports are outside this MVP.
 There is no shared cart, WebSocket delivery or offline business operation queue; push notifications

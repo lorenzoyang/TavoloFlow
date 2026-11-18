@@ -7,7 +7,10 @@ using TavoloFlow.Api.Entities;
 namespace TavoloFlow.Api.Online;
 
 // EstimatedMinutes is one of the fixed choices for the request's fulfillment (pickup: 10/20/30/45,
-// delivery: 30/45/60/90). Delivery requires the fee in cents, 0 for free delivery; pickup takes none.
+// delivery: 30/45/60/90). A quoted delivery keeps its quoted fee and takes none; any other delivery
+// requires the fee in cents, 0 for free delivery; pickup takes none. The page offers only the
+// restaurant's current fee bands; the server takes any valid fee, so a band edited meanwhile never
+// fails an acceptance.
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record OnlineAcceptInput(
     [Required] int? EstimatedMinutes,
@@ -35,7 +38,11 @@ public sealed record OnlinePendingRequestResponse(
     OnlineOrderLineResponse[] Items,
     long ItemsTotalCents,
     // ItemsTotalCents is before the coupon; the discount comes off it, and acceptance adds any fee.
-    CouponDiscountResponse? Coupon
+    CouponDiscountResponse? Coupon,
+    // Both set when the customer accepted an automatic quote, which acceptance keeps; both null when
+    // whoever accepts picks the band.
+    long? DeliveryFeeCents,
+    int? DeliveryDistanceMeters
 )
 {
     public static OnlinePendingRequestResponse From(OnlineRequest request) =>
@@ -56,12 +63,26 @@ public sealed record OnlinePendingRequestResponse(
                 request.CouponCode,
                 request.CouponPercentOff,
                 request.ItemsTotalCents
-            )
+            ),
+            request.DeliveryFeeCents,
+            request.DeliveryDistanceMeters
         );
 }
 
 // Now is the server's clock, so the page shows waiting and remaining time without trusting the device clock.
-public sealed record OnlinePendingPage(OnlinePendingRequestResponse[] Items, DateTime Now);
+// Delivery is set while a delivery request waits: whoever accepts picks one of the restaurant's current
+// fee bands, judging the distance on a route drawn from its coordinates.
+public sealed record OnlinePendingPage(
+    OnlinePendingRequestResponse[] Items,
+    DateTime Now,
+    OnlinePendingDelivery? Delivery
+);
+
+public sealed record OnlinePendingDelivery(
+    decimal? OriginLat,
+    decimal? OriginLng,
+    DeliveryTierResponse[] Tiers
+);
 
 // An accepted online order whose session is still ACTIVE: the only place STAFF see the customer's phone
 // and address after acceptance, and the amount a rider collects. Built from the session's bill summary,

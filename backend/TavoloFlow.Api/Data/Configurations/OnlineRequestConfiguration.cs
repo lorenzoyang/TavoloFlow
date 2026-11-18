@@ -46,6 +46,14 @@ internal sealed class OnlineRequestConfiguration : IEntityTypeConfiguration<Onli
                     "fulfillment = 'DELIVERY' OR (delivery_address IS NULL AND delivery_notes IS NULL)"
                 );
                 table.HasCheckConstraint("ck_online_request_expiry", "expires_at > submitted_at");
+                // An accepted automatic quote: both set or both null, delivery only.
+                table.HasCheckConstraint(
+                    "ck_online_request_delivery_quote",
+                    "(delivery_fee_cents IS NULL AND delivery_distance_meters IS NULL) OR "
+                        + "(delivery_fee_cents IS NOT NULL AND delivery_distance_meters IS NOT NULL AND "
+                        + "fulfillment = 'DELIVERY' AND delivery_fee_cents BETWEEN 0 AND 9007199254740991 AND "
+                        + $"delivery_distance_meters BETWEEN 1 AND {OnlineDelivery.MaxMeters})"
+                );
                 table.HasCheckConstraint(
                     "ck_online_request_coupon",
                     "(coupon_code IS NULL AND coupon_percent_off IS NULL) OR "
@@ -118,6 +126,10 @@ internal sealed class OnlineRequestConfiguration : IEntityTypeConfiguration<Onli
             .Property(request => request.DeliveryNotes)
             .HasColumnName("delivery_notes")
             .HasMaxLength(MaxDeliveryNotesLength);
+        builder.Property(request => request.DeliveryFeeCents).HasColumnName("delivery_fee_cents");
+        builder
+            .Property(request => request.DeliveryDistanceMeters)
+            .HasColumnName("delivery_distance_meters");
 
         // The same snapshot fields as an order item, with the options nested as in options_snapshot.
         builder.ComplexCollection(

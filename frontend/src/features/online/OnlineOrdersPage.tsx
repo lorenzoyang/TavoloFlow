@@ -8,14 +8,12 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { ServiceNotOffered } from "@/features/accounts/ServiceNotOffered";
 import { closeOrderNotifications } from "@/features/push/device";
-import { formatMoney, formatTime } from "@/lib/format";
+import { formatKm, formatMoney, formatTime } from "@/lib/format";
 import { displayName, type Language } from "@/lib/language";
 import { optionSummary } from "@/lib/options";
 import { staffMessages } from "@/lib/staff-messages";
@@ -25,13 +23,13 @@ import type { OnlineActiveOrder, OnlinePendingPage, OnlinePendingRequest } from 
 import { DeliveryAddress } from "./DeliveryAddress";
 import { onlineOrdersMessages } from "./messages";
 import {
-  acceptFee,
   activeProgress,
   DELIVERY_MINUTES,
   formatCountdown,
   PICKUP_MINUTES,
   rejectReasons,
   requestTimes,
+  type DeliveryTier,
   type RejectReason,
 } from "./state";
 import { useOnlineOrders } from "./useOnlineOrders";
@@ -73,13 +71,25 @@ function PendingCard({
   const times = requestTimes(request, page.now, page.receivedAt, model.view.now);
   const disabled = !model.fresh || !!model.busy || times.remainingSeconds === 0;
   const delivery = request.fulfillment === "DELIVERY";
-  // Delivery is accepted with the fee whoever accepts enters: explicitly, 0 when free.
-  const [feeText, setFeeText] = useState("");
-  const fee = acceptFee(feeText, request.itemsTotalCents);
-  // The coupon comes off the dishes only; the fee whoever accepts enters is added in full.
+  // Delivery is accepted with one of the restaurant's current fee bands, picked by the road distance
+  // on the route from the restaurant. A band edited or removed meanwhile is no longer picked, so a
+  // new fee is never sent without being chosen again.
+  const tiers = page.delivery?.tiers ?? [];
+  const origin =
+    page.delivery?.originLat != null && page.delivery.originLng != null
+      ? { lat: page.delivery.originLat, lng: page.delivery.originLng }
+      : null;
+  const [picked, setPicked] = useState<DeliveryTier | null>(null);
+  // A fee quoted to the customer is kept as it is; acceptance sends none.
+  const quoted = request.deliveryFeeCents;
+  const tier = tiers.find(
+    (t) => t.maxMeters === picked?.maxMeters && t.feeCents === picked.feeCents,
+  );
+  const fee = quoted ?? tier?.feeCents ?? null;
+  // The coupon comes off the dishes only; the band's fee is added in full.
   const discount = request.coupon?.discountCents ?? 0;
   const due = request.itemsTotalCents - discount;
-  const feeId = `delivery-fee-${request.id}`;
+  const tierLabelId = `delivery-tier-${request.id}`;
   return (
     <article className="space-y-3 rounded-2xl border bg-card p-4 shadow-xs">
       <header className="flex items-start justify-between gap-3">
@@ -108,7 +118,11 @@ function PendingCard({
         <CallLink phone={request.customerPhone} label={m.call(request.customerPhone)} />
       )}
       {delivery && request.deliveryAddress && (
-        <DeliveryAddress address={request.deliveryAddress} notes={request.deliveryNotes} />
+        <DeliveryAddress
+          address={request.deliveryAddress}
+          notes={request.deliveryNotes}
+          origin={origin}
+        />
       )}
       <ul className="divide-y border-y">
         {request.items.map((line, index) => {
@@ -159,20 +173,49 @@ function PendingCard({
       <div className="space-y-2">
         {delivery && (
           <div className="space-y-2">
-            <Label htmlFor={feeId}>{m.deliveryFee}</Label>
-            <Input
-              id={feeId}
-              inputMode="decimal"
-              autoComplete="off"
-              value={feeText}
-              disabled={disabled}
-              aria-invalid={feeText.trim() !== "" && fee === null}
-              aria-describedby={`${feeId}-hint`}
-              onChange={(event) => setFeeText(event.target.value)}
-            />
-            <p id={`${feeId}-hint`} className="text-sm text-muted-foreground">
-              {feeText.trim() !== "" && fee === null ? m.feeInvalid : m.deliveryFeeHint}
-            </p>
+            {quoted !== null ? (
+              <p className="text-sm font-medium">
+                {m.quotedFee(
+                  amount(quoted, language),
+                  formatKm(request.deliveryDistanceMeters ?? 0, language),
+                )}
+              </p>
+            ) : (
+              <p id={tierLabelId} className="text-sm font-medium">
+                {m.tierChoice}
+              </p>
+            )}
+            {quoted !== null ? null : tiers.length === 0 ? (
+              <Notice tone="warning">{m.noTiers}</Notice>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">{m.tierHint}</p>
+                <RadioGroup
+                  aria-labelledby={tierLabelId}
+                  value={tier ? String(tier.maxMeters) : ""}
+                  disabled={disabled}
+                  onValueChange={(value) =>
+                    setPicked(tiers.find((t) => String(t.maxMeters) === value) ?? null)
+                  }
+                  className="grid-cols-1 sm:grid-cols-2"
+                >
+                  {tiers.map((tier) => (
+                    <label
+                      key={tier.maxMeters}
+                      className="flex min-h-11 min-w-0 cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm font-medium transition-colors has-data-checked:border-primary/40 has-data-checked:bg-accent"
+                    >
+                      <RadioGroupItem value={String(tier.maxMeters)} />
+                      <span className="min-w-0 tabular-nums">
+                        {m.tierOption(
+                          formatKm(tier.maxMeters, language),
+                          tier.feeCents === 0 ? m.free : amount(tier.feeCents, language),
+                        )}
+                      </span>
+                    </label>
+                  ))}
+                </RadioGroup>
+              </>
+            )}
             {fee !== null && (
               <p className="rounded-xl bg-secondary px-3 py-2 text-sm font-semibold tabular-nums">
                 {request.coupon
@@ -203,7 +246,9 @@ function PendingCard({
                   ? m.acceptDeliveryLabel(request.number, minutes)
                   : m.acceptLabel(request.number, minutes)
               }
-              onClick={() => void model.accept(request, minutes, delivery ? fee : null)}
+              onClick={() =>
+                void model.accept(request, minutes, delivery && quoted === null ? fee : null)
+              }
             >
               {m.minutes(minutes)}
             </Button>

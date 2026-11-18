@@ -19,6 +19,7 @@ import {
   onlineMenuKey,
   onlineContextQuery,
   readCoupon,
+  readDeliveryQuote,
   readOnlineMenu,
   readSubmission,
   submitOnlineRequest,
@@ -30,6 +31,10 @@ import { onlineOrderError, type OnlineOrderMessage } from "./messages";
 import { deviceStorage } from "./useRestaurantLanguage";
 import {
   createOnlineIntent,
+  currentQuote,
+  deliveryShortfallCents,
+  feeStatus,
+  MAX_ADDRESS_LENGTH,
   emptyCheckoutForm,
   emptyOnlineCart,
   existingSubmission,
@@ -94,6 +99,15 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
   });
   const checkoutBlocked =
     !view.active || !context.data || context.isError || !!context.data.pending;
+  const amounts = onlineCartAmounts(cart, review, form);
+  // Delivery only: what the amount shown still lacks to reach the minimum. A new delivery order
+  // cannot be sent while it is positive; the server checks again.
+  const minOrderShortfall =
+    form.fulfillment === "DELIVERY" && !cart.pending
+      ? deliveryShortfallCents(amounts.totalCents, data.restaurant.deliveryMinOrderCents)
+      : 0;
+  // What checkout says about the delivery fee for the address now typed.
+  const fee = feeStatus(form, data.restaurant.deliveryAutoQuote);
   const waitingToken = context.data?.pending?.statusToken;
   useEffect(() => {
     const storage = deviceStorage();
@@ -265,9 +279,45 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     }
   }
 
+  // Asks the server for the fee of the address as typed, only when the customer taps to calculate it,
+  // so no address leaves for the map service unasked. It sends the trimmed text the order will send,
+  // which the server binds the quote to, and the answer belongs to that text only: any change makes
+  // it stale (currentQuote). A failed request counts as no automatic quote, so the price list shows
+  // and the customer can ask again.
+  async function lookupFee() {
+    if (current.current.pending || !isLive() || !live.current.restaurant.deliveryAutoQuote) return;
+    if (form.fulfillment !== "DELIVERY") return;
+    const address = form.address.trim();
+    if (!address || address.length > MAX_ADDRESS_LENGTH) return;
+    const work = start();
+    if (!work) return;
+    const answer = (quote: Awaited<ReturnType<typeof readDeliveryQuote>>) =>
+      setForm((value) =>
+        value.address.trim() === address ? { ...value, quote: { ...quote, address } } : value,
+      );
+    try {
+      const quote = await readDeliveryQuote(slug, address, work.signal);
+      if (work.active()) answer(quote);
+    } catch {
+      if (work.active())
+        answer({
+          result: "UNKNOWN",
+          town: null,
+          distanceMeters: null,
+          feeCents: null,
+          quote: null,
+        });
+    } finally {
+      work.finish();
+    }
+  }
+
   async function send(retry: boolean, turnstileToken: string | null) {
     if (blocked || !isLive()) return;
-    if (!retry && checkoutBlocked) return;
+    if (!retry && (checkoutBlocked || minOrderShortfall > 0)) return;
+    // A delivery is placed only once its fee is known for this address, and never out of range.
+    if (!retry && form.fulfillment === "DELIVERY" && (fee === "lookup" || fee === "OUT_OF_RANGE"))
+      return;
     if ((!retry && (!review || current.current.pending)) || (retry && !current.current.pending))
       return;
     const work = start();
@@ -340,8 +390,20 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
               ? onlineOrderError(e.code)
               : "offline",
       );
-      if (e instanceof ApiError && (e.code === "MENU_CHANGED" || e.code === "DELIVERY_NOT_OFFERED"))
+      // The menu carries the prices, the delivery switch and the minimum the server compared with.
+      if (
+        e instanceof ApiError &&
+        [
+          "MENU_CHANGED",
+          "DELIVERY_NOT_OFFERED",
+          "DELIVERY_MIN_ORDER",
+          "DELIVERY_QUOTE_INVALID",
+        ].includes(e.code)
+      )
         void client.invalidateQueries({ queryKey: onlineMenuKey(slug) });
+      // The quote expired or no longer matches: drop it, so checkout asks for a fresh one.
+      if (e instanceof ApiError && e.code === "DELIVERY_QUOTE_INVALID")
+        setForm((value) => ({ ...value, quote: null }));
       // The code no longer works: drop it, so the next checkout shows the full total.
       if (e instanceof ApiError && e.code === "COUPON_INVALID")
         setForm((value) => ({ ...value, coupon: null }));
@@ -357,9 +419,13 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     contextChecking: !context.data && !context.isError,
     contextRefreshing: context.isFetching,
     checkoutBlocked,
+    minOrderShortfall,
+    feeStatus: fee,
+    quote: currentQuote(form),
+    lookupFee,
     refreshContext: () => void context.refetch(),
     cart,
-    amounts: onlineCartAmounts(cart, review, form),
+    amounts,
     busy,
     message,
     review,

@@ -94,7 +94,7 @@ Tutte le schede normali di un browser condividono lo stesso login dell'area staf
 Nella demo gli ordini online sono spenti. Per accenderli bastano un paio di minuti, con gli account della demo:
 
 1. Entra come **amministratore** da `/platform/login` e apri **Demo Ramen**. Nella sezione **Funzioni**, accanto a «Link online», tocca **«Imposta»**, scrivi per esempio `demo-ramen`, tocca **«Controlla e continua»** e conferma. Poi accendi l'interruttore **«Ordini online»** e conferma. Il link va impostato prima: senza, l'interruttore resta disattivato.
-2. Entra come **titolare**. Dalla Home apri **Impostazioni ordini online**: inserisci il telefono e tocca **«Salva telefono»**; poi, in **Orari**, aggiungi per oggi una fascia che comprenda l'ora attuale (la fine è l'ultimo momento in cui si può ordinare) e tocca **«Salva orari»**. In alto lo stato deve diventare **«Aperti»**; altrimenti, lì sotto c'è il motivo. Per provare anche la consegna, attiva **«Offri la consegna»** e tocca **«Salva consegna»**. Per provare un codice sconto, in **Codici sconto** scrivi per esempio `ESTATE10` e `10` e tocca **«Aggiungi codice»**.
+2. Entra come **titolare**. Dalla Home apri **Impostazioni ordini online**: inserisci il telefono e tocca **«Salva telefono»**; poi, in **Orari**, aggiungi per oggi una fascia che comprenda l'ora attuale (la fine è l'ultimo momento in cui si può ordinare) e tocca **«Salva orari»**. In alto lo stato deve diventare **«Aperti»**; altrimenti, lì sotto c'è il motivo. Per provare anche la consegna, nella sezione **Consegna a domicilio** incolla in **«Posizione del ristorante»** delle coordinate, per esempio `43.88015, 11.09612`, tocca **«Aggiungi fascia»** e scrivi per esempio `3` km e `2` €, poi attiva **«Offri la consegna»** e tocca **«Salva consegna»**: senza posizione e almeno una fascia la consegna non si attiva. Per provare un codice sconto, in **Codici sconto** scrivi per esempio `ESTATE10` e `10` e tocca **«Aggiungi codice»**.
 3. In una finestra anonima o in un altro profilo, così non c'è il login dello staff, apri il link che compare in **Link online**, per esempio <http://127.0.0.1:8080/r/demo-ramen>. Aggiungi qualche piatto, apri il carrello e tocca **«Vai alla cassa»**. Se hai creato un codice, scrivilo in **«Codice sconto (facoltativo)»** e tocca **«Applica»**: il totale mostra lo sconto. Inserisci nome e telefono e invia con **«Invia l’ordine»**. Si apre la pagina di stato dell'ordine.
 4. Torna all'area staff: in alto in ogni pagina compare il banner con l'ordine da accettare (anche qui, per il suono il browser vuole prima un tocco sulla pagina). Tocca **«Apri»**, oppure dalla Home **Ordini online**, e accetta toccando uno dei tempi (10, 20, 30 o 45 min). La pagina di stato del cliente mostra l'ordine accettato con l'orario previsto.
 5. Ora l'ordine è in **Cucina** come «Ritiro #1»: segna i piatti con **«Pronto»** e, dal **Pass**, con **«Servito»**. Infine, come titolare, apri **Conto**, scegli «Ritiro #1» e tocca **«Ritirato, verifica incasso»**; spunta la conferma e chiudi con **«Ritirato e incassato»**.
@@ -328,6 +328,28 @@ Ricarica la pagina cliente: il widget non deve più caricarsi. Chiavi vere di pr
 
 [Esempio a 360px: messaggio dell’app quando il provider non è disponibile](../images/online-verification-it.webp) (SDK simulato; non mostra il widget Cloudflare).
 
+### Provare il preventivo automatico della consegna
+
+Senza chiave Geoapify il preventivo automatico è spento, come nella demo: alla cassa la consegna mostra il listino delle fasce e chi accetta sceglie la fascia. Per provarlo serve una chiave gratuita di [Geoapify](https://www.geoapify.com/) (**My projects → API keys**). Mettila nei segreti locali e riavvia l’API:
+
+```bash
+dotnet user-secrets set 'Geoapify:ApiKey' 'LA_TUA_CHIAVE' --project backend/TavoloFlow.Api
+```
+
+Poi, come titolare, configura la consegna come in «Provare gli ordini online», ma con le coordinate di un punto reale: in Google Maps tieni premuto (sul computer, tasto destro) sul punto e tocca «latitudine, longitudine» per copiarle. Aggiungi qualche fascia, per esempio 3, 6 e 10 km. Alla cassa scegli **«Consegna»** e scrivi un indirizzo vero con il civico e tocca **«Calcola la consegna»**: compare «Consegna a … · costo …», e il totale comprende la consegna. Un indirizzo oltre l’ultima fascia risulta fuori zona; uno senza civico o scritto male mostra il listino, e l’ordine si può inviare lo stesso. Nell’area staff, l’ordine con preventivo mostra costo e distanza, senza fasce da scegliere.
+
+Ogni preventivo consuma due crediti del piano gratuito, che ne ha 3000 al giorno. I test di integrazione non ne usano: un servizio simulato risponde al posto di Geoapify, e l’host dei test ignora la chiave nei segreti locali. Per eseguirli da soli, dalla radice del repository:
+
+```bash
+dotnet test TavoloFlow.slnx --filter 'FullyQualifiedName~OnlineDeliveryQuoteTests'
+```
+
+Per spegnere di nuovo il preventivo, togli la chiave e riavvia l’API:
+
+```bash
+dotnet user-secrets remove 'Geoapify:ApiKey' --project backend/TavoloFlow.Api
+```
+
 ## Parte 3: test e controlli
 
 ### Backend
@@ -496,6 +518,7 @@ Remove-NetFirewallRule -DisplayName "TavoloFlow Dev 5173"
 | Verifica attivata, ma nessun widget alla conferma | Controlla che le variabili raggiungano il processo API come `Turnstile__*`, non solo il `.env` della radice o il frontend. Riavvia l’API e ricarica la pagina cliente. Development e Demo disattivano la verifica per impostazione predefinita. |
 | L’API segnala una configurazione Turnstile errata, o la verifica di test fallisce sempre | Controlla che le chiavi di test corrispondano ai tipi della tabella ufficiale e che l’ambiente sia Development. Le chiavi vere richiedono anche `Turnstile__Hostname`, uguale all’hostname del browser e a quello autorizzato nel pannello. |
 | Il widget non si carica, o l’invio segnala verifica non disponibile | Browser e API devono raggiungere Cloudflare: controlla rete ed estensioni che bloccano le richieste. Per un ordine sconosciuto fai prima la GET senza cancellare l’intento originale. Per la produzione vedi la guida di self-hosting. |
+| Alla cassa la consegna mostra sempre il listino invece del costo | Controlla la chiave `Geoapify:ApiKey` nei segreti locali (poi riavvia l’API), la posizione e le fasce del ristorante, e che l’indirizzo abbia il civico. Se Geoapify risponde con un errore, i log dell’API riportano lo stato HTTP. |
 | La pagina degli ordini online fa solo guardare il menu                       | lo stato in «Impostazioni ordini online» dice perché: manca il telefono o gli orari, pausa, fuori orario o troppi ordini in attesa; gli orari seguono il fuso del ristorante                                                                          |
 | I QR contengono `localhost`                                                  | `VITE_PUBLIC_BASE_URL` in `frontend/.env.local`, poi ricarica la pagina (Vite si riavvia da solo)                                                                                                                                                     |
 | Il telefono non apre la pagina                                               | stessa rete Wi-Fi e Vite avviato con `--host 0.0.0.0`; su Linux e macOS il firewall del sistema; su WSL profilo di rete privato, regola del firewall e IP di WSL ancora uguale a quello del port forwarding (`netsh interface portproxy show v4tov4`) |

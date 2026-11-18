@@ -8,7 +8,9 @@ namespace TavoloFlow.Api.Online;
 
 // The anonymous online menu at /r/{slug}. PublicPhone is shown whenever it is set; Status comes from
 // OnlineAvailability and NextOpensAt only accompanies CLOSED_HOURS. With delivery on, checkout offers it
-// and shows the optional note in the customer's language.
+// and shows the optional note in the customer's language and the fee bands, nearest first (never the
+// restaurant's coordinates); a delivery order's dishes, after the coupon, must reach
+// DeliveryMinOrderCents when it is set.
 public sealed record OnlineMenuRestaurantResponse(
     Guid Id,
     string Name,
@@ -19,7 +21,10 @@ public sealed record OnlineMenuRestaurantResponse(
     bool DeliveryEnabled,
     string? DeliveryNoteZh,
     string? DeliveryNoteIt,
-    string? DeliveryNoteEn
+    string? DeliveryNoteEn,
+    long? DeliveryMinOrderCents,
+    DeliveryTierResponse[] DeliveryTiers,
+    bool DeliveryAutoQuote
 );
 
 public sealed record OnlineMenuResponse(
@@ -33,7 +38,8 @@ public sealed record OnlineMenuResponse(
 public sealed record TurnstilePublicConfiguration(string SiteKey);
 
 // Items use the QR order line format; Fulfillment is PICKUP or DELIVERY. The address and notes are
-// for delivery only. Coupon is null without one.
+// for delivery only. Coupon is null without one; DeliveryQuote is null for pickup and for a delivery
+// whose fee the restaurant confirms on acceptance.
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record OnlineRequestInput(
     [Required] Guid? ClientRequestId,
@@ -44,8 +50,38 @@ public sealed record OnlineRequestInput(
     string? DeliveryNotes,
     OrderLineInput?[]? Items,
     OnlineRequestCouponInput? Coupon,
+    OnlineRequestDeliveryQuoteInput? DeliveryQuote,
     string? TurnstileToken = null
 );
+
+// The signed quote checkout received for this address and the fee the customer saw, which the
+// submission checks against the restaurant's current bands.
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record OnlineRequestDeliveryQuoteInput(
+    [Required] string? Quote,
+    [Required] long? FeeCents
+);
+
+// Checkout asks for a delivery fee with the address as the customer typed it.
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record DeliveryQuoteInput([Required] string? Address);
+
+// QUOTED carries the town the address was found in, the road distance, the band's fee and the signed
+// quote to send with the order; OUT_OF_RANGE is beyond the farthest band; UNKNOWN means no automatic
+// quote (not found precisely enough, the service or a limit unavailable, or no automatic quotes here),
+// so checkout shows the price list and the restaurant confirms the fee.
+public sealed record DeliveryQuoteResponse(
+    string Result,
+    string? Town = null,
+    int? DistanceMeters = null,
+    long? FeeCents = null,
+    string? Quote = null
+)
+{
+    public const string Quoted = "QUOTED";
+    public const string OutOfRange = "OUT_OF_RANGE";
+    public const string Unknown = "UNKNOWN";
+}
 
 // The coupon the customer saw at checkout. PercentOff is the confirmed percentage, like a line's expected
 // price: a coupon deleted and created again with another percentage is refused rather than applied.
@@ -113,9 +149,10 @@ public sealed record OnlineOrderLineResponse(
 }
 
 // The customer's status page. Phase is WAITING, EXPIRED, REJECTED or ACCEPTED (OnlineRequestState);
-// SessionStatus and CloseReason exist once accepted, and DeliveryFeeCents once a delivery is accepted.
-// TotalAmountCents is the submitted item total less the coupon before acceptance, then the session's
-// bill amount (with the fee while it counts). It never contains the phone, the address or request IDs.
+// SessionStatus and CloseReason exist once accepted. DeliveryFeeCents is the quoted fee before
+// acceptance (null when the restaurant confirms it), then the session's. TotalAmountCents is the
+// submitted item total less the coupon plus any quoted fee before acceptance, then the session's bill
+// amount (with the fee while it counts). It never contains the phone, the address or request IDs.
 public sealed record OnlineOrderStatusResponse(
     OnlineOrderRestaurantResponse Restaurant,
     int Number,

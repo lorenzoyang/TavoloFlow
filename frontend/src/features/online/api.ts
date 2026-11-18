@@ -7,6 +7,7 @@ import type { Language } from "@/lib/language";
 import type {
   CouponInput,
   DeliveryInput,
+  DeliveryTier,
   DeliverySettings,
   OnlineCoupon,
   OnlineHour,
@@ -79,8 +80,24 @@ export type OnlinePendingRequest = {
   // Before the coupon; its discount comes off this, and acceptance adds any delivery fee.
   itemsTotalCents: number;
   coupon: CouponDiscount | null;
+  // Both set when the customer accepted an automatic quote, which acceptance keeps; both null when
+  // whoever accepts picks the band.
+  deliveryFeeCents: number | null;
+  deliveryDistanceMeters: number | null;
 };
-export type OnlinePendingPage = { items: OnlinePendingRequest[]; now: string; receivedAt: number };
+// Set while a delivery request waits: whoever accepts picks one of the restaurant's current fee bands,
+// judging the distance on the route drawn from its coordinates.
+export type OnlinePendingDelivery = {
+  originLat: number | null;
+  originLng: number | null;
+  tiers: DeliveryTier[];
+};
+export type OnlinePendingPage = {
+  items: OnlinePendingRequest[];
+  now: string;
+  delivery: OnlinePendingDelivery | null;
+  receivedAt: number;
+};
 
 // An accepted online order until its session closes; counts are lines, not portions.
 export type OnlineActiveOrder = {
@@ -125,7 +142,7 @@ export const onlineActiveQuery = (account: AccountScope) =>
   });
 
 // Both apply only to a request still waiting; a repeat or a lost race returns ONLINE_REQUEST_CHANGED.
-// Delivery sends the fee in cents (0 when free); pickup sends null.
+// Delivery sends the chosen band's fee in cents (0 when free); pickup sends null.
 export const acceptOnlineRequest = (
   id: string,
   estimatedMinutes: number,

@@ -8,7 +8,7 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { formatMoney } from "@/lib/format";
+import { formatKm, formatMoney } from "@/lib/format";
 import type { Language } from "@/lib/language";
 import { cn } from "@/lib/utils";
 import { RestaurantHeader } from "@/features/public-menu/PublicMenuViews";
@@ -262,7 +262,13 @@ export function OnlineCartPanel({
   const offersDelivery = data.restaurant.deliveryEnabled || form.fulfillment === "DELIVERY";
   const delivery = form.fulfillment === "DELIVERY";
   const note = delivery ? deliveryNote(data.restaurant, language) : null;
-  const { coupon, itemsCents, discountCents, totalCents } = model.amounts;
+  const { coupon, itemsCents, discountCents, totalCents, deliveryFeeCents, payableCents } =
+    model.amounts;
+  const fee = delivery ? model.feeStatus : "manual";
+  const quote = model.quote;
+  const needsLookup = fee === "lookup";
+  const minOrderCents = data.restaurant.deliveryMinOrderCents;
+  const tiers = data.restaurant.deliveryTiers;
   function applyCoupon() {
     void model.applyCoupon(couponText);
   }
@@ -272,6 +278,11 @@ export function OnlineCartPanel({
       ({ name: nameRef, phone: phoneRef, address: addressRef, notes: notesRef })[
         problems[0]
       ].current?.focus();
+      return;
+    }
+    // A delivery's fee is shown before the order goes out: the first tap asks for it.
+    if (needsLookup) {
+      void model.lookupFee();
       return;
     }
     void submitVerified(false);
@@ -504,16 +515,93 @@ export function OnlineCartPanel({
                     </p>
                   )}
                 </div>
-                <div className="space-y-1 rounded-xl border p-3 text-sm leading-6">
+                <div className="space-y-2 rounded-xl border p-3 text-sm leading-6">
+                  {fee === "QUOTED" && quote?.feeCents != null && (
+                    <div>
+                      <p className="font-medium wrap-break-word">
+                        {quote.town
+                          ? m.quotedTo(quote.town, formatMoney(quote.feeCents, language))
+                          : m.quotedFee(formatMoney(quote.feeCents, language))}
+                      </p>
+                      <p className="text-muted-foreground">{m.quoteTownHint}</p>
+                    </div>
+                  )}
+                  {fee === "OUT_OF_RANGE" && (
+                    <div className="space-y-2">
+                      <p className="font-medium">{m.outOfRange}</p>
+                      {callAction}
+                    </div>
+                  )}
+                  {fee === "UNKNOWN" && <p className="font-medium">{m.quoteUnknown}</p>}
+                  {fee === "lookup" && <p className="text-muted-foreground">{m.quoteHint}</p>}
+                  {(fee === "lookup" || fee === "UNKNOWN") && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={model.busy || !form.address.trim()}
+                      onClick={() => void model.lookupFee()}
+                    >
+                      {m.lookupFee}
+                    </Button>
+                  )}
+                  {fee !== "QUOTED" && tiers.length > 0 && (
+                    <div>
+                      <p className="font-medium">{m.feeTitle}</p>
+                      <ul>
+                        {tiers.map((tier) => (
+                          <li
+                            key={tier.maxMeters}
+                            className="flex items-baseline justify-between gap-3"
+                          >
+                            <span>{m.tierLine(formatKm(tier.maxMeters, language))}</span>
+                            <span className="shrink-0 tabular-nums">
+                              {tier.feeCents === 0 ? m.free : formatMoney(tier.feeCents, language)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="text-muted-foreground">
+                        {m.beyondTiers(formatKm(tiers[tiers.length - 1].maxMeters, language))}
+                      </p>
+                    </div>
+                  )}
+                  {minOrderCents !== null && (
+                    <p className="font-medium">
+                      {m.minOrderLine(formatMoney(minOrderCents, language))}
+                    </p>
+                  )}
                   {note && (
-                    <>
+                    <div>
                       <p className="font-medium">{m.deliveryNoteTitle}</p>
                       <p lang={note.language} className="whitespace-pre-wrap wrap-break-word">
                         {note.text}
                       </p>
-                    </>
+                    </div>
                   )}
-                  <p className="text-muted-foreground">{m.feeConfirmed}</p>
+                  {(fee === "manual" || fee === "UNKNOWN") && (
+                    <p className="text-muted-foreground">{m.feeConfirmed}</p>
+                  )}
+                  {(data.restaurant.deliveryAutoQuote || fee === "QUOTED") && (
+                    <p className="text-xs text-muted-foreground">
+                      <a
+                        href="https://www.geoapify.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline"
+                      >
+                        {m.attribution.geoapify}
+                      </a>
+                      {" · "}
+                      <a
+                        href="https://www.openstreetmap.org/copyright"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline"
+                      >
+                        {m.attribution.osm}
+                      </a>
+                    </p>
+                  )}
                 </div>
               </>
             )}
@@ -604,10 +692,32 @@ export function OnlineCartPanel({
                 </p>
               </>
             )}
+            {deliveryFeeCents !== null && (
+              <>
+                <p className="flex items-baseline justify-between gap-3 text-sm text-muted-foreground">
+                  <span>{m.itemsTotal}</span>
+                  <span className="tabular-nums">{formatMoney(totalCents, language)}</span>
+                </p>
+                <p className="flex items-baseline justify-between gap-3 text-sm">
+                  <span>{m.deliveryFee}</span>
+                  <span className="tabular-nums">{formatMoney(deliveryFeeCents, language)}</span>
+                </p>
+              </>
+            )}
             <p className="flex items-baseline justify-between gap-3 text-lg font-semibold">
-              <span>{model.review && delivery ? m.itemsTotal : m.total}</span>
-              <span className="text-xl tabular-nums">{formatMoney(totalCents, language)}</span>
+              <span>
+                {deliveryFeeCents === null && model.review && delivery ? m.itemsTotal : m.total}
+              </span>
+              <span className="text-xl tabular-nums">{formatMoney(payableCents, language)}</span>
             </p>
+            {model.minOrderShortfall > 0 && minOrderCents !== null && (
+              <p className="rounded-lg bg-secondary px-3 py-2 text-sm font-medium">
+                {m.minOrderShort(
+                  formatMoney(minOrderCents, language),
+                  formatMoney(model.minOrderShortfall, language),
+                )}
+              </p>
+            )}
           </div>
           {!pending && !model.review && (
             <>
@@ -633,10 +743,15 @@ export function OnlineCartPanel({
               size="lg"
               className="w-full"
               disabled={
-                model.busy || !!model.blocked || model.checkoutBlocked || (!!siteKey && !token)
+                model.busy ||
+                !!model.blocked ||
+                model.checkoutBlocked ||
+                model.minOrderShortfall > 0 ||
+                fee === "OUT_OF_RANGE" ||
+                (!!siteKey && !token && !needsLookup)
               }
             >
-              {model.busy ? m.working : m.placeOrder}
+              {model.busy ? m.working : needsLookup ? m.lookupFee : m.placeOrder}
             </Button>
           )}
         </div>

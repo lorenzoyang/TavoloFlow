@@ -1,6 +1,6 @@
 // Pure online ordering rules, node-tested. They repeat the server's rules so forms can explain a
 // mistake before sending; the server stays the authority.
-import { parsePrice } from "../../lib/format.ts";
+import { formatCents, parsePrice } from "../../lib/format.ts";
 
 export const MINUTES_PER_DAY = 1440;
 
@@ -89,43 +89,129 @@ export function sameHours(a: OnlineHour[], b: OnlineHour[]): boolean {
   );
 }
 
-// Delivery settings: the switch and an optional note per language, saved together. Blank notes are
-// stored as null, like the server; each note takes at most 500 characters once trimmed.
+// Delivery settings, saved together: the restaurant's coordinates, the fee bands, an optional minimum
+// order, an optional note per language and the switch, which needs the coordinates and a band.
+// Blank notes are stored as null, like the server; each note takes at most 500 characters once
+// trimmed. The minimum is a positive decimal amount, blank for none.
 export const MAX_DELIVERY_NOTE_LENGTH = 500;
+export const MAX_DELIVERY_TIERS = 5;
+export const MAX_DELIVERY_METERS = 30_000;
+// One fee band by road distance from the restaurant, nearest first; 0 cents is free delivery.
+export type DeliveryTier = { maxMeters: number; feeCents: number };
+export type Coordinates = { lat: number; lng: number };
 export type DeliveryNotes = { zh: string; it: string; en: string };
-export type DeliveryDraft = { enabled: boolean; notes: DeliveryNotes };
+export type TierDraft = { km: string; fee: string };
+export type DeliveryDraft = {
+  origin: string;
+  tiers: TierDraft[];
+  minOrder: string;
+  notes: DeliveryNotes;
+  enabled: boolean;
+};
 export type DeliverySettings = {
   deliveryEnabled: boolean;
   deliveryNoteZh: string | null;
   deliveryNoteIt: string | null;
   deliveryNoteEn: string | null;
+  deliveryMinOrderCents: number | null;
+  deliveryOriginLat: number | null;
+  deliveryOriginLng: number | null;
+  deliveryTiers: DeliveryTier[];
 };
 export type DeliveryInput = {
   enabled: boolean;
   noteZh: string | null;
   noteIt: string | null;
   noteEn: string | null;
+  minOrderCents: number | null;
+  originLat: number | null;
+  originLng: number | null;
+  tiers: DeliveryTier[];
 };
+// The first field to fix, in the form's order; "setup" is the switch turned on without the
+// coordinates or a band.
+export type DeliveryProblem =
+  | { field: "origin" }
+  | { field: "tier"; index: number; part: "km" | "fee" | "repeated" }
+  | { field: "minOrder" }
+  | { field: "note"; language: keyof DeliveryNotes }
+  | { field: "setup" };
+
+// "43.880153, 11.096122", as Google Maps copies a point (a long press, or a right click on a
+// computer): latitude, a comma, longitude. Rounded to six decimals like the server; null otherwise,
+// such as a share link, which holds no coordinates.
+export function parseOrigin(value: string): Coordinates | null {
+  const match = /^\s*(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/.exec(value);
+  if (!match) return null;
+  const lat = Math.round(Number(match[1]) * 1e6) / 1e6;
+  const lng = Math.round(Number(match[2]) * 1e6) / 1e6;
+  return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null;
+}
+
+const formatOrigin = (lat: number | null, lng: number | null) =>
+  lat === null || lng === null ? "" : `${lat}, ${lng}`;
+
+// A pin on Google Maps, so the owner can check the pasted point is the restaurant's door.
+export const originMapsUrl = ({ lat, lng }: Coordinates) =>
+  `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
+// Kilometres with at most one decimal, "2.5" or "2,5": the band's distance in metres, 0.1-30 km.
+function parseKm(value: string): number | null {
+  const match = /^(\d{1,2})(?:[.,](\d))?$/.exec(value.trim());
+  if (!match) return null;
+  const meters = Number(match[1]) * 1000 + Number(match[2] ?? 0) * 100;
+  return meters >= 100 && meters <= MAX_DELIVERY_METERS ? meters : null;
+}
+
+export const emptyTierDraft: TierDraft = { km: "", fee: "" };
 
 export function deliveryDraft(settings: DeliverySettings): DeliveryDraft {
   return {
-    enabled: settings.deliveryEnabled,
+    origin: formatOrigin(settings.deliveryOriginLat, settings.deliveryOriginLng),
+    tiers: settings.deliveryTiers.map((tier) => ({
+      km: String(tier.maxMeters / 1000),
+      fee: formatCents(tier.feeCents),
+    })),
+    minOrder:
+      settings.deliveryMinOrderCents === null ? "" : formatCents(settings.deliveryMinOrderCents),
     notes: {
       zh: settings.deliveryNoteZh ?? "",
       it: settings.deliveryNoteIt ?? "",
       en: settings.deliveryNoteEn ?? "",
     },
+    enabled: settings.deliveryEnabled,
   };
 }
 
 const note = (value: string) => value.trim() || null;
 
+// The server's rules: both coordinates or neither; up to five bands at distinct distances (any
+// order, saved nearest first) with a fee of 0 or more; delivery on needs the coordinates and a band.
 export function deliveryInput(
   draft: DeliveryDraft,
-): { ok: true; input: DeliveryInput } | { ok: false; tooLong: keyof DeliveryNotes } {
+): { ok: true; input: DeliveryInput } | { ok: false; problem: DeliveryProblem } {
+  const origin = parseOrigin(draft.origin);
+  if (draft.origin.trim() !== "" && origin === null)
+    return { ok: false, problem: { field: "origin" } };
+  const tiers: DeliveryTier[] = [];
+  for (const [index, tier] of draft.tiers.entries()) {
+    const maxMeters = parseKm(tier.km);
+    if (maxMeters === null) return { ok: false, problem: { field: "tier", index, part: "km" } };
+    if (tiers.some((other) => other.maxMeters === maxMeters))
+      return { ok: false, problem: { field: "tier", index, part: "repeated" } };
+    const feeCents = parsePrice(tier.fee, true);
+    if (feeCents === null) return { ok: false, problem: { field: "tier", index, part: "fee" } };
+    tiers.push({ maxMeters, feeCents });
+  }
+  const minOrder = draft.minOrder.trim();
+  const minOrderCents = minOrder === "" ? null : parsePrice(minOrder);
+  if (minOrder !== "" && minOrderCents === null)
+    return { ok: false, problem: { field: "minOrder" } };
   for (const language of ["zh", "it", "en"] as const)
     if ((note(draft.notes[language])?.length ?? 0) > MAX_DELIVERY_NOTE_LENGTH)
-      return { ok: false, tooLong: language };
+      return { ok: false, problem: { field: "note", language } };
+  if (draft.enabled && (origin === null || tiers.length === 0))
+    return { ok: false, problem: { field: "setup" } };
   return {
     ok: true,
     input: {
@@ -133,6 +219,10 @@ export function deliveryInput(
       noteZh: note(draft.notes.zh),
       noteIt: note(draft.notes.it),
       noteEn: note(draft.notes.en),
+      minOrderCents,
+      originLat: origin?.lat ?? null,
+      originLng: origin?.lng ?? null,
+      tiers: tiers.sort((a, b) => a.maxMeters - b.maxMeters),
     },
   };
 }
@@ -141,11 +231,16 @@ export const sameDelivery = (input: DeliveryInput, settings: DeliverySettings) =
   input.enabled === settings.deliveryEnabled &&
   input.noteZh === settings.deliveryNoteZh &&
   input.noteIt === settings.deliveryNoteIt &&
-  input.noteEn === settings.deliveryNoteEn;
-
-// Delivery is on but customers get no area or fee rules, only "the restaurant confirms the fee".
-export const deliveryWithoutNote = (input: DeliveryInput) =>
-  input.enabled && !input.noteZh && !input.noteIt && !input.noteEn;
+  input.noteEn === settings.deliveryNoteEn &&
+  input.minOrderCents === settings.deliveryMinOrderCents &&
+  input.originLat === settings.deliveryOriginLat &&
+  input.originLng === settings.deliveryOriginLng &&
+  input.tiers.length === settings.deliveryTiers.length &&
+  input.tiers.every(
+    (tier, index) =>
+      tier.maxMeters === settings.deliveryTiers[index].maxMeters &&
+      tier.feeCents === settings.deliveryTiers[index].feeCents,
+  );
 
 // Coupons: a code customers type, a whole percentage off the dishes and an optional last local day. The
 // server's rules (OnlineCoupons): 3-20 letters or digits, stored uppercase; 1-50 percent.
@@ -207,9 +302,9 @@ export const rejectReasons = (fulfillment: "PICKUP" | "DELIVERY"): RejectReason[
     ? ["SOLD_OUT", "BUSY", "CLOSING", "OUT_OF_RANGE"]
     : ["SOLD_OUT", "BUSY", "CLOSING"];
 
-// The delivery fee typed when accepting, in cents: a decimal amount, 0 when free, and with the items
-// still a safe integer like every bill. Null while it is not a valid fee.
-export function acceptFee(value: string, itemsTotalCents: number): number | null {
+// The delivery fee the OWNER types when correcting a bill, in cents: a decimal amount, 0 when free,
+// and with the items still a safe integer like every bill. Null while it is not a valid fee.
+export function typedDeliveryFee(value: string, itemsTotalCents: number): number | null {
   const fee = parsePrice(value, true);
   return fee !== null && fee <= Number.MAX_SAFE_INTEGER - itemsTotalCents ? fee : null;
 }
@@ -217,6 +312,11 @@ export function acceptFee(value: string, itemsTotalCents: number): number | null
 // A plain Google Maps search link for a delivery address; nothing is sent until someone opens it.
 export const mapsUrl = (address: string) =>
   `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+
+// The driving route from the restaurant to the customer's address as typed, so whoever accepts reads
+// the road distance and picks the fee band; again nothing is sent until someone opens it.
+export const routeUrl = ({ lat, lng }: Coordinates, address: string) =>
+  `https://www.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${encodeURIComponent(address)}&travelmode=driving`;
 
 // The banner above every staff page: nothing at zero, the count while customers can still order, and
 // a warning once the cap stops new orders.

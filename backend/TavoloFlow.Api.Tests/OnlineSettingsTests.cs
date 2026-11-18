@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using TavoloFlow.Api.Entities;
 using TavoloFlow.Api.Online;
 using static TavoloFlow.Api.Tests.AccountTestHost;
@@ -251,20 +252,23 @@ public sealed class OnlineSettingsTests(PostgreSqlFixture database)
     }
 
     [Fact]
-    public async Task Delivery_OwnerOnly_TrimsValidatesAndKeepsNotesWhenOff()
+    public async Task Delivery_OwnerOnly_TrimsValidatesAndKeepsSettingsWhenOff()
     {
         using var host = new AccountTestHost(database);
         host.Clock.Set(MondayNoon);
         var (owner, staff, restaurantId) = await SeedAsync(online: true, phone: "0212345678");
         using var ownerClient = await LoginAsync(host, owner);
         using var staffClient = await LoginAsync(host, staff);
+        var tiers = new[] { new { maxMeters = 3000, feeCents = 200L } };
 
         var initial = await ReadAsync(staffClient);
         Assert.False(initial.DeliveryEnabled);
         Assert.Null(initial.DeliveryNoteIt);
+        Assert.Empty(initial.DeliveryTiers);
+        Assert.Null(initial.DeliveryOriginLat);
 
         await AssertErrorAsync(
-            await SendAsync(staffClient, HttpMethod.Put, Delivery, new { enabled = true }),
+            await SendAsync(staffClient, HttpMethod.Put, Delivery, new { enabled = false, tiers }),
             HttpStatusCode.Forbidden,
             "FORBIDDEN"
         );
@@ -272,10 +276,45 @@ public sealed class OnlineSettingsTests(PostgreSqlFixture database)
             var invalid in new object[]
             {
                 new { },
-                new { enabled = (bool?)null },
-                new { enabled = true, noteIt = new string('a', 501) },
-                new { enabled = true, noteZh = " " + new string('配', 501) + " " },
-                new { enabled = true, note = "unknown field" },
+                new { enabled = (bool?)null, tiers },
+                // The bands are required: an empty list means none.
+                new { enabled = false },
+                new
+                {
+                    enabled = false,
+                    tiers,
+                    noteIt = new string('a', 501),
+                },
+                new
+                {
+                    enabled = false,
+                    tiers,
+                    noteZh = " " + new string('配', 501) + " ",
+                },
+                new
+                {
+                    enabled = false,
+                    tiers,
+                    note = "unknown field",
+                },
+                new
+                {
+                    enabled = false,
+                    tiers,
+                    minOrderCents = 0L,
+                },
+                new
+                {
+                    enabled = false,
+                    tiers,
+                    minOrderCents = -100L,
+                },
+                new
+                {
+                    enabled = false,
+                    tiers,
+                    minOrderCents = 9_007_199_254_740_992L,
+                },
             }
         )
             await AssertErrorAsync(
@@ -295,14 +334,19 @@ public sealed class OnlineSettingsTests(PostgreSqlFixture database)
                 {
                     enabled = true,
                     noteZh = "   ",
-                    noteIt = $"  Entro 5 km gratis sopra 20 €.{new string(' ', 600)}",
+                    noteIt = $"  Solo Prato centro.{new string(' ', 600)}",
                     noteEn = (string?)null,
+                    minOrderCents = 1500L,
+                    originLat = 43.880153m,
+                    originLng = 11.096122m,
+                    tiers,
                 }
             )
         );
         Assert.True(on.DeliveryEnabled);
+        Assert.Equal(1500, on.DeliveryMinOrderCents);
         Assert.Null(on.DeliveryNoteZh);
-        Assert.Equal("Entro 5 km gratis sopra 20 €.", on.DeliveryNoteIt);
+        Assert.Equal("Solo Prato centro.", on.DeliveryNoteIt);
         Assert.Null(on.DeliveryNoteEn);
         // Delivery never changes whether customers can order: pickup stays open.
         Assert.Equal(initial.Status, on.Status);
@@ -313,16 +357,146 @@ public sealed class OnlineSettingsTests(PostgreSqlFixture database)
                 ownerClient,
                 HttpMethod.Put,
                 Delivery,
-                new { enabled = false, noteIt = on.DeliveryNoteIt }
+                new
+                {
+                    enabled = false,
+                    noteIt = on.DeliveryNoteIt,
+                    minOrderCents = 1500L,
+                    originLat = 43.880153m,
+                    originLng = 11.096122m,
+                    tiers,
+                }
             )
         );
         Assert.False(off.DeliveryEnabled);
         Assert.Equal(on.DeliveryNoteIt, off.DeliveryNoteIt);
+        Assert.Equal(1500, off.DeliveryMinOrderCents);
+        Assert.Equal(on.DeliveryTiers, off.DeliveryTiers);
+        Assert.Equal(43.880153m, off.DeliveryOriginLat);
 
+        await using (var db = database.CreateContext())
+        {
+            var stored = await db.Restaurants.AsNoTracking().SingleAsync(r => r.Id == restaurantId);
+            Assert.False(stored.DeliveryEnabled);
+            Assert.Equal("Solo Prato centro.", stored.DeliveryNoteIt);
+            Assert.Equal(1500, stored.DeliveryMinOrderCents);
+            Assert.Equal(
+                (43.880153m, 11.096122m),
+                (stored.DeliveryOriginLat, stored.DeliveryOriginLng)
+            );
+        }
+
+        // The whole setting is replaced: what is left out is removed.
+        var cleared = await SettingsAsync(
+            await SendAsync(
+                ownerClient,
+                HttpMethod.Put,
+                Delivery,
+                new { enabled = false, tiers = Array.Empty<object>() }
+            )
+        );
+        Assert.Null(cleared.DeliveryMinOrderCents);
+        Assert.Null(cleared.DeliveryOriginLng);
+        Assert.Empty(cleared.DeliveryTiers);
+    }
+
+    [Fact]
+    public async Task Delivery_TiersAndCoordinates_ValidatedSortedAndNeededToTurnOn()
+    {
+        using var host = new AccountTestHost(database);
+        host.Clock.Set(MondayNoon);
+        var (owner, _, restaurantId) = await SeedAsync(online: true, phone: "0212345678");
+        using var client = await LoginAsync(host, owner);
+        object Body(bool enabled, decimal? lat, decimal? lng, params object[] tiers) =>
+            new
+            {
+                enabled,
+                originLat = lat,
+                originLng = lng,
+                tiers,
+            };
+        object Tier(int maxMeters, long feeCents) => new { maxMeters, feeCents };
+
+        foreach (
+            var invalid in new[]
+            {
+                Body(false, 43.88m, null, Tier(3000, 200)),
+                Body(false, 90.5m, 11m, Tier(3000, 200)),
+                Body(false, 43.88m, -180.5m, Tier(3000, 200)),
+                Body(false, null, null, Tier(3000, 200), Tier(3000, 300)),
+                Body(false, null, null, Tier(0, 200)),
+                Body(false, null, null, Tier(30_001, 200)),
+                Body(false, null, null, Tier(3000, -1)),
+                Body(false, null, null, new { maxMeters = 3000 }),
+                Body(
+                    false,
+                    null,
+                    null,
+                    [.. Enumerable.Range(1, 6).Select(km => Tier(km * 1000, 100))]
+                ),
+                // Turning delivery on needs both the starting point and a band.
+                Body(true, null, null, Tier(3000, 200)),
+                Body(true, 43.88m, 11.09m),
+            }
+        )
+            await AssertErrorAsync(
+                await SendAsync(client, HttpMethod.Put, Delivery, invalid),
+                HttpStatusCode.BadRequest,
+                "VALIDATION_FAILED"
+            );
+        Assert.Empty((await ReadAsync(client)).DeliveryTiers);
+
+        // Bands come back nearest first, a free one included; coordinates keep six decimals.
+        var saved = await SettingsAsync(
+            await SendAsync(
+                client,
+                HttpMethod.Put,
+                Delivery,
+                Body(
+                    true,
+                    43.88015349m,
+                    11.0961215m,
+                    Tier(10_000, 600),
+                    Tier(3000, 0),
+                    Tier(30_000, 1500),
+                    Tier(6000, 400),
+                    Tier(1, 0)
+                )
+            )
+        );
+        Assert.Equal(
+            [
+                new DeliveryTierResponse(1, 0),
+                new DeliveryTierResponse(3000, 0),
+                new DeliveryTierResponse(6000, 400),
+                new DeliveryTierResponse(10_000, 600),
+                new DeliveryTierResponse(30_000, 1500),
+            ],
+            saved.DeliveryTiers
+        );
+        Assert.Equal((43.880153m, 11.096122m), (saved.DeliveryOriginLat, saved.DeliveryOriginLng));
+
+        // Saving replaces every band.
+        var replaced = await SettingsAsync(
+            await SendAsync(
+                client,
+                HttpMethod.Put,
+                Delivery,
+                Body(false, null, null, Tier(5000, 300))
+            )
+        );
+        Assert.Equal([new DeliveryTierResponse(5000, 300)], replaced.DeliveryTiers);
+        Assert.Null(replaced.DeliveryOriginLat);
         await using var db = database.CreateContext();
-        var stored = await db.Restaurants.AsNoTracking().SingleAsync(r => r.Id == restaurantId);
-        Assert.False(stored.DeliveryEnabled);
-        Assert.Equal("Entro 5 km gratis sopra 20 €.", stored.DeliveryNoteIt);
+        Assert.Equal(1, await db.DeliveryTiers.CountAsync(t => t.RestaurantId == restaurantId));
+
+        // The database keeps the starting point while delivery is on, whatever writes the row.
+        var error = await Assert.ThrowsAsync<PostgresException>(() =>
+            db
+                .Restaurants.Where(r => r.Id == restaurantId)
+                .ExecuteUpdateAsync(u => u.SetProperty(r => r.DeliveryEnabled, true))
+        );
+        Assert.Equal("ck_restaurant_delivery_ready", error.ConstraintName);
     }
 
     [Fact]
@@ -338,7 +512,7 @@ public sealed class OnlineSettingsTests(PostgreSqlFixture database)
             {
                 (HttpMethod.Patch, Phone, new { publicPhone = "0212345678" }),
                 (HttpMethod.Put, Hours, new { slots = new[] { Slot(1, 720, 900) } }),
-                (HttpMethod.Put, Delivery, new { enabled = true }),
+                (HttpMethod.Put, Delivery, new { enabled = false, tiers = Array.Empty<object>() }),
                 (HttpMethod.Put, Pause, new { until = "TODAY" }),
                 (HttpMethod.Delete, Pause, null),
             }

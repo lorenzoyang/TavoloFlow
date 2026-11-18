@@ -5,9 +5,12 @@ import {
   clearOrderToken,
   couponDiscountCents,
   createOnlineIntent,
+  currentQuote,
   deliveryNote,
+  deliveryShortfallCents,
   emptyOnlineCart,
   existingSubmission,
+  feeStatus,
   onlineCartAmounts,
   onlineCartKey,
   orderEnded,
@@ -19,6 +22,7 @@ import {
   saveOrderToken,
   statusCopy,
   submissionFailure,
+  type AddressQuote,
   type OnlineCart,
   type OrderView,
 } from "../src/features/online-order/state.ts";
@@ -52,6 +56,7 @@ const form = {
   address: "",
   notes: "",
   coupon: null as { code: string; percentOff: number } | null,
+  quote: null as AddressQuote | null,
 };
 const delivery = {
   ...form,
@@ -112,6 +117,7 @@ test("the intent sends trimmed contact details and the confirmed lines", () => {
       },
     ],
     coupon: null,
+    deliveryQuote: null,
   });
   throwsIssue(() => createOnlineIntent(emptyOnlineCart(restaurant), form, requestId), "limits");
   throwsIssue(() => createOnlineIntent(filled(), form, "not-a-uuid"), "limits");
@@ -202,7 +208,7 @@ test("a saved cart restores only for its restaurant, with a pending intent match
 
   throwsIssue(() => restoreOnlineCart(saved, "00000000-0000-4000-8000-000000000099"), "damaged");
   throwsIssue(
-    () => restoreOnlineCart(JSON.stringify({ ...cart, version: 1 }), restaurant),
+    () => restoreOnlineCart(JSON.stringify({ ...cart, version: 2 }), restaurant),
     "damaged",
   );
   throwsIssue(() => restoreOnlineCart("{", restaurant), "damaged");
@@ -233,6 +239,8 @@ test("an understood rejection frees the cart; after an unknown result only one t
     "SERVICE_SUSPENDED",
     "DELIVERY_NOT_OFFERED",
     "COUPON_INVALID",
+    "DELIVERY_MIN_ORDER",
+    "DELIVERY_QUOTE_INVALID",
     "ONLINE_LINK_NOT_FOUND",
     "CSRF_VALIDATION_FAILED",
     "RATE_LIMITED",
@@ -245,6 +253,8 @@ test("an understood rejection frees the cart; after an unknown result only one t
     "ONLINE_BUSY",
     "SERVICE_SUSPENDED",
     "COUPON_INVALID",
+    "DELIVERY_MIN_ORDER",
+    "DELIVERY_QUOTE_INVALID",
   ])
     assert.equal(submissionFailure(409, code, true), "editable", code);
   for (const code of [
@@ -445,19 +455,37 @@ test("the panel and bar apply a coupon only during checkout, using the reviewed 
     coupon: null,
     discountCents: 0,
     totalCents: 1200,
+    deliveryFeeCents: null,
+    payableCents: 1200,
   });
   assert.deepEqual(onlineCartAmounts(cart, review, checkout), {
     itemsCents: 990,
     coupon,
     discountCents: 148,
     totalCents: 842,
+    deliveryFeeCents: null,
+    payableCents: 842,
   });
   assert.deepEqual(onlineCartAmounts(cart, review, form), {
     itemsCents: 990,
     coupon: null,
     discountCents: 0,
     totalCents: 990,
+    deliveryFeeCents: null,
+    payableCents: 990,
   });
+});
+
+test("the delivery minimum compares the total shown, which takes the coupon off during checkout", () => {
+  const cart = addItem(addItem(emptyOnlineCart(restaurant), item), item);
+  const checkout = { ...delivery, coupon: { code: "ESTATE10", percentOff: 10 } };
+  const shown = (review: OnlineCart | null) => onlineCartAmounts(cart, review, checkout).totalCents;
+  assert.equal(deliveryShortfallCents(shown(null), null), 0);
+  // 24 € of dishes reach 24 € while editing; with 10% off at checkout they fall 2.40 € short.
+  assert.equal(deliveryShortfallCents(shown(null), 2400), 0);
+  assert.equal(deliveryShortfallCents(shown(cart), 2400), 240);
+  assert.equal(deliveryShortfallCents(shown(cart), 2160), 0);
+  assert.equal(deliveryShortfallCents(shown(cart), 2161), 1);
 });
 
 test("an unknown submission keeps its saved coupon amount after reload, ahead of the form", () => {
@@ -465,11 +493,18 @@ test("an unknown submission keeps its saved coupon amount after reload, ahead of
   const coupon = { code: "ESTATE15", percentOff: 15 };
   const pending = createOnlineIntent(cart, { ...form, coupon }, requestId);
   const restored = restoreOnlineCart(JSON.stringify({ ...cart, pending }), restaurant);
-  const expected = { itemsCents: 990, coupon, discountCents: 148, totalCents: 842 };
+  const expected = {
+    itemsCents: 990,
+    coupon,
+    discountCents: 148,
+    totalCents: 842,
+    deliveryFeeCents: null,
+    payableCents: 842,
+  };
 
   assert.deepEqual(onlineCartAmounts(restored, null, form), expected);
   assert.deepEqual(
-    onlineCartAmounts(restored, cart, { coupon: { code: "ALTRO50", percentOff: 50 } }),
+    onlineCartAmounts(restored, cart, { ...form, coupon: { code: "ALTRO50", percentOff: 50 } }),
     expected,
   );
 
@@ -480,6 +515,8 @@ test("an unknown submission keeps its saved coupon amount after reload, ahead of
     coupon: null,
     discountCents: 0,
     totalCents: 990,
+    deliveryFeeCents: null,
+    payableCents: 990,
   });
 });
 
@@ -511,4 +548,71 @@ test("Turnstile failure frees a first rejected intent but preserves an unknown r
   assert.equal(submissionFailure(400, "ONLINE_VERIFICATION_FAILED", true), "unknown");
   assert.equal(submissionFailure(503, "ONLINE_VERIFICATION_UNAVAILABLE", false), "unknown");
   assert.equal(submissionFailure(503, "ONLINE_VERIFICATION_UNAVAILABLE", true), "unknown");
+});
+
+const quoted: AddressQuote = {
+  address: "Via Roma 1, Milano",
+  result: "QUOTED",
+  town: "Milano",
+  distanceMeters: 2500,
+  feeCents: 200,
+  quote: "signed-quote",
+};
+
+test("a delivery quote counts only for the address it was asked about", () => {
+  const form = { ...delivery, quote: quoted };
+  assert.equal(currentQuote(form), quoted);
+  assert.equal(feeStatus(form, true), "QUOTED");
+  // A quote already given stays with the amounts and the order even if automatic quotes stop; any
+  // other answer goes back to the price list then.
+  assert.equal(feeStatus(form, false), "QUOTED");
+  assert.equal(feeStatus({ ...delivery, quote: null }, false), "manual");
+  const outOfRange = { ...quoted, result: "OUT_OF_RANGE" as const, feeCents: null, quote: null };
+  assert.equal(feeStatus({ ...form, quote: outOfRange }, false), "manual");
+  // Surrounding spaces don't change the address; any other change, spacing included, needs a new
+  // lookup, because the server binds the quote to this text.
+  assert.equal(feeStatus({ ...form, address: " Via Roma 1, Milano " }, true), "QUOTED");
+  assert.equal(feeStatus({ ...form, address: "Via Roma  1, Milano" }, true), "lookup");
+  assert.equal(feeStatus({ ...form, address: "Via Roma 10, Milano" }, true), "lookup");
+  assert.equal(feeStatus({ ...delivery, quote: null }, true), "lookup");
+  assert.equal(
+    feeStatus({ ...form, quote: { ...quoted, result: "OUT_OF_RANGE", feeCents: null } }, true),
+    "OUT_OF_RANGE",
+  );
+
+  assert.deepEqual(createOnlineIntent(filled(), form, requestId).deliveryQuote, {
+    quote: "signed-quote",
+    feeCents: 200,
+  });
+  for (const other of [
+    { ...form, fulfillment: "PICKUP" as const },
+    { ...form, address: "Via Roma 10, Milano" },
+    { ...form, quote: { ...quoted, result: "UNKNOWN" as const, feeCents: null, quote: null } },
+  ])
+    assert.equal(createOnlineIntent(filled(), other, requestId).deliveryQuote, null);
+});
+
+test("a quoted fee joins the total during checkout and stays with an unknown submission", () => {
+  const cart = filled();
+  const form = { ...delivery, quote: quoted };
+  const amounts = onlineCartAmounts(cart, cart, form);
+  assert.equal(amounts.deliveryFeeCents, 200);
+  assert.equal(amounts.payableCents, amounts.totalCents + 200);
+  // Editing the cart shows the dishes only; the delivery minimum never counts the fee.
+  assert.equal(onlineCartAmounts(cart, null, form).deliveryFeeCents, null);
+
+  const pending = createOnlineIntent(cart, form, requestId);
+  const saved = JSON.stringify({ ...cart, pending });
+  const restored = restoreOnlineCart(saved, restaurant);
+  assert.deepEqual(restored.pending, pending);
+  assert.equal(onlineCartAmounts(restored, null, { ...delivery }).deliveryFeeCents, 200);
+  // A pickup intent never carries a quote: such a saved intent is damaged.
+  throwsIssue(
+    () =>
+      restoreOnlineCart(
+        JSON.stringify({ ...cart, pending: { ...pending, fulfillment: "PICKUP" } }),
+        restaurant,
+      ),
+    "damaged",
+  );
 });

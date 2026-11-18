@@ -122,16 +122,20 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
             "DELIVERY_NOT_OFFERED"
         );
 
+        await EnableDeliveryAsync(shop);
         await UpdateRestaurantAsync(
             shop,
-            u =>
-                u.SetProperty(r => r.DeliveryEnabled, true)
-                    .SetProperty(r => r.DeliveryNoteIt, "Entro 5 km gratis sopra 20 €.")
+            u => u.SetProperty(r => r.DeliveryNoteIt, "Solo Prato centro.")
         );
         var on = await MenuAsync(client, shop.Slug);
         Assert.True(on.Restaurant.DeliveryEnabled);
-        Assert.Equal("Entro 5 km gratis sopra 20 €.", on.Restaurant.DeliveryNoteIt);
+        Assert.Equal("Solo Prato centro.", on.Restaurant.DeliveryNoteIt);
         Assert.Null(on.Restaurant.DeliveryNoteZh);
+        // The price list nearest first, never the restaurant's coordinates.
+        Assert.Equal(
+            [new DeliveryTierResponse(3000, 200), new DeliveryTierResponse(6000, 400)],
+            on.Restaurant.DeliveryTiers
+        );
 
         var id = Guid.NewGuid();
         var body = Body(
@@ -173,6 +177,70 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
             HttpStatusCode.Created,
             (await SubmitNewCustomerAsync(host, shop, Body(Guid.NewGuid(), shop.Dish))).StatusCode
         );
+    }
+
+    [Fact]
+    public async Task Submit_DeliveryMinimum_ComparesTheDishesAfterTheCouponAfterTheDuplicateCheck()
+    {
+        using var host = new AccountTestHost(database);
+        host.Clock.Set(MondayNoon);
+        var shop = await SeedAsync();
+        using var client = host.Browser();
+        // Two 12 € ramen come to 24 €, and 21.60 € after 10% off: exactly the minimum.
+        await EnableDeliveryAsync(shop);
+        await UpdateRestaurantAsync(shop, u => u.SetProperty(r => r.DeliveryMinOrderCents, 2160L));
+        await using (var db = database.CreateContext())
+        {
+            db.OnlineCoupons.Add(
+                new OnlineCoupon
+                {
+                    Id = Guid.CreateVersion7(),
+                    RestaurantId = shop.RestaurantId,
+                    Code = "ESTATE10",
+                    PercentOff = 10,
+                }
+            );
+            await db.SaveChangesAsync();
+        }
+        Assert.Equal(2160, (await MenuAsync(client, shop.Slug)).Restaurant.DeliveryMinOrderCents);
+        var coupon = new { code = "ESTATE10", percentOff = 10 };
+        object Delivery(Guid id, object? withCoupon) =>
+            Body(id, shop.Dish, fulfillment: "DELIVERY", address: "Via Roma 1", coupon: withCoupon);
+
+        var first = Delivery(Guid.NewGuid(), coupon);
+        var created = await SubmitAsync(client, shop, first);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var response = (await created.Content.ReadFromJsonAsync<OnlineSubmissionResponse>())!;
+        Assert.Equal(1, response.Number);
+
+        // One cent more and the coupon takes the dishes below it; the fee never counts.
+        await UpdateRestaurantAsync(shop, u => u.SetProperty(r => r.DeliveryMinOrderCents, 2161L));
+        await AssertErrorAsync(
+            await SubmitNewCustomerAsync(host, shop, Delivery(Guid.NewGuid(), coupon)),
+            HttpStatusCode.Conflict,
+            "DELIVERY_MIN_ORDER"
+        );
+        // A repeat is answered before the gates, so the raised minimum doesn't matter.
+        var repeat = await SubmitAsync(client, shop, first);
+        Assert.Equal(HttpStatusCode.OK, repeat.StatusCode);
+        Assert.Equal(response, await repeat.Content.ReadFromJsonAsync<OnlineSubmissionResponse>());
+
+        // Without the coupon the dishes reach it; pickup has no minimum. The rejection used no number.
+        foreach (
+            var (body, number) in new[]
+            {
+                (Delivery(Guid.NewGuid(), null), 2),
+                (Body(Guid.NewGuid(), shop.Dish, coupon: coupon), 3),
+            }
+        )
+        {
+            var accepted = await SubmitNewCustomerAsync(host, shop, body);
+            Assert.Equal(HttpStatusCode.Created, accepted.StatusCode);
+            Assert.Equal(
+                number,
+                (await accepted.Content.ReadFromJsonAsync<OnlineSubmissionResponse>())!.Number
+            );
+        }
     }
 
     [Fact]
@@ -1002,7 +1070,8 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
                 host.Clock,
                 OnlineTestData.NoPush,
                 OnlineTestData.SubmissionLimits,
-                OnlineTestData.NoVerification
+                OnlineTestData.NoVerification,
+                OnlineTestData.Quotes
             ).SubmitAsync(
                 shop.Slug,
                 new OnlineRequestInput(
@@ -1013,6 +1082,7 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
                     null,
                     null,
                     [new OrderLineInput(shop.Dish.Id, 1, 1200, null, [])],
+                    null,
                     null
                 ),
                 OnlineTestData.Source(),
@@ -1063,8 +1133,10 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
         Guid[]? optionIds = null,
         string fulfillment = "PICKUP",
         string? address = null,
-        string? notes = null
-    ) => Body(id, dish.Id, price ?? dish.PriceCents, optionIds, fulfillment, address, notes);
+        string? notes = null,
+        object? coupon = null
+    ) =>
+        Body(id, dish.Id, price ?? dish.PriceCents, optionIds, fulfillment, address, notes, coupon);
 
     private static object Body(
         Guid id,
@@ -1073,7 +1145,8 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
         Guid[]? optionIds = null,
         string fulfillment = "PICKUP",
         string? address = null,
-        string? notes = null
+        string? notes = null,
+        object? coupon = null
     ) =>
         new
         {
@@ -1084,6 +1157,7 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
             deliveryAddress = address,
             deliveryNotes = notes,
             items = new[] { new OrderLineInput(dishId, 2, price, " Poco brodo ", optionIds ?? []) },
+            coupon,
         };
 
     private static async Task<HttpResponseMessage> SubmitAsync(
@@ -1159,6 +1233,34 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
     {
         await using var db = database.CreateContext();
         await db.Restaurants.Where(r => r.Id == shop.RestaurantId).ExecuteUpdateAsync(update);
+    }
+
+    // Delivery needs the restaurant's coordinates and its fee bands: 2 € within 3 km, 4 € within 6 km.
+    private async Task EnableDeliveryAsync(Shop shop)
+    {
+        await using var db = database.CreateContext();
+        db.DeliveryTiers.AddRange(
+            new DeliveryTier
+            {
+                RestaurantId = shop.RestaurantId,
+                MaxMeters = 6000,
+                FeeCents = 400,
+            },
+            new DeliveryTier
+            {
+                RestaurantId = shop.RestaurantId,
+                MaxMeters = 3000,
+                FeeCents = 200,
+            }
+        );
+        await db.SaveChangesAsync();
+        await db
+            .Restaurants.Where(r => r.Id == shop.RestaurantId)
+            .ExecuteUpdateAsync(u =>
+                u.SetProperty(r => r.DeliveryEnabled, true)
+                    .SetProperty(r => r.DeliveryOriginLat, 43.880153m)
+                    .SetProperty(r => r.DeliveryOriginLng, 11.096122m)
+            );
     }
 
     private async Task SeedRequestsAsync(

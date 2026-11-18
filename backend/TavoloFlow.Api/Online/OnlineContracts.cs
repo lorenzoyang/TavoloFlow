@@ -27,15 +27,28 @@ public sealed record OnlinePauseInput(
     [Required, RegularExpression("^(SLOT|TODAY)$")] string? Until
 );
 
-// Delivery: the switch and the optional note per language, replaced together. Blank notes are stored as
-// NULL; turning delivery off keeps the notes for the next time.
+// One fee band: up to MaxMeters of road distance, FeeCents (0 for free).
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record DeliveryTierInput([Required] int? MaxMeters, [Required] long? FeeCents);
+
+// Delivery: the switch, the optional note per language, the optional minimum order, the restaurant's
+// coordinates and the fee bands (an empty list for none), replaced together. Blank notes are stored as
+// NULL; turning delivery off keeps the rest for the next time. Turning it on needs the coordinates and
+// at least one band.
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record OnlineDeliveryInput(
     [Required] bool? Enabled,
     string? NoteZh,
     string? NoteIt,
-    string? NoteEn
+    string? NoteEn,
+    long? MinOrderCents,
+    decimal? OriginLat,
+    decimal? OriginLng,
+    [Required] DeliveryTierInput?[]? Tiers
 );
+
+// Nearest first; the last one is the farthest the restaurant delivers.
+public sealed record DeliveryTierResponse(int MaxMeters, long FeeCents);
 
 // A new coupon: the code customers type (trimmed and uppercased), the percentage off the dishes and an
 // optional last local day, not before today. Coupons are never edited: delete one and create another.
@@ -73,6 +86,10 @@ public sealed record OnlineSettingsResponse(
     string? DeliveryNoteZh,
     string? DeliveryNoteIt,
     string? DeliveryNoteEn,
+    long? DeliveryMinOrderCents,
+    decimal? DeliveryOriginLat,
+    decimal? DeliveryOriginLng,
+    DeliveryTierResponse[] DeliveryTiers,
     OnlineCouponResponse[] Coupons
 );
 
@@ -138,6 +155,22 @@ public static class OnlineErrors
 
     public static ApiException DeliveryNotOffered() =>
         new(409, "DELIVERY_NOT_OFFERED", "This restaurant doesn't deliver online orders.");
+
+    // After the duplicate check, like COUPON_INVALID: nothing was stored. Ask for a new quote.
+    public static ApiException DeliveryQuoteInvalid() =>
+        new(
+            409,
+            "DELIVERY_QUOTE_INVALID",
+            "The delivery quote has expired or no longer matches this address or the restaurant's fees."
+        );
+
+    // After the duplicate check, like COUPON_INVALID: nothing was stored. The menu carries the minimum.
+    public static ApiException DeliveryMinOrder() =>
+        new(
+            409,
+            "DELIVERY_MIN_ORDER",
+            "The dishes, after any coupon, are below the restaurant's minimum for delivery."
+        );
 
     // Customers: the code doesn't exist, has expired or now has another percentage. The preview answers 404;
     // a submission answers 409 after its duplicate check, so nothing was stored.

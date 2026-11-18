@@ -39,7 +39,8 @@ public sealed class AccountTestHost(
     bool production = false,
     bool push = false,
     Action<OnlineRateLimitOptions>? onlineLimits = null,
-    Action<TurnstileOptions>? verificationOptions = null
+    Action<TurnstileOptions>? verificationOptions = null,
+    Action<GeoapifyOptions>? geoapify = null
 ) : WebApplicationFactory<Program>
 {
     // The application server key of RFC 8291 Appendix A, so tests can compare with its public key.
@@ -54,6 +55,9 @@ public sealed class AccountTestHost(
     // Every push request goes here instead of the network, whether or not push is configured.
     public FakePushService PushService { get; } = new();
     public FakeTurnstileService VerificationService { get; } = new();
+
+    // Every Geoapify request goes here instead of the network.
+    public FakeGeoapifyService GeoapifyService { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -79,6 +83,16 @@ public sealed class AccountTestHost(
             services
                 .AddHttpClient(OnlineVerification.HttpClientName)
                 .ConfigurePrimaryHttpMessageHandler(() => VerificationService);
+            // Development loads user secrets, which may hold a real key: quotes stay off unless a
+            // test turns them on.
+            services.Configure<GeoapifyOptions>(options =>
+            {
+                options.ApiKey = null;
+                geoapify?.Invoke(options);
+            });
+            services
+                .AddHttpClient(GeoapifyRouting.HttpClientName)
+                .ConfigurePrimaryHttpMessageHandler(() => GeoapifyService);
             services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseNpgsql(database.ConnectionString)
@@ -122,6 +136,7 @@ public sealed class AccountTestHost(
                 options.RecoveriesPerIpPerMinute = 1000;
                 options.ContextChecksPerIpPerMinute = 1000;
                 options.CouponChecksPerIpPerTenMinutes = lowLimits ? 3 : 1000;
+                options.QuotesPerIpPerTenMinutes = lowLimits ? 3 : 1000;
                 onlineLimits?.Invoke(options);
             });
             services

@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { isSameAccount } from "@/features/accounts/queries";
+import { reveal } from "@/features/menu/form-values";
 import { ServiceNotOffered } from "@/features/accounts/ServiceNotOffered";
 import { qrPng } from "@/features/tables/qr-image";
 import { isLocalOnlyUrl, publicMenuUrl } from "@/features/tables/qr-url";
@@ -45,9 +46,12 @@ import {
   deliveryDraft,
   deliveryInput,
   emptyCouponDraft,
-  deliveryWithoutNote,
+  emptyTierDraft,
   MAX_DELIVERY_NOTE_LENGTH,
+  MAX_DELIVERY_TIERS,
   normalizePhone,
+  originMapsUrl,
+  parseOrigin,
   sameDelivery,
   sameHours,
   WEEKDAYS,
@@ -57,6 +61,7 @@ import {
   type CouponProblem,
   type DeliveryDraft,
   type OnlineCoupon,
+  type TierDraft,
   type WeekDraft,
 } from "./state";
 
@@ -514,7 +519,9 @@ function HoursCard({
   );
 }
 
-// OWNER: the delivery switch and the note per language, saved together like the week of hours.
+// OWNER: the restaurant's coordinates, the fee bands, the minimum order, the note per language and the
+// switch, saved together like the week of hours. Ordered by dependency: delivery needs the coordinates
+// and a band, so the switch comes last.
 function DeliveryCard({
   settings,
   busy,
@@ -533,15 +540,47 @@ function DeliveryCard({
   const value = draft ?? deliveryDraft(settings);
   const parsed = deliveryInput(value);
   const unchanged = draft === null || (parsed.ok && sameDelivery(parsed.input, settings));
+  // Fields are marked only after a failed save, beside its message.
+  const problem = error && !parsed.ok ? parsed.problem : null;
+  const origin = parseOrigin(value.origin);
   const edit = (next: DeliveryDraft) => {
     setError("");
     setDraft(next);
   };
+  const editTier = (index: number, patch: Partial<TierDraft>) =>
+    edit({
+      ...value,
+      tiers: value.tiers.map((tier, i) => (i === index ? { ...tier, ...patch } : tier)),
+    });
+  const tierProblem = (index: number, part: "km" | "fee") =>
+    problem?.field === "tier" &&
+    problem.index === index &&
+    (problem.part === part || (part === "km" && problem.part === "repeated"));
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
     if (!parsed.ok) {
-      setError(m.deliveryTooLong(m.noteLanguages[parsed.tooLong]));
+      const { problem } = parsed;
+      const [message, field] =
+        problem.field === "origin"
+          ? [m.originInvalid, "delivery-origin"]
+          : problem.field === "tier"
+            ? problem.part === "fee"
+              ? [m.tierFeeInvalid(problem.index + 1), `delivery-tier-fee-${problem.index}`]
+              : [
+                  (problem.part === "km" ? m.tierKmInvalid : m.tierRepeated)(problem.index + 1),
+                  `delivery-tier-km-${problem.index}`,
+                ]
+            : problem.field === "minOrder"
+              ? [m.deliveryMinOrderInvalid, "delivery-min-order"]
+              : problem.field === "note"
+                ? [
+                    m.deliveryTooLong(m.noteLanguages[problem.language]),
+                    `delivery-note-${problem.language}`,
+                  ]
+                : [m.setupIncomplete, origin ? "delivery-add-tier" : "delivery-origin"];
+      setError(message);
+      reveal(document.getElementById(field));
       return;
     }
     setError("");
@@ -553,11 +592,142 @@ function DeliveryCard({
   return (
     <Card>
       <CardContent>
-        <form className="space-y-4" onSubmit={save} noValidate>
+        <form className="space-y-5" onSubmit={save} noValidate>
           <div className="space-y-1">
             <h2 className="font-semibold">{m.deliveryTitle}</h2>
             <p className="text-sm leading-6 text-muted-foreground">{m.deliveryHint}</p>
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="delivery-origin">{m.originLabel}</Label>
+            <Input
+              id="delivery-origin"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="43.88015, 11.09612"
+              value={value.origin}
+              disabled={busy}
+              aria-invalid={problem?.field === "origin"}
+              aria-describedby="delivery-origin-hint"
+              onChange={(event) => edit({ ...value, origin: event.target.value })}
+            />
+            <p id="delivery-origin-hint" className="text-sm leading-6 text-muted-foreground">
+              {m.originHint}
+            </p>
+            {origin && (
+              <a
+                href={originMapsUrl(origin)}
+                target="_blank"
+                rel="noreferrer"
+                className={buttonVariants({ variant: "outline" })}
+              >
+                <ExternalLink />
+                {m.originCheck}
+              </a>
+            )}
+          </div>
+          <fieldset className="space-y-2" aria-describedby="delivery-tiers-hint">
+            <legend className="text-sm font-medium">{m.tiersTitle}</legend>
+            <p id="delivery-tiers-hint" className="text-sm leading-6 text-muted-foreground">
+              {m.tiersHint}
+            </p>
+            {value.tiers.map((tier, index) => (
+              <div key={index} className="flex items-end gap-2">
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <Label
+                    htmlFor={`delivery-tier-km-${index}`}
+                    className={cn("text-xs", index > 0 && "sr-only")}
+                  >
+                    {index === 0 ? m.tierKm : m.tierKmLabel(index + 1)}
+                  </Label>
+                  <Input
+                    id={`delivery-tier-km-${index}`}
+                    inputMode="decimal"
+                    autoComplete="off"
+                    value={tier.km}
+                    disabled={busy}
+                    aria-invalid={tierProblem(index, "km")}
+                    onChange={(event) => editTier(index, { km: event.target.value })}
+                  />
+                </div>
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <Label
+                    htmlFor={`delivery-tier-fee-${index}`}
+                    className={cn("text-xs", index > 0 && "sr-only")}
+                  >
+                    {index === 0 ? m.tierFee : m.tierFeeLabel(index + 1)}
+                  </Label>
+                  <Input
+                    id={`delivery-tier-fee-${index}`}
+                    inputMode="decimal"
+                    autoComplete="off"
+                    value={tier.fee}
+                    disabled={busy}
+                    aria-invalid={tierProblem(index, "fee")}
+                    onChange={(event) => editTier(index, { fee: event.target.value })}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={busy}
+                  aria-label={m.removeTier(index + 1)}
+                  onClick={() =>
+                    edit({ ...value, tiers: value.tiers.filter((_, i) => i !== index) })
+                  }
+                >
+                  <X />
+                </Button>
+              </div>
+            ))}
+            <Button
+              id="delivery-add-tier"
+              type="button"
+              variant="ghost"
+              disabled={busy || value.tiers.length >= MAX_DELIVERY_TIERS}
+              onClick={() => edit({ ...value, tiers: [...value.tiers, emptyTierDraft] })}
+            >
+              <Plus />
+              {m.addTier}
+            </Button>
+          </fieldset>
+          <div className="space-y-2">
+            <Label htmlFor="delivery-min-order">{m.deliveryMinOrder}</Label>
+            <Input
+              id="delivery-min-order"
+              className="max-w-40"
+              inputMode="decimal"
+              autoComplete="off"
+              value={value.minOrder}
+              disabled={busy}
+              aria-invalid={problem?.field === "minOrder"}
+              aria-describedby="delivery-min-order-hint"
+              onChange={(event) => edit({ ...value, minOrder: event.target.value })}
+            />
+            <p id="delivery-min-order-hint" className="text-sm leading-6 text-muted-foreground">
+              {m.deliveryMinOrderHint}
+            </p>
+          </div>
+          {LANGUAGES.map((language) => (
+            <div key={language} className="space-y-2">
+              <Label htmlFor={`delivery-note-${language}`}>
+                {m.deliveryNote(m.noteLanguages[language])}
+              </Label>
+              <Textarea
+                id={`delivery-note-${language}`}
+                lang={language}
+                rows={3}
+                maxLength={MAX_DELIVERY_NOTE_LENGTH}
+                placeholder={m.deliveryPlaceholder}
+                value={value.notes[language]}
+                disabled={busy}
+                aria-invalid={problem?.field === "note" && problem.language === language}
+                onChange={(event) =>
+                  edit({ ...value, notes: { ...value.notes, [language]: event.target.value } })
+                }
+              />
+            </div>
+          ))}
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               <p id="delivery-enabled" className="font-medium">
@@ -574,29 +744,6 @@ function DeliveryCard({
               onCheckedChange={(enabled) => edit({ ...value, enabled })}
             />
           </div>
-          {LANGUAGES.map((language) => (
-            <div key={language} className="space-y-2">
-              <Label htmlFor={`delivery-note-${language}`}>
-                {m.deliveryNote(m.noteLanguages[language])}
-              </Label>
-              <Textarea
-                id={`delivery-note-${language}`}
-                lang={language}
-                rows={3}
-                maxLength={MAX_DELIVERY_NOTE_LENGTH}
-                placeholder={m.deliveryPlaceholder}
-                value={value.notes[language]}
-                disabled={busy}
-                aria-invalid={!parsed.ok && parsed.tooLong === language}
-                onChange={(event) =>
-                  edit({ ...value, notes: { ...value.notes, [language]: event.target.value } })
-                }
-              />
-            </div>
-          ))}
-          {parsed.ok && deliveryWithoutNote(parsed.input) && (
-            <Notice tone="warning">{m.deliveryNoNote}</Notice>
-          )}
           {error && <Notice tone="error">{error}</Notice>}
           {feedback}
           <div className="flex flex-wrap gap-2">

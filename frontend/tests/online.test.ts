@@ -1,16 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  acceptFee,
   activeProgress,
   couponInput,
   DELIVERY_MINUTES,
   deliveryDraft,
   deliveryInput,
-  deliveryWithoutNote,
   formatCountdown,
   formatMinute,
   mapsUrl,
+  MAX_DELIVERY_TIERS,
+  originMapsUrl,
+  parseOrigin,
+  routeUrl,
   MAX_WAITING_REQUESTS,
   normalizeCouponCode,
   normalizePhone,
@@ -22,6 +24,7 @@ import {
   sameDelivery,
   sameHours,
   timeInputValue,
+  typedDeliveryFee,
   weekDraft,
   weekHours,
   type WeekDraft,
@@ -180,52 +183,188 @@ test("sessions are named by their table or their online ticket in every language
   assert.equal(namesSession({ ...pickup, online: null }), false);
 });
 
+const noDelivery = {
+  deliveryEnabled: false,
+  deliveryNoteZh: null,
+  deliveryNoteIt: null,
+  deliveryNoteEn: null,
+  deliveryMinOrderCents: null,
+  deliveryOriginLat: null,
+  deliveryOriginLng: null,
+  deliveryTiers: [],
+};
+const noNotes = { zh: "", it: "", en: "" };
+const blankDraft = { origin: "", tiers: [], minOrder: "", notes: noNotes, enabled: false };
+
 test("delivery settings trim notes, store blanks as null and reject notes over 500 characters", () => {
-  const saved = {
-    deliveryEnabled: false,
-    deliveryNoteZh: null,
-    deliveryNoteIt: "Entro 5 km gratis",
-    deliveryNoteEn: null,
-  };
+  const saved = { ...noDelivery, deliveryNoteIt: "Solo Prato centro" };
   const draft = deliveryDraft(saved);
-  assert.deepEqual(draft, { enabled: false, notes: { zh: "", it: "Entro 5 km gratis", en: "" } });
+  assert.deepEqual(draft, { ...blankDraft, notes: { zh: "", it: "Solo Prato centro", en: "" } });
   const unchanged = deliveryInput(draft);
   assert.ok(unchanged.ok && sameDelivery(unchanged.input, saved));
 
   const edited = deliveryInput({
-    enabled: true,
-    notes: { zh: "   ", it: "  Entro 5 km gratis  ", en: ` ${"a".repeat(500)} ` },
+    ...blankDraft,
+    notes: { zh: "   ", it: "  Solo Prato centro  ", en: ` ${"a".repeat(500)} ` },
   });
   assert.deepEqual(edited, {
     ok: true,
-    input: { enabled: true, noteZh: null, noteIt: "Entro 5 km gratis", noteEn: "a".repeat(500) },
+    input: {
+      enabled: false,
+      noteZh: null,
+      noteIt: "Solo Prato centro",
+      noteEn: "a".repeat(500),
+      minOrderCents: null,
+      originLat: null,
+      originLng: null,
+      tiers: [],
+    },
   });
   assert.ok(edited.ok && !sameDelivery(edited.input, saved));
-  assert.ok(edited.ok && !deliveryWithoutNote(edited.input));
 
   assert.deepEqual(
-    deliveryInput({ enabled: true, notes: { zh: "配".repeat(501), it: "", en: "" } }),
-    {
-      ok: false,
-      tooLong: "zh",
-    },
+    deliveryInput({ ...blankDraft, notes: { zh: "配".repeat(501), it: "", en: "" } }),
+    { ok: false, problem: { field: "note", language: "zh" } },
   );
-  const bare = deliveryInput({ enabled: true, notes: { zh: " ", it: "", en: "" } });
-  assert.ok(bare.ok && deliveryWithoutNote(bare.input));
-  const off = deliveryInput({ enabled: false, notes: { zh: "", it: "", en: "" } });
-  assert.ok(off.ok && !deliveryWithoutNote(off.input));
 });
 
-test("delivery acceptance takes an explicit decimal fee, 0 when free, within the safe total", () => {
-  assert.equal(acceptFee("2", 2400), 200);
-  assert.equal(acceptFee(" 2,5 ", 2400), 250);
-  assert.equal(acceptFee("0", 2400), 0);
-  assert.equal(acceptFee("0.00", 2400), 0);
+test("the delivery minimum is a positive decimal amount, blank for none", () => {
+  const saved = { ...noDelivery, deliveryMinOrderCents: 1550 };
+  assert.equal(deliveryDraft(saved).minOrder, "15.50");
+  const same = deliveryInput(deliveryDraft(saved));
+  assert.ok(same.ok && sameDelivery(same.input, saved));
+  for (const [text, cents] of [
+    ["15", 1500],
+    [" 15,5 ", 1550],
+    ["0.01", 1],
+    ["  ", null],
+  ] as const) {
+    const parsed = deliveryInput({ ...blankDraft, minOrder: text });
+    assert.ok(parsed.ok, text);
+    assert.equal(parsed.input.minOrderCents, cents, text);
+  }
+  for (const text of ["0", "0.00", "-5", "15.555", "15 €"])
+    assert.deepEqual(
+      deliveryInput({ ...blankDraft, minOrder: text }),
+      { ok: false, problem: { field: "minOrder" } },
+      text,
+    );
+});
+
+test("coordinates are pasted as Google Maps copies them, latitude first, rounded to six decimals", () => {
+  assert.deepEqual(parseOrigin("43.88015, 11.09612"), { lat: 43.88015, lng: 11.09612 });
+  assert.deepEqual(parseOrigin(" 43.8801534 ,11.0961216 "), { lat: 43.880153, lng: 11.096122 });
+  assert.deepEqual(parseOrigin("-33.8688, 151.2093"), { lat: -33.8688, lng: 151.2093 });
+  for (const value of [
+    "",
+    "43.88015",
+    "43,88015, 11,09612",
+    "91, 11",
+    "43.88, 181",
+    "https://maps.app.goo.gl/abc123",
+    "@43.88015,11.09612,17z",
+  ])
+    assert.equal(parseOrigin(value), null, value);
+  assert.equal(
+    originMapsUrl({ lat: 43.88015, lng: 11.09612 }),
+    "https://www.google.com/maps/search/?api=1&query=43.88015,11.09612",
+  );
+  assert.equal(
+    routeUrl({ lat: 43.88015, lng: 11.09612 }, "Via Roma 1, Prato"),
+    "https://www.google.com/maps/dir/?api=1&origin=43.88015,11.09612&destination=Via%20Roma%201%2C%20Prato&travelmode=driving",
+  );
+});
+
+test("fee bands take kilometres and a fee, save nearest first and round-trip unchanged", () => {
+  const saved = {
+    ...noDelivery,
+    deliveryEnabled: true,
+    deliveryOriginLat: 43.88015,
+    deliveryOriginLng: 11.09612,
+    deliveryTiers: [
+      { maxMeters: 2500, feeCents: 0 },
+      { maxMeters: 6000, feeCents: 400 },
+    ],
+  };
+  const draft = deliveryDraft(saved);
+  assert.deepEqual(draft, {
+    ...blankDraft,
+    enabled: true,
+    origin: "43.88015, 11.09612",
+    tiers: [
+      { km: "2.5", fee: "0.00" },
+      { km: "6", fee: "4.00" },
+    ],
+  });
+  const same = deliveryInput(draft);
+  assert.ok(same.ok && sameDelivery(same.input, saved));
+
+  // Typed in any order with a decimal comma; saved nearest first.
+  const typed = deliveryInput({
+    ...draft,
+    tiers: [
+      { km: "10", fee: "6" },
+      { km: "0,5", fee: "0" },
+      { km: "30", fee: "12,50" },
+    ],
+  });
+  assert.ok(typed.ok);
+  assert.deepEqual(typed.input.tiers, [
+    { maxMeters: 500, feeCents: 0 },
+    { maxMeters: 10_000, feeCents: 600 },
+    { maxMeters: 30_000, feeCents: 1250 },
+  ]);
+  assert.ok(!sameDelivery(typed.input, saved));
+
+  for (const [tiers, problem] of [
+    [[{ km: "0", fee: "2" }], { field: "tier", index: 0, part: "km" }],
+    [[{ km: "30.1", fee: "2" }], { field: "tier", index: 0, part: "km" }],
+    [[{ km: "2.55", fee: "2" }], { field: "tier", index: 0, part: "km" }],
+    [[{ km: "3", fee: "" }], { field: "tier", index: 0, part: "fee" }],
+    [[{ km: "3", fee: "-1" }], { field: "tier", index: 0, part: "fee" }],
+    [
+      [
+        { km: "3", fee: "2" },
+        { km: "3,0", fee: "4" },
+      ],
+      { field: "tier", index: 1, part: "repeated" },
+    ],
+  ] as const)
+    assert.deepEqual(deliveryInput({ ...draft, tiers: [...tiers] }), { ok: false, problem });
+  assert.deepEqual(deliveryInput({ ...draft, origin: "Via Roma 1" }), {
+    ok: false,
+    problem: { field: "origin" },
+  });
+  assert.equal(MAX_DELIVERY_TIERS, 5);
+});
+
+test("delivery turns on only with the coordinates and a band, and off keeps both", () => {
+  const tiers = [{ km: "3", fee: "2" }];
+  const origin = "43.88015, 11.09612";
+  for (const draft of [
+    { ...blankDraft, enabled: true, tiers },
+    { ...blankDraft, enabled: true, origin },
+  ])
+    assert.deepEqual(deliveryInput(draft), { ok: false, problem: { field: "setup" } });
+  assert.ok(deliveryInput({ ...blankDraft, enabled: true, origin, tiers }).ok);
+  const off = deliveryInput({ ...blankDraft, origin, tiers });
+  assert.ok(off.ok);
+  assert.deepEqual(
+    [off.input.originLat, off.input.originLng, off.input.tiers],
+    [43.88015, 11.09612, [{ maxMeters: 3000, feeCents: 200 }]],
+  );
+});
+
+test("a typed delivery fee is a decimal amount, 0 when free, within the safe total", () => {
+  assert.equal(typedDeliveryFee("2", 2400), 200);
+  assert.equal(typedDeliveryFee(" 2,5 ", 2400), 250);
+  assert.equal(typedDeliveryFee("0", 2400), 0);
+  assert.equal(typedDeliveryFee("0.00", 2400), 0);
   for (const invalid of ["", " ", "-1", "2.555", "abc", "2 €"])
-    assert.equal(acceptFee(invalid, 2400), null, invalid);
+    assert.equal(typedDeliveryFee(invalid, 2400), null, invalid);
   const max = Number.MAX_SAFE_INTEGER;
-  assert.equal(acceptFee("0.01", max - 1), 1);
-  assert.equal(acceptFee("0.02", max - 1), null);
+  assert.equal(typedDeliveryFee("0.01", max - 1), 1);
+  assert.equal(typedDeliveryFee("0.02", max - 1), null);
 });
 
 test("delivery has its own times and the out-of-range reason", () => {

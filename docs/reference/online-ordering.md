@@ -28,12 +28,14 @@ is off render a "service not offered" state.
 | `DELETE /api/staff/online/pause` | STAFF, OWNER | → settings (resumes)                                             |
 | `PUT /api/owner/online/hours`    | OWNER        | `{ slots: [{ weekday, opensMinute, closesMinute }] }` → settings |
 | `PATCH /api/owner/online/phone`  | OWNER        | `{ publicPhone }`, blank clears → settings                       |
-| `PUT /api/owner/online/delivery` | OWNER        | `{ enabled, noteZh, noteIt, noteEn }` → settings                 |
+| `PUT /api/owner/online/delivery` | OWNER        | `{ enabled, noteZh, noteIt, noteEn, minOrderCents, originLat, originLng, tiers: [{ maxMeters, feeCents }] }` → settings |
 | `POST /api/owner/online/coupons` | OWNER        | `{ code, percentOff, validUntil }` → settings                    |
 | `DELETE /api/owner/online/coupons/{id}` | OWNER | → settings (also when already gone)                              |
 
 Settings are `{ slug, publicPhone, hours, pausedUntil, status, nextOpensAt, currentSlotEndsAt,
-deliveryEnabled, deliveryNoteZh, deliveryNoteIt, deliveryNoteEn, coupons }`; each coupon is
+deliveryEnabled, deliveryNoteZh, deliveryNoteIt, deliveryNoteEn, deliveryMinOrderCents,
+deliveryOriginLat, deliveryOriginLng, deliveryTiers, coupons }`; each band is `{ maxMeters, feeCents }`,
+nearest first, and each coupon is
 `{ id, code, percentOff, validUntil, expired }`, ordered by code.
 `hours` are ordered by weekday and opening time. `pausedUntil` is null once the pause has lapsed.
 `nextOpensAt` accompanies `CLOSED_HOURS` and is null when the week has no slots. `currentSlotEndsAt`
@@ -69,13 +71,91 @@ and are unit-tested with Europe/Rome DST dates.
 
 Restaurant-run delivery is an OWNER setting on `restaurants`: `delivery_enabled` (default false) and an
 optional note per language (`delivery_note_zh`, `delivery_note_it`, `delivery_note_en`, up to 500
-characters each once trimmed; blank is stored as NULL) with the delivery area and fee rules. The write
-replaces the switch and the three notes together, under restaurant UPDATE like the other settings;
-`enabled` is required and longer notes return `VALIDATION_FAILED`. Notes are optional: without one,
-checkout only says that the restaurant confirms the fee. Turning delivery off keeps the notes and only
+characters each once trimmed; blank is stored as NULL) with the delivery area and fee rules, and an
+optional minimum order (`delivery_min_order_cents`, whole cents above 0 within the safe-integer range,
+`ck_restaurant_delivery_min_order`). The write replaces the switch, the three notes and the minimum
+together, under restaurant UPDATE like the other settings; `enabled` is required, a missing or null
+`minOrderCents` means no minimum, and longer notes or a minimum of 0 or less return
+`VALIDATION_FAILED`. Notes are optional: without one, checkout only says that the restaurant confirms
+the fee. The minimum applies to delivery only and compares what the restaurant receives for the
+dishes: their total after the coupon, never the fee (`OnlineDelivery.MeetsMinimum`, the only copy of
+the delivery rules).
+
+Fees go by road distance from the restaurant. The owner pastes the restaurant's coordinates as Google
+Maps copies them ("latitude, longitude", from a long press or a right click on the entrance; share
+links hold none), and the page links to that point so the owner can check the pin
+(`parseOrigin`, `originMapsUrl`). They are stored in `delivery_origin_lat`/`delivery_origin_lng`
+(`numeric(8,6)`/`numeric(9,6)`, rounded to six decimals, both or neither, in range:
+`ck_restaurant_delivery_origin`) and never leave staff pages. The fee bands live in `delivery_tiers`
+(`(restaurant_id, max_meters)` key, `max_meters` 1–30,000, `fee_cents` from 0 for free,
+`ON DELETE CASCADE`): at most five at distinct distances, sent in any order and returned nearest
+first; the farthest is the delivery limit. The page edits them in kilometres with one decimal.
+The write sends `tiers` (required, empty for none) and both coordinates or neither, and replaces the
+bands whole like the week of hours. Turning delivery on needs the coordinates and at least one band:
+the request carries the switch and its setup together, so a contradiction is `VALIDATION_FAILED`, and
+`ck_restaurant_delivery_ready` keeps the coordinates in the database while delivery is on (bands, in
+another table, are the write's check). The `DeliveryTiers` migration turned delivery off for every
+restaurant, none of which had coordinates or bands. The card orders its fields by dependency:
+coordinates, bands, minimum, notes, then the switch.
+
+Turning delivery off keeps the notes, the minimum, the coordinates and the bands and only
 stops new delivery submissions; waiting delivery requests can still be accepted or rejected and
-accepted ones close as usual. There is no fee rule in code: whoever accepts a delivery order enters
-its fee.
+accepted ones close as usual. Without automatic quotes the fee is chosen on acceptance: whoever
+accepts picks a band (see the online orders page).
+
+## Automatic delivery quotes
+
+Production Compose passes the optional deployment-wide `GEOAPIFY_API_KEY` to `Geoapify:ApiKey`. An
+empty value turns quotes off. Before stopping the API, `install-release.sh` runs the startup
+validator in the new image with the actual Compose environment. On an installed release,
+`tf.sh apply-geoapify-key` runs the same check before recreating the API. These checks neither
+disclose the value nor contact Geoapify. The bootstrap exposes `deliveryAutoQuote` when a key,
+restaurant coordinates and bands are present. With automatic quotes off, checkout shows the price
+list and whoever accepts picks a band.
+
+`POST /api/public/r/{slug}/delivery-quote` `{ address }` is anonymous with the public CSRF token, a
+POST so the address stays out of URLs and access logs; it changes nothing and persists no browser
+marker. The address is trimmed with whitespace collapsed (`OnlineDelivery.NormalizeAddress`) and must
+have 1–200 characters (`VALIDATION_FAILED`); an unknown slug is `ONLINE_LINK_NOT_FOUND`. The service
+reads the restaurant, availability and bands in one Repeatable Read snapshot and ends it before any
+network call. Geoapify is called only while ordering is `OPEN`, delivery is on, automatic quotes apply
+and the daily caps allow; everything else answers `UNKNOWN`. Every business result is 200 (input
+errors, an unknown link and the per-IP budget answer as usual):
+
+| `result` | Meaning |
+| --- | --- |
+| `QUOTED` | `town` (Geoapify's `city`, may be null), `distanceMeters`, `feeCents` of the nearest band that reaches it, and the signed `quote` |
+| `OUT_OF_RANGE` | The road distance is beyond the farthest band |
+| `UNKNOWN` | No automatic quote: not found precisely enough, a malformed answer, an outage, a cap, or no automatic quotes here |
+
+Geoapify is called through its EU endpoint, `api-eu.geoapify.com`, the one its data processing
+agreement keeps inside the EU. A quote that gets as far as the route costs two credits:
+`/v1/geocode/search` with the address, `filter=circle:lng,lat,r`
+around the restaurant (`r` is the farthest band plus 5 km, `SearchMarginMeters`, so farther matches are
+priced as out of range), `bias=proximity:lng,lat` and `limit=1`; then `/v1/routing` with
+`waypoints=lat,lng|lat,lng` and `mode=drive`, taking the route's `distance` in metres with Geoapify's
+default free-flow traffic, so an address keeps its price. Only a `building` or `amenity` match whose
+`rank.confidence_street_level` is at least 0.9 is priced (`OnlineDelivery.QuotableMatches`,
+`MinStreetConfidence`): a street without its number can lie kilometres from the house on a long road,
+and a typo can match another street. A malformed answer (a match without coordinates, a route without
+its distance or with a negative one) is not priced either. Both rules come from a 27-address spike in Prato and may need
+adjusting with real orders. The named `geoapify` HttpClient has a 5-second timeout, no redirects, no
+retries and no loggers, because the key travels in the URL; a failure logs one warning with the HTTP
+status or exception type and never the address, key, coordinates or a response body.
+
+`DeliveryQuoteLimits` keeps two process-local `FixedWindowLimiter`s of one day, checked just before
+calling Geoapify: per restaurant (`Geoapify:DailyQuotesPerRestaurant`, 200) and site-wide
+(`Geoapify:DailyQuotes`, 1200). Windows start at the first quote and reset on restart. A local cap
+or a request refused by Geoapify falls back to the price list. Geoapify also applies its own credit
+and request limits. Per IP, quotes have a separate budget
+(`OnlineRateLimits:QuotesPerIpPerTenMinutes`, 10) and leave the submission budget available.
+
+`DeliveryQuotes` signs a quote with Data Protection whose purpose names the restaurant
+(`TavoloFlow.Online.DeliveryQuote.v1`, like join codes), over the normalized address, the restaurant's
+coordinates, the distance and an expiry 30 minutes after the time from `TimeProvider`. The submission
+checks it without calling Geoapify again (see below), so a customer can neither forge a fee nor reuse
+another restaurant's or address's quote, and a quote from coordinates the owner has since moved is
+stale, like one the current bands price differently.
 
 ## Coupons
 
@@ -175,6 +255,7 @@ CSRF issuance also initializes the independent browser marker described below.
 | `GET /api/public/r/{slug}/bootstrap`                               | Restaurant, status, `nextOpensAt`, menu       |
 | `GET /api/public/r/{slug}/ordering-context` | This browser’s waiting submission, or null |
 | `GET /api/public/r/{slug}/coupons/{code}`                          | `{ code, percentOff }`, or 404 `COUPON_INVALID` |
+| `POST /api/public/r/{slug}/delivery-quote`                         | `{ result, town, distanceMeters, feeCents, quote }` (see [automatic delivery quotes](#automatic-delivery-quotes)) |
 | `POST /api/public/r/{slug}/requests`                               | 201 first time, 200 repeat: submission result |
 | `GET /api/public/r/{slug}/requests/by-client-id/{clientRequestId}` | Submission result, or 404 "not found yet"     |
 | `GET /api/public/online-orders/{token}`                            | Status page                                   |
@@ -196,6 +277,7 @@ with `Retry-After`, the ordinary error envelope and `Cache-Control: no-store`.
 | `RecoveriesPerIpPerMinute` | 60 |
 | `ContextChecksPerIpPerMinute` | 120 |
 | `CouponChecksPerIpPerTenMinutes` | 30 |
+| `QuotesPerIpPerTenMinutes` | 10 |
 
 Configure these through normal .NET configuration, for example
 `OnlineRateLimits__MaxWaitingPerIp=5` on the API process. With production Compose, pass an override
@@ -308,7 +390,8 @@ and [testing](https://developers.cloudflare.com/turnstile/troubleshooting/testin
 
 The bootstrap reads restaurant, hours, waiting count and `MenuReader` in one Repeatable Read
 transaction. It returns `restaurant { id, name, currencyCode, defaultLanguage, theme, publicPhone,
-deliveryEnabled, deliveryNoteZh, deliveryNoteIt, deliveryNoteEn }`, `status`, `nextOpensAt` and the
+deliveryEnabled, deliveryNoteZh, deliveryNoteIt, deliveryNoteEn, deliveryMinOrderCents, deliveryTiers,
+deliveryAutoQuote }` (the bands nearest first, never the coordinates), `status`, `nextOpensAt` and the
 same `menu` as the QR bootstrap; the menu is shown in every status.
 An invalid or unknown slug is `ONLINE_LINK_NOT_FOUND` (404).
 
@@ -319,13 +402,14 @@ restaurant has it and its `valid_until` has not passed in the restaurant's local
 `RATE_LIMITED`), so codes cannot be guessed by trying them all.
 
 The submission body is `{ clientRequestId, fulfillment, customerName, customerPhone, deliveryAddress?,
-deliveryNotes?, items, coupon?, turnstileToken? }`, unknown fields rejected; `items` uses the QR order line format and the shared
+deliveryNotes?, items, coupon?, deliveryQuote?, turnstileToken? }`, unknown fields rejected; `items` uses the QR order line format and the shared
 `OrderLines` checks (1–30 lines, 1–20 portions each, 100 in all, 200-character remarks, `optionIds`
 required). The name is trimmed to 1–30 characters and the phone follows `InputRules.NormalizePhone`.
 Pickup takes no address; delivery needs a trimmed address of 1–200 characters and takes optional
 notes (doorbell, floor) of up to 100. `coupon` is null or `{ code, percentOff }`: the code the coupon
 check confirmed and the percentage the customer saw, both required (a malformed one is
-`VALIDATION_FAILED`). The server then:
+`VALIDATION_FAILED`). `deliveryQuote` is null or `{ quote, feeCents }`, delivery only: the signed quote
+for this address and the fee the customer saw. The server then:
 
 1. Validates the format (`VALIDATION_FAILED`) before any write.
 2. Finds the restaurant by slug and checks a committed original, then verifies a new request outside
@@ -341,15 +425,23 @@ check confirmed and the percentage the customer saw, both required (a malformed 
 5. Requires `OPEN`: `SERVICE_SUSPENDED`, `ONLINE_NOT_OFFERED`, `ONLINE_PAUSED`, `ONLINE_CLOSED` (with
    `nextOpensAt` when the week has a slot) or `ONLINE_BUSY` (all 409). A delivery request also needs
    the restaurant's delivery switch, otherwise `DELIVERY_NOT_OFFERED` (409); pickup never depends on it.
+   A delivery quote must unprotect for this restaurant, be for the same normalized address and the
+   restaurant's current coordinates, not have expired at the time read in step 3, and be priced at the
+   sent fee by the restaurant's current bands (a distance beyond the farthest band is not), otherwise
+   `DELIVERY_QUOTE_INVALID` (409). Settings writes take restaurant UPDATE, so neither the coordinates
+   nor the bands can change under the SHARE lock.
    A coupon must exist, still be valid on the business date read in step 3 and have the sent
    percentage, otherwise `COUPON_INVALID` (409): a coupon deleted and created again with another
    percentage is refused, never applied silently. Coupon writes take restaurant UPDATE, so the SHARE
    lock from step 2 sees each coupon whole or not at all.
 6. Checks dishes, options, availability and prices like QR orders (`MENU_CHANGED` with `changes`) and
-   builds the line snapshots.
+   builds the line snapshots. A delivery request whose dishes, priced by the server and less the
+   coupon, are below the restaurant's minimum is `DELIVERY_MIN_ORDER` (409); pickup has no minimum.
 7. Inserts the request with a random 32-byte Base64URL status token, `expires_at` ten minutes after
-   submission and the coupon's code and percentage, and returns `{ statusToken, number, expiresAt }`.
-   Acceptance never checks the coupon again: the customer was promised that total.
+   submission, the coupon's code and percentage and a quote's fee and distance (`delivery_fee_cents`,
+   `delivery_distance_meters`, both or neither, delivery only: `ck_online_request_delivery_quote`), and
+   returns `{ statusToken, number, expiresAt }`. Acceptance never checks the coupon or the quote again:
+   the customer was promised that total.
 8. In the same transaction, clears the name, phone, address, notes and source digests of the restaurant's requests
    submitted more than 30 days before this one (`OnlineRequestService.ContactRetention`), reading only
    uncleared rows through `ix_online_requests_contact`. The lines stay. There is no background job: a
@@ -368,9 +460,9 @@ unknown token). It returns `restaurant { name, slug, currencyCode, defaultLangua
 }`, `number`, `customerName`, `fulfillment`, `submittedAt`, `expiresAt`, `phase` (`WAITING`, `EXPIRED`,
 `REJECTED` or `ACCEPTED`, from `OnlineRequestState`), `rejectReason`, `estimatedAt`, `sessionStatus` and
 `closeReason` once accepted, `items`, `coupon` (`{ code, percentOff, discountCents }` or null),
-`deliveryFeeCents` (once a delivery is accepted) and `totalAmountCents`. Before acceptance the items are
-the submitted snapshot (`status` null) and the total is the submitted item total less the coupon's
-discount (`OnlineCoupons.DiscountCents`, rounded down); after acceptance they are the order items with their status and the
+`deliveryFeeCents` (a quoted fee before acceptance, the session's after) and `totalAmountCents`. Before
+acceptance the items are the submitted snapshot (`status` null) and the total is the submitted item
+total less the coupon's discount (`OnlineCoupons.DiscountCents`, rounded down) plus any quoted fee; after acceptance they are the order items with their status and the
 total is the session's bill amount (`SessionSummaries`, with the fee while any dish counts and the
 bill's own coupon discount, which follows cancellations). It
 never returns the customer's phone, an address or any request or session ID. From 24 hours after the
@@ -416,8 +508,8 @@ releases checkout after the next read. A submission-time browser conflict keeps 
 shows the old order separately; it never clears the new cart as if it had succeeded. All new notices
 are available in Chinese, Italian and English.
 
-The cart lives in `sessionStorage` under `tavoloflow:cart:{restaurantId}:online` (version 2: lines
-carry the dish's sale price and the pending intent its coupon; separate from every QR cart, other
+The cart lives in `sessionStorage` under `tavoloflow:cart:{restaurantId}:online` (version 3: lines
+carry the dish's sale price and the pending intent its coupon and delivery quote; separate from every QR cart, other
 versions discarded as damaged), with the QR cart's limits. Checkout is two steps: "Checkout" rereads the bootstrap,
 requires `OPEN` and refreshes the lines' prices and choices; the confirmation then shows the lines,
 total, an optional coupon field, name and phone fields (validated like the server), the
@@ -430,10 +522,38 @@ while confirming, and an unresolved submission keeps the coupon saved in its int
 reload. Returning to ordinary cart editing shows the item total before the coupon. An unusable code says so
 without touching the cart. With delivery on, the header says "pickup or delivery" and
 the confirmation starts with a pickup/delivery choice; delivery adds the address and the optional
-doorbell/floor notes, the restaurant's note in the customer's language (falling back to the default
-language, then Italian, Chinese and English; `deliveryNote` in `state.ts`) and a line saying the
-restaurant confirms the fee, which the status page shows after acceptance. The total is then labelled
-as the items total, and the privacy line also names the address. If "Checkout" finds delivery turned
+doorbell/floor notes, the price list ("within 3 km € 2.00", free bands as "free", and "no delivery
+beyond" the farthest band, `formatKm`), the restaurant's note in the customer's language (falling back
+to the default language, then Italian, Chinese and English; `deliveryNote` in `state.ts`) and a line
+saying the restaurant confirms the fee from the road distance, which the status page shows after
+acceptance. The total is then labelled
+as the items total, and the privacy line also names the address. With a minimum, the delivery box
+states it, and while delivery is chosen the footer shows "minimum X, Y to go" whenever the total shown
+is below it (`deliveryShortfallCents`): during checkout that total is after the coupon, as the server
+compares, so "Place order" stays disabled; in ordinary cart editing it is the item total, so customers
+who went back to add dishes see what is still missing. A `DELIVERY_MIN_ORDER` refusal frees the intent,
+says the dishes don't reach the minimum and rereads the menu.
+
+With automatic quotes (`deliveryAutoQuote`), the fee of the typed address is asked for only when the
+customer taps "Calculate delivery fee" (`lookupFee`; a failed request counts as `UNKNOWN`), so no
+address goes to Geoapify unasked; the hint beside it says the address goes to the map service. The
+request sends the trimmed text the order will send, which the server binds the quote to, and the
+answer belongs to that text only: any other change, spacing included, makes it stale (`currentQuote`,
+`feeStatus`). If automatic quotes stop meanwhile, a `QUOTED` answer keeps counting for the amounts, the
+order and the credits, while any other answer falls back to the price list. `QUOTED` shows "delivery to {town} · fee X" with a hint to add the town
+or postcode if the town is wrong, and the footer shows the items total, the fee and the total
+(`onlineCartAmounts`' `deliveryFeeCents` and `payableCents`; the delivery minimum still compares the
+dishes). `OUT_OF_RANGE` says the address is outside the area, offers the phone and keeps "Place order"
+disabled. `UNKNOWN` shows the price list and "the restaurant confirms the fee", like a restaurant
+without automatic quotes, and lets the customer order. While the address has not been priced, the
+submit button reads "Calculate delivery fee" and its tap asks for the fee instead of placing the
+order. The box credits "Powered by Geoapify · © OpenStreetMap contributors", linked to geoapify.com and
+OpenStreetMap's copyright page, whenever automatic quotes apply or a quote is shown. The delivery
+privacy line says the data go to the restaurant, without "only", since the address may also reach
+Geoapify and Google Maps (see the privacy page). The intent carries
+`deliveryQuote: { quote, feeCents }` (null otherwise), saved and read back with the rest; a
+`DELIVERY_QUOTE_INVALID` refusal frees the intent, drops the quote so checkout asks again, and rereads
+the menu. If "Checkout" finds delivery turned
 off since the customer chose it, the form goes back to pickup and says so; a `DELIVERY_NOT_OFFERED`
 refusal says the restaurant isn't delivering and pickup is possible. Placing the order builds the
 intent (request ID from `randomUuid`, fulfillment, trimmed name, normalized phone, trimmed address and
@@ -451,7 +571,7 @@ offers "check the result", "retry the same order" (the identical saved request w
 and the phone. After an unknown result, a retry frees the intent only when it is rejected with a code
 the server returns after its duplicate check (`SERVICE_SUSPENDED`, `ONLINE_NOT_OFFERED`,
 `ONLINE_PAUSED`, `ONLINE_CLOSED`, `ONLINE_BUSY`, `DELIVERY_NOT_OFFERED`, `COUPON_INVALID`,
-`ONLINE_BROWSER_PENDING`, `ONLINE_IP_WAITING_LIMIT`,
+`DELIVERY_MIN_ORDER`, `ONLINE_BROWSER_PENDING`, `ONLINE_IP_WAITING_LIMIT`,
 `MENU_CHANGED`): that check
 runs inside the transaction holding the restaurant's cross-day submission lock and the day's counter
 row, so such a rejection proves no request with
@@ -468,14 +588,21 @@ once accepted, the estimated time in large type on its own. `state.ts` derives w
 `phase`, `sessionStatus`, `closeReason` and the dish statuses (`orderView`, `statusCopy`): waiting,
 expired, rejected with or without a reason, preparing (with the estimated time), ready, all dishes
 cancelled, collected (`PAID`) and closed (`NO_SHOW` or `VOIDED`), with pickup and delivery wording.
-A delivery order names itself "Delivery · name"; while waiting its total is labelled as the items
-total with "delivery fee to be confirmed" below it, and once accepted the fee appears above the total
+A delivery order names itself "Delivery · name"; while it has no fee yet (waiting without a quote) its
+total is labelled as the items total with "delivery fee to be confirmed" below it, and once quoted or
+accepted the fee appears above the total
 (struck through and not charged when every dish is cancelled). When the order did not go ahead (expired, rejected, all cancelled) the phone moves from the header
 into the status card. Customers cannot cancel; the page says to call instead.
 
 The privacy page names the restaurant as controller and TavoloFlow as processor, and lists the data,
 purpose, legal basis (performance of the customer's own order), retention, the customer's rights, the
-browser storage used and the optional security verification. Retention states the actual mechanism:
+browser storage used, the optional security verification and, under map services: with automatic
+quotes, that the delivery address goes to Geoapify (processed in the EU) only to compute the road
+distance once the customer taps "Calculate delivery fee", with request logs normally kept at most
+24 hours and details of individual requests up to 2 months in exceptional cases such as suspicious
+or fraudulent activity, and that the order keeps the distance and fee but not the point found; and
+that staff may open the address in Google Maps to deliver, so Google receives it, possibly outside
+the EU. Retention states the actual mechanism:
 contact data is deleted by the restaurant's next successful online submission once 30 days have
 passed, and backup copies remain for at most 7 more days (`deploy/backup.sh` keeps seven days). No
 scheduled cleanup is implemented; whether to add one is left to the pre-release privacy review.
@@ -488,7 +615,7 @@ transaction-scoped and release on commit or rollback.
 
 | Method and path                               | Role        | Input → result                                                                    |
 | --------------------------------------------- | ----------- | --------------------------------------------------------------------------------- |
-| `GET /api/staff/online/pending`               | STAFF/OWNER | `{ items, now }`: every waiting request, oldest first, with contact and lines     |
+| `GET /api/staff/online/pending`               | STAFF/OWNER | `{ items, now, delivery }`: every waiting request, oldest first, with contact and lines |
 | `GET /api/staff/online/active`                | STAFF/OWNER | `{ items }`: accepted orders whose session is ACTIVE, oldest acceptance first     |
 | `POST /api/staff/online/requests/{id}/accept` | STAFF/OWNER | `{ estimatedMinutes, deliveryFeeCents }` → the active order (see below)          |
 | `POST /api/staff/online/requests/{id}/reject` | STAFF/OWNER | `{ reason }`: null, `SOLD_OUT`, `BUSY`, `CLOSING` (`OUT_OF_RANGE` delivery) → 204 |
@@ -497,8 +624,11 @@ The pending list reads `OnlineRequestState.Waiting` with the time from `TimeProv
 ten-minute window keep it small, so it has no paging and no limit, and `now` is the server's clock for
 the page's countdown. Each pending item carries the number, fulfillment, name, phone, delivery address
 and notes, submission and expiry times, the default language, the submitted lines (the status page's
-line shape), the item total and `coupon` (`{ code, percentOff, discountCents }` on that total, or
-null). Active orders come from `dining_sessions` through the partial index
+line shape), the item total, `coupon` (`{ code, percentOff, discountCents }` on that total, or
+null) and, for an accepted automatic quote, `deliveryFeeCents` and `deliveryDistanceMeters` (both null
+otherwise). `delivery` is null unless a delivery request waits; then it is
+`{ originLat, originLng, tiers }`, the restaurant's current coordinates and bands (read only then,
+because the banner polls this list on every staff page). Active orders come from `dining_sessions` through the partial index
 `ix_dining_sessions_active` (`restaurant_id, opened_at` where ACTIVE), never a history scan. They are
 built from the sessions' bill summaries (`SessionSummaries.Project`), so their amount is the bill's
 own, and carry the number, channel, contact and address, acceptance (the session's opening) and
@@ -511,9 +641,11 @@ order restaurant → online request), and requires the request to be still waiti
 otherwise `ONLINE_REQUEST_CHANGED` (409). A suspended restaurant returns `SERVICE_SUSPENDED`, like
 opening a table; pause, hours, sold-out and delivery switches are not checked, and prices stay the
 submitted snapshot. `estimatedMinutes` is 10, 20, 30 or 45 for pickup and 30, 45, 60 or 90 for
-delivery. A delivery request requires `deliveryFeeCents`, entered by whoever accepts from the address
-and the restaurant's note: whole cents, 0 for free delivery, and no larger than keeps items plus fee a
-safe integer; pickup takes none. Otherwise `VALIDATION_FAILED`. Inside the same transaction it checks which dishes still exist (menu writers and dish deletion
+delivery. A quoted delivery keeps the fee the customer accepted and takes none (sending one is
+`VALIDATION_FAILED`). Any other delivery request requires `deliveryFeeCents`: whole cents, 0 for free
+delivery, and no larger than keeps items plus fee a safe integer; pickup takes none. The page sends the fee of the band
+whoever accepts picked, but the server takes any valid fee, so a band the owner edits meanwhile never
+fails an acceptance. Otherwise `VALIDATION_FAILED`. Inside the same transaction it checks which dishes still exist (menu writers and dish deletion
 hold restaurant UPDATE, so this cannot interleave), creates the ACTIVE `PICKUP` or `DELIVERY` session (the request's
 fulfillment, opened now, bill version 1, with the delivery fee on delivery), its single order (`created_at` now, the request's client request ID, total and
 default language) and the items through `OrderLineSnapshot.ToOrderItem` (a deleted dish leaves
@@ -546,11 +678,17 @@ until then it says "tap the page to turn on the ringing".
 ### Online orders page
 
 `/staff/online` (from 首页, with a back link) lists the pending requests, each with its number,
-fulfillment badge, name, a `tel:` call button, for delivery the address as a plain Google Maps search
-link (`mapsUrl`) with the doorbell notes, waited and remaining time on the server's clock
+fulfillment badge, name, a `tel:` call button, for delivery the address with the doorbell notes,
+linked to the driving route from the restaurant's coordinates (`routeUrl`, the customer's own text as
+destination, so Google Maps shows the road distance that decides the band) or, without coordinates,
+to a plain search (`mapsUrl`), waited and remaining time on the server's clock
 (`requestTimes`, red under three minutes), the lines with options and remarks, and the subtotal; with a
 coupon, its line and discount, and for pickup the amount to collect. One tap on 10, 20, 30 or 45
-minutes accepts a pickup. A delivery first takes the fee (a decimal amount, 0 when free; `acceptFee`),
+minutes accepts a pickup. A quoted delivery shows "delivery fee X · about Y km · quoted to the
+customer", with no band to pick and its times enabled at once. Any other delivery first takes a band,
+picked from the restaurant's current ones ("within 3 km · € 2.00"; without bands the card says to
+call the customer or reject; a picked band whose distance or fee the owner changes meanwhile is no
+longer picked, so a new fee is never sent without being chosen again), then
 shows "subtotal + delivery fee = total" ("subtotal − discount + delivery fee = total" with a coupon), and only then enables 30, 45, 60 and
 90 minutes. Reject opens `ConfirmDialog` with an optional reason; "outside the delivery area" is
 offered for delivery only (`rejectReasons`). Writes are blocked while
@@ -687,8 +825,8 @@ with a foreign SIM can call the restaurant.
 `/staff/online-settings` (from 首页, with a back link) shows the status, the full online link with copy
 and open actions, and its QR PNG, generated in the browser with the table QR options and the same
 `VITE_PUBLIC_BASE_URL` origin rule (`publicMenuUrl` accepts `/r/{slug}`). STAFF and OWNER pause or
-resume; OWNER also edits the phone, the week, delivery (a switch and three note fields, with a
-warning while delivery is on without any note) and coupons (a list with the percentage, last day or
+resume; OWNER also edits the phone, the week, delivery (coordinates, bands, minimum, three note
+fields and the switch) and coupons (a list with the percentage, last day or
 an expired badge, a delete button behind `ConfirmDialog`, and a create form with code, percentage and
 an optional date input). A partial date is refused with a translated field message; only a genuinely
 empty control means no expiry. Submission reads the date control's current value and `validity.badInput`

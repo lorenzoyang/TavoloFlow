@@ -46,7 +46,7 @@ chmod 600 "$TF_ROOT/.env"
 docker load -i "$package/api-image.tar.gz"
 [[ "$(docker image inspect --format '{{.Id}}' "tavoloflow-api:$release")" == "$(cat "$package/image.id")" ]] || fail 'Loaded image ID differs from the manifest.'
 export RELEASE_ID=$release
-docker compose --project-directory "$TF_ROOT" --env-file "$TF_ROOT/.env" -f "$package/ops/compose.yaml" config --quiet
+validate_geoapify_key "$package/ops/compose.yaml"
 # Caddy must be able to traverse/read only the public tree, not the secrets and backups beside it.
 install -d -o root -g root -m 700 "$TF_ROOT/state" "$TF_ROOT/backups"
 install -d -o root -g root -m 755 "$TF_ROOT/web" "$TF_ROOT/web/releases" "$TF_ROOT/web/assets"
@@ -62,7 +62,7 @@ fi
 # Production .env and state are not in ops and are never overwritten.
 install -o root -g root -m 644 "$package"/ops/* "$package/ops/.env.example" "$TF_ROOT/"
 export RELEASE_ID=$release
-compose config --quiet
+validate_compose "$TF_ROOT/compose.yaml"
 compose up -d --wait --wait-timeout 120 --no-recreate db
 printf '\nApplying explicit database migrations...\n'
 compose run --rm -T --no-deps --entrypoint /app/efbundle api

@@ -28,6 +28,7 @@ if (( EUID != 0 )); then
   docker exec "$runner" bash /repo/deploy/smoke-test.sh /release.tar.gz
   exit
 fi
+unset GEOAPIFY_API_KEY SMOKE_GEOAPIFY_FALLBACK
 work=$(mktemp -d "${TMPDIR:-/tmp}/tavoloflow-smoke.XXXXXX")
 chmod 700 "$work"
 COMPOSE_PROJECT_NAME="tavoloflow-smoke-$(basename "$work" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9')"
@@ -78,6 +79,8 @@ POSTGRES_PASSWORD=$(openssl rand -hex 32)
 VAPID_PRIVATE_KEY=$(openssl rand -hex 32)
 # Infrastructure smoke tests do not depend on an external verification service.
 TURNSTILE_ENABLED=false
+# Compose strips the quotes and inline comment. No quote endpoint is called during the test.
+GEOAPIFY_API_KEY="smoke-geoapify-key-0123456789" # smoke fixture
 PROXY_SUBNET=172.30.81.0/24
 PROXY_DYNAMIC_RANGE=172.30.81.128/25
 CADDY_IP=172.30.81.2
@@ -158,20 +161,27 @@ printf '%s\n' "$second" > "$work/second/release.txt"
 rm "$work/second/frontend/assets/retained-smoke.js"
 printf '\n<!-- deployment smoke second release -->\n' >> "$work/second/frontend/index.html"
 rehash "$work/second"
-# An invalid key must fail before loading the new image, stopping the old API or changing its state.
+# An invalid key must fail before stopping the old API or changing its state.
 # Restore .env after every attempt, including unexpected errors, so cleanup always has valid config.
 python3 - "$TAVOLOFLOW_ROOT" "$work/second" <<'PY'
 import json,pathlib,subprocess
+import os
 import sys
 root,package=map(pathlib.Path,sys.argv[1:])
 env=root/'.env'
 original=env.read_bytes()
 current=(root/'state/current').read_bytes()
-api=subprocess.check_output(['bash',str(root/'tf.sh'),'ps','-q','api'],text=True).strip()
+tf=['bash',str(root/'tf.sh')]
+def api_info():
+    api=subprocess.check_output(tf+['ps','-q','api'],text=True).strip()
+    return json.loads(subprocess.check_output(['docker','inspect',api],text=True))[0]
 def api_state():
-    info=json.loads(subprocess.check_output(['docker','inspect',api],text=True))[0]
+    info=api_info()
     state=info['State']
     return info['Id'],state['StartedAt'],state['Running'],state['Health']['Status']
+def assert_geoapify_key(expected):
+    config=api_info()['Config']['Env']
+    assert 'Geoapify__ApiKey='+expected in config, 'Unexpected Geoapify configuration in the running API'
 before=api_state()
 assert before[2:] == (True,'healthy')
 cases={
@@ -218,6 +228,52 @@ for name, overrides in turnstile_cases.items():
     assert (root/'state/current').read_bytes() == current
     assert api_state() == before, f'Running API changed for Turnstile {name}'
     print(f'Invalid Turnstile configuration rejected without stopping the installed API: {name}')
+
+geoapify_cases = [
+    ('placeholder', 'GEOAPIFY_API_KEY=YOUR_GEOAPIFY_KEY', 'YOUR_GEOAPIFY_KEY', {}),
+    ('too short', 'GEOAPIFY_API_KEY=abc123', 'abc123', {}),
+    ('inner space', 'GEOAPIFY_API_KEY=smoke-geoapify key-0123456789', 'smoke-geoapify key-0123456789', {}),
+    ('quoted short key', 'GEOAPIFY_API_KEY="quoted12"', 'quoted12', {}),
+    ('exported short key', 'export GEOAPIFY_API_KEY=export1', 'export1', {}),
+    ('expanded short key', 'GEOAPIFY_API_KEY=${SMOKE_GEOAPIFY_FALLBACK:-fallback}', 'fallback', {}),
+    ('environment override', 'GEOAPIFY_API_KEY=smoke-geoapify-key-0123456789', 'override', {'GEOAPIFY_API_KEY':'override'}),
+    ('literal dollar', "GEOAPIFY_API_KEY='short123$'", 'short123$', {}),
+    ('too long in UTF-16', 'GEOAPIFY_API_KEY='+'😀'*129, '😀'*129, {}),
+]
+other_lines=[line for line in original.decode().splitlines() if not line.startswith('GEOAPIFY_API_KEY=')]
+def geoapify_attempt(command, assignment, overrides):
+    try:
+        env.write_text('\n'.join([*other_lines,assignment])+'\n')
+        return subprocess.run(command,capture_output=True,text=True,env={**os.environ,**overrides})
+    finally:
+        env.write_bytes(original)
+def assert_geoapify_rejected(result, key, label):
+    assert result.returncode != 0, f'Accepted invalid Geoapify configuration: {label}'
+    assert 'Set GEOAPIFY_API_KEY' in result.stderr, f'Geoapify preflight did not reject {label}'
+    assert key not in result.stdout + result.stderr, f'Geoapify preflight printed the key for {label}'
+    assert (root/'state/current').read_bytes() == current
+    assert api_state() == before, f'Running API changed for Geoapify {label}'
+
+fake='smoke-geoapify-key-0123456789'
+assert_geoapify_key(fake)
+install=['bash',str(package/'ops/install-release.sh'),str(package),str(root)]
+for name, assignment, key, overrides in geoapify_cases:
+    assert_geoapify_rejected(geoapify_attempt(install, assignment, overrides), key, name)
+    print(f'Invalid Geoapify key rejected without stopping the installed API: {name}')
+
+apply=tf+['apply-geoapify-key']
+name, assignment, key, overrides=geoapify_cases[3]
+assert_geoapify_rejected(geoapify_attempt(apply, assignment, overrides), key, 'apply-geoapify-key')
+for assignment, expected in [('GEOAPIFY_API_KEY=""', ''), (f'GEOAPIFY_API_KEY="{fake}" # smoke fixture', fake)]:
+    previous_api=api_state()
+    result=geoapify_attempt(apply, assignment, {})
+    assert result.returncode == 0, 'Applying valid Geoapify configuration failed'
+    assert fake not in result.stdout + result.stderr, 'Applying Geoapify configuration printed the key'
+    applied=api_state()
+    assert applied[0] != previous_api[0] and applied[2:] == (True,'healthy')
+    assert (root/'state/current').read_bytes() == current
+    assert_geoapify_key(expected)
+print('Applying Geoapify configuration: invalid kept the API running, quoted empty and valid values recreated a healthy API')
 PY
 python3 "$repo/deploy/smoke-http.py" verify "$work" 18443
 # Reproduce the previous deployment bug, including the parent directory and .env.
@@ -270,4 +326,4 @@ python3 "$repo/deploy/smoke-http.py" verify "$work" 18443
 bash "$TAVOLOFLOW_ROOT/rollback.sh" --schema-compatible "$first"
 assert_permissions
 python3 "$repo/deploy/smoke-http.py" verify "$work" 18443
-printf '\nDeployment smoke test passed: root ownership and write protection, VAPID preflight before downtime, migrations, HTTPS, cookies/CSRF, two releases, restart, backup restore and rollback with the same VAPID key.\n'
+printf '\nDeployment smoke test passed: root ownership and write protection, VAPID, Turnstile and Geoapify preflight before downtime, migrations, HTTPS, cookies/CSRF, two releases, restart, backup restore and rollback with the same VAPID key.\n'
