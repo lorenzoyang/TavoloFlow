@@ -19,7 +19,8 @@ public sealed class OnlineRequestService(
     TimeProvider clock,
     PushQueue push,
     IOptions<OnlineRateLimitOptions> limits,
-    IOnlineVerification verification
+    IOnlineVerification verification,
+    DeliveryQuotes quotes
 )
 {
     public static readonly TimeSpan WaitingTime = TimeSpan.FromMinutes(10);
@@ -119,6 +120,27 @@ public sealed class OnlineRequestService(
         // Delivery is the OWNER's switch; it never closes pickup.
         if (form.Fulfillment == OnlineFulfillment.Delivery && !restaurant.DeliveryEnabled)
             throw OnlineErrors.DeliveryNotOffered();
+        // A quoted fee is promised to the customer and kept on acceptance, so it must still be this
+        // restaurant's quote for this address, unexpired, and priced the same by the current bands.
+        // Settings writes take restaurant UPDATE, so the bands cannot change under this SHARE lock.
+        int? quotedMeters = null;
+        if (form.Quote is { } quoted)
+        {
+            quotedMeters = quotes.Distance(
+                restaurantId,
+                form.Address!,
+                quoted.Signed,
+                now.UtcDateTime
+            );
+            if (
+                quotedMeters is not { } distance
+                || OnlineDelivery.TierFee(
+                    await OnlineDelivery.TiersAsync(db, restaurantId, ct),
+                    distance
+                ) != quoted.FeeCents
+            )
+                throw OnlineErrors.DeliveryQuoteInvalid();
+        }
         // Coupon writes take restaurant UPDATE, so this SHARE lock sees the coupon whole or not at all.
         // Acceptance never checks it again: the customer was promised this total.
         if (form.Coupon is { } wanted)
@@ -164,6 +186,8 @@ public sealed class OnlineRequestService(
             CustomerPhone = form.Phone,
             DeliveryAddress = form.Address,
             DeliveryNotes = form.Notes,
+            DeliveryFeeCents = form.Quote?.FeeCents,
+            DeliveryDistanceMeters = quotedMeters,
             Lines = [.. lines],
             ItemsTotalCents = itemsTotal,
             CouponCode = form.Coupon?.Code,
@@ -337,6 +361,18 @@ public sealed class OnlineRequestService(
                         "coupon",
                         "Invalid coupon."
                     );
+        Quote? quote = null;
+        if (input.DeliveryQuote is { } sent)
+            quote =
+                fulfillment == OnlineFulfillment.Delivery
+                && sent.Quote is { Length: > 0 and <= 4096 } signed
+                && sent.FeeCents is >= 0 and <= InputRules.MaxSafeCents
+                    ? new(signed, sent.FeeCents.Value)
+                    : throw ApiException.Validation(
+                        "Send the delivery quote and its fee for a delivery, or null for none.",
+                        "deliveryQuote",
+                        "Invalid quote."
+                    );
         return new(
             clientRequestId,
             fulfillment,
@@ -345,11 +381,14 @@ public sealed class OnlineRequestService(
             address,
             notes,
             OrderLines.Validate(input.Items),
-            coupon
+            coupon,
+            quote
         );
     }
 
     private sealed record Coupon(string Code, int PercentOff);
+
+    private sealed record Quote(string Signed, long FeeCents);
 
     private sealed record Form(
         Guid ClientRequestId,
@@ -359,7 +398,8 @@ public sealed class OnlineRequestService(
         string? Address,
         string? Notes,
         OrderLineInput[] Lines,
-        Coupon? Coupon
+        Coupon? Coupon,
+        Quote? Quote
     );
 
     private sealed record StoredResponse(

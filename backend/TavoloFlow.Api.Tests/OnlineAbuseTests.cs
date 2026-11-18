@@ -24,6 +24,7 @@ public sealed class OnlineAbuseTests(PostgreSqlFixture database) : IClassFixture
             null,
             null,
             [new OrderLineInput(shop.Dish.Id, 1, 1200, null, [])],
+            null,
             null
         );
 
@@ -168,7 +169,8 @@ public sealed class OnlineAbuseTests(PostgreSqlFixture database) : IClassFixture
                             clock,
                             NoPush,
                             SubmissionLimits,
-                            NoVerification
+                            NoVerification,
+                            Quotes
                         ).SubmitAsync(shop.Slug, Body(shop), source, default);
                         Assert.True(result.Created);
                         return "CREATED";

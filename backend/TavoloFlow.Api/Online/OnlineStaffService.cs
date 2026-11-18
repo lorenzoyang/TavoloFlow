@@ -142,7 +142,8 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
         return result;
     }
 
-    // Delivery requires an explicit fee, 0 for free; the bill (items plus fee) stays a safe integer.
+    // A quoted delivery keeps the fee the customer was shown; any other delivery requires an explicit
+    // fee, 0 for free. The bill (items plus fee) stays a safe integer.
     private static long? DeliveryFee(OnlineRequest request, long? fee)
     {
         if (request.Fulfillment != OnlineFulfillment.Delivery)
@@ -152,6 +153,14 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
                     "Pickup orders take no delivery fee.",
                     "deliveryFeeCents",
                     "Pickup only."
+                );
+        if (request.DeliveryFeeCents is { } quoted)
+            return fee is null
+                ? quoted
+                : throw ApiException.Validation(
+                    "This delivery keeps the fee quoted to the customer.",
+                    "deliveryFeeCents",
+                    "Already quoted."
                 );
         if (
             fee is not { } cents

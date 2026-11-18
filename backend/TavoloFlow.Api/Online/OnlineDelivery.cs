@@ -16,6 +16,27 @@ public static class OnlineDelivery
     // Coordinates pasted from Google Maps keep six decimals, about ten centimetres.
     public const int OriginDecimals = 6;
 
+    // Automatic quotes: only a house number or a named place is precise enough to price, and only when
+    // the street matched with this confidence (a typo can otherwise land on another street). Both rules
+    // come from the Prato spike in docs/online-ordering.md §12 step 11; adjust them with real orders.
+    public static readonly string[] QuotableMatches = ["building", "amenity"];
+    public const double MinStreetConfidence = 0.9;
+
+    // The search circle reaches a little beyond the farthest band: road distance is never shorter than
+    // the straight line, so a match out there is priced as out of range rather than not found.
+    public const int SearchMarginMeters = 5000;
+
+    // Trimmed, with runs of whitespace collapsed: what a quote is bound to. Null when blank.
+    public static string? NormalizeAddress(string? value)
+    {
+        var parts = value?.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        return parts is { Length: > 0 } ? string.Join(' ', parts) : null;
+    }
+
+    // The fee of the nearest band that reaches the distance; null beyond the farthest band.
+    public static long? TierFee(IEnumerable<DeliveryTierResponse> tiers, int meters) =>
+        tiers.OrderBy(t => t.MaxMeters).FirstOrDefault(t => meters <= t.MaxMeters)?.FeeCents;
+
     // Repeated by ck_restaurant_delivery_min_order.
     public static bool ValidMinOrder(long? cents) =>
         cents is null or (>= 1 and <= InputRules.MaxSafeCents);

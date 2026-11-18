@@ -30,6 +30,10 @@ public sealed class OnlineRateLimitOptions
 
     [Range(1, 10000)]
     public int CouponChecksPerIpPerTenMinutes { get; set; } = 30;
+
+    // Delivery quotes have their own budget, so asking for a fee never uses up order submissions.
+    [Range(1, 10000)]
+    public int QuotesPerIpPerTenMinutes { get; set; } = 10;
 }
 
 public enum OnlineLimit
@@ -40,6 +44,7 @@ public enum OnlineLimit
     Recovery,
     Context,
     Coupon,
+    Quote,
 }
 
 [AttributeUsage(AttributeTargets.Method)]
@@ -71,6 +76,7 @@ public sealed class OnlineRateLimiter : IDisposable
             [OnlineLimit.Recovery] = [new(value.RecoveriesPerIpPerMinute, minute)],
             [OnlineLimit.Context] = [new(value.ContextChecksPerIpPerMinute, minute)],
             [OnlineLimit.Coupon] = [new(value.CouponChecksPerIpPerTenMinutes, tenMinutes)],
+            [OnlineLimit.Quote] = [new(value.QuotesPerIpPerTenMinutes, tenMinutes)],
         };
     }
 

@@ -1070,7 +1070,8 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
                 host.Clock,
                 OnlineTestData.NoPush,
                 OnlineTestData.SubmissionLimits,
-                OnlineTestData.NoVerification
+                OnlineTestData.NoVerification,
+                OnlineTestData.Quotes
             ).SubmitAsync(
                 shop.Slug,
                 new OnlineRequestInput(
@@ -1081,6 +1082,7 @@ public sealed class OnlineOrderingTests(PostgreSqlFixture database)
                     null,
                     null,
                     [new OrderLineInput(shop.Dish.Id, 1, 1200, null, [])],
+                    null,
                     null
                 ),
                 OnlineTestData.Source(),

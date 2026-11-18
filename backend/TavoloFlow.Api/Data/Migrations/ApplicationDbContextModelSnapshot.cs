@@ -621,6 +621,14 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("delivery_address");
 
+                    b.Property<int?>("DeliveryDistanceMeters")
+                        .HasColumnType("integer")
+                        .HasColumnName("delivery_distance_meters");
+
+                    b.Property<long?>("DeliveryFeeCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("delivery_fee_cents");
+
                     b.Property<string>("DeliveryNotes")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
@@ -781,6 +789,8 @@ namespace TavoloFlow.Api.Data.Migrations
                             t.HasCheckConstraint("ck_online_request_coupon", "(coupon_code IS NULL AND coupon_percent_off IS NULL) OR (coupon_code IS NOT NULL AND coupon_percent_off IS NOT NULL AND coupon_percent_off BETWEEN 1 AND 50)");
 
                             t.HasCheckConstraint("ck_online_request_decision", "(accepted_at IS NULL OR rejected_at IS NULL) AND (accepted_at IS NULL OR accepted_at < expires_at) AND (rejected_at IS NULL OR rejected_at < expires_at)");
+
+                            t.HasCheckConstraint("ck_online_request_delivery_quote", "(delivery_fee_cents IS NULL AND delivery_distance_meters IS NULL) OR (delivery_fee_cents IS NOT NULL AND delivery_distance_meters IS NOT NULL AND fulfillment = 'DELIVERY' AND delivery_fee_cents BETWEEN 0 AND 9007199254740991 AND delivery_distance_meters BETWEEN 1 AND 30000)");
 
                             t.HasCheckConstraint("ck_online_request_expiry", "expires_at > submitted_at");
 

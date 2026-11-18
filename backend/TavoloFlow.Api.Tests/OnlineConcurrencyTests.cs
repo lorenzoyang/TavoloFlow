@@ -46,7 +46,8 @@ public sealed class OnlineConcurrencyTests(PostgreSqlFixture database)
             clock,
             OnlineTestData.NoPush,
             OnlineTestData.SubmissionLimits,
-            OnlineTestData.NoVerification
+            OnlineTestData.NoVerification,
+            OnlineTestData.Quotes
         ).SubmitAsync(shop.Slug, body, OnlineTestData.Source(), default);
         Task<OnlineSubmission>? retry = null;
         try
@@ -58,7 +59,8 @@ public sealed class OnlineConcurrencyTests(PostgreSqlFixture database)
                 clock,
                 OnlineTestData.NoPush,
                 OnlineTestData.SubmissionLimits,
-                OnlineTestData.NoVerification
+                OnlineTestData.NoVerification,
+                OnlineTestData.Quotes
             ).SubmitAsync(shop.Slug, body, OnlineTestData.Source(), default);
             await retryGate.Attempted.Task.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.False(retry.IsCompleted);
@@ -138,7 +140,8 @@ public sealed class OnlineConcurrencyTests(PostgreSqlFixture database)
             clock,
             OnlineTestData.NoPush,
             OnlineTestData.SubmissionLimits,
-            OnlineTestData.NoVerification
+            OnlineTestData.NoVerification,
+            OnlineTestData.Quotes
         ).SubmitAsync(shop.Slug, Submission(shop), OnlineTestData.Source(), default);
         Task<OnlineSubmission>? next = null;
         try
@@ -150,7 +153,8 @@ public sealed class OnlineConcurrencyTests(PostgreSqlFixture database)
                 clock,
                 OnlineTestData.NoPush,
                 OnlineTestData.SubmissionLimits,
-                OnlineTestData.NoVerification
+                OnlineTestData.NoVerification,
+                OnlineTestData.Quotes
             ).SubmitAsync(shop.Slug, Submission(shop), OnlineTestData.Source(), default);
             await waiting.Attempted.Task.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.False(next.IsCompleted);
@@ -163,7 +167,8 @@ public sealed class OnlineConcurrencyTests(PostgreSqlFixture database)
                         clock,
                         OnlineTestData.NoPush,
                         OnlineTestData.SubmissionLimits,
-                        OnlineTestData.NoVerification
+                        OnlineTestData.NoVerification,
+                        OnlineTestData.Quotes
                     )
                         .SubmitAsync(
                             other.Slug,
@@ -490,6 +495,7 @@ public sealed class OnlineConcurrencyTests(PostgreSqlFixture database)
             null,
             null,
             [new OrderLineInput(shop.Dish.Id, 1, 1200, null, [])],
+            null,
             null
         );
 

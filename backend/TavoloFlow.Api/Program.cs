@@ -62,6 +62,25 @@ builder.Services.AddScoped<OnlineRequestService>();
 builder.Services.AddScoped<OnlineOrderStatusService>();
 builder.Services.AddScoped<OnlineStaffService>();
 builder
+    .Services.AddOptions<GeoapifyOptions>()
+    .Bind(builder.Configuration.GetSection(GeoapifyOptions.Section))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<GeoapifyOptions>, GeoapifyOptionsValidator>();
+builder.Services.AddSingleton<DeliveryQuoteLimits>();
+builder.Services.AddSingleton<DeliveryQuotes>();
+builder.Services.AddScoped<IDeliveryRouting, GeoapifyRouting>();
+builder.Services.AddScoped<DeliveryQuoteService>();
+
+// The key travels in the URL: no default loggers, no redirects, no retries.
+builder
+    .Services.AddHttpClient(
+        GeoapifyRouting.HttpClientName,
+        client => client.Timeout = TimeSpan.FromSeconds(5)
+    )
+    .RemoveAllLoggers()
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+builder
     .Services.AddOptions<OnlineRateLimitOptions>()
     .Bind(builder.Configuration.GetSection("OnlineRateLimits"))
     .ValidateDataAnnotations()

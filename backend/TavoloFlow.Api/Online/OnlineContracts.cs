@@ -156,6 +156,14 @@ public static class OnlineErrors
     public static ApiException DeliveryNotOffered() =>
         new(409, "DELIVERY_NOT_OFFERED", "This restaurant doesn't deliver online orders.");
 
+    // After the duplicate check, like COUPON_INVALID: nothing was stored. Ask for a new quote.
+    public static ApiException DeliveryQuoteInvalid() =>
+        new(
+            409,
+            "DELIVERY_QUOTE_INVALID",
+            "The delivery quote has expired or no longer matches this address or the restaurant's fees."
+        );
+
     // After the duplicate check, like COUPON_INVALID: nothing was stored. The menu carries the minimum.
     public static ApiException DeliveryMinOrder() =>
         new(

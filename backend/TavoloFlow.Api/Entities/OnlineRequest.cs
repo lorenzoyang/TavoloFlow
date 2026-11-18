@@ -44,6 +44,11 @@ public sealed class OnlineRequest
     public string? DeliveryAddress { get; set; }
     public string? DeliveryNotes { get; set; }
 
+    // An automatic quote the customer accepted: the band's fee and the road distance, both set or both
+    // null, delivery only. Acceptance keeps the fee; null means whoever accepts picks the band.
+    public long? DeliveryFeeCents { get; set; }
+    public int? DeliveryDistanceMeters { get; set; }
+
     public List<OrderLineSnapshot> Lines { get; set; } = [];
     public long ItemsTotalCents { get; set; }
 

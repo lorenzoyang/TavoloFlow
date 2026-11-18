@@ -11,7 +11,8 @@ namespace TavoloFlow.Api.Online;
 public sealed class OnlineMenuService(
     ApplicationDbContext db,
     TimeProvider clock,
-    IOptions<TurnstileOptions> verification
+    IOptions<TurnstileOptions> verification,
+    DeliveryQuoteService quotes
 )
 {
     public async Task<OnlineMenuResponse> ReadAsync(string slug, CancellationToken ct)
@@ -47,7 +48,8 @@ public sealed class OnlineMenuService(
                 restaurant.DeliveryNoteIt,
                 restaurant.DeliveryNoteEn,
                 restaurant.DeliveryMinOrderCents,
-                tiers
+                tiers,
+                quotes.AutoQuote(restaurant, tiers)
             ),
             availability.Status,
             availability.NextOpensAt,
