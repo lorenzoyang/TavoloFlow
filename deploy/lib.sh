@@ -10,7 +10,29 @@ if [[ -z "${RELEASE_ID:-}" && -f "$TF_ROOT/state/current" ]]; then
 fi
 export RELEASE_ID="${RELEASE_ID:-uninstalled}"
 valid_release "$RELEASE_ID"
-compose() { docker compose --project-directory "$TF_ROOT" --env-file "$TF_ROOT/.env" -f "$TF_ROOT/compose.yaml" "$@"; }
+compose_with_file() {
+  local file=$1
+  shift
+  docker compose --project-directory "$TF_ROOT" --env-file "$TF_ROOT/.env" -f "$file" "$@"
+}
+compose() { compose_with_file "$TF_ROOT/compose.yaml" "$@"; }
+validate_compose() {
+  compose_with_file "$1" config --quiet >/dev/null 2>&1 ||
+    fail 'Compose could not read the configuration. Check the .env syntax and required settings.'
+}
+validate_geoapify_key() {
+  local file=$1
+  validate_compose "$file"
+  # Let Compose set the environment exactly as for the API. Never forward its diagnostics or output.
+  if compose_with_file "$file" run --rm -T --no-deps --pull never api --validate-geoapify-key >/dev/null 2>&1; then
+    return
+  else
+    case $? in
+      2) fail 'Set GEOAPIFY_API_KEY to a complete Geoapify key, or leave it empty to keep automatic delivery quotes off.' ;;
+      *) fail 'Could not run the Geoapify preflight. Check Docker and the release image.' ;;
+    esac
+  fi
+}
 lock_operations() {
   if [[ "${TF_LOCK_HELD:-}" != 1 ]]; then
     exec 9>"$TF_ROOT/.operation.lock"

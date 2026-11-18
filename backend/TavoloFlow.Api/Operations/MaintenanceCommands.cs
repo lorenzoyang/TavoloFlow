@@ -19,12 +19,15 @@ public static class MaintenanceCommands
     // Fills an empty database with the demo restaurant.
     private const string SeedDemo = "--seed-demo";
 
+    internal const string ValidateGeoapifyKey = "--validate-geoapify-key";
+
     private static readonly string[] Flags =
     [
         SeedDevelopmentAccounts,
         SeedPlatformAdmin,
         ResetPlatformPassword,
         SeedDemo,
+        ValidateGeoapifyKey,
     ];
 
     // Returns the requested command, if any, and the remaining arguments for the web host.
@@ -34,9 +37,7 @@ public static class MaintenanceCommands
 
         if (commands.Length > 1)
         {
-            throw new InvalidOperationException(
-                "Run one initialization or recovery command at a time."
-            );
+            throw new InvalidOperationException("Run one maintenance command at a time.");
         }
 
         hostArgs = [.. args.Where(arg => !Flags.Contains(arg, StringComparer.Ordinal))];

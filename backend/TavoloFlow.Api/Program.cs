@@ -19,6 +19,29 @@ using TavoloFlow.Api.Tables;
 var command = MaintenanceCommands.Parse(args, out var hostArgs);
 var builder = WebApplication.CreateBuilder(hostArgs);
 
+builder
+    .Services.AddOptions<GeoapifyOptions>()
+    .Bind(builder.Configuration.GetSection(GeoapifyOptions.Section))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<GeoapifyOptions>, GeoapifyOptionsValidator>();
+
+if (command == MaintenanceCommands.ValidateGeoapifyKey)
+{
+    // The Compose preflight uses the same options as startup without registering business services.
+    await using var preflight = builder.Build();
+    try
+    {
+        _ = preflight.Services.GetRequiredService<IOptions<GeoapifyOptions>>().Value;
+    }
+    catch (OptionsValidationException)
+    {
+        // deploy/lib.sh reports this result without printing the container's output.
+        Environment.ExitCode = 2;
+    }
+    return;
+}
+
 builder.Services.AddSingleton(TimeProvider.System);
 builder
     .Services.AddControllers(options =>
@@ -61,12 +84,6 @@ builder.Services.AddScoped<OnlineMenuService>();
 builder.Services.AddScoped<OnlineRequestService>();
 builder.Services.AddScoped<OnlineOrderStatusService>();
 builder.Services.AddScoped<OnlineStaffService>();
-builder
-    .Services.AddOptions<GeoapifyOptions>()
-    .Bind(builder.Configuration.GetSection(GeoapifyOptions.Section))
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
-builder.Services.AddSingleton<IValidateOptions<GeoapifyOptions>, GeoapifyOptionsValidator>();
 builder.Services.AddSingleton<DeliveryQuoteLimits>();
 builder.Services.AddSingleton<DeliveryQuotes>();
 builder.Services.AddScoped<IDeliveryRouting, GeoapifyRouting>();
