@@ -27,7 +27,22 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
             .OrderBy(r => r.SubmittedAt)
             .ThenBy(r => r.Id)
             .ToArrayAsync(ct);
-        return new(rows.Select(OnlinePendingRequestResponse.From).ToArray(), now);
+        // The banner polls this on every staff page, so the bands are read only when someone needs them.
+        OnlinePendingDelivery? delivery = null;
+        if (rows.Any(r => r.Fulfillment == OnlineFulfillment.Delivery))
+        {
+            var origin = await db
+                .Restaurants.AsNoTracking()
+                .Where(r => r.Id == restaurantId)
+                .Select(r => new { r.DeliveryOriginLat, r.DeliveryOriginLng })
+                .SingleAsync(ct);
+            delivery = new(
+                origin.DeliveryOriginLat,
+                origin.DeliveryOriginLng,
+                await OnlineDelivery.TiersAsync(db, restaurantId, ct)
+            );
+        }
+        return new(rows.Select(OnlinePendingRequestResponse.From).ToArray(), now, delivery);
     }
 
     // Accepted online orders until their session closes, oldest acceptance first. Reads only ACTIVE sessions
@@ -39,7 +54,8 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
     // restaurant UPDATE, so the "dish still exists" check below cannot interleave with them, and the
     // platform's services switch waits for this to commit before it counts open work.
     // Pause, hours, sold-out and delivery switches are not checked: the request was valid when submitted,
-    // and the lines keep their submitted snapshot and prices. Delivery adds the fee whoever accepts enters.
+    // and the lines keep their submitted snapshot and prices. Delivery adds the fee of the band whoever
+    // accepts picked.
     public async Task<OnlineActiveOrderResponse> AcceptAsync(
         Guid restaurantId,
         Guid id,

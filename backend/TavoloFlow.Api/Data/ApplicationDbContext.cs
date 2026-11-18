@@ -25,6 +25,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<OnlineCounter> OnlineCounters => Set<OnlineCounter>();
     public DbSet<OnlineRequest> OnlineRequests => Set<OnlineRequest>();
     public DbSet<OnlineCoupon> OnlineCoupons => Set<OnlineCoupon>();
+    public DbSet<DeliveryTier> DeliveryTiers => Set<DeliveryTier>();
     public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

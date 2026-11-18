@@ -23,6 +23,30 @@ namespace TavoloFlow.Api.Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("TavoloFlow.Api.Entities.DeliveryTier", b =>
+                {
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("restaurant_id");
+
+                    b.Property<int>("MaxMeters")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_meters");
+
+                    b.Property<long>("FeeCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("fee_cents");
+
+                    b.HasKey("RestaurantId", "MaxMeters");
+
+                    b.ToTable("delivery_tiers", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_delivery_tier_distance", "max_meters BETWEEN 1 AND 30000");
+
+                            t.HasCheckConstraint("ck_delivery_tier_fee", "fee_cents BETWEEN 0 AND 9007199254740991");
+                        });
+                });
+
             modelBuilder.Entity("TavoloFlow.Api.Entities.DiningSession", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1144,6 +1168,10 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("delivery_enabled");
 
+                    b.Property<long?>("DeliveryMinOrderCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("delivery_min_order_cents");
+
                     b.Property<string>("DeliveryNoteEn")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -1158,6 +1186,16 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
                         .HasColumnName("delivery_note_zh");
+
+                    b.Property<decimal?>("DeliveryOriginLat")
+                        .HasPrecision(8, 6)
+                        .HasColumnType("numeric(8,6)")
+                        .HasColumnName("delivery_origin_lat");
+
+                    b.Property<decimal?>("DeliveryOriginLng")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("numeric(9,6)")
+                        .HasColumnName("delivery_origin_lng");
 
                     b.Property<bool>("DineInEnabled")
                         .HasColumnType("boolean")
@@ -1248,6 +1286,12 @@ namespace TavoloFlow.Api.Data.Migrations
                             t.HasCheckConstraint("ck_restaurant_currency", "currency_code = 'EUR'");
 
                             t.HasCheckConstraint("ck_restaurant_default_language", "default_language IN ('zh', 'it', 'en')");
+
+                            t.HasCheckConstraint("ck_restaurant_delivery_min_order", "delivery_min_order_cents IS NULL OR delivery_min_order_cents BETWEEN 1 AND 9007199254740991");
+
+                            t.HasCheckConstraint("ck_restaurant_delivery_origin", "(delivery_origin_lat IS NULL AND delivery_origin_lng IS NULL) OR (delivery_origin_lat IS NOT NULL AND delivery_origin_lng IS NOT NULL AND delivery_origin_lat BETWEEN -90 AND 90 AND delivery_origin_lng BETWEEN -180 AND 180)");
+
+                            t.HasCheckConstraint("ck_restaurant_delivery_ready", "NOT delivery_enabled OR delivery_origin_lat IS NOT NULL");
 
                             t.HasCheckConstraint("ck_restaurant_google_maps_url", "google_maps_url IS NULL OR google_maps_url LIKE 'https://%'");
 
@@ -1431,6 +1475,17 @@ namespace TavoloFlow.Api.Data.Migrations
 
                             t.HasCheckConstraint("ck_restaurant_user_username", "username = lower(btrim(username)) AND username ~ '[^[:space:]]'");
                         });
+                });
+
+            modelBuilder.Entity("TavoloFlow.Api.Entities.DeliveryTier", b =>
+                {
+                    b.HasOne("TavoloFlow.Api.Entities.Restaurant", "Restaurant")
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Restaurant");
                 });
 
             modelBuilder.Entity("TavoloFlow.Api.Entities.DiningSession", b =>

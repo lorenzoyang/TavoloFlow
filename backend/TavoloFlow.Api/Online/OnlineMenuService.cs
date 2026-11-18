@@ -31,6 +31,7 @@ public sealed class OnlineMenuService(
             clock.GetUtcNow(),
             ct
         );
+        var tiers = await OnlineDelivery.TiersAsync(db, restaurant.Id, ct);
         var menu = await MenuReader.ReadAsync(db, restaurant.Id, restaurant.DefaultLanguage, ct);
         await transaction.CommitAsync(ct);
         return new(
@@ -44,7 +45,9 @@ public sealed class OnlineMenuService(
                 restaurant.DeliveryEnabled,
                 restaurant.DeliveryNoteZh,
                 restaurant.DeliveryNoteIt,
-                restaurant.DeliveryNoteEn
+                restaurant.DeliveryNoteEn,
+                restaurant.DeliveryMinOrderCents,
+                tiers
             ),
             availability.Status,
             availability.NextOpensAt,

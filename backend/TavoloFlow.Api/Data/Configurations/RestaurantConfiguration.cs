@@ -51,6 +51,21 @@ internal sealed class RestaurantConfiguration : IEntityTypeConfiguration<Restaur
                     "ck_restaurant_public_phone",
                     "public_phone IS NULL OR public_phone ~ '^\\+?[0-9]{6,15}$'"
                 );
+                table.HasCheckConstraint(
+                    "ck_restaurant_delivery_origin",
+                    "(delivery_origin_lat IS NULL AND delivery_origin_lng IS NULL) OR "
+                        + "(delivery_origin_lat IS NOT NULL AND delivery_origin_lng IS NOT NULL AND "
+                        + "delivery_origin_lat BETWEEN -90 AND 90 AND delivery_origin_lng BETWEEN -180 AND 180)"
+                );
+                // Delivery needs its starting point; at least one tier is checked by the settings write.
+                table.HasCheckConstraint(
+                    "ck_restaurant_delivery_ready",
+                    "NOT delivery_enabled OR delivery_origin_lat IS NOT NULL"
+                );
+                table.HasCheckConstraint(
+                    "ck_restaurant_delivery_min_order",
+                    "delivery_min_order_cents IS NULL OR delivery_min_order_cents BETWEEN 1 AND 9007199254740991"
+                );
                 // InputRules.IsSlug: 3-40 lowercase letters, digits and hyphens, no hyphen at either end.
                 table.HasCheckConstraint(
                     "ck_restaurant_slug",
@@ -165,6 +180,17 @@ internal sealed class RestaurantConfiguration : IEntityTypeConfiguration<Restaur
             .Property(restaurant => restaurant.DeliveryNoteEn)
             .HasColumnName("delivery_note_en")
             .HasMaxLength(InputRules.MaxDeliveryNoteLength);
+        builder
+            .Property(restaurant => restaurant.DeliveryMinOrderCents)
+            .HasColumnName("delivery_min_order_cents");
+        builder
+            .Property(restaurant => restaurant.DeliveryOriginLat)
+            .HasColumnName("delivery_origin_lat")
+            .HasPrecision(8, 6);
+        builder
+            .Property(restaurant => restaurant.DeliveryOriginLng)
+            .HasColumnName("delivery_origin_lng")
+            .HasPrecision(9, 6);
 
         builder
             .Property(restaurant => restaurant.OwnerContact)

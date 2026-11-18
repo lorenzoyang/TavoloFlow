@@ -137,6 +137,17 @@ public sealed class OnlineRequestService(
                 throw OnlineErrors.CouponInvalid();
         }
         var lines = await OrderLines.SnapshotAsync(db, restaurantId, form.Lines, ct);
+        var itemsTotal = OrderLines.Total(lines);
+        // Compared with the server's own prices, after the coupon the customer applied.
+        if (
+            form.Fulfillment == OnlineFulfillment.Delivery
+            && !OnlineDelivery.MeetsMinimum(
+                itemsTotal,
+                form.Coupon?.PercentOff,
+                restaurant.DeliveryMinOrderCents
+            )
+        )
+            throw OnlineErrors.DeliveryMinOrder();
         var submittedAt = now.UtcDateTime;
         var request = new OnlineRequest
         {
@@ -154,7 +165,7 @@ public sealed class OnlineRequestService(
             DeliveryAddress = form.Address,
             DeliveryNotes = form.Notes,
             Lines = [.. lines],
-            ItemsTotalCents = OrderLines.Total(lines),
+            ItemsTotalCents = itemsTotal,
             CouponCode = form.Coupon?.Code,
             CouponPercentOff = form.Coupon?.PercentOff,
             DefaultLanguageSnapshot = restaurant.DefaultLanguage,

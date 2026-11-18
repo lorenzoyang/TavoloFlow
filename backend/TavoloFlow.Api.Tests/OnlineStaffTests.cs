@@ -53,6 +53,8 @@ public sealed class OnlineStaffTests(PostgreSqlFixture database) : IClassFixture
 
         Assert.Equal(Noon, page.Now);
         Assert.Equal(new[] { 3, 4 }, page.Items.Select(r => r.Number));
+        // Only a waiting delivery needs the fee bands.
+        Assert.Null(page.Delivery);
         var first = page.Items[0];
         Assert.Equal("PICKUP", first.Fulfillment);
         Assert.Equal("Marco", first.CustomerName);
@@ -81,6 +83,57 @@ public sealed class OnlineStaffTests(PostgreSqlFixture database) : IClassFixture
         Assert.Equal(
             HttpStatusCode.Unauthorized,
             (await anonymous.GetAsync("/api/staff/online/pending")).StatusCode
+        );
+    }
+
+    [Fact]
+    public async Task Pending_WaitingDelivery_CarriesTheCurrentBandsAndStartingPoint()
+    {
+        using var host = new AccountTestHost(database);
+        host.Clock.Set(MondayNoon);
+        var shop = await OnlineTestData.SeedShopAsync(database);
+        await using (var db = database.CreateContext())
+        {
+            db.Add(Delivery(shop, Noon, 1));
+            await db.SaveChangesAsync();
+        }
+        using var staff = await OnlineTestData.LoginAsync(host, shop.Staff);
+        // Without a starting point or bands (delivery set up and cleared again) the block is still there,
+        // so the page can say there is nothing to pick.
+        var empty = (await PendingAsync(staff)).Delivery!;
+        Assert.Null(empty.OriginLat);
+        Assert.Null(empty.OriginLng);
+        Assert.Empty(empty.Tiers);
+
+        await using (var db = database.CreateContext())
+        {
+            db.DeliveryTiers.AddRange(
+                new DeliveryTier
+                {
+                    RestaurantId = shop.RestaurantId,
+                    MaxMeters = 6000,
+                    FeeCents = 400,
+                },
+                new DeliveryTier
+                {
+                    RestaurantId = shop.RestaurantId,
+                    MaxMeters = 3000,
+                    FeeCents = 0,
+                }
+            );
+            await db.SaveChangesAsync();
+            await db
+                .Restaurants.Where(r => r.Id == shop.RestaurantId)
+                .ExecuteUpdateAsync(u =>
+                    u.SetProperty(r => r.DeliveryOriginLat, 43.880153m)
+                        .SetProperty(r => r.DeliveryOriginLng, 11.096122m)
+                );
+        }
+        var delivery = (await PendingAsync(staff)).Delivery!;
+        Assert.Equal((43.880153m, 11.096122m), (delivery.OriginLat, delivery.OriginLng));
+        Assert.Equal(
+            [new DeliveryTierResponse(3000, 0), new DeliveryTierResponse(6000, 400)],
+            delivery.Tiers
         );
     }
 
