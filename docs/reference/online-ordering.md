@@ -85,10 +85,11 @@ dishes: their total after the coupon, never the fee (`OnlineDelivery.MeetsMinimu
 the delivery rules).
 
 Fees go by road distance from the restaurant. The owner pastes the restaurant's coordinates as Google
-Maps shows them ("latitude, longitude": a right click on the restaurant on a computer, where a click
-copies them, or a long press on an unlabelled spot beside it on a phone, since pressing the
-restaurant's own label opens its place page instead; the iPhone app shows them in parentheses, which
-the page accepts; share links hold none). The placeholder reads
+Maps copies them ("latitude, longitude": a right click on the restaurant on a computer, then a click
+on the numbers). The hint asks for a computer, because the phone apps show a dropped pin's
+coordinates only briefly and don't make them easy to copy; the platform administrator usually sets
+this up when creating the restaurant. Coordinates in parentheses, as the iPhone app shows them, are
+accepted too; share links hold none. The placeholder reads
 "e.g. …" so an empty field never looks filled, and the page links to that point so the owner can check
 the pin
 (`parseOrigin`, `originMapsUrl`). They are stored in `delivery_origin_lat`/`delivery_origin_lng`

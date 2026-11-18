@@ -140,9 +140,8 @@ export type DeliveryProblem =
   | { field: "note"; language: keyof DeliveryNotes }
   | { field: "setup" };
 
-// "43.880153, 11.096122", as Google Maps shows a point (a right click on a computer, or a long press
-// on an unlabelled spot of the map on a phone): latitude, a comma, longitude, optionally in
-// parentheses as the iPhone app shows a dropped pin. Rounded to six decimals like the server; null
+// "43.880153, 11.096122", as Google Maps copies a point after a right click on a computer: latitude,
+// a comma, longitude, optionally in parentheses as the iPhone app shows a dropped pin. Rounded to six decimals like the server; null
 // otherwise, such as a share link, which holds no coordinates.
 export function parseOrigin(value: string): Coordinates | null {
   const text = value.trim().replace(/^\((.*)\)$/, "$1");
