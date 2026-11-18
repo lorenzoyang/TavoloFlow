@@ -117,6 +117,9 @@ export type DeliverySettings = {
   deliveryOriginLat: number | null;
   deliveryOriginLng: number | null;
   deliveryTiers: DeliveryTier[];
+  // Whether this server prices delivery automatically (a Geoapify key is set): checkout then shows
+  // the fee for the customer's address.
+  deliveryAutoQuote: boolean;
 };
 export type DeliveryInput = {
   enabled: boolean;
@@ -137,9 +140,9 @@ export type DeliveryProblem =
   | { field: "note"; language: keyof DeliveryNotes }
   | { field: "setup" };
 
-// "43.880153, 11.096122", as Google Maps copies a point (a long press, or a right click on a
-// computer): latitude, a comma, longitude. Rounded to six decimals like the server; null otherwise,
-// such as a share link, which holds no coordinates.
+// "43.880153, 11.096122", as Google Maps copies a point after a right click on a computer: decimal
+// degrees with a point, latitude first, then a comma and the longitude. Rounded to six decimals like
+// the server; null otherwise, such as a share link, which holds no coordinates.
 export function parseOrigin(value: string): Coordinates | null {
   const match = /^\s*(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/.exec(value);
   if (!match) return null;
@@ -151,7 +154,7 @@ export function parseOrigin(value: string): Coordinates | null {
 const formatOrigin = (lat: number | null, lng: number | null) =>
   lat === null || lng === null ? "" : `${lat}, ${lng}`;
 
-// A pin on Google Maps, so the owner can check the pasted point is the restaurant's door.
+// A pin on Google Maps, so the owner can check the pasted point is the restaurant.
 export const originMapsUrl = ({ lat, lng }: Coordinates) =>
   `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
 

@@ -192,6 +192,7 @@ const noDelivery = {
   deliveryOriginLat: null,
   deliveryOriginLng: null,
   deliveryTiers: [],
+  deliveryAutoQuote: false,
 };
 const noNotes = { zh: "", it: "", en: "" };
 const blankDraft = { origin: "", tiers: [], minOrder: "", notes: noNotes, enabled: false };
@@ -255,10 +256,13 @@ test("coordinates are pasted as Google Maps copies them, latitude first, rounded
   assert.deepEqual(parseOrigin("43.88015, 11.09612"), { lat: 43.88015, lng: 11.09612 });
   assert.deepEqual(parseOrigin(" 43.8801534 ,11.0961216 "), { lat: 43.880153, lng: 11.096122 });
   assert.deepEqual(parseOrigin("-33.8688, 151.2093"), { lat: -33.8688, lng: 151.2093 });
+  // Google's own example of the format it uses.
+  assert.deepEqual(parseOrigin("41.40338, 2.17403"), { lat: 41.40338, lng: 2.17403 });
   for (const value of [
     "",
     "43.88015",
     "43,88015, 11,09612",
+    "41,40338, 2,17403",
     "91, 11",
     "43.88, 181",
     "https://maps.app.goo.gl/abc123",

@@ -34,13 +34,16 @@ is off render a "service not offered" state.
 
 Settings are `{ slug, publicPhone, hours, pausedUntil, status, nextOpensAt, currentSlotEndsAt,
 deliveryEnabled, deliveryNoteZh, deliveryNoteIt, deliveryNoteEn, deliveryMinOrderCents,
-deliveryOriginLat, deliveryOriginLng, deliveryTiers, coupons }`; each band is `{ maxMeters, feeCents }`,
-nearest first, and each coupon is
+deliveryOriginLat, deliveryOriginLng, deliveryTiers, deliveryAutoQuote, coupons }`; each band is
+`{ maxMeters, feeCents }`, nearest first, and each coupon is
 `{ id, code, percentOff, validUntil, expired }`, ordered by code.
 `hours` are ordered by weekday and opening time. `pausedUntil` is null once the pause has lapsed.
 `nextOpensAt` accompanies `CLOSED_HOURS` and is null when the week has no slots. `currentSlotEndsAt`
 is set while a slot accepts orders. Times are UTC. Delivery never changes `status`: pickup stays
-possible whether or not the restaurant delivers.
+possible whether or not the restaurant delivers. `deliveryAutoQuote` here only says whether the server
+has a Geoapify key (`IDeliveryRouting.Enabled`), so the delivery card can describe automatic or manual
+fees before the owner saves the location and bands; while delivery is on, which needs both, it matches
+the bootstrap's flag.
 
 The read is one Repeatable Read snapshot. Every write owns a transaction, takes restaurant UPDATE
 (so a later submission holding restaurant SHARE sees the old or the new settings, never half), rejects
@@ -82,8 +85,13 @@ dishes: their total after the coupon, never the fee (`OnlineDelivery.MeetsMinimu
 the delivery rules).
 
 Fees go by road distance from the restaurant. The owner pastes the restaurant's coordinates as Google
-Maps copies them ("latitude, longitude", from a long press or a right click on the entrance; share
-links hold none), and the page links to that point so the owner can check the pin
+Maps copies them after a right click on a computer and a click on the numbers: decimal degrees with a
+point, latitude first, a comma, then the longitude (`43.88015, 11.09612`, Google's own example being
+`41.40338, 2.17403`; `41,40338, 2,17403` is refused). The hint recommends a computer and only
+mentions that a long press on a phone shows them but makes them awkward to copy, because the phone
+apps show a dropped pin's coordinates only briefly; the platform administrator usually sets this up
+when creating the restaurant. Share links hold no coordinates. The placeholder reads "e.g. …" so an
+empty field never looks filled, and the page links to that point so the owner can check the pin
 (`parseOrigin`, `originMapsUrl`). They are stored in `delivery_origin_lat`/`delivery_origin_lng`
 (`numeric(8,6)`/`numeric(9,6)`, rounded to six decimals, both or neither, in range:
 `ck_restaurant_delivery_origin`) and never leave staff pages. The fee bands live in `delivery_tiers`
@@ -95,8 +103,12 @@ bands whole like the week of hours. Turning delivery on needs the coordinates an
 the request carries the switch and its setup together, so a contradiction is `VALIDATION_FAILED`, and
 `ck_restaurant_delivery_ready` keeps the coordinates in the database while delivery is on (bands, in
 another table, are the write's check). The `DeliveryTiers` migration turned delivery off for every
-restaurant, none of which had coordinates or bands. The card orders its fields by dependency:
-coordinates, bands, minimum, notes, then the switch.
+restaurant, none of which had coordinates or bands. The switch turns the whole card on, so it comes
+first, under the title, whose badge shows the saved state (on or off) whatever the unsaved switch
+says; below the switch, a changed but unsaved value says it applies once saved. Then come the
+coordinates, bands, minimum and notes. The intro describes automatic fees when `deliveryAutoQuote` is
+true, otherwise bands picked on acceptance. Turning the switch on without the coordinates or a band
+fails the save check, which scrolls to the missing field.
 
 Turning delivery off keeps the notes, the minimum, the coordinates and the bands and only
 stops new delivery submissions; waiting delivery requests can still be accepted or rejected and
@@ -825,14 +837,16 @@ with a foreign SIM can call the restaurant.
 `/staff/online-settings` (from 首页, with a back link) shows the status, the full online link with copy
 and open actions, and its QR PNG, generated in the browser with the table QR options and the same
 `VITE_PUBLIC_BASE_URL` origin rule (`publicMenuUrl` accepts `/r/{slug}`). STAFF and OWNER pause or
-resume; OWNER also edits the phone, the week, delivery (coordinates, bands, minimum, three note
-fields and the switch) and coupons (a list with the percentage, last day or
+resume; OWNER also edits the phone, the week, delivery (the switch, coordinates, bands, minimum and
+three note fields) and coupons (a list with the percentage, last day or
 an expired badge, a delete button behind `ConfirmDialog`, and a create form with code, percentage and
 an optional date input). A partial date is refused with a translated field message; only a genuinely
 empty control means no expiry. Submission reads the date control's current value and `validity.badInput`
 again, because partial native date edits can leave the value empty without firing React's `onChange`.
 A missing phone or week is explained in one warning. Each card shows its own saved or failed result
-beside the button that sent it; the page top keeps only read errors.
+beside the button that sent it; editing the card again clears a saved result (a failure stays until
+the next attempt), so "saved" never stands beside unsaved changes. The page top keeps only read
+errors.
 Time inputs cannot hold 24:00, so 00:00 as a closing time means midnight. The query key is
 `["online-settings", restaurantId, userId]`; the visible page rereads it every 60 seconds because
 slots and pauses change with the clock. Local form edits survive background refreshes until saved or

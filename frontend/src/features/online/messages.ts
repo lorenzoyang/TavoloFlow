@@ -77,11 +77,17 @@ const zh = {
     }`,
   // Delivery
   deliveryTitle: "配送",
+  // The badge beside the title shows the saved state, whatever the switch below shows.
+  deliveryStatusOn: "已开启",
+  deliveryStatusOff: "未开启",
   deliveryHint:
-    "开启后，顾客结账时可以选择配送，并看到按路程分档的配送费。接单的人看着从餐厅出发的路线，按路程选一档。",
-  originLabel: "餐厅坐标",
+    "开启后，顾客结账时可以选择配送，并看到按路程分档的配送费。接单时看从餐厅出发的路线有多远，选对应的一档。",
+  deliveryHintAuto:
+    "开启后，顾客结账时可以选择配送：输入地址后，按从餐厅出发的路程自动算出配送费。地址算不出来时，顾客看到价目表，由接单的人选一档。",
+  originLabel: "餐厅位置",
   originHint:
-    "在 Google 地图里长按（电脑上右键）餐厅门口，点一下显示的「纬度, 经度」复制，粘贴到这里。",
+    "建议在电脑上操作：在 Google 地图上右键点餐厅，再点弹出菜单最上面的数字，就复制好了，粘贴到这里。手机上长按地图也能看到坐标，但不方便复制。粘贴后，点「在 Google 地图中查看」核对位置。",
+  originPlaceholder: "例如 43.88015, 11.09612",
   originCheck: "在 Google 地图中查看",
   originInvalid:
     "坐标格式不对：请粘贴「纬度, 经度」，例如 43.88015, 11.09612。分享链接里没有坐标。",
@@ -96,10 +102,13 @@ const zh = {
   tierKmInvalid: (index: number) => `第 ${index} 档：公里数要在 0.1–30 之间，最多一位小数。`,
   tierFeeInvalid: (index: number) => `第 ${index} 档：请填写配送费，例如 2 或 2.50；免费填 0。`,
   tierRepeated: (index: number) => `第 ${index} 档：和另一档的距离相同。`,
-  setupIncomplete: "开启配送前，请先填写餐厅坐标和至少一档。",
+  setupIncomplete: "开启配送前，请先填写餐厅位置和至少一档。",
   deliveryEnabled: "提供配送",
   deliveryOn: "顾客可以选择配送",
   deliveryOff: "只能到店自取",
+  // The switch changed but not saved yet.
+  deliveryPendingOn: "保存后，顾客才能选择配送",
+  deliveryPendingOff: "保存后，只能到店自取",
   deliveryNote: (language: string) => `配送说明（${language}）`,
   noteLanguages: { zh: "中文", it: "意大利语", en: "英语" },
   deliveryPlaceholder: "例如：只送 Prato 市区；雨天可能晚一些。",
@@ -212,11 +221,16 @@ export const onlineMessages: Record<Language, typeof zh> = {
         }[problem]
       }`,
     deliveryTitle: "Consegna a domicilio",
+    deliveryStatusOn: "Attiva",
+    deliveryStatusOff: "Non attiva",
     deliveryHint:
       "Se attiva, al momento dell’ordine i clienti possono scegliere la consegna e vedono i costi per fasce di distanza. Chi accetta l’ordine guarda il percorso dal ristorante e sceglie la fascia.",
+    deliveryHintAuto:
+      "Se attiva, al momento dell’ordine i clienti possono scegliere la consegna: inserito l’indirizzo, il costo si calcola da solo in base alla distanza su strada dal ristorante. Se l’indirizzo non si trova, vedono il listino e chi accetta l’ordine sceglie la fascia.",
     originLabel: "Posizione del ristorante",
     originHint:
-      "Su Google Maps tieni premuto (sul computer: tasto destro) sull’ingresso del ristorante, tocca le coordinate «latitudine, longitudine» per copiarle e incollale qui.",
+      "Meglio farlo dal computer: in Google Maps fai clic destro sul ristorante e clicca le coordinate in cima al menu per copiarle, poi incollale qui. Dal telefono si vedono tenendo premuto sulla mappa, ma è scomodo copiarle. Dopo averle incollate, tocca «Controlla su Google Maps» per verificare.",
+    originPlaceholder: "Es. 43.88015, 11.09612",
     originCheck: "Controlla su Google Maps",
     originInvalid:
       "Coordinate non valide: incolla «latitudine, longitudine», ad es. 43.88015, 11.09612. I link di condivisione non contengono le coordinate.",
@@ -238,6 +252,8 @@ export const onlineMessages: Record<Language, typeof zh> = {
     deliveryEnabled: "Offri la consegna",
     deliveryOn: "I clienti possono scegliere la consegna",
     deliveryOff: "Solo ritiro",
+    deliveryPendingOn: "I clienti potranno sceglierla dopo il salvataggio",
+    deliveryPendingOff: "Solo ritiro dopo il salvataggio",
     deliveryNote: (language) => `Nota sulla consegna (${language})`,
     noteLanguages: { zh: "cinese", it: "italiano", en: "inglese" },
     deliveryPlaceholder: "Es.: solo Prato centro; con la pioggia può tardare.",
@@ -348,11 +364,16 @@ export const onlineMessages: Record<Language, typeof zh> = {
         }[problem]
       }`,
     deliveryTitle: "Delivery",
+    deliveryStatusOn: "On",
+    deliveryStatusOff: "Off",
     deliveryHint:
       "When on, customers can choose delivery at checkout and see the fees by distance band. Whoever accepts the order checks the route from the restaurant and picks the band.",
+    deliveryHintAuto:
+      "When on, customers can choose delivery at checkout: once they enter their address, the fee is worked out from the road distance from the restaurant. If the address can’t be found, they see the price list and whoever accepts the order picks the band.",
     originLabel: "Restaurant location",
     originHint:
-      "In Google Maps, press and hold (right-click on a computer) the restaurant’s entrance, tap the “latitude, longitude” shown to copy it and paste it here.",
+      "Best done on a computer: right-click the restaurant in Google Maps, click the numbers at the top of the menu to copy them and paste them here. On a phone, pressing and holding the map shows them, but they’re awkward to copy. After pasting, tap “Check on Google Maps” to make sure.",
+    originPlaceholder: "E.g. 43.88015, 11.09612",
     originCheck: "Check on Google Maps",
     originInvalid:
       "Not valid coordinates: paste “latitude, longitude”, e.g. 43.88015, 11.09612. Share links don’t contain coordinates.",
@@ -373,6 +394,8 @@ export const onlineMessages: Record<Language, typeof zh> = {
     deliveryEnabled: "Offer delivery",
     deliveryOn: "Customers can choose delivery",
     deliveryOff: "Pickup only",
+    deliveryPendingOn: "Customers can choose it once you save",
+    deliveryPendingOff: "Pickup only once you save",
     deliveryNote: (language) => `Delivery note (${language})`,
     noteLanguages: { zh: "Chinese", it: "Italian", en: "English" },
     deliveryPlaceholder: "E.g. central Prato only; may run late when it rains.",
