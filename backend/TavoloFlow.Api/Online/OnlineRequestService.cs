@@ -121,14 +121,17 @@ public sealed class OnlineRequestService(
         if (form.Fulfillment == OnlineFulfillment.Delivery && !restaurant.DeliveryEnabled)
             throw OnlineErrors.DeliveryNotOffered();
         // A quoted fee is promised to the customer and kept on acceptance, so it must still be this
-        // restaurant's quote for this address, unexpired, and priced the same by the current bands.
-        // Settings writes take restaurant UPDATE, so the bands cannot change under this SHARE lock.
+        // restaurant's quote for this address, unexpired, from the current starting point and priced
+        // the same by the current bands. Settings writes take restaurant UPDATE, so neither the point
+        // nor the bands can change under this SHARE lock.
         int? quotedMeters = null;
         if (form.Quote is { } quoted)
         {
             quotedMeters = quotes.Distance(
                 restaurantId,
                 form.Address!,
+                restaurant.DeliveryOriginLat,
+                restaurant.DeliveryOriginLng,
                 quoted.Signed,
                 now.UtcDateTime
             );

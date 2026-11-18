@@ -37,6 +37,8 @@ public sealed class OnlineDeliveryQuoteTests(PostgreSqlFixture database)
         places["Via Lontana 3"] = new("building", 1, "Campi Bisenzio", 12_000);
         places["Via Lunga"] = new("street", 1, "Prato", 2000);
         places["Via Marni 1"] = new("building", 0.33, "Prato", 4000);
+        places["Via Senza Punto 4"] = new("building", 1, "Prato", null);
+        places["Via Rovescia 5"] = new("building", 1, "Prato", -1);
         return host;
     }
 
@@ -87,6 +89,21 @@ public sealed class OnlineDeliveryQuoteTests(PostgreSqlFixture database)
                 await QuoteAsync(client, shop, address)
             );
         Assert.Equal(calls + 3, host.GeoapifyService.Calls.Count);
+
+        // Malformed answers are not priced: a match without coordinates, a negative distance and a
+        // route without its distance.
+        foreach (var address in new[] { "Via Senza Punto 4", "Via Rovescia 5" })
+            Assert.Equal(
+                DeliveryQuoteResponse.Unknown,
+                (await QuoteAsync(client, shop, address)).Result
+            );
+        host.GeoapifyService.RouteWithoutDistance = true;
+        Assert.Equal(
+            DeliveryQuoteResponse.Unknown,
+            (await QuoteAsync(client, shop, "Via Vicina 1")).Result
+        );
+        host.GeoapifyService.RouteWithoutDistance = false;
+
         host.GeoapifyService.Failure = HttpStatusCode.ServiceUnavailable;
         Assert.Equal(
             DeliveryQuoteResponse.Unknown,
@@ -303,6 +320,10 @@ public sealed class OnlineDeliveryQuoteTests(PostgreSqlFixture database)
         await SetTiersAsync(shop, (2000, 200));
         await AssertInvalid("Via Vicina 1", Quoted(quote));
         await SetTiersAsync(shop, (3000, 200), (6000, 400), (10_000, 600));
+        // The restaurant's starting point moved since the quote, even if the band would match.
+        await UpdateRestaurantAsync(shop, u => u.SetProperty(r => r.DeliveryOriginLat, 43.880154m));
+        await AssertInvalid("Via Vicina 1", Quoted(quote));
+        await UpdateRestaurantAsync(shop, u => u.SetProperty(r => r.DeliveryOriginLat, 43.880153m));
         // Quotes last thirty minutes.
         host.Clock.Set(MondayNoon.Add(DeliveryQuotes.Lifetime));
         await AssertInvalid("Via Vicina 1", Quoted(quote));

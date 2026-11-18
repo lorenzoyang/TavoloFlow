@@ -94,7 +94,7 @@ public interface IDeliveryRouting
 // One address search and one drive route per quote (two credits). The key travels in the URL, so the
 // named HttpClient has no loggers; failures log only the HTTP status or the exception type, never the
 // address, the key, coordinates or a response body. Traffic is the default free flow, so the same
-// address keeps the same price.
+// address keeps the same price. The EU endpoint is the one Geoapify's DPA keeps inside the EU.
 public sealed class GeoapifyRouting(
     IHttpClientFactory clients,
     IOptions<GeoapifyOptions> options,
@@ -102,7 +102,7 @@ public sealed class GeoapifyRouting(
 ) : IDeliveryRouting
 {
     public const string HttpClientName = "geoapify";
-    public const string Endpoint = "https://api.geoapify.com";
+    public const string Endpoint = "https://api-eu.geoapify.com";
 
     public bool Enabled => options.Value.Enabled;
 
@@ -130,9 +130,11 @@ public sealed class GeoapifyRouting(
                     + $"&limit=1&format=json&apiKey={key}",
                 ct
             );
+            // A malformed answer (a missing point, a missing or impossible distance) is not priced
+            // either; an impossible point fails the route.
             var match = found?.Results?.FirstOrDefault();
             if (
-                match is null
+                match is not { Lat: not null, Lon: not null }
                 || !OnlineDelivery.QuotableMatches.Contains(match.ResultType)
                 || (match.Rank?.ConfidenceStreetLevel ?? 0) < OnlineDelivery.MinStreetConfidence
             )
@@ -147,9 +149,12 @@ public sealed class GeoapifyRouting(
                     + $"&mode=drive&format=json&apiKey={key}",
                 ct
             );
-            if (route?.Results?.FirstOrDefault() is not { } leg)
+            if (
+                route?.Results?.FirstOrDefault()?.Distance is not { } distance
+                || distance is not (>= 0 and <= int.MaxValue)
+            )
                 return null;
-            return new(match.City, (int)Math.Max(1, Math.Round(leg.Distance)));
+            return new(match.City, (int)Math.Max(1, Math.Round(distance)));
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -190,8 +195,8 @@ public sealed class GeoapifyRouting(
     private sealed record SearchResult(
         [property: JsonPropertyName("result_type")] string? ResultType,
         string? City,
-        double Lat,
-        double Lon,
+        double? Lat,
+        double? Lon,
         SearchRank? Rank
     );
 
@@ -201,12 +206,13 @@ public sealed class GeoapifyRouting(
 
     private sealed record RouteResponse(RouteLeg[]? Results);
 
-    private sealed record RouteLeg(double Distance);
+    private sealed record RouteLeg(double? Distance);
 }
 
 // A quote is signed with purpose-bound Data Protection, like join codes: the purpose names the
-// restaurant, and the payload holds the normalized address, the road distance and the expiry. The
-// submission checks it without calling Geoapify again, and the customer cannot forge or reuse it.
+// restaurant, and the payload holds the normalized address, the restaurant's starting point, the road
+// distance and the expiry. The submission checks it without calling Geoapify again, and the customer
+// cannot forge or reuse it; a moved starting point, like changed bands, makes it stale.
 public sealed class DeliveryQuotes(IDataProtectionProvider protection)
 {
     public static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(30);
@@ -214,13 +220,31 @@ public sealed class DeliveryQuotes(IDataProtectionProvider protection)
     private IDataProtector Protector(Guid restaurantId) =>
         protection.CreateProtector("TavoloFlow.Online.DeliveryQuote.v1", restaurantId.ToString());
 
-    public string Sign(Guid restaurantId, string address, int meters, DateTime expiresAt) =>
+    public string Sign(
+        Guid restaurantId,
+        string address,
+        decimal originLat,
+        decimal originLng,
+        int meters,
+        DateTime expiresAt
+    ) =>
         Protector(restaurantId)
-            .Protect(JsonSerializer.Serialize(new Payload(address, meters, expiresAt.Ticks)));
+            .Protect(
+                JsonSerializer.Serialize(
+                    new Payload(address, originLat, originLng, meters, expiresAt.Ticks)
+                )
+            );
 
-    // The quoted road distance when the quote is this restaurant's, for this address and still valid
-    // at now (from TimeProvider); null otherwise.
-    public int? Distance(Guid restaurantId, string address, string quote, DateTime now)
+    // The quoted road distance when the quote is this restaurant's, for this address from this
+    // starting point and still valid at now (from TimeProvider); null otherwise.
+    public int? Distance(
+        Guid restaurantId,
+        string address,
+        decimal? originLat,
+        decimal? originLng,
+        string quote,
+        DateTime now
+    )
     {
         try
         {
@@ -230,6 +254,8 @@ public sealed class DeliveryQuotes(IDataProtectionProvider protection)
             return
                 payload is not null
                 && payload.Address == OnlineDelivery.NormalizeAddress(address)
+                && payload.OriginLat == originLat
+                && payload.OriginLng == originLng
                 && now.Ticks < payload.ExpiresTicks
                 ? payload.Meters
                 : null;
@@ -240,7 +266,13 @@ public sealed class DeliveryQuotes(IDataProtectionProvider protection)
         }
     }
 
-    private sealed record Payload(string Address, int Meters, long ExpiresTicks);
+    private sealed record Payload(
+        string Address,
+        decimal OriginLat,
+        decimal OriginLng,
+        int Meters,
+        long ExpiresTicks
+    );
 }
 
 // The checkout's fee request. Restaurant, hours and bands are read in one short snapshot that ends
@@ -296,9 +328,11 @@ public sealed class DeliveryQuoteService(
             || !limits.TryAcquire(restaurant.Id)
         )
             return Unknown;
+        var originLat = restaurant.DeliveryOriginLat!.Value;
+        var originLng = restaurant.DeliveryOriginLng!.Value;
         var routed = await routing.RouteAsync(
-            restaurant.DeliveryOriginLat!.Value,
-            restaurant.DeliveryOriginLng!.Value,
+            originLat,
+            originLng,
             address,
             tiers[^1].MaxMeters + OnlineDelivery.SearchMarginMeters,
             ct
@@ -315,6 +349,8 @@ public sealed class DeliveryQuoteService(
             quotes.Sign(
                 restaurant.Id,
                 address,
+                originLat,
+                originLng,
                 routed.Meters,
                 now.UtcDateTime + DeliveryQuotes.Lifetime
             )
