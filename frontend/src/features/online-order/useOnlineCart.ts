@@ -35,7 +35,6 @@ import {
   deliveryShortfallCents,
   feeStatus,
   MAX_ADDRESS_LENGTH,
-  normalizeAddress,
   emptyCheckoutForm,
   emptyOnlineCart,
   existingSubmission,
@@ -281,26 +280,23 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
   }
 
   // Asks the server for the fee of the address as typed, only when the customer taps to calculate it,
-  // so no address leaves for the map service unasked. The answer belongs to that address only:
-  // changing the address makes it stale (currentQuote). A failed request counts as no automatic
-  // quote, so the price list shows and the customer can ask again. The request sends the same text
-  // the order will, so the server's own normalization binds the quote; the browser's only tells
-  // when it is stale.
+  // so no address leaves for the map service unasked. It sends the trimmed text the order will send,
+  // which the server binds the quote to, and the answer belongs to that text only: any change makes
+  // it stale (currentQuote). A failed request counts as no automatic quote, so the price list shows
+  // and the customer can ask again.
   async function lookupFee() {
     if (current.current.pending || !isLive() || !live.current.restaurant.deliveryAutoQuote) return;
     if (form.fulfillment !== "DELIVERY") return;
-    const address = normalizeAddress(form.address);
+    const address = form.address.trim();
     if (!address || address.length > MAX_ADDRESS_LENGTH) return;
     const work = start();
     if (!work) return;
     const answer = (quote: Awaited<ReturnType<typeof readDeliveryQuote>>) =>
       setForm((value) =>
-        normalizeAddress(value.address) === address
-          ? { ...value, quote: { ...quote, address } }
-          : value,
+        value.address.trim() === address ? { ...value, quote: { ...quote, address } } : value,
       );
     try {
-      const quote = await readDeliveryQuote(slug, form.address.trim(), work.signal);
+      const quote = await readDeliveryQuote(slug, address, work.signal);
       if (work.active()) answer(quote);
     } catch {
       if (work.active())

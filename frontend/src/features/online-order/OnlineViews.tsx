@@ -581,7 +581,7 @@ export function OnlineCartPanel({
                   {(fee === "manual" || fee === "UNKNOWN") && (
                     <p className="text-muted-foreground">{m.feeConfirmed}</p>
                   )}
-                  {data.restaurant.deliveryAutoQuote && (
+                  {(data.restaurant.deliveryAutoQuote || fee === "QUOTED") && (
                     <p className="text-xs text-muted-foreground">
                       <a
                         href="https://www.geoapify.com/"
@@ -662,11 +662,7 @@ export function OnlineCartPanel({
               {delivery ? m.asapDelivery : m.asap}
             </p>
             <p className="text-xs leading-5 wrap-break-word text-muted-foreground">
-              {(delivery
-                ? data.restaurant.deliveryAutoQuote
-                  ? m.privacyLineQuote
-                  : m.privacyLineDelivery
-                : m.privacyLine)(data.restaurant.name)}{" "}
+              {(delivery ? m.privacyLineDelivery : m.privacyLine)(data.restaurant.name)}{" "}
               <Link to="/r/$slug/privacy" params={{ slug }} className="underline">
                 {m.privacy}
               </Link>

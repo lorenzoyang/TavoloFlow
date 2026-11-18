@@ -11,7 +11,6 @@ import {
   emptyOnlineCart,
   existingSubmission,
   feeStatus,
-  normalizeAddress,
   onlineCartAmounts,
   onlineCartKey,
   orderEnded,
@@ -561,15 +560,19 @@ const quoted: AddressQuote = {
 };
 
 test("a delivery quote counts only for the address it was asked about", () => {
-  assert.equal(normalizeAddress("  Via   Roma 1,\tMilano "), "Via Roma 1, Milano");
   const form = { ...delivery, quote: quoted };
   assert.equal(currentQuote(form), quoted);
   assert.equal(feeStatus(form, true), "QUOTED");
-  // A quote already given stays with the amounts and the order even if automatic quotes stop.
+  // A quote already given stays with the amounts and the order even if automatic quotes stop; any
+  // other answer goes back to the price list then.
   assert.equal(feeStatus(form, false), "QUOTED");
   assert.equal(feeStatus({ ...delivery, quote: null }, false), "manual");
-  // Spacing does not change the address; anything else needs a new lookup.
-  assert.equal(feeStatus({ ...form, address: " Via Roma  1, Milano" }, true), "QUOTED");
+  const outOfRange = { ...quoted, result: "OUT_OF_RANGE" as const, feeCents: null, quote: null };
+  assert.equal(feeStatus({ ...form, quote: outOfRange }, false), "manual");
+  // Surrounding spaces don't change the address; any other change, spacing included, needs a new
+  // lookup, because the server binds the quote to this text.
+  assert.equal(feeStatus({ ...form, address: " Via Roma 1, Milano " }, true), "QUOTED");
+  assert.equal(feeStatus({ ...form, address: "Via Roma  1, Milano" }, true), "lookup");
   assert.equal(feeStatus({ ...form, address: "Via Roma 10, Milano" }, true), "lookup");
   assert.equal(feeStatus({ ...delivery, quote: null }, true), "lookup");
   assert.equal(

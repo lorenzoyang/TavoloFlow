@@ -92,21 +92,23 @@ export const emptyCheckoutForm: CheckoutForm = {
 export const couponDiscountCents = (itemsCents: number, percentOff: number) =>
   Number((BigInt(itemsCents) * BigInt(percentOff)) / 100n);
 
-// Trimmed with runs of whitespace collapsed, like the server: what a quote is bound to.
-export const normalizeAddress = (value: string) => value.trim().split(/\s+/).join(" ");
-
 type QuoteForm = Pick<CheckoutForm, "fulfillment" | "address" | "quote">;
 
 // The fee lookup for the address now in the form; null when there is none or the address changed.
+// The quote was asked for with the trimmed text the order sends, which the server binds it to, so
+// any other change, spacing included, needs a new lookup.
 export const currentQuote = (form: Pick<CheckoutForm, "address" | "quote">) =>
-  form.quote && form.quote.address === normalizeAddress(form.address) ? form.quote : null;
+  form.quote && form.quote.address === form.address.trim() ? form.quote : null;
 
-// What checkout says about the delivery fee: the answer for this address when there is one (the
-// amounts and the order use the same quote), otherwise "lookup" while it can be asked for, or
-// "manual" when the restaurant has no automatic quotes (it confirms the fee).
+// What checkout says about the delivery fee for this address: the answer while automatic quotes
+// apply, or "lookup" until it is asked for; without them "manual" (the restaurant confirms the fee).
+// A fee already quoted stays either way, since the amounts and the order carry it.
 export type FeeStatus = "manual" | "lookup" | DeliveryQuote["result"];
-export const feeStatus = (form: QuoteForm, autoQuote: boolean): FeeStatus =>
-  currentQuote(form)?.result ?? (autoQuote ? "lookup" : "manual");
+export function feeStatus(form: QuoteForm, autoQuote: boolean): FeeStatus {
+  const result = currentQuote(form)?.result;
+  if (result === "QUOTED") return result;
+  return autoQuote ? (result ?? "lookup") : "manual";
+}
 
 // The signed fee a delivery order carries: the quote for the current address, or null.
 function intentQuote(form: QuoteForm): OnlineIntent["deliveryQuote"] {
@@ -257,7 +259,7 @@ export function restoreOnlineCart(raw: string | null, restaurantId: string): Onl
           coupon: p.coupon ?? null,
           quote: p.deliveryQuote
             ? {
-                address: normalizeAddress(p.deliveryAddress ?? ""),
+                address: p.deliveryAddress ?? "",
                 result: "QUOTED",
                 town: null,
                 distanceMeters: null,

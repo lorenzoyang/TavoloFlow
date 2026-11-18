@@ -80,9 +80,7 @@ const zh = {
   privacyLine: (restaurant: string) =>
     `你的姓名和电话只交给 ${restaurant} 处理这一单，30 天后删除。`,
   privacyLineDelivery: (restaurant: string) =>
-    `你的姓名、电话和地址只交给 ${restaurant} 处理这一单，30 天后删除。`,
-  privacyLineQuote: (restaurant: string) =>
-    `你的姓名、电话和地址交给 ${restaurant} 处理这一单，30 天后删除；计算配送费时，地址还会发给地图服务 Geoapify。`,
+    `你的姓名、电话和地址交给 ${restaurant} 处理这一单，30 天后删除。`,
   unknown: "订单结果待确认。在查到原来的结果之前，购物车已锁定，不会重复下单。",
   lookup: "查询订单结果",
   retryOriginal: "重试原来的订单",
@@ -293,9 +291,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     privacyLine: (restaurant) =>
       `Nome e telefono vanno solo a ${restaurant} per questo ordine e si cancellano dopo 30 giorni.`,
     privacyLineDelivery: (restaurant) =>
-      `Nome, telefono e indirizzo vanno solo a ${restaurant} per questo ordine e si cancellano dopo 30 giorni.`,
-    privacyLineQuote: (restaurant) =>
-      `Nome, telefono e indirizzo vanno a ${restaurant} per questo ordine e si cancellano dopo 30 giorni; per calcolare la consegna, l’indirizzo va anche al servizio di mappe Geoapify.`,
+      `Nome, telefono e indirizzo vanno a ${restaurant} per questo ordine e si cancellano dopo 30 giorni.`,
     unknown:
       "L’esito dell’ordine va verificato. Il carrello resta bloccato finché non si conosce l’esito dell’invio originale, così non parte un doppione.",
     lookup: "Verifica l’esito",
@@ -511,9 +507,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     privacyLine: (restaurant) =>
       `Your name and phone go only to ${restaurant} for this order and are deleted after 30 days.`,
     privacyLineDelivery: (restaurant) =>
-      `Your name, phone and address go only to ${restaurant} for this order and are deleted after 30 days.`,
-    privacyLineQuote: (restaurant) =>
-      `Your name, phone and address go to ${restaurant} for this order and are deleted after 30 days; to calculate the delivery fee, the address also goes to the Geoapify map service.`,
+      `Your name, phone and address go to ${restaurant} for this order and are deleted after 30 days.`,
     unknown:
       "The order result needs checking. The cart stays locked until the original result is known, so nothing is sent twice.",
     lookup: "Check the result",
