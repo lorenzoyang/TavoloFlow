@@ -52,6 +52,9 @@ Table restaurants {
   delivery_note_zh varchar(500) [note: 'Optional delivery area and fee rules shown at checkout, per language']
   delivery_note_it varchar(500)
   delivery_note_en varchar(500)
+  delivery_min_order_cents bigint [note: 'OWNER minimum for delivery orders: dishes after the coupon, never the fee; null for none, otherwise above 0']
+  delivery_origin_lat numeric(8,6) [note: 'OWNER-pasted restaurant coordinates for delivery routes; both or neither, required while delivery is on']
+  delivery_origin_lng numeric(9,6)
   owner_contact varchar(500)
   default_annual_fee_cents bigint
   subscription_version int [not null, default: 1]
@@ -74,7 +77,25 @@ Table restaurants {
     `NOT online_enabled OR slug IS NOT NULL` [name: 'ck_restaurant_online_slug']
     `slug IS NULL OR slug ~ '^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$'` [name: 'ck_restaurant_slug']
     `public_phone IS NULL OR public_phone ~ '^\+?[0-9]{6,15}$'` [name: 'ck_restaurant_public_phone']
+    `delivery_min_order_cents IS NULL OR delivery_min_order_cents BETWEEN 1 AND 9007199254740991` [name: 'ck_restaurant_delivery_min_order']
+    `(delivery_origin_lat IS NULL AND delivery_origin_lng IS NULL) OR (delivery_origin_lat IS NOT NULL AND delivery_origin_lng IS NOT NULL AND delivery_origin_lat BETWEEN -90 AND 90 AND delivery_origin_lng BETWEEN -180 AND 180)` [name: 'ck_restaurant_delivery_origin']
+    `NOT delivery_enabled OR delivery_origin_lat IS NOT NULL` [name: 'ck_restaurant_delivery_ready']
   }
+}
+
+Table delivery_tiers {
+  restaurant_id uuid [not null]
+  max_meters int [not null, note: 'Road distance from the restaurant this band covers, 1 to 30000; the farthest band is the delivery limit']
+  fee_cents bigint [not null, note: 'Delivery fee for the band; 0 is free']
+
+  Indexes {
+    (restaurant_id, max_meters) [pk]
+  }
+  Checks {
+    `max_meters BETWEEN 1 AND 30000` [name: 'ck_delivery_tier_distance']
+    `fee_cents BETWEEN 0 AND 9007199254740991` [name: 'ck_delivery_tier_fee']
+  }
+  Note: 'OWNER fee bands by road distance, at most five, replaced together with the delivery settings'
 }
 
 Table online_hours {
@@ -573,6 +594,7 @@ Ref: online_hours.restaurant_id > restaurants.id [delete: cascade]
 Ref: online_counters.restaurant_id > restaurants.id [delete: cascade]
 Ref: online_requests.restaurant_id > restaurants.id [delete: cascade]
 Ref: online_coupons.restaurant_id > restaurants.id [delete: cascade]
+Ref: delivery_tiers.restaurant_id > restaurants.id [delete: cascade]
 Ref: push_subscriptions.restaurant_id > restaurants.id [delete: cascade]
 Ref: restaurant_tables.restaurant_id > restaurants.id [delete: cascade]
 Ref: menu_categories.restaurant_id > restaurants.id [delete: cascade]
@@ -602,6 +624,7 @@ TableGroup platform_and_accounts {
   restaurant_users
   restaurant_subscription_periods
   online_hours
+  delivery_tiers
 }
 
 TableGroup tables_and_menu {
