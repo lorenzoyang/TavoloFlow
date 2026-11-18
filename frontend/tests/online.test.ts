@@ -256,9 +256,14 @@ test("coordinates are pasted as Google Maps copies them, latitude first, rounded
   assert.deepEqual(parseOrigin("43.88015, 11.09612"), { lat: 43.88015, lng: 11.09612 });
   assert.deepEqual(parseOrigin(" 43.8801534 ,11.0961216 "), { lat: 43.880153, lng: 11.096122 });
   assert.deepEqual(parseOrigin("-33.8688, 151.2093"), { lat: -33.8688, lng: 151.2093 });
+  // The iPhone app shows a dropped pin in parentheses, with seven decimals.
+  assert.deepEqual(parseOrigin("(43.8784800, 11.0589694)"), { lat: 43.87848, lng: 11.058969 });
+  assert.deepEqual(parseOrigin(" ( 43.87848 , 11.05897 ) "), { lat: 43.87848, lng: 11.05897 });
   for (const value of [
     "",
     "43.88015",
+    "(43.88015, 11.09612",
+    "43.88015, 11.09612)",
     "43,88015, 11,09612",
     "91, 11",
     "43.88, 181",
