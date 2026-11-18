@@ -138,6 +138,8 @@ public sealed class OnlineDeliveryQuoteTests(PostgreSqlFixture database)
             off.Clock.Set(MondayNoon);
             using var client = off.Browser();
             Assert.False((await MenuAsync(client, shop)).Restaurant.DeliveryAutoQuote);
+            // The owner's settings say whether this server prices delivery at all.
+            Assert.False((await OwnerSettingsAsync(off, shop)).DeliveryAutoQuote);
             Assert.Equal(
                 DeliveryQuoteResponse.Unknown,
                 (await QuoteAsync(client, shop, "Via Vicina 1")).Result
@@ -146,6 +148,7 @@ public sealed class OnlineDeliveryQuoteTests(PostgreSqlFixture database)
         }
 
         using var host = Host();
+        Assert.True((await OwnerSettingsAsync(host, shop)).DeliveryAutoQuote);
         using var browser = host.Browser();
         async Task AssertUnknown(bool autoQuote)
         {
@@ -424,6 +427,17 @@ public sealed class OnlineDeliveryQuoteTests(PostgreSqlFixture database)
             body,
             await PublicCsrfAsync(client)
         );
+
+    private static async Task<OnlineSettingsResponse> OwnerSettingsAsync(
+        AccountTestHost host,
+        OnlineShop shop
+    )
+    {
+        using var owner = await OnlineTestData.LoginAsync(host, shop.Owner);
+        return (
+            await owner.GetFromJsonAsync<OnlineSettingsResponse>("/api/staff/online/settings")
+        )!;
+    }
 
     private static async Task<OnlineMenuResponse> MenuAsync(HttpClient client, OnlineShop shop) =>
         (

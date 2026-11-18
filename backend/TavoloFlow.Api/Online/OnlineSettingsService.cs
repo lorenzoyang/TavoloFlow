@@ -11,7 +11,11 @@ namespace TavoloFlow.Api.Online;
 // pause (STAFF, OWNER).
 // Every write locks the restaurant row (UPDATE), so a submission holding restaurant SHARE sees either the
 // old or the new settings, and the platform cannot turn the service off halfway through a write.
-public sealed class OnlineSettingsService(ApplicationDbContext db, TimeProvider clock)
+public sealed class OnlineSettingsService(
+    ApplicationDbContext db,
+    TimeProvider clock,
+    IDeliveryRouting routing
+)
 {
     public async Task<OnlineSettingsResponse> ReadAsync(Guid restaurantId, CancellationToken ct)
     {
@@ -343,6 +347,7 @@ public sealed class OnlineSettingsService(ApplicationDbContext db, TimeProvider 
             restaurant.DeliveryOriginLat,
             restaurant.DeliveryOriginLng,
             await OnlineDelivery.TiersAsync(db, restaurant.Id, ct),
+            routing.Enabled,
             coupons
                 .Select(c => new OnlineCouponResponse(
                     c.Id,

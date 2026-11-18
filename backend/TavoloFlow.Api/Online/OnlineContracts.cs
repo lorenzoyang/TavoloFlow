@@ -73,6 +73,9 @@ public sealed record OnlineCouponResponse(
 // Hours are ordered by weekday and opening time. PausedUntil is null once the pause has lapsed.
 // CurrentSlotEndsAt is set while a slot accepts orders, so the page can offer "pause until then".
 // Delivery does not affect Status: pickup stays possible whether or not the restaurant delivers.
+// DeliveryAutoQuote says whether this server prices delivery automatically (a Geoapify key is set), so
+// the page can describe what customers will see before the owner saves the location and bands; while
+// delivery is on, which needs both, it matches the bootstrap's per-restaurant flag.
 // Coupons are ordered by code.
 public sealed record OnlineSettingsResponse(
     string? Slug,
@@ -90,6 +93,7 @@ public sealed record OnlineSettingsResponse(
     decimal? DeliveryOriginLat,
     decimal? DeliveryOriginLng,
     DeliveryTierResponse[] DeliveryTiers,
+    bool DeliveryAutoQuote,
     OnlineCouponResponse[] Coupons
 );
 

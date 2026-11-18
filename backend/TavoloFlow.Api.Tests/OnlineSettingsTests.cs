@@ -266,6 +266,8 @@ public sealed class OnlineSettingsTests(PostgreSqlFixture database)
         Assert.Null(initial.DeliveryNoteIt);
         Assert.Empty(initial.DeliveryTiers);
         Assert.Null(initial.DeliveryOriginLat);
+        // No Geoapify key in this host: the bands are picked on acceptance.
+        Assert.False(initial.DeliveryAutoQuote);
 
         await AssertErrorAsync(
             await SendAsync(staffClient, HttpMethod.Put, Delivery, new { enabled = false, tiers }),
