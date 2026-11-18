@@ -44,14 +44,13 @@ const viewIcons: Record<OrderView, { Icon: LucideIcon; className: string }> = {
 };
 
 // The steps of an order going ahead. Steps behind take the restaurant's colour; the current one takes
-// its state's colour, with the same meaning as the badge above.
-const currentStep: Record<OrderStep, string> = {
-  0: "bg-warning text-warning-foreground",
-  1: "bg-accent text-accent-foreground ring-2 ring-primary",
-  2: "bg-success text-success-foreground",
-  3: "bg-success text-success-foreground",
-};
-const stepIcons: LucideIcon[] = [Clock, ChefHat, Check, Check];
+// its state's colour, with the same meaning as the badge above. Step 3 is past the last one: done.
+const currentStep = [
+  "bg-warning text-warning-foreground",
+  "bg-accent text-accent-foreground ring-2 ring-primary",
+  "bg-success text-success-foreground",
+];
+const stepIcons: LucideIcon[] = [Clock, ChefHat, Check];
 
 function OrderProgress({
   step,
@@ -63,14 +62,9 @@ function OrderProgress({
   language: Language;
 }) {
   const m = onlineOrderMessages[language].progress;
-  const labels = [
-    m.sent,
-    m.accepted,
-    delivery ? m.readyDelivery : m.readyPickup,
-    delivery ? m.collectedDelivery : m.collectedPickup,
-  ];
+  const labels = [m.sent, m.accepted, delivery ? m.readyDelivery : m.readyPickup];
   return (
-    <ol aria-label={onlineOrderMessages[language].progressLabel} className="grid grid-cols-4 pt-1">
+    <ol aria-label={onlineOrderMessages[language].progressLabel} className="grid grid-cols-3 pt-1">
       {labels.map((label, index) => {
         const Icon = index < step ? Check : stepIcons[index];
         return (
@@ -78,18 +72,19 @@ function OrderProgress({
             key={index}
             aria-current={index === step ? "step" : undefined}
             className={cn(
-              // The line from the previous step's dot to this one; the dots paint over its ends.
+              // The line from the previous step's centre to this one; the dots (z-10) paint over its
+              // ends, also over the next step's line, which comes later in the page.
               "relative flex min-w-0 flex-col items-center gap-1.5 text-center text-xs leading-4 before:absolute before:top-3.5 before:right-1/2 before:-left-1/2 before:h-0.5 before:-translate-y-1/2 first:before:hidden",
               index <= step ? "before:bg-primary" : "before:bg-border",
             )}
           >
             <span
               className={cn(
-                "relative flex size-7 items-center justify-center rounded-full",
+                "relative z-10 flex size-7 items-center justify-center rounded-full",
                 index < step
                   ? "bg-primary text-primary-foreground"
                   : index === step
-                    ? currentStep[step]
+                    ? currentStep[index]
                     : "border bg-card text-muted-foreground",
               )}
             >

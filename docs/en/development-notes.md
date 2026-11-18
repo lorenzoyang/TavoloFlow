@@ -34,7 +34,7 @@ TavoloFlow is a QR-code table ordering system that also takes online orders. Eve
 - builds a cart, with a note for each dish, and sends the order; they can order several times during the meal;
 - sees the orders of the whole table and the status of each dish: received, ready, cancelled;
 - if the restaurant offers online ordering, also orders from home, from the restaurant's link (`/r/{link}`): same menu and same options, then "Checkout", where they choose pickup or delivery and enter name, phone and, for delivery, the address. For delivery they see the fees by distance and any minimum order; if the restaurant uses automatic quotes, they see the exact delivery fee as soon as they enter the address. Here they can also enter a coupon code from the restaurant: if it is valid, they see the discount on the dishes and the new total straight away. They can't choose a time: the order is made as soon as possible;
-- follows the online order on a status page (`/o/{token}`): waiting for confirmation, accepted with the expected time, ready, collected or delivered. If the restaurant doesn't answer within 10 minutes, the order expires and the page puts the restaurant's phone first.
+- follows the online order on a status page (`/o/{token}`): waiting for confirmation, accepted with the expected time, ready and finally completed. If the restaurant doesn't answer within 10 minutes, the order expires and the page puts the restaurant's phone first.
 
 **Staff**, from a phone or tablet; the staff area can be installed as an app (PWA):
 

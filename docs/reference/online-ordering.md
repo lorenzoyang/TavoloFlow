@@ -599,7 +599,11 @@ beside the status line (state colours, with the restaurant's accent while the or
 once accepted, the estimated time in large type on its own. `state.ts` derives what it says from
 `phase`, `sessionStatus`, `closeReason` and the dish statuses (`orderView`, `statusCopy`): waiting,
 expired, rejected with or without a reason, preparing (with the estimated time), ready, all dishes
-cancelled, collected (`PAID`) and closed (`NO_SHOW` or `VOIDED`), with pickup and delivery wording.
+cancelled, completed (`PAID`) and closed (`NO_SHOW` or `VOIDED`), with pickup and delivery wording
+where the customer's next step differs. The progress line has three steps: sent, accepted and ready.
+There is no collected or delivered step: the customer meets staff at the handover, pass taps are
+optional and the owner may close the bill much later, so the page could not know in time. A `PAID`
+closure shows every step done and the neutral "order completed".
 A delivery order names itself "Delivery · name"; while it has no fee yet (waiting without a quote) its
 total is labelled as the items total with "delivery fee to be confirmed" below it, and once quoted or
 accepted the fee appears above the total

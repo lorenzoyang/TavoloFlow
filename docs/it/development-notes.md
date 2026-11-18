@@ -34,7 +34,7 @@ TavoloFlow è un sistema di ordinazione al tavolo tramite codice QR, che accetta
 - compone il carrello, con una nota per ogni piatto, e invia l'ordine; può ordinare più volte durante il pasto;
 - vede gli ordini di tutto il tavolo e lo stato di ogni piatto: ricevuto, pronto in cucina, annullato;
 - se il ristorante offre gli ordini online, ordina anche da casa, dal link del ristorante (`/r/{link}`): stesso menu e stesse opzioni, poi «Vai alla cassa», dove sceglie ritiro o consegna e inserisce nome, telefono ed eventualmente l'indirizzo. Per la consegna vede le tariffe per distanza e l'eventuale ordine minimo; se il ristorante usa il preventivo automatico, appena inserito l'indirizzo vede il costo esatto della consegna. Qui può anche inserire un codice sconto del ristorante: se è valido, vede subito lo sconto sui piatti e il nuovo totale. Non può scegliere un orario: l'ordine si prepara appena possibile;
-- segue l'ordine online da una pagina di stato (`/o/{token}`): in attesa di conferma, accettato con l'orario previsto, pronto, ritirato o consegnato. Se il ristorante non risponde entro 10 minuti, l'ordine scade e la pagina mette in evidenza il telefono del ristorante.
+- segue l'ordine online da una pagina di stato (`/o/{token}`): in attesa di conferma, accettato con l'orario previsto, pronto e infine completato. Se il ristorante non risponde entro 10 minuti, l'ordine scade e la pagina mette in evidenza il telefono del ristorante.
 
 **Staff**, da telefono o tablet; l'area staff si può installare come app (PWA):
 

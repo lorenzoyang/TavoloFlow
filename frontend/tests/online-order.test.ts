@@ -368,11 +368,11 @@ test("the status page follows the phase, then the session and its dishes", () =>
     [{ items: [line("READY"), line("CANCELLED")] }, "ready", "readyPickup", false],
     [{ items: [line("READY")], fulfillment: "DELIVERY" }, "ready", "readyDelivery", false],
     [{ items: [line("CANCELLED"), line("CANCELLED")] }, "allCancelled", "allCancelled", false],
-    [{ sessionStatus: "CLOSED", closeReason: "PAID" }, "collected", "collectedPickup", true],
+    [{ sessionStatus: "CLOSED", closeReason: "PAID" }, "collected", "completed", true],
     [
       { sessionStatus: "CLOSED", closeReason: "PAID", fulfillment: "DELIVERY" },
       "collected",
-      "collectedDelivery",
+      "completed",
       true,
     ],
     [{ sessionStatus: "CLOSED", closeReason: "NO_SHOW" }, "closed", "closed", true],
@@ -391,6 +391,7 @@ test("the status page follows the phase, then the session and its dishes", () =>
   }
 });
 
+// Three steps (sent, accepted, ready); a collected order is past the last one, every step done.
 test("only an order going ahead shows its progress", () => {
   const expected: Record<OrderView, number | null> = {
     waiting: 0,

@@ -424,8 +424,10 @@ export function orderView(order: ViewInput): OrderView {
 export const orderEnded = (order: ViewInput) =>
   ["expired", "rejected", "collected", "closed"].includes(orderView(order));
 
-// How far an order going ahead has come: sent, accepted, ready, collected or delivered. Orders that
-// did not go ahead, or closed without being collected, have no progress to show.
+// How far an order going ahead has come: sent, accepted, ready. Nothing marks the handover reliably
+// (pass taps are optional, the bill closes later), and the customer meets staff at that point, so the
+// last step is ready; a collected order (`PAID`) shows every step done. Orders that did not go ahead,
+// or closed without being collected, have no progress to show.
 export type OrderStep = 0 | 1 | 2 | 3;
 const steps: Partial<Record<OrderView, OrderStep>> = {
   waiting: 0,
@@ -449,8 +451,7 @@ export type StatusCopy =
   | "readyPickup"
   | "readyDelivery"
   | "allCancelled"
-  | "collectedPickup"
-  | "collectedDelivery"
+  | "completed"
   | "closed";
 
 export function statusCopy(
@@ -474,7 +475,7 @@ export function statusCopy(
     case "ready":
       return delivery ? "readyDelivery" : "readyPickup";
     case "collected":
-      return delivery ? "collectedDelivery" : "collectedPickup";
+      return "completed";
     default:
       return view;
   }
