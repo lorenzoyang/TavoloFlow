@@ -442,6 +442,28 @@ TURNSTILE_SECRET_KEY=REPLACE_WITH_TURNSTILE_SECRET_KEY
 
 自托管部署若明确选择不使用外部验证，可设 `TURNSTILE_ENABLED=false`，IP、Cookie 和待接单名额限制仍然生效。开发与 Demo 默认已关闭。通知保持原样。升级已有服务器时，请先补齐这些配置，再运行新版本安装器。不要输出或公开 Secret key。
 
+#### 配送费自动报价（可选）
+
+不做这项配置，配送也能用：结账时顾客看到餐厅的档位价目表，由接单的人选档位。配置了 [Geoapify](https://www.geoapify.com/) key 后，API 会根据地址和从餐厅出发的驾车路程算出配送费，顾客下单前就能看到。key 对整个部署生效；每家餐厅只要店主设置好坐标和档位，就会用上。
+
+1. **在自己电脑的浏览器里创建 key。** 在 Geoapify 打开 **My projects**，创建一个项目，从 **API keys** 复制 key。免费版不用绑卡。给真实顾客使用之前，先在 Geoapify 的服务条款里确认免费版商用的条件。
+2. **把 key 限制在 VPS 的 IP 上。** 在同一页面点 **「Add IP filter」**，填 VPS 的公网 IPv4 地址。这个 key 只有 API 使用，浏览器从不使用，所以不需要 Referer 和 Origin 过滤；加了 IP 过滤，不小心泄露的 key 在别处也用不了。
+3. **加到服务器的 `.env` 里**，在 VPS 上用 `sudo nano /opt/tavoloflow/.env`：
+
+   ```dotenv
+   GEOAPIFY_API_KEY=你的KEY
+   ```
+
+   `=` 两边不要加引号或空格。留空则功能保持关闭。只有支持它的版本才会把 key 传给 API：在已安装的版本上，加好之后重建 API 容器（API 会中断几秒钟）：
+
+   ```bash
+   sudo bash /opt/tavoloflow/tf.sh up -d --no-deps --force-recreate --wait --wait-timeout 120 api
+   ```
+
+4. **试下一单。** 在正式域名上打开一家已设置配送的餐厅的 `/r/{slug}`，选**「配送」**，填一个带门牌号的真实地址：应该出现「配送到 … · 配送费 …」。如果总是显示价目表，检查餐厅的坐标和档位，并用 `sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api` 查看日志：Geoapify 出错时日志里只有 HTTP 状态码，不会有地址或 key。
+
+每次报价消耗每日免费额度（3000）中的两个 credits。API 会更早停下：每家餐厅每天最多 200 次报价，整个部署最多 1200 次，另外还有按 IP 的限流；到了上限，或者 Geoapify 没有回应，结账就退回价目表，订单照常进行。发给 Geoapify 的地址只用来计算路程，餐厅的隐私说明里已经写明。
+
 #### `.env` 文件
 
 | 变量                  | 填什么                                                                                             |
@@ -453,6 +475,7 @@ TURNSTILE_SECRET_KEY=REPLACE_WITH_TURNSTILE_SECRET_KEY
 | `TURNSTILE_ENABLED` | `true` 启用线上下单验证（生产默认）；明确不使用时填 `false`，不能只留空 |
 | `TURNSTILE_SITE_KEY` | Cloudflare Managed 组件的完整 Site key；启用验证时必填 |
 | `TURNSTILE_SECRET_KEY` | 同一组件的完整 Secret key；启用验证时必填，只保存在服务器上 |
+| `GEOAPIFY_API_KEY` | 可选：用于配送费自动报价的 Geoapify key；留空则功能关闭 |
 
 其他保持不变。不要加引号，`=` 两边不要有空格。
 
@@ -664,7 +687,7 @@ sudo ls -lh /opt/tavoloflow/backups/
 - 新版本需要在服务器 `.env` 里添加新配置时，**只做一次**的步骤；
 - [手动流程](#手动流程)，在脚本不可用时使用，也用来理解脚本做了什么。
 
-无论用哪种方式，都要保留已有配置：不重新创建管理员或 `.env`。新版本需要新的变量时，先按下面的步骤补上，再安装。尤其是已经部署很久、现在才加入 Turnstile 的服务器：新版本在生产默认启用验证，旧 `.env` 没有密钥时，安装器会拒绝升级。
+无论用哪种方式，都要保留已有配置：不重新创建管理员或 `.env`。新版本需要新的变量时，先按下面的步骤补上，再安装。可选的变量，比如 `GEOAPIFY_API_KEY`，也可以之后再加。尤其是已经部署很久、现在才加入 Turnstile 的服务器：新版本在生产默认启用验证，旧 `.env` 没有密钥时，安装器会拒绝升级。
 
 #### 首次升级到带推送的版本
 
@@ -879,7 +902,7 @@ sudo bash /opt/tavoloflow/rollback.sh --schema-compatible 上一个版本
 tavoloflow-20261027T023000Z-12345.tar.gz    UTC 时间和进程号
 ├── database.dump      数据库，用 pg_dump 导出
 ├── keys.tar.gz        Data Protection 密钥
-├── production.env     .env 副本，包括数据库密码、VAPID 和 Turnstile 配置
+├── production.env     .env 副本，包括数据库密码、VAPID、Turnstile 配置和 Geoapify key
 ├── compose.yaml, Caddyfile
 ├── state/             当时已安装的版本
 └── SHA256SUMS
@@ -1151,6 +1174,7 @@ df -h
 - [ ] 线上点单已配置并开放，每台设备确认通知已开启；Android 和已安装的 iPhone/iPad 锁屏测试后，点击通知进入线上订单页面。退出与重新登录符合第 6 步的检查结果。
 - [ ] 恢复或升级后保留原 VAPID 密钥、重新加载员工设备，并在原业务域名下验证通知。
 - [ ] Turnstile 开关已明确配置；启用时使用同一 Managed 组件的真实密钥，允许实际业务域名，关闭 Pre-clearance。刷新顾客页面后，真实下单验证通过；未通过验证不能提交，原订单仍可查询。
+- [ ] 如果使用配送费自动报价：Geoapify key 已加上 VPS 的 IP 过滤，并且配送范围内的真实地址在结账时能得到配送费。
 - [ ] 备份的 `production.env` 包含当前验证配置；使用旧备份恢复新版本时，已检查并补齐缺少的变量。
 - [ ] VPS 重启后应用自动恢复，数据和登录都完好。
 - [ ] 每晚备份已启用，并且已经下载过一个备份、成功恢复到临时数据库里。

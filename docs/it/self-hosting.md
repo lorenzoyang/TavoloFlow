@@ -442,6 +442,28 @@ L’installatore controlla configurazione, segnaposto e chiavi di test prima di 
 
 Per un’installazione che sceglie esplicitamente di non usare il verificatore, imposta `TURNSTILE_ENABLED=false`: restano limiti IP, cookie e posti in attesa. Sviluppo e Demo sono già disattivati per impostazione predefinita. Le notifiche non cambiano. Per aggiornare un server esistente, aggiungi questi valori prima di eseguire l’installatore della nuova versione. Non stampare né pubblicare la chiave segreta.
 
+#### Preventivo automatico della consegna (facoltativo)
+
+Senza questa configurazione la consegna funziona già: alla cassa il cliente vede il listino delle fasce del ristorante e chi accetta l’ordine sceglie la fascia. Con una chiave [Geoapify](https://www.geoapify.com/) l’API calcola invece il costo dall’indirizzo, con la distanza in auto dal ristorante, e il cliente lo vede prima di ordinare. La chiave vale per tutta l’installazione; ogni ristorante lo usa appena il titolare ha impostato posizione e fasce.
+
+1. **Crea la chiave nel browser del tuo computer.** Su Geoapify apri **My projects**, crea un progetto e copia la chiave da **API keys**. Il piano gratuito non chiede la carta. Prima di usarlo con clienti veri, controlla nei termini di Geoapify le condizioni del piano gratuito per l’uso commerciale.
+2. **Limita la chiave all’IP della VPS.** Nella stessa pagina tocca **«Add IP filter»** e inserisci l’indirizzo IPv4 pubblico della VPS. La chiave la usa solo l’API, mai il browser, quindi i filtri per Referer e Origin non servono; con il filtro IP, una chiave copiata per errore non funziona altrove.
+3. **Aggiungila al `.env` del server**, sulla VPS con `sudo nano /opt/tavoloflow/.env`:
+
+   ```dotenv
+   GEOAPIFY_API_KEY=LA_TUA_CHIAVE
+   ```
+
+   Niente virgolette né spazi attorno a `=`. Lasciata vuota, la funzione resta spenta. La chiave passa all’API solo con una versione che la supporta: su una versione già installata, dopo averla aggiunta ricrea il container API (l’API si interrompe per qualche secondo):
+
+   ```bash
+   sudo bash /opt/tavoloflow/tf.sh up -d --no-deps --force-recreate --wait --wait-timeout 120 api
+   ```
+
+4. **Prova un ordine.** Sul dominio reale apri `/r/{slug}` di un ristorante con la consegna configurata, scegli **«Consegna»** e scrivi un indirizzo vero con il civico: deve comparire «Consegna a … · costo …». Se compare sempre il listino, controlla posizione e fasce del ristorante e i log con `sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api`: un errore di Geoapify vi lascia solo lo stato HTTP, mai indirizzo o chiave.
+
+Ogni preventivo usa due crediti della quota giornaliera gratuita (3000). L’API si ferma prima: al massimo 200 preventivi al giorno per ristorante e 1200 in tutto, oltre a un limite per IP; raggiunto un limite, o se Geoapify non risponde, la cassa torna al listino e gli ordini continuano. Gli indirizzi inviati a Geoapify servono solo a calcolare la distanza, e l’informativa privacy dei ristoranti lo dice già.
+
 #### Il file `.env`
 
 | Variabile           | Cosa scrivere                                                                                                               |
@@ -453,6 +475,7 @@ Per un’installazione che sceglie esplicitamente di non usare il verificatore, 
 | `TURNSTILE_ENABLED` | `true` attiva la verifica degli ordini online (predefinito in produzione); per disattivarla esplicitamente scrivi `false`, non lasciare il valore vuoto |
 | `TURNSTILE_SITE_KEY` | la Site key completa del widget Managed di Cloudflare; obbligatoria con verifica attiva |
 | `TURNSTILE_SECRET_KEY` | la Secret key completa dello stesso widget; obbligatoria con verifica attiva, resta solo sul server |
+| `GEOAPIFY_API_KEY` | facoltativa: la chiave Geoapify per il preventivo automatico della consegna; vuota, la funzione è spenta |
 
 Il resto lascialo com'è. Niente virgolette e niente spazi attorno a `=`.
 
@@ -664,7 +687,7 @@ Per i rilasci di tutti i giorni segui la guida [Rilasciare con gli script](relea
 - i passaggi da fare **una volta sola**, quando una nuova versione richiede una configurazione nuova nel `.env` del server;
 - la [procedura manuale](#procedura-manuale), per quando gli script non sono disponibili o per capire che cosa fanno.
 
-Qualunque strada scegli, conserva la configurazione esistente: non ricreare l’amministratore o `.env`. Se la nuova versione richiede variabili nuove, aggiungile prima di installarla, con i passaggi qui sotto. Vale soprattutto per un server in uso da tempo a cui aggiungi Turnstile solo ora: la nuova versione attiva la verifica per impostazione predefinita in produzione, quindi l’installer rifiuta l’aggiornamento se nel vecchio `.env` mancano le chiavi.
+Qualunque strada scegli, conserva la configurazione esistente: non ricreare l’amministratore o `.env`. Se la nuova versione richiede variabili nuove, aggiungile prima di installarla, con i passaggi qui sotto. Quelle facoltative, come `GEOAPIFY_API_KEY`, si possono aggiungere anche dopo. Vale soprattutto per un server in uso da tempo a cui aggiungi Turnstile solo ora: la nuova versione attiva la verifica per impostazione predefinita in produzione, quindi l’installer rifiuta l’aggiornamento se nel vecchio `.env` mancano le chiavi.
 
 #### Prima versione con le notifiche push
 
@@ -879,7 +902,7 @@ Ogni esecuzione di [`backup.sh`](../../deploy/backup.sh) crea un archivio in `/o
 tavoloflow-20261027T023000Z-12345.tar.gz    ora UTC e numero del processo
 ├── database.dump      il database, con pg_dump
 ├── keys.tar.gz        le chiavi di Data Protection
-├── production.env     copia di .env: password del database, VAPID e configurazione Turnstile
+├── production.env     copia di .env: password del database, VAPID, configurazione Turnstile e chiave Geoapify
 ├── compose.yaml, Caddyfile
 ├── state/             le versioni installate in quel momento
 └── SHA256SUMS
@@ -1151,6 +1174,7 @@ Prima di aprire al pubblico, e dopo ogni cambio di server:
 - [ ] Con gli ordini online configurati e aperti, ogni dispositivo conferma le notifiche attive; la prova a schermo bloccato su Android e iPhone/iPad installato apre la pagina degli ordini online. Uscita e nuovo accesso seguono i controlli del passo 6.
 - [ ] Dopo ripristino o aggiornamento, VAPID è conservata e i dispositivi dello staff sono ricaricati; le notifiche sono state provate sul dominio originale.
 - [ ] L’interruttore Turnstile è configurato esplicitamente; se attivo, le chiavi vere appartengono allo stesso widget Managed, il dominio reale dell’applicazione è autorizzato e Pre-clearance è disattivato. Dopo aver ricaricato la pagina cliente, la verifica di un ordine reale passa; senza verifica l’invio è bloccato e gli ordini esistenti restano consultabili.
+- [ ] Se usi il preventivo automatico della consegna, la chiave Geoapify ha il filtro IP della VPS e un indirizzo reale nella zona riceve il costo alla cassa.
 - [ ] Il `production.env` del backup comprende la configurazione attuale della verifica; usando un vecchio backup per ripristinare una nuova versione, le variabili mancanti sono state controllate e aggiunte.
 - [ ] Dopo un riavvio della VPS l'app torna su da sola, con dati e login intatti.
 - [ ] Il backup notturno è attivo, un backup è stato scaricato e ripristinato con successo in un database temporaneo.

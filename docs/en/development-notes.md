@@ -33,7 +33,7 @@ TavoloFlow is a QR-code table ordering system that also takes online orders. Eve
 - for dishes with options (size, sugar, toppings, spice level…) first chooses them in a panel: required choices are never preselected, and extras are added to the price;
 - builds a cart, with a note for each dish, and sends the order; they can order several times during the meal;
 - sees the orders of the whole table and the status of each dish: received, ready, cancelled;
-- if the restaurant offers online ordering, also orders from home, from the restaurant's link (`/r/{link}`): same menu and same options, then "Checkout", where they choose pickup or delivery and enter name, phone and, for delivery, the address. Here they can also enter a coupon code from the restaurant: if it is valid, they see the discount on the dishes and the new total straight away. They can't choose a time: the order is made as soon as possible;
+- if the restaurant offers online ordering, also orders from home, from the restaurant's link (`/r/{link}`): same menu and same options, then "Checkout", where they choose pickup or delivery and enter name, phone and, for delivery, the address. For delivery they see the fees by distance and any minimum order; if the restaurant uses automatic quotes, they see the exact delivery fee as soon as they enter the address. Here they can also enter a coupon code from the restaurant: if it is valid, they see the discount on the dishes and the new total straight away. They can't choose a time: the order is made as soon as possible;
 - follows the online order on a status page (`/o/{token}`): waiting for confirmation, accepted with the expected time, ready, collected or delivered. If the restaurant doesn't answer within 10 minutes, the order expires and the page puts the restaurant's phone first.
 
 **Staff**, from a phone or tablet; the staff area can be installed as an app (PWA):
@@ -42,7 +42,7 @@ TavoloFlow is a QR-code table ordering system that also takes online orders. Eve
 - **Kitchen**: receives new orders with an alert sound, refreshed every 10 seconds; sees them in the Dishes (grouped by dish), Orders and Done views; each screen reopens the last choice between Dishes and Orders and, in the Dishes view, can show only some menu categories (for example a screen just for drinks); sees the options the guest chose under each dish; marks each dish as ready or cancels it; accepted online orders appear together with the tables' ones, as "Pickup #12" or "Delivery #12";
 - **Pass**: on a tablet at the counter, shows the ready dishes to take to the tables; when a dish reaches the table, you tap "Served";
 - **Menu**: marks a dish, or a single option (for example a topping that ran out), as sold out or available again;
-- **Online orders**: accepts an order by choosing when it will be ready (for a delivery, after entering the fee) or rejects it, with an optional reason. While an order waits for acceptance, every staff page shows a banner at the top that rings. Here they also see the accepted orders not yet closed, with the customer's phone and address;
+- **Online orders**: accepts an order by choosing when it will be ready (for a delivery without a fee already calculated, after picking the band, looking at the route from the restaurant that opens by tapping the address) or rejects it, with an optional reason. While an order waits for acceptance, every staff page shows a banner at the top that rings. Here they also see the accepted orders not yet closed, with the customer's phone and address;
 - in **Online ordering settings** pauses online orders, until the end of the slot or for the rest of the day;
 - from Home turns on the **lock-screen notifications** of new online orders on each device;
 - the interface is in Chinese, Italian or English, chosen per device; until someone chooses, it follows the browser language.
@@ -53,7 +53,7 @@ TavoloFlow is a QR-code table ordering system that also takes online orders. Eve
 - manages the tables and downloads their QR code and the printable table card;
 - in the Bill section closes the visit after payment, and in Bill history browses closed bills;
 - in Bill also closes online orders: "Collected, check payment" or "Delivered, check payment" after payment, or "Customer didn't come" or "Not delivered"; while the order is open they can correct the delivery fee;
-- in **Online ordering settings** sets the public phone, the weekly hours (at most two slots a day) and delivery, with a note in three languages on areas and fees; creates and deletes **coupons** for online orders: a percentage off the dishes (1 to 50%), valid until an optional last day, to share on Instagram, on flyers or in delivery bags;
+- in **Online ordering settings** sets the public phone, the weekly hours (at most two slots a day) and delivery: the restaurant's location, up to five fee bands by road distance, an optional minimum order and a note in three languages; creates and deletes **coupons** for online orders: a percentage off the dishes (1 to 50%), valid until an optional last day, to share on Instagram, on flyers or in delivery bags;
 - resets the staff account's password and sees the status of their own subscription.
 
 **Platform administrator**, that is whoever offers the service to restaurants:
@@ -72,7 +72,7 @@ TavoloFlow is a QR-code table ordering system that also takes online orders. Eve
 - **Push notifications for kitchen, pass and bills.** These pages update by asking the server at regular intervals (polling). For a small restaurant it is enough, and much simpler. The only push notification is the one for new online orders, which must arrive even when the phone is locked (see "A PWA for staff").
 - **Offline operation.** The app doesn't store pages or data on the device to use them without a network: orders and bills must always be up to date. If the connection drops, an already open page shows the latest data with a warning, but blocks operations (for example closing a bill) until a refresh succeeds; if a page is opened without a network, the staff area only shows a page saying so.
 - **Personal accounts for every waiter.** Each restaurant has a single, shared staff account, plus the owner's. For a small restaurant that is enough, and there is no need to know who did what.
-- **Delivery through external platforms.** Online orders exist, with pickup in store or delivery by the restaurant itself, but without platforms like Glovo or Deliveroo, without online payment and without a booked time: the customer pays at pickup or on delivery, and whoever accepts the order enters the delivery fee. A first version of takeaway had been developed and then removed, to keep the first version simple; today's one was redesigned from scratch.
+- **Delivery through external platforms.** Online orders exist, with pickup in store or delivery by the restaurant itself, but without platforms like Glovo or Deliveroo, without online payment and without a booked time: the customer pays at pickup or on delivery, and the delivery fee follows distance bands set by the owner (see "Delivery fee by distance"). A first version of takeaway had been developed and then removed, to keep the first version simple; today's one was redesigned from scratch.
 - **Loyalty programmes and per-customer discounts.** Coupon codes are shared: anyone who knows the code can use it, as often as they like. Without customer accounts there is no way to say "once each" or "first order only" (the phone is not verified, and it is deleted after 30 days). At the table there are no codes: there the till gives the discount, as always.
 - **Split bills and sales statistics.** Each visit has a single bill, and apart from the history of closed bills there are no reports.
 - **All you can eat.** No ordering rounds or per-person limits: the restaurants I had in mind (ramen, Chinese food, bubble tea) work à la carte.
@@ -133,20 +133,20 @@ A few points to keep in mind:
 
 ### Data model
 
-The database has nineteen tables. The complete schema is in [`er-diagram.dbml`](../reference/er-diagram.dbml), and there is also an [image](../reference/er-diagram.png). Grouped by topic:
+The database has twenty tables. The complete schema is in [`er-diagram.dbml`](../reference/er-diagram.dbml), and there is also an [image](../reference/er-diagram.png). Grouped by topic:
 
 | Group               | Tables                                                                                                                                                                                                                                                                                |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Accounts            | `platform_users` (administrators), `restaurant_users` (one owner and one staff account per restaurant)                                                                                                                                                                                |
 | Restaurant and menu | `restaurants`, `menu_categories`, `menu_items`, `menu_item_images` (the photo bytes, kept apart so menu reads don't load them), `menu_option_groups` and `menu_options` (the options shared by dishes), `menu_item_option_groups` (which dishes use which group), `restaurant_tables` |
 | Service             | `dining_sessions`, `orders`, `order_items`                                                                                                                                                                                                                                            |
-| Online orders       | `online_hours` (the weekly hours), `online_counters` (the last order number of each day), `online_requests` (customers' orders, to be accepted), `online_coupons` (the coupon codes)                                                                                                                                       |
+| Online orders       | `online_hours` (the weekly hours), `online_counters` (the last order number of each day), `online_requests` (customers' orders, to be accepted), `online_coupons` (the coupon codes), `delivery_tiers` (the delivery fee bands)                                                                                                                                       |
 | Notifications       | `push_subscriptions` (the devices that receive lock-screen notifications)                                                                                                                                                                                                             |
 | Subscription        | `restaurant_subscription_periods`                                                                                                                                                                                                                                                     |
 
 The central concept is the **visit** (`DiningSession`, table `dining_sessions`). When guests arrive, the staff opens the table from Floor and an `ACTIVE` visit is born, with its own (encrypted) table code and a bill version number, `bill_version`. Guests have no accounts: to the system, a guest is just "a browser that joined this visit".
 
-With online ordering the visit also has a **channel** (`channel`): `DINE_IN` for the table, `PICKUP` and `DELIVERY` for online orders to collect or to deliver. An online visit is born only when the staff accept the order, has neither table nor code, has a single order and, for a delivery, also the delivery fee (`delivery_fee_cents`). Before acceptance the customer's order is only a row of `online_requests` (see "Online orders: a request to accept").
+With online ordering the visit also has a **channel** (`channel`): `DINE_IN` for the table, `PICKUP` and `DELIVERY` for online orders to collect or to deliver. An online visit is born only when the staff accept the order, has neither table nor code, has a single order and, for a delivery, also the delivery fee (`delivery_fee_cents`). Before acceptance the customer's order is only a row of `online_requests` (see "Online orders: a request to accept"); if the customer accepted an automatic quote, the row also keeps fee and distance (`delivery_fee_cents`, `delivery_distance_meters`), and acceptance carries that fee into the visit.
 
 Each order belongs to a visit and has one or more lines (`order_items`), one per dish, with the quantity and an optional note. Each line has its own status: it is born `NEW`, then the kitchen moves it to `READY` or `CANCELLED`; when the dish reaches the table, the Pass fills in `served_at`. The order also has a summary status: `NEW` while at least one line is `NEW`, then `PROCESSED` (that is the difference between the Kitchen's Orders and Done views).
 
@@ -161,6 +161,7 @@ The frontend makes things more convenient, but guarantees nothing. Some rules, m
 | Data of different restaurants never mixes | every business table has `restaurant_id` (except `menu_item_images`, which reaches the restaurant through its dish) and the foreign keys are composite, `(id, restaurant_id)`: an order can only point to a visit of the same restaurant, a line only to an order of the same restaurant |
 | Status and fields are always consistent   | check constraints such as `ck_session_lifecycle`: an `ACTIVE` visit has the encrypted code and no closing data, a `CLOSED` one has time, reason and total, and the code is cleared; `ck_order_item_lifecycle` does the same for lines                                                    |
 | The channel decides the fields            | `ck_session_dine_in` and `ck_session_online`: a table visit always has the table's name (and, while open, the table and the code), an online visit never has a table or a code; `ck_session_delivery_fee`: the delivery fee is always there on deliveries and never on other channels    |
+| Delivery has a starting point             | `ck_restaurant_delivery_ready`: with delivery on, the restaurant always has its coordinates; that there is at least one band is checked when the settings are saved, because bands live in another table |
 | Only allowed values                       | enums are stored as uppercase text (`ACTIVE`, `READY`…) and a check constraint lists the valid values                                                                                                                                                                                    |
 
 Order history, on the other hand, is not protected by the database. Each line stores a copy (snapshot) of the dish's name, price and allergens: if the dish later changes price, the line stays as it was. The same goes for the chosen options: the line saves them in `options_snapshot` (a jsonb column), with the group and option names and the extra price. The line's unit price already includes the extras (and starts from the sale price if the dish was on sale), so the bill is always unit price × quantity, and the saved allergens are the dish's plus those of the chosen options. An online request also saves its dishes as a copy, in the jsonb column `lines`; when the staff accept it, a single function (`OrderLineSnapshot.ToOrderItem`) turns it into the order's lines. But PostgreSQL doesn't prevent a direct UPDATE of these copies or of closed bills: that they don't change is guaranteed by the services, which never modify them. Deleting a dish or a table also goes through a service, `CatalogDeletionService`: first it clears the reference (`menu_item_id` in the lines, `table_id` in closed visits), then it deletes, and the copy stays. Here the database only acts as a check: the foreign key doesn't allow deleting a dish or a table that is still referenced.
@@ -191,7 +192,7 @@ The backend is a single project, `backend/TavoloFlow.Api/`, organized by topic r
 | `Kitchen/`           | the Kitchen queue, dish ready or cancelled, the Pass, with the names of online orders                                                                                                                                                                                    |
 | `Billing/`           | the bill, the four closures (`PAID`, `VOIDED`, `EMPTY` and, online only, `NO_SHOW`), delivery fee correction, Bill history                                                                                                                                               |
 | `Platform/`          | administrator area: restaurants, services and online link, accounts, subscriptions                                                                                                                                                                                       |
-| `Online/`            | online ordering: settings, menu, submission and recovery, acceptance and rejection; `OnlineAvailability` decides whether ordering is allowed and `OnlineRequestState` handles waiting and expiry; browser/IP source limits and Turnstile verification through `OnlineVerification` |
+| `Online/`            | online ordering: settings, menu, submission and recovery, acceptance and rejection; `OnlineAvailability` decides whether ordering is allowed and `OnlineRequestState` handles waiting and expiry; browser/IP source limits and Turnstile verification through `OnlineVerification`; delivery fee: bands, minimum order and automatic quotes with Geoapify (`OnlineDelivery`, `DeliveryQuotes`) |
 | `Push/`              | lock-screen notifications: the VAPID key, device subscriptions, the in-memory queue and sending (`PushSender`, the only `BackgroundService`)                                                                                                                             |
 | `Data/`, `Entities/` | `ApplicationDbContext`, the EF Core mappings and migrations, the row locks (`RowLocks`), the deletion service; the 18 entities                                                                                                                                           |
 
@@ -400,19 +401,26 @@ sequenceDiagram
   participant A as API
   participant D as PostgreSQL
   participant V as Cloudflare Turnstile
+  participant G as Geoapify
   participant P as Push services
 
   C->>A: GET /api/public/r/{slug}/bootstrap (anonymous)
   A-->>C: Restaurant, menu, ordering status and public verification settings
   C->>A: GET ordering-context (browser cookie)
   A-->>C: This browser’s waiting order at this restaurant, if any
+  opt Delivery with automatic quotes
+    C->>A: POST delivery-quote (address)
+    A->>G: Find the address and compute the drive route
+    G-->>A: Matched point and road distance
+    A-->>C: Band fee and signed quote, valid 30 minutes
+  end
   Note over C: Prepare clientRequestId at confirmation
   opt Verification enabled
     C->>V: Load widget and complete verification bound to this request
     V-->>C: Verification proof
   end
   Note over C: Save the full intent before POST, without the proof
-  C->>A: POST requests (clientRequestId, form, dishes, turnstileToken)
+  C->>A: POST requests (clientRequestId, form, dishes, quote, turnstileToken)
   A->>D: Look for a committed result with this clientRequestId
   alt Already exists
     A-->>C: Original order result, without calling verification
@@ -431,7 +439,7 @@ sequenceDiagram
   loop every 10 seconds
     S->>A: GET /api/staff/online/pending (banner and Online orders)
   end
-  S->>A: POST /api/staff/online/requests/{id}/accept (minutes and, for delivery, fee)
+  S->>A: POST /api/staff/online/requests/{id}/accept (minutes and, for a delivery without a quote, fee)
   A->>D: lock restaurant (SHARE) and request (UPDATE), new PICKUP or DELIVERY visit with its order
   loop every 10 seconds
     C->>A: GET /api/public/online-orders/{token}
@@ -441,10 +449,11 @@ sequenceDiagram
 ```
 
 1. **Menu.** The `/r/{slug}` page reads without cookies the restaurant, the menu and the online ordering status, computed by a single rule (`OnlineAvailability`): service suspended, online ordering off or phone missing, paused, outside hours, too many waiting orders, or open. If it isn't open, the customer can browse the menu but not check out.
-2. **Submission.** At confirmation, the frontend first generates `clientRequestId` so Turnstile can bind verification to this request. The full intent is still saved to `sessionStorage` only before POST; the proof travels with the request and is not saved. The backend first looks for the committed original and returns it if found. Otherwise it verifies outside the transaction, then starts a transaction, locks the restaurant, acquires the submission lock and daily counter, and checks duplicates again. A duplicate returns the original result and rolls back the counter, so no new number is consumed. A first submission also checks browser/IP waiting slots, availability, delivery, coupons, dishes and prices, then saves the request, including a copy of the coupon code and discount percentage, to wait for acceptance for 10 minutes. The customer opens the status page.
-3. **Alert.** Only after the commit does the order number enter an in-memory queue, and a background service sends the push notifications. Staff with the app open see it anyway from the banner, which asks the server every 10 seconds and rings while an order waits for acceptance.
-4. **Acceptance.** The staff choose when it will be ready (for delivery, the fee first). The backend locks the request, checks that it is still waiting and, in the same transaction, creates the visit (`PICKUP` or `DELIVERY`), its only order and the lines, copied from the request. The order is born at that moment, so for the Kitchen it is a new order like the others, and it rings. If the staff reject it instead, or nobody answers in time, nothing is born: the request stays rejected or expired.
-5. **Kitchen, Pass and bill.** From here everything goes as for a table: dishes ready or cancelled, "Served" from the Pass (for a delivery it means handed to whoever delivers), and the owner closes the bill at pickup or on delivery; if the customer doesn't show up, they close it as `NO_SHOW`. The customer's status page refreshes every 10 seconds until the order ends.
+2. **Delivery fee.** If the customer chooses delivery, they see the bands and any minimum order. With automatic quotes, when they leave the address field the frontend asks the API for the fee; the API queries Geoapify outside any transaction and answers with the band's fee and a signed quote. Changing the address makes the quote stale. If the address can't be found precisely, or Geoapify doesn't answer, the price list applies and whoever accepts confirms the fee (see "Delivery fee by distance").
+3. **Submission.** At confirmation, the frontend first generates `clientRequestId` so Turnstile can bind verification to this request. The full intent is still saved to `sessionStorage` only before POST; the proof travels with the request and is not saved. The backend first looks for the committed original and returns it if found. Otherwise it verifies outside the transaction, then starts a transaction, locks the restaurant, acquires the submission lock and daily counter, and checks duplicates again. A duplicate returns the original result and rolls back the counter, so no new number is consumed. A first submission also checks browser/IP waiting slots, availability, delivery, the quote, coupons, dishes and prices, then saves the request, including a copy of the coupon code and discount percentage, to wait for acceptance for 10 minutes. The customer opens the status page.
+4. **Alert.** Only after the commit does the order number enter an in-memory queue, and a background service sends the push notifications. Staff with the app open see it anyway from the banner, which asks the server every 10 seconds and rings while an order waits for acceptance.
+5. **Acceptance.** The staff choose when it will be ready (for a delivery without a quote, the band first; with a quote, the fee is already set and can't change). The backend locks the request, checks that it is still waiting and, in the same transaction, creates the visit (`PICKUP` or `DELIVERY`), its only order and the lines, copied from the request. The order is born at that moment, so for the Kitchen it is a new order like the others, and it rings. If the staff reject it instead, or nobody answers in time, nothing is born: the request stays rejected or expired.
+6. **Kitchen, Pass and bill.** From here everything goes as for a table: dishes ready or cancelled, "Served" from the Pass (for a delivery it means handed to whoever delivers), and the owner closes the bill at pickup or on delivery; if the customer doesn't show up, they close it as `NO_SHOW`. The customer's status page refreshes every 10 seconds until the order ends.
 
 ## Design decisions
 
@@ -578,7 +587,7 @@ Another deliberate difference: after an unknown result, a retry rejected by a ch
 - **The order is born at acceptance.** So its creation time is the moment it enters the kitchen: the Kitchen's sorting, the grouping by dish and the sound work without any change.
 - **One number a day.** Each restaurant numbers its online orders from 1 every day (`online_counters`): a number that is easy to say on the phone or write on the bag. Submission locks the day's counter with an `INSERT ... ON CONFLICT DO UPDATE`, but at midnight that isn't enough: two close submissions, or the retry of the same order, could lock the counters of two different days without waiting for each other. That is why submission first takes the restaurant's submission lock, so the duplicate check and the limit of waiting orders never overlap. Different restaurants don't wait for each other.
 - **A limit, and a single rule for "can customers order?".** With 20 waiting requests the restaurant is `BUSY` and accepts no more submissions. The status (`OnlineAvailability`) is computed in a single place, used by the customer's menu, the submission and the settings page.
-- **A person decides the delivery fee.** No calculation from the distance: it would need a paid maps service, and the customer's address would have to be sent to another company. The owner writes their rules in a note (by area, by amount…), and whoever accepts the order enters the fee, which goes into the bill. If it is wrong, the owner corrects it before closing, with the bill version.
+- **The delivery fee goes into the bill.** At first whoever accepted the order typed it, following a note from the owner, and the customer only found out after acceptance. Today it follows the owner's distance bands and, when possible, the customer sees it before ordering (see "Delivery fee by distance"). If it is wrong, the owner corrects it before closing, with the bill version.
 
 The price: the staff must answer within 10 minutes, even at peak times, and an expired order is lost: the customer has to call or order again. That is why there is the banner that rings on every page and, for locked phones, push notifications (see "A PWA for staff").
 
@@ -611,6 +620,21 @@ These measures increase the cost of automated orders and repeated slot occupatio
 - **Expiry is a date, not a background job.** The last valid day is compared with the restaurant's local date only at submission. An order sent at 23:58 on the last day and accepted after midnight keeps the discount: the customer has already seen it.
 
 The price to pay: anyone who knows the code can use it, as often as they like, and the receipt is still issued by the restaurant's till, so staff must give the same discount there. That's why the bill shows the coupon line and the closing confirmation reminds them.
+
+### Delivery fee by distance
+
+**The problem.** With the fee typed by whoever accepted, the customer only found it out after acceptance, when the kitchen had already started and they could no longer cancel; and whoever accepted had to work it out every time. A restaurant owner pointed out two things to me: straight-line distance is useless (rivers, bridges, one-way streets), and customers don't know the "zones" the owner makes up. Prato is also a single comune: no place name tells near from far.
+
+**The choice: bands by road distance, a signed quote and, when the maps service doesn't answer, a person.**
+
+- **Bands set by the owner.** Up to five bands (`delivery_tiers`), for example "up to 3 km €2, up to 6 km €4"; the last one is the maximum distance. Plus an optional minimum order, one per restaurant, compared with the dishes after the coupon and without the delivery fee, because it tells whether the trip is worth it. The owner pastes the restaurant's coordinates from Google Maps: indoor GPS and a computer's location can be off by hundreds of metres.
+- **The customer sees the fees before ordering.** Without automatic quotes checkout shows the price list and whoever accepts picks the band, looking at the route from the restaurant that opens by tapping the address. The server accepts any valid fee: if the owner changes the bands while someone is accepting, the acceptance doesn't fail.
+- **Automatic quotes with Geoapify.** As soon as the customer enters the address, the API looks for the point inside a circle around the restaurant (`/v1/geocode/search`) and computes the drive route (`/v1/routing`) without live traffic, so the same address always has the same price. Two calls per quote and no precomputed zones: changing bands or coordinates needs no external service. I chose Geoapify because the free plan needs no card, the company is in the EU and keeps request logs for at most 24 hours. Google needs a card and limits storing results; the public Nominatim and OSRM servers aren't for commercial use; hosting my own maps service would cost more maintenance than the whole feature.
+- **Only precise results.** Before writing the code I tried 27 real addresses in Prato: 21 found at the house number, one only at the street, two wrong (a typo, "Marni" instead of "Marini", landed on another street). So a quote is made only when the result is a building or a place (`building`, `amenity`) with a street confidence of at least 0.9 (`OnlineDelivery.QuotableMatches`, `MinStreetConfidence`): without the house number, the point of a long street like Via Pistoiese can be kilometres from the house. Everything else counts as "not found": back to the price list and the person.
+- **A signed quote.** The quote is signed with Data Protection, like the table codes, and bound to the restaurant, the address and a 30-minute expiry (`DeliveryQuotes`). At submission the server doesn't call Geoapify again: it checks the signature and works out the band again with the current bands, otherwise `DELIVERY_QUOTE_INVALID`. The customer can't make up a fee, and what they saw is what they pay: whoever accepts can't change it. A different price agreed on the phone goes through the fee correction in the Bill.
+- **The external service doesn't decide whether people can order.** The free plan has no guarantees, and its limits are "soft": past the quota it still answers, but heavy overuse can get the account restricted, which means every restaurant's quotes. That's why there is a per-IP limit and two daily limits, one per restaurant and one for the whole installation, below the free quota. When a limit is reached, or Geoapify doesn't answer, it's back to the price list: the order goes through anyway. Without a key the feature is off, in a self-hosted installation too.
+
+The price to pay: the customer's address leaves the server (the privacy notice says so), the quote depends on how well OpenStreetMap knows house numbers, and a mistake Geoapify is confident about still gets through, like "Piazza de' Medici" found as "Via Cancellieri". That's why checkout shows the town found, and the customer can add the town or postcode to the address and calculate again.
 
 ### Writes with an unknown result: recovery by GET only
 
@@ -730,7 +754,7 @@ The check is done by `CsrfValidationFilter`, registered globally because `AddCon
 
 ### Current limits
 
-- **Designed for a single instance.** The rate limiter (`FixedWindowLimiter`) keeps its counters in memory: they reset at every restart and, with several API instances, each would have its own. To scale you would need a shared store, for example Redis or PostgreSQL itself. The same goes for the push notification queue, which lives in memory.
+- **Designed for a single instance.** The rate limiter (`FixedWindowLimiter`) keeps its counters in memory, including the daily delivery quote ones: they reset at every restart and, with several API instances, each would have its own. To scale you would need a shared store, for example Redis or PostgreSQL itself. The same goes for the push notification queue, which lives in memory.
 - **The table code is short.** Four characters from an alphabet of 32 make about a million combinations (2²⁰). Against someone trying to guess it, only the rate limit protects it, per IP and per visit: before real public use it should be reconsidered, perhaps with a longer code.
 - **Polling.** The load on the server grows with the number of devices switched on: with many restaurants it would be worth moving to WebSocket or Server-Sent Events.
 - **Tests.** The backend has more than 500 tests, mostly integration tests, which run on a real PostgreSQL in Docker; the frontend has only pure-logic tests with `node --test`. The repository lacks component tests and end-to-end tests. All the existing tests run on every push in CI (`.github/workflows/ci.yml`).

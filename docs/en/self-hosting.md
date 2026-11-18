@@ -442,6 +442,28 @@ The installer checks configuration, placeholders and test keys before stopping t
 
 An installation explicitly choosing to omit this verifier may set `TURNSTILE_ENABLED=false`; IP, cookie and waiting-slot protection remains. Development and Demo already default to disabled. Notifications are unchanged. When upgrading an existing server, add the settings before running the new installer. Do not print or publish the secret key.
 
+#### Automatic delivery quotes (optional)
+
+Delivery already works without this setup: at checkout customers see the restaurant's price list of bands, and whoever accepts the order picks the band. With a [Geoapify](https://www.geoapify.com/) key the API instead works out the fee from the address, with the driving distance from the restaurant, and the customer sees it before ordering. The key applies to the whole installation; each restaurant uses it as soon as its owner has set the location and bands.
+
+1. **Create the key in your computer's browser.** On Geoapify open **My projects**, create a project and copy the key from **API keys**. The free plan doesn't ask for a card. Before using it with real customers, check the conditions of the free plan for commercial use in Geoapify's terms.
+2. **Restrict the key to the VPS IP.** On the same page tap **"Add IP filter"** and enter the VPS's public IPv4 address. Only the API uses the key, never the browser, so Referer and Origin filters aren't needed; with the IP filter, a key copied by mistake doesn't work anywhere else.
+3. **Add it to the server's `.env`**, on the VPS with `sudo nano /opt/tavoloflow/.env`:
+
+   ```dotenv
+   GEOAPIFY_API_KEY=YOUR_KEY
+   ```
+
+   No quotes or spaces around `=`. Left empty, the feature stays off. The key only reaches the API with a version that supports it: on a version already installed, recreate the API container after adding it (the API stops for a few seconds):
+
+   ```bash
+   sudo bash /opt/tavoloflow/tf.sh up -d --no-deps --force-recreate --wait --wait-timeout 120 api
+   ```
+
+4. **Try an order.** On the real domain open `/r/{slug}` of a restaurant with delivery set up, choose **"Delivery"** and type a real address with the house number: "Delivery to … · fee …" must appear. If the price list always shows instead, check the restaurant's location and bands, and the logs with `sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api`: a Geoapify error leaves only the HTTP status there, never the address or the key.
+
+Each quote uses two credits of the free daily quota (3,000). The API stops earlier: at most 200 quotes a day per restaurant and 1,200 in total, plus a per-IP limit; when a limit is reached, or Geoapify doesn't answer, checkout goes back to the price list and orders carry on. The addresses sent to Geoapify only serve to compute the distance, and the restaurants' privacy notice already says so.
+
 #### The `.env` file
 
 | Variable            | What to write                                                                                                      |
@@ -453,6 +475,7 @@ An installation explicitly choosing to omit this verifier may set `TURNSTILE_ENA
 | `TURNSTILE_ENABLED` | `true` enables online order verification (the production default); use `false` to explicitly disable it, rather than leaving it empty |
 | `TURNSTILE_SITE_KEY` | the complete Site key of the Cloudflare Managed widget; required when verification is enabled |
 | `TURNSTILE_SECRET_KEY` | the complete Secret key of the same widget; required when verification is enabled, kept only on the server |
+| `GEOAPIFY_API_KEY` | optional: the Geoapify key for automatic delivery quotes; empty, the feature is off |
 
 Leave the rest as it is. No quotes and no spaces around `=`.
 
@@ -664,7 +687,7 @@ For everyday releases follow [Releasing with the scripts](releasing.md): two com
 - the steps to do **only once**, when a new version needs new configuration in the server's `.env`;
 - the [manual procedure](#manual-procedure), for when the scripts are not available or to understand what they do.
 
-Whichever way you choose, keep the existing settings: do not recreate the administrator or `.env`. If the new version needs new variables, add them before installing it, with the steps below. This matters especially for servers that have been running for some time and are only now adding Turnstile: the new version enables verification by default in production, so the installer rejects an upgrade if the old `.env` has no keys.
+Whichever way you choose, keep the existing settings: do not recreate the administrator or `.env`. If the new version needs new variables, add them before installing it, with the steps below. Optional ones, like `GEOAPIFY_API_KEY`, can also be added later. This matters especially for servers that have been running for some time and are only now adding Turnstile: the new version enables verification by default in production, so the installer rejects an upgrade if the old `.env` has no keys.
 
 #### First release with push notifications
 
@@ -879,7 +902,7 @@ Every run of [`backup.sh`](../../deploy/backup.sh) creates an archive in `/opt/t
 tavoloflow-20261027T023000Z-12345.tar.gz    UTC time and process number
 ├── database.dump      the database, with pg_dump
 ├── keys.tar.gz        the Data Protection keys
-├── production.env     .env copy, including database password, VAPID and Turnstile settings
+├── production.env     .env copy, including database password, VAPID, Turnstile settings and the Geoapify key
 ├── compose.yaml, Caddyfile
 ├── state/             the versions installed at that moment
 └── SHA256SUMS
@@ -1151,6 +1174,7 @@ Before opening to the public, and after every server change:
 - [ ] With online ordering configured and open, each device confirms notifications are on; lock-screen tests on Android and installed iPhone/iPad open the online orders page. Sign-out and sign-in follow the checks in step 6.
 - [ ] After recovery or upgrade, VAPID is preserved and staff devices are reloaded; notifications have been tested on the original domain.
 - [ ] The Turnstile switch is explicitly configured; when enabled, real keys from the same Managed widget allow the actual application domain and Pre-clearance is off. After reloading the customer page, real order verification passes; submission without verification is blocked and existing orders remain queryable.
+- [ ] If you use automatic delivery quotes, the Geoapify key has the VPS IP filter and a real address in the area gets its fee at checkout.
 - [ ] The backup’s `production.env` includes current verification settings; any missing variables have been checked and added when restoring a new version from an older backup.
 - [ ] After a VPS reboot the app comes back by itself, with data and logins intact.
 - [ ] The nightly backup is enabled, a backup has been downloaded and successfully restored into a temporary database.
