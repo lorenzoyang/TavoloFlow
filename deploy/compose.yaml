@@ -42,6 +42,8 @@ services:
       Turnstile__SiteKey: ${TURNSTILE_SITE_KEY:-}
       Turnstile__SecretKey: ${TURNSTILE_SECRET_KEY:-}
       Turnstile__Hostname: ${DOMAIN}
+      # Optional automatic delivery quotes; empty turns them off (price list and staff-picked bands).
+      Geoapify__ApiKey: ${GEOAPIFY_API_KEY:-}
       Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Warning
     volumes:
       - protection_keys:/var/tavoloflow/keys
