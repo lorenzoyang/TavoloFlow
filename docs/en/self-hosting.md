@@ -460,7 +460,7 @@ Delivery already works without this setup: at checkout customers see the restaur
    sudo bash /opt/tavoloflow/tf.sh up -d --no-deps --force-recreate --wait --wait-timeout 120 api
    ```
 
-4. **Try an order.** On the real domain open `/r/{slug}` of a restaurant with delivery set up, choose **"Delivery"** and type a real address with the house number: "Delivery to … · fee …" must appear. If the price list always shows instead, check the restaurant's location and bands, and the logs with `sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api`: a Geoapify error leaves only the HTTP status there, never the address or the key.
+4. **Try an order.** On the real domain open `/r/{slug}` of a restaurant with delivery set up, choose **"Delivery"**, type a real address with the house number and tap **"Calculate delivery fee"**: "Delivery to … · fee …" must appear. If the price list always shows instead, check the restaurant's location and bands, and the logs with `sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api`: a Geoapify error leaves only the HTTP status there, never the address or the key.
 
 Each quote uses two credits of the free daily quota (3,000). The API stops earlier: at most 200 quotes a day per restaurant and 1,200 in total, plus a per-IP limit; when a limit is reached, or Geoapify doesn't answer, checkout goes back to the price list and orders carry on. The addresses sent to Geoapify only serve to compute the distance, and the restaurants' privacy notice already says so.
 

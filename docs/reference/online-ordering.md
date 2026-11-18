@@ -116,22 +116,26 @@ marker. The address is trimmed with whitespace collapsed (`OnlineDelivery.Normal
 have 1–200 characters (`VALIDATION_FAILED`); an unknown slug is `ONLINE_LINK_NOT_FOUND`. The service
 reads the restaurant, availability and bands in one Repeatable Read snapshot and ends it before any
 network call. Geoapify is called only while ordering is `OPEN`, delivery is on, automatic quotes apply
-and the daily caps allow; everything else answers `UNKNOWN`. Every answer is 200:
+and the daily caps allow; everything else answers `UNKNOWN`. Every business result is 200 (input
+errors, an unknown link and the per-IP budget answer as usual):
 
 | `result` | Meaning |
 | --- | --- |
 | `QUOTED` | `town` (Geoapify's `city`, may be null), `distanceMeters`, `feeCents` of the nearest band that reaches it, and the signed `quote` |
 | `OUT_OF_RANGE` | The road distance is beyond the farthest band |
-| `UNKNOWN` | No automatic quote: not found precisely enough, an outage, a cap, or no automatic quotes here |
+| `UNKNOWN` | No automatic quote: not found precisely enough, a malformed answer, an outage, a cap, or no automatic quotes here |
 
-Each quote costs two Geoapify credits: `/v1/geocode/search` with the address, `filter=circle:lng,lat,r`
+Geoapify is called through its EU endpoint, `api-eu.geoapify.com`, the one its data processing
+agreement keeps inside the EU. A quote that gets as far as the route costs two credits:
+`/v1/geocode/search` with the address, `filter=circle:lng,lat,r`
 around the restaurant (`r` is the farthest band plus 5 km, `SearchMarginMeters`, so farther matches are
 priced as out of range), `bias=proximity:lng,lat` and `limit=1`; then `/v1/routing` with
 `waypoints=lat,lng|lat,lng` and `mode=drive`, taking the route's `distance` in metres with Geoapify's
 default free-flow traffic, so an address keeps its price. Only a `building` or `amenity` match whose
 `rank.confidence_street_level` is at least 0.9 is priced (`OnlineDelivery.QuotableMatches`,
 `MinStreetConfidence`): a street without its number can lie kilometres from the house on a long road,
-and a typo can match another street. Both rules come from a 27-address spike in Prato and may need
+and a typo can match another street. A malformed answer (a match without coordinates, a route without
+its distance or with a negative one) is not priced either. Both rules come from a 27-address spike in Prato and may need
 adjusting with real orders. The named `geoapify` HttpClient has a 5-second timeout, no redirects, no
 retries and no loggers, because the key travels in the URL; a failure logs one warning with the HTTP
 status or exception type and never the address, key, coordinates or a response body.
@@ -144,10 +148,11 @@ on restart; a reached cap only means the price list. Per IP, quotes have their o
 (`OnlineRateLimits:QuotesPerIpPerTenMinutes`, 10), so asking for fees never uses up submissions.
 
 `DeliveryQuotes` signs a quote with Data Protection whose purpose names the restaurant
-(`TavoloFlow.Online.DeliveryQuote.v1`, like join codes), over the normalized address, the distance and
-an expiry 30 minutes after the time from `TimeProvider`. The submission checks it without calling
-Geoapify again (see below), so a customer can neither forge a fee nor reuse another restaurant's or
-address's quote.
+(`TavoloFlow.Online.DeliveryQuote.v1`, like join codes), over the normalized address, the restaurant's
+coordinates, the distance and an expiry 30 minutes after the time from `TimeProvider`. The submission
+checks it without calling Geoapify again (see below), so a customer can neither forge a fee nor reuse
+another restaurant's or address's quote, and a quote from coordinates the owner has since moved is
+stale, like one the current bands price differently.
 
 ## Coupons
 
@@ -394,7 +399,7 @@ restaurant has it and its `valid_until` has not passed in the restaurant's local
 `RATE_LIMITED`), so codes cannot be guessed by trying them all.
 
 The submission body is `{ clientRequestId, fulfillment, customerName, customerPhone, deliveryAddress?,
-deliveryNotes?, items, coupon?, turnstileToken? }`, unknown fields rejected; `items` uses the QR order line format and the shared
+deliveryNotes?, items, coupon?, deliveryQuote?, turnstileToken? }`, unknown fields rejected; `items` uses the QR order line format and the shared
 `OrderLines` checks (1–30 lines, 1–20 portions each, 100 in all, 200-character remarks, `optionIds`
 required). The name is trimmed to 1–30 characters and the phone follows `InputRules.NormalizePhone`.
 Pickup takes no address; delivery needs a trimmed address of 1–200 characters and takes optional
@@ -417,10 +422,11 @@ for this address and the fee the customer saw. The server then:
 5. Requires `OPEN`: `SERVICE_SUSPENDED`, `ONLINE_NOT_OFFERED`, `ONLINE_PAUSED`, `ONLINE_CLOSED` (with
    `nextOpensAt` when the week has a slot) or `ONLINE_BUSY` (all 409). A delivery request also needs
    the restaurant's delivery switch, otherwise `DELIVERY_NOT_OFFERED` (409); pickup never depends on it.
-   A delivery quote must unprotect for this restaurant, be for the same normalized address, not have
-   expired at the time read in step 3, and be priced at the sent fee by the restaurant's current bands
-   (a distance beyond the farthest band is not), otherwise `DELIVERY_QUOTE_INVALID` (409). Settings
-   writes take restaurant UPDATE, so the bands cannot change under the SHARE lock.
+   A delivery quote must unprotect for this restaurant, be for the same normalized address and the
+   restaurant's current coordinates, not have expired at the time read in step 3, and be priced at the
+   sent fee by the restaurant's current bands (a distance beyond the farthest band is not), otherwise
+   `DELIVERY_QUOTE_INVALID` (409). Settings writes take restaurant UPDATE, so neither the coordinates
+   nor the bands can change under the SHARE lock.
    A coupon must exist, still be valid on the business date read in step 3 and have the sent
    percentage, otherwise `COUPON_INVALID` (409): a coupon deleted and created again with another
    percentage is refused, never applied silently. Coupon writes take restaurant UPDATE, so the SHARE
@@ -525,17 +531,22 @@ compares, so "Place order" stays disabled; in ordinary cart editing it is the it
 who went back to add dishes see what is still missing. A `DELIVERY_MIN_ORDER` refusal frees the intent,
 says the dishes don't reach the minimum and rereads the menu.
 
-With automatic quotes (`deliveryAutoQuote`), the delivery box asks for the fee of the typed address
-when the field loses focus or on "Calculate delivery fee" (`lookupFee`; a failed request counts as
-`UNKNOWN`). The answer belongs to that normalized address only: any other change makes it stale
-(`currentQuote`, `feeStatus`). `QUOTED` shows "delivery to {town} · fee X" with a hint to add the town
+With automatic quotes (`deliveryAutoQuote`), the fee of the typed address is asked for only when the
+customer taps "Calculate delivery fee" (`lookupFee`; a failed request counts as `UNKNOWN`), so no
+address goes to Geoapify unasked; the hint beside it says the address goes to the map service. The
+request sends the same trimmed text as the order, so only the server's normalization binds the quote.
+The answer belongs to that normalized address only: any other change makes it stale (`currentQuote`,
+`feeStatus`); a quote already given keeps counting for the amounts and the order even if automatic
+quotes stop meanwhile. `QUOTED` shows "delivery to {town} · fee X" with a hint to add the town
 or postcode if the town is wrong, and the footer shows the items total, the fee and the total
 (`onlineCartAmounts`' `deliveryFeeCents` and `payableCents`; the delivery minimum still compares the
 dishes). `OUT_OF_RANGE` says the address is outside the area, offers the phone and keeps "Place order"
 disabled. `UNKNOWN` shows the price list and "the restaurant confirms the fee", like a restaurant
 without automatic quotes, and lets the customer order. While the address has not been priced, the
 submit button reads "Calculate delivery fee" and its tap asks for the fee instead of placing the
-order. The box credits "Powered by Geoapify · © OpenStreetMap". The intent carries
+order. The box credits "Powered by Geoapify · © OpenStreetMap contributors", linked to geoapify.com and
+OpenStreetMap's copyright page, and with automatic quotes the privacy line no longer says the data go
+only to the restaurant: it adds that the address also goes to Geoapify to calculate the fee. The intent carries
 `deliveryQuote: { quote, feeCents }` (null otherwise), saved and read back with the rest; a
 `DELIVERY_QUOTE_INVALID` refusal frees the intent, drops the quote so checkout asks again, and rereads
 the menu. If "Checkout" finds delivery turned
@@ -581,9 +592,13 @@ into the status card. Customers cannot cancel; the page says to call instead.
 
 The privacy page names the restaurant as controller and TavoloFlow as processor, and lists the data,
 purpose, legal basis (performance of the customer's own order), retention, the customer's rights, the
-browser storage used, the optional security verification and, with automatic quotes, that the
-delivery address goes to Geoapify (EU) only to compute the road distance, with request logs kept at
-most 24 hours; the stored distance and fee are not personal data. Retention states the actual mechanism:
+browser storage used, the optional security verification and, under map services: with automatic
+quotes, that the delivery address goes to Geoapify (processed in the EU) only to compute the road
+distance once the customer taps "Calculate delivery fee", with request logs normally kept at most
+24 hours and details of individual requests up to 2 months in exceptional cases such as suspicious
+or fraudulent activity, and that the order keeps the distance and fee but not the point found; and
+that staff may open the address in Google Maps to deliver, so Google receives it, possibly outside
+the EU. Retention states the actual mechanism:
 contact data is deleted by the restaurant's next successful online submission once 30 days have
 passed, and backup copies remain for at most 7 more days (`deploy/backup.sh` keeps seven days). No
 scheduled cleanup is implemented; whether to add one is left to the pre-release privacy review.
@@ -668,7 +683,8 @@ coupon, its line and discount, and for pickup the amount to collect. One tap on 
 minutes accepts a pickup. A quoted delivery shows "delivery fee X · about Y km · quoted to the
 customer", with no band to pick and its times enabled at once. Any other delivery first takes a band,
 picked from the restaurant's current ones ("within 3 km · € 2.00"; without bands the card says to
-call the customer or reject), then
+call the customer or reject; a picked band whose distance or fee the owner changes meanwhile is no
+longer picked, so a new fee is never sent without being chosen again), then
 shows "subtotal + delivery fee = total" ("subtotal − discount + delivery fee = total" with a coupon), and only then enables 30, 45, 60 and
 90 minutes. Reject opens `ConfirmDialog` with an optional reason; "outside the delivery area" is
 offered for delivery only (`rejectReasons`). Writes are blocked while
@@ -805,8 +821,8 @@ with a foreign SIM can call the restaurant.
 `/staff/online-settings` (from 首页, with a back link) shows the status, the full online link with copy
 and open actions, and its QR PNG, generated in the browser with the table QR options and the same
 `VITE_PUBLIC_BASE_URL` origin rule (`publicMenuUrl` accepts `/r/{slug}`). STAFF and OWNER pause or
-resume; OWNER also edits the phone, the week, delivery (a switch and three note fields, with a
-warning while delivery is on without any note) and coupons (a list with the percentage, last day or
+resume; OWNER also edits the phone, the week, delivery (coordinates, bands, minimum, three note
+fields and the switch) and coupons (a list with the percentage, last day or
 an expired badge, a delete button behind `ConfirmDialog`, and a create form with code, percentage and
 an optional date input). A partial date is refused with a translated field message; only a genuinely
 empty control means no expiry. Submission reads the date control's current value and `validity.badInput`

@@ -460,7 +460,7 @@ Senza questa configurazione la consegna funziona già: alla cassa il cliente ved
    sudo bash /opt/tavoloflow/tf.sh up -d --no-deps --force-recreate --wait --wait-timeout 120 api
    ```
 
-4. **Prova un ordine.** Sul dominio reale apri `/r/{slug}` di un ristorante con la consegna configurata, scegli **«Consegna»** e scrivi un indirizzo vero con il civico: deve comparire «Consegna a … · costo …». Se compare sempre il listino, controlla posizione e fasce del ristorante e i log con `sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api`: un errore di Geoapify vi lascia solo lo stato HTTP, mai indirizzo o chiave.
+4. **Prova un ordine.** Sul dominio reale apri `/r/{slug}` di un ristorante con la consegna configurata, scegli **«Consegna»**, scrivi un indirizzo vero con il civico e tocca **«Calcola la consegna»**: deve comparire «Consegna a … · costo …». Se compare sempre il listino, controlla posizione e fasce del ristorante e i log con `sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api`: un errore di Geoapify vi lascia solo lo stato HTTP, mai indirizzo o chiave.
 
 Ogni preventivo usa due crediti della quota giornaliera gratuita (3000). L’API si ferma prima: al massimo 200 preventivi al giorno per ristorante e 1200 in tutto, oltre a un limite per IP; raggiunto un limite, o se Geoapify non risponde, la cassa torna al listino e gli ordini continuano. Gli indirizzi inviati a Geoapify servono solo a calcolare la distanza, e l’informativa privacy dei ristoranti lo dice già.
 

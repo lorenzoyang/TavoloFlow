@@ -460,7 +460,7 @@ TURNSTILE_SECRET_KEY=REPLACE_WITH_TURNSTILE_SECRET_KEY
    sudo bash /opt/tavoloflow/tf.sh up -d --no-deps --force-recreate --wait --wait-timeout 120 api
    ```
 
-4. **试下一单。** 在正式域名上打开一家已设置配送的餐厅的 `/r/{slug}`，选**「配送」**，填一个带门牌号的真实地址：应该出现「配送到 … · 配送费 …」。如果总是显示价目表，检查餐厅的坐标和档位，并用 `sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api` 查看日志：Geoapify 出错时日志里只有 HTTP 状态码，不会有地址或 key。
+4. **试下一单。** 在正式域名上打开一家已设置配送的餐厅的 `/r/{slug}`，选**「配送」**，填一个带门牌号的真实地址，点**「计算配送费」**：应该出现「配送到 … · 配送费 …」。如果总是显示价目表，检查餐厅的坐标和档位，并用 `sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api` 查看日志：Geoapify 出错时日志里只有 HTTP 状态码，不会有地址或 key。
 
 每次报价消耗每日免费额度（3000）中的两个 credits。API 会更早停下：每家餐厅每天最多 200 次报价，整个部署最多 1200 次，另外还有按 IP 的限流；到了上限，或者 Geoapify 没有回应，结账就退回价目表，订单照常进行。发给 Geoapify 的地址只用来计算路程，餐厅的隐私说明里已经写明。
 
