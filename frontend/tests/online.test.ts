@@ -192,6 +192,7 @@ const noDelivery = {
   deliveryOriginLat: null,
   deliveryOriginLng: null,
   deliveryTiers: [],
+  deliveryAutoQuote: false,
 };
 const noNotes = { zh: "", it: "", en: "" };
 const blankDraft = { origin: "", tiers: [], minOrder: "", notes: noNotes, enabled: false };

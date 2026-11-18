@@ -70,6 +70,8 @@ type SettingsWrite = (signal: AbortSignal) => Promise<OnlineSettings>;
 // done runs after a current success; settled after every attempt, so a dialog can close either way.
 type SendSettings = (request: SettingsWrite, done?: () => void, settled?: () => void) => void;
 // The card a write came from: its saved or failed result shows there, beside the button that sent it.
+// A saved result disappears once the card is edited again, so it never stands beside unsaved changes;
+// a failure stays until the next attempt.
 type SettingsCard = "status" | "phone" | "hours" | "delivery" | "coupons";
 
 function StatusCard({
@@ -287,11 +289,13 @@ function PhoneCard({
   busy,
   send,
   feedback,
+  edited,
 }: {
   settings: OnlineSettings;
   busy: boolean;
   send: SendSettings;
   feedback: ReactNode;
+  edited: () => void;
 }) {
   const m = onlineMessages[useStaffLanguage()];
   // The local edit survives background refreshes until it is saved or discarded.
@@ -334,7 +338,10 @@ function PhoneCard({
               value={value}
               disabled={busy}
               aria-invalid={!!error}
-              onChange={(event) => setDraft(event.target.value)}
+              onChange={(event) => {
+                edited();
+                setDraft(event.target.value);
+              }}
             />
           </div>
           {error && <Notice tone="error">{error}</Notice>}
@@ -353,11 +360,13 @@ function HoursCard({
   busy,
   send,
   feedback,
+  edited,
 }: {
   settings: OnlineSettings;
   busy: boolean;
   send: SendSettings;
   feedback: ReactNode;
+  edited: () => void;
 }) {
   const m = onlineMessages[useStaffLanguage()];
   const [draft, setDraft] = useState<WeekDraft | null>(null);
@@ -366,6 +375,7 @@ function HoursCard({
   const parsed = weekHours(week);
   const unchanged = draft === null || (parsed.ok && sameHours(parsed.hours, settings.hours));
   const edit = (weekday: number, slots: WeekDraft[number]) => {
+    edited();
     setError("");
     setDraft({ ...week, [weekday]: slots });
   };
@@ -519,19 +529,22 @@ function HoursCard({
   );
 }
 
-// OWNER: the restaurant's coordinates, the fee bands, the minimum order, the note per language and the
-// switch, saved together like the week of hours. Ordered by dependency: delivery needs the coordinates
-// and a band, so the switch comes last.
+// OWNER: the switch, the restaurant's coordinates, the fee bands, the minimum order and the note per
+// language, saved together like the week of hours. The switch turns the whole card on, so it comes
+// first, and the badge beside the title shows the saved state: a switch changed but not saved never
+// reads as delivery being on. Turning it on still needs the coordinates and a band when saving.
 function DeliveryCard({
   settings,
   busy,
   send,
   feedback,
+  edited,
 }: {
   settings: OnlineSettings;
   busy: boolean;
   send: SendSettings;
   feedback: ReactNode;
+  edited: () => void;
 }) {
   const m = onlineMessages[useStaffLanguage()];
   // The local edit survives background refreshes until it is saved or discarded.
@@ -544,6 +557,7 @@ function DeliveryCard({
   const problem = error && !parsed.ok ? parsed.problem : null;
   const origin = parseOrigin(value.origin);
   const edit = (next: DeliveryDraft) => {
+    edited();
     setError("");
     setDraft(next);
   };
@@ -594,8 +608,40 @@ function DeliveryCard({
       <CardContent>
         <form className="space-y-5" onSubmit={save} noValidate>
           <div className="space-y-1">
-            <h2 className="font-semibold">{m.deliveryTitle}</h2>
-            <p className="text-sm leading-6 text-muted-foreground">{m.deliveryHint}</p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-semibold">{m.deliveryTitle}</h2>
+              <Badge
+                variant={settings.deliveryEnabled ? "success" : "outline"}
+                className="whitespace-nowrap"
+              >
+                {settings.deliveryEnabled ? m.deliveryStatusOn : m.deliveryStatusOff}
+              </Badge>
+            </div>
+            <p className="text-sm leading-6 text-muted-foreground">
+              {settings.deliveryAutoQuote ? m.deliveryHintAuto : m.deliveryHint}
+            </p>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p id="delivery-enabled" className="font-medium">
+                {m.deliveryEnabled}
+              </p>
+              <p className="text-sm leading-5 text-muted-foreground">
+                {value.enabled === settings.deliveryEnabled
+                  ? value.enabled
+                    ? m.deliveryOn
+                    : m.deliveryOff
+                  : value.enabled
+                    ? m.deliveryPendingOn
+                    : m.deliveryPendingOff}
+              </p>
+            </div>
+            <Switch
+              aria-labelledby="delivery-enabled"
+              checked={value.enabled}
+              disabled={busy}
+              onCheckedChange={(enabled) => edit({ ...value, enabled })}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="delivery-origin">{m.originLabel}</Label>
@@ -603,7 +649,7 @@ function DeliveryCard({
               id="delivery-origin"
               autoComplete="off"
               spellCheck={false}
-              placeholder="43.88015, 11.09612"
+              placeholder={m.originPlaceholder}
               value={value.origin}
               disabled={busy}
               aria-invalid={problem?.field === "origin"}
@@ -728,22 +774,6 @@ function DeliveryCard({
               />
             </div>
           ))}
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <p id="delivery-enabled" className="font-medium">
-                {m.deliveryEnabled}
-              </p>
-              <p className="text-sm leading-5 text-muted-foreground">
-                {value.enabled ? m.deliveryOn : m.deliveryOff}
-              </p>
-            </div>
-            <Switch
-              aria-labelledby="delivery-enabled"
-              checked={value.enabled}
-              disabled={busy}
-              onCheckedChange={(enabled) => edit({ ...value, enabled })}
-            />
-          </div>
           {error && <Notice tone="error">{error}</Notice>}
           {feedback}
           <div className="flex flex-wrap gap-2">
@@ -777,11 +807,13 @@ function CouponsCard({
   busy,
   send,
   feedback,
+  edited,
 }: {
   settings: OnlineSettings;
   busy: boolean;
   send: SendSettings;
   feedback: ReactNode;
+  edited: () => void;
 }) {
   const m = onlineMessages[useStaffLanguage()];
   const [draft, setDraft] = useState<CouponDraft>(emptyCouponDraft);
@@ -790,6 +822,10 @@ function CouponsCard({
   const [tried, setTried] = useState(false);
   const [deleting, setDeleting] = useState<OnlineCoupon | null>(null);
   const parsed = couponInput(draft, dateBadInput);
+  const change = (next: CouponDraft) => {
+    edited();
+    setDraft(next);
+  };
   const problem = (kind: CouponProblem) => tried && !parsed.ok && parsed.problems.includes(kind);
   const hint = (kind: CouponProblem) =>
     cn("text-sm", problem(kind) ? "text-destructive" : "text-muted-foreground");
@@ -873,7 +909,7 @@ function CouponsCard({
                 disabled={busy}
                 aria-invalid={problem("code")}
                 aria-describedby="coupon-code-hint"
-                onChange={(event) => setDraft({ ...draft, code: event.target.value.toUpperCase() })}
+                onChange={(event) => change({ ...draft, code: event.target.value.toUpperCase() })}
               />
               <p id="coupon-code-hint" className={hint("code")}>
                 {problem("code") ? m.couponCodeProblem : m.couponCodeHint}
@@ -890,7 +926,7 @@ function CouponsCard({
                 disabled={busy}
                 aria-invalid={problem("percent")}
                 aria-describedby="coupon-percent-hint"
-                onChange={(event) => setDraft({ ...draft, percent: event.target.value })}
+                onChange={(event) => change({ ...draft, percent: event.target.value })}
               />
               <p id="coupon-percent-hint" className={hint("percent")}>
                 {problem("percent") ? m.couponPercentProblem : m.couponPercentHint}
@@ -907,7 +943,7 @@ function CouponsCard({
                 aria-invalid={problem("date")}
                 aria-describedby="coupon-valid-until-hint"
                 onInput={(event) => setDateBadInput(event.currentTarget.validity.badInput)}
-                onChange={(event) => setDraft({ ...draft, validUntil: event.target.value })}
+                onChange={(event) => change({ ...draft, validUntil: event.target.value })}
               />
               <p id="coupon-valid-until-hint" className={hint("date")}>
                 {problem("date") ? m.couponDateProblem : m.couponValidUntilHint}
@@ -993,10 +1029,13 @@ function OnlineSettingsContent({ account }: { account: CurrentAccount }) {
       settled?.();
     }
   }
-  // What every card shares: the busy state, a send bound to the card and that card's result.
+  // What every card shares: the busy state, a send bound to the card, that card's result and the
+  // edit signal that clears its saved result.
   const cardProps = (card: SettingsCard) => ({
     busy,
     send: ((request, done, settled) => send(card, request, done, settled)) satisfies SendSettings,
+    edited: () =>
+      setOutcome((current) => (current?.card === card && current.error === null ? null : current)),
     feedback:
       outcome?.card !== card ? null : outcome.error === null ? (
         <Notice tone="success">{m.saved}</Notice>
