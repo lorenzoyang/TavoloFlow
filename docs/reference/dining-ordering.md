@@ -184,6 +184,8 @@ LAN environments.
 
 Before POST, save and read back the complete intent. Storage failure allows editing but blocks
 submission; pending intents freeze edits. Server order responses are not persisted locally.
+The phone cart is a browser history step. Reloading with a cleared cart skips that step and shows the
+menu. A saved draft or pending submission can still restore the cart.
 
 | Situation                                 | Required recovery                                                                          |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------ |

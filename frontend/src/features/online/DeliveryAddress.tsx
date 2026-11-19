@@ -1,5 +1,6 @@
 import { MapPin, Navigation, Phone } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button-variants";
+import { formatPhone } from "@/lib/phone";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import { onlineOrdersMessages } from "./messages";
@@ -41,7 +42,11 @@ export function ContactActions({
   return (
     <div className={cn("grid gap-2", phone && address && "grid-cols-2")}>
       {phone && (
-        <a href={`tel:${phone}`} aria-label={`${m.callButton} ${phone}`} className={action}>
+        <a
+          href={`tel:${phone}`}
+          aria-label={`${m.callButton} ${formatPhone(phone)}`}
+          className={action}
+        >
           <Phone aria-hidden="true" />
           {m.callButton}
         </a>

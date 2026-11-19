@@ -15,6 +15,7 @@ import { closeOrderNotifications } from "@/features/push/device";
 import { formatKm, formatMoney, formatTime } from "@/lib/format";
 import { displayName, type Language } from "@/lib/language";
 import { optionSummary } from "@/lib/options";
+import { formatPhone } from "@/lib/phone";
 import { staffMessages } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
@@ -92,7 +93,9 @@ function PendingCard({
             <p className="text-lg font-medium wrap-break-word">{request.customerName}</p>
           )}
           {request.customerPhone && (
-            <p className="text-sm text-muted-foreground tabular-nums">{request.customerPhone}</p>
+            <p className="text-sm text-muted-foreground tabular-nums">
+              {formatPhone(request.customerPhone)}
+            </p>
           )}
         </div>
         <div className="shrink-0 text-right text-sm">
@@ -285,7 +288,9 @@ function ActiveCard({ order }: { order: OnlineActiveOrder }) {
             <p className="font-medium wrap-break-word">{order.customerName}</p>
           )}
           {order.customerPhone && (
-            <p className="text-sm text-muted-foreground tabular-nums">{order.customerPhone}</p>
+            <p className="text-sm text-muted-foreground tabular-nums">
+              {formatPhone(order.customerPhone)}
+            </p>
           )}
         </div>
         <Badge variant={progressBadges[progress]}>{m.progress[progress]}</Badge>

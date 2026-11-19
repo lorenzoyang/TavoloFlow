@@ -519,7 +519,8 @@ The menu reuses the QR page's `MenuList`, option picker, `CartBar` and the cart'
 QR page, the phone cart sheet and the option picker are history steps (`lib/useHistorySheet.ts`), so
 the back gesture closes them instead of leaving the page, and the menu keeps its scroll position. The header
 shows the restaurant's phone as a `tel:` button in every status, and the services offered as plain
-text with icons, never styled like a button. A status other than `OPEN` is
+text with icons, never styled like a button. Customer pages and staff order and bill cards group
+digits for display. Dial links use the stored phone. A status other than `OPEN` is
 explained by a text-only notice below it and keeps the checkout closed; browsing and building a cart
 stay possible. The cart repeats the reason as a warning above its disabled button, and the phone cart
 bar adds "can't order right now" after the count, so a customer scrolled past the notice still sees it. A remembered order still in

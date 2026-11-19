@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { formatMoney } from "@/lib/format";
 import type { Language } from "@/lib/language";
+import { formatPhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 import { RestaurantHeader } from "@/features/public-menu/PublicMenuViews";
 import { CartLines, EmptyCart } from "@/features/orders/OrderViews";
@@ -30,7 +31,7 @@ export function PhoneLink({
   return (
     <a href={`tel:${phone}`} className={cn(buttonVariants({ variant: "outline" }), className)}>
       <Phone aria-hidden="true" className="text-primary" />
-      {onlineOrderMessages[language].callNumber(phone)}
+      {onlineOrderMessages[language].callNumber(formatPhone(phone))}
     </a>
   );
 }

@@ -16,6 +16,7 @@ import { ContactActions, DeliveryAddress } from "@/features/online/DeliveryAddre
 import { typedDeliveryFee } from "@/features/online/state";
 import { displayName } from "@/lib/language";
 import { optionSummary } from "@/lib/options";
+import { formatPhone } from "@/lib/phone";
 import {
   formatCents,
   formatDateTime,
@@ -199,7 +200,9 @@ function BillTotal({ bill, timeZone }: { bill: BillSummary; timeZone: string }) 
             <p className="font-medium wrap-break-word">{online.customerName}</p>
           )}
           {online.customerPhone && (
-            <p className="text-sm text-muted-foreground tabular-nums">{online.customerPhone}</p>
+            <p className="text-sm text-muted-foreground tabular-nums">
+              {formatPhone(online.customerPhone)}
+            </p>
           )}
           {bill.status === "ACTIVE" && (
             <p className="text-sm">

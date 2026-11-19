@@ -6,6 +6,7 @@ import { BrandMark } from "@/components/brand";
 import { Notice } from "@/components/notice";
 import { buttonVariants } from "@/components/ui/button-variants";
 import type { Language } from "@/lib/language";
+import { formatPhone } from "@/lib/phone";
 import { useDocumentTheme } from "@/lib/useDocumentTheme";
 import { cn } from "@/lib/utils";
 import { LanguageToggle } from "@/features/public-menu/PublicMenuViews";
@@ -21,11 +22,12 @@ function PrivacyContent({ slug, data }: { slug: string; data: OnlineMenu }) {
   );
   useDocumentTheme(data.restaurant.theme);
   const m = onlineOrderMessages[language];
+  const phone = data.restaurant.publicPhone;
   return (
     <div lang={language} className="min-h-dvh">
       <OnlineHeader
         name={data.restaurant.name}
-        phone={data.restaurant.publicPhone}
+        phone={phone}
         language={language}
         selectLanguage={selectLanguage}
       />
@@ -53,12 +55,14 @@ function PrivacyContent({ slug, data }: { slug: string; data: OnlineMenu }) {
             ))}
           </ul>
         </section>
-        {m.privacySections(data.restaurant.name, data.restaurant.publicPhone).map((section) => (
-          <section key={section.heading} className="space-y-2">
-            <h3 className="font-semibold">{section.heading}</h3>
-            <p className="leading-7 wrap-break-word">{section.body}</p>
-          </section>
-        ))}
+        {m
+          .privacySections(data.restaurant.name, phone ? formatPhone(phone) : null)
+          .map((section) => (
+            <section key={section.heading} className="space-y-2">
+              <h3 className="font-semibold">{section.heading}</h3>
+              <p className="leading-7 wrap-break-word">{section.body}</p>
+            </section>
+          ))}
       </main>
     </div>
   );

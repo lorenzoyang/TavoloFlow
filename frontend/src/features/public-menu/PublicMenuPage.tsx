@@ -61,7 +61,9 @@ function MenuContent({
   const [categoryId, setCategoryId] = useState("");
   const [view, setView] = useState<"menu" | "orders">("menu");
   // The phone cart is a history step, so the back gesture closes it instead of leaving the menu.
-  const cartSheet = useHistorySheet("cart");
+  const canRestoreCart =
+    cart.cart.lines.length > 0 || !!cart.cart.pending || !!cart.receipt || !!cart.blocked;
+  const cartSheet = useHistorySheet("cart", canRestoreCart);
   // Set when the phone cart closes to let the guest join first: focus then goes to the join control.
   const focusJoin = useRef(false);
   const m = messages[language];
