@@ -39,6 +39,20 @@ function PrivacyContent({ slug, data }: { slug: string; data: OnlineMenu }) {
           {m.backToMenu}
         </Link>
         <h2 className="font-display text-2xl font-semibold">{m.privacyTitle}</h2>
+        {/* The gist first; the full notice below is what the law asks for. */}
+        <section
+          aria-labelledby="privacy-summary"
+          className="space-y-2 rounded-2xl border bg-secondary p-4"
+        >
+          <h3 id="privacy-summary" className="font-semibold">
+            {m.privacySummaryTitle}
+          </h3>
+          <ul className="list-disc space-y-1 pl-5 leading-7">
+            {m.privacySummary.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </section>
         {m.privacySections(data.restaurant.name, data.restaurant.publicPhone).map((section) => (
           <section key={section.heading} className="space-y-2">
             <h3 className="font-semibold">{section.heading}</h3>

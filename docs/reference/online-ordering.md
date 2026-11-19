@@ -666,9 +666,16 @@ accepted the fee appears above the total
 (struck through and not charged when every dish is cancelled). When the order did not go ahead (expired, rejected, all cancelled) the phone moves from the header
 into the status card. Customers cannot cancel; the page says to call instead.
 
-The privacy page names the restaurant as controller and TavoloFlow as processor, and lists the data,
-purpose, legal basis (performance of the customer's own order), retention, the customer's rights, the
-browser storage used, the optional security verification and, under map services: with automatic
+The privacy page opens with a few plain lines "in short" (only for this order, no analytics or
+advertising, deleted after 30 days, ask the restaurant), then the full notice. It names the
+restaurant as controller and TavoloFlow as processor (data stored with
+the hosting provider TavoloFlow uses), and lists the data (name and phone, and the address for a
+delivery, are required to order), purpose, legal basis (performance of the customer's own order;
+the anti-abuse measures, browser and IP digests and Turnstile, on legitimate interest, Article
+6(1)(f)), retention, the customer's rights (portability included, and objection to the
+legitimate-interest measures), the browser storage used, the optional security verification (a
+transfer outside the EU/EEA relies on the EU-U.S. Data Privacy Framework or standard contractual
+clauses, as does Google's under map services) and, under map services: with automatic
 quotes, that the delivery address goes to Geoapify (processed in the EU) only to compute the road
 distance once the customer asks for the fee ("Calculate delivery fee", or Enter in the address), with
 request logs normally kept at most

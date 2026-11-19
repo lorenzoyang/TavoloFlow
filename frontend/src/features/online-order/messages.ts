@@ -176,18 +176,26 @@ const zh = {
   statusReason: zhReasons,
   // Privacy page
   privacyTitle: "隐私说明",
+  // A few plain lines above the full notice, for customers who only want the gist.
+  privacySummaryTitle: "简单来说",
+  privacySummary: [
+    "你的信息只用于处理这一单。",
+    "不做统计，不做广告。",
+    "姓名、电话和地址 30 天后删除。",
+    "有任何问题，直接联系餐厅。",
+  ],
   privacySections: (restaurant: string, phone: string | null) => [
     {
       heading: "谁处理你的数据",
-      body: `数据控制者是 ${restaurant}${phone ? `（电话 ${phone}）` : ""}。TavoloFlow 为餐厅提供点单软件，作为处理者只按餐厅的指示处理这些数据。`,
+      body: `数据控制者是 ${restaurant}${phone ? `（电话 ${phone}）` : ""}。TavoloFlow 为餐厅提供点单软件，作为处理者只按餐厅的指示处理这些数据。数据存放在 TavoloFlow 所用托管服务商的服务器上；其他接收方见下面的「安全验证」和「地图服务」。`,
     },
     {
       heading: "收集哪些数据",
-      body: "你下单时填写的姓名和电话；选择配送时还有地址和门铃、楼层备注。",
+      body: "你下单时填写的姓名和电话；选择配送时还有地址和门铃、楼层备注。姓名和电话（配送时还有地址）是下单必需的，不填就无法提交订单；门铃、楼层备注可以不填。",
     },
     {
       heading: "用途和法律依据",
-      body: "只用于处理你这一单：确认订单、准备菜品、通知你取餐或送餐。法律依据是履行你自己下的订单（GDPR 第 6 条第 1 款 b 项），所以不需要另外勾选同意。",
+      body: "只用于处理你这一单：确认订单、准备菜品、通知你取餐或送餐。法律依据是履行你自己下的订单（GDPR 第 6 条第 1 款 b 项），所以不需要另外勾选同意。防止自动刷单和恶意占位的安全措施（见「浏览器存储」和「安全验证」）的法律依据是防止滥用的正当利益（GDPR 第 6 条第 1 款 f 项）。",
     },
     {
       heading: "保存多久",
@@ -195,7 +203,7 @@ const zh = {
     },
     {
       heading: "你的权利",
-      body: "你可以要求查看、更正或删除你的数据，或限制、反对处理。请直接联系餐厅。你也可以向意大利个人数据保护机构（Garante per la protezione dei dati personali）投诉。",
+      body: "你可以要求查看、更正或删除你的数据，以通用格式取得你提供的数据（数据可携带权），或限制处理；对基于正当利益的安全措施，你也可以提出反对。请直接联系餐厅。你也可以向意大利个人数据保护机构（Garante per la protezione dei dati personali）投诉。",
     },
     {
       heading: "浏览器存储",
@@ -203,11 +211,11 @@ const zh = {
     },
     {
       heading: "安全验证",
-      body: "若启用了安全验证，结账时浏览器会直接连接 Cloudflare Turnstile，用于防止自动刷单。Cloudflare 因此会处理你的 IP 地址以及浏览器和设备的技术信息（如 User-Agent），处理可能发生在欧盟或欧洲经济区以外，适用 Cloudflare 的 Turnstile 隐私说明。我们自己只发送验证凭证及餐厅与请求的绑定摘要，不发送姓名、电话、地址或菜品内容。",
+      body: "若启用了安全验证，结账时浏览器会直接连接 Cloudflare Turnstile，用于防止自动刷单。Cloudflare 因此会处理你的 IP 地址以及浏览器和设备的技术信息（如 User-Agent），处理可能发生在欧盟或欧洲经济区以外，传输依据欧美数据隐私框架（EU-U.S. Data Privacy Framework）或欧盟标准合同条款，并适用 Cloudflare 的 Turnstile 隐私说明。我们自己只发送验证凭证及餐厅与请求的绑定摘要，不发送姓名、电话、地址或菜品内容。",
     },
     {
       heading: "地图服务",
-      body: "餐厅启用自动配送费时，你点「计算配送费」或在地址框按回车后，填写的配送地址会发给 Geoapify（欧盟的地图服务，请求只在欧盟处理），只用来算出从餐厅出发的路程；不发送姓名、电话或菜品。Geoapify 的请求记录通常最多保留 24 小时；遇到可疑或欺诈活动等特殊情况，个别请求的细节最多保留 2 个月。订单里保存路程和配送费，不保存查到的位置；地址按上面的规则删除。送餐时，餐厅员工可能在 Google 地图中打开你的地址，查看位置和路线，这时 Google 会收到这个地址，处理可能发生在欧盟以外，适用 Google 的隐私政策。",
+      body: "餐厅启用自动配送费时，你点「计算配送费」或在地址框按回车后，填写的配送地址会发给 Geoapify（欧盟的地图服务，请求只在欧盟处理），只用来算出从餐厅出发的路程；不发送姓名、电话或菜品。Geoapify 的请求记录通常最多保留 24 小时；遇到可疑或欺诈活动等特殊情况，个别请求的细节最多保留 2 个月。订单里保存路程和配送费，不保存查到的位置；地址按上面的规则删除。送餐时，餐厅员工可能在 Google 地图中打开你的地址，查看位置和路线，这时 Google 会收到这个地址，处理可能发生在欧盟以外，传输依据欧美数据隐私框架或欧盟标准合同条款，并适用 Google 的隐私政策。",
     },
   ],
 };
@@ -403,18 +411,25 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       allCancelled: "Contatta il ristorante per sapere cosa è successo.",
     },
     privacyTitle: "Informativa privacy",
+    privacySummaryTitle: "In breve",
+    privacySummary: [
+      "I tuoi dati servono solo per questo ordine.",
+      "Nessuna statistica, nessuna pubblicità.",
+      "Nome, telefono e indirizzo si cancellano dopo 30 giorni.",
+      "Per qualsiasi domanda, contatta direttamente il ristorante.",
+    ],
     privacySections: (restaurant, phone) => [
       {
         heading: "Chi tratta i tuoi dati",
-        body: `Il titolare del trattamento è ${restaurant}${phone ? ` (telefono ${phone})` : ""}. TavoloFlow fornisce al ristorante il software per gli ordini e, come responsabile del trattamento, tratta i dati solo secondo le sue istruzioni.`,
+        body: `Il titolare del trattamento è ${restaurant}${phone ? ` (telefono ${phone})` : ""}. TavoloFlow fornisce al ristorante il software per gli ordini e, come responsabile del trattamento, tratta i dati solo secondo le sue istruzioni. I dati sono conservati sui server del fornitore di hosting usato da TavoloFlow; gli altri destinatari sono indicati in «Verifica di sicurezza» e «Servizi di mappe».`,
       },
       {
         heading: "Quali dati",
-        body: "Il nome e il telefono che inserisci quando ordini; per una consegna anche l’indirizzo e le note su citofono e piano.",
+        body: "Il nome e il telefono che inserisci quando ordini; per una consegna anche l’indirizzo e le note su citofono e piano. Nome e telefono (e per la consegna l’indirizzo) sono necessari: senza non puoi inviare l’ordine. Le note su citofono e piano sono facoltative.",
       },
       {
         heading: "Finalità e base giuridica",
-        body: "Servono solo a gestire il tuo ordine: confermarlo, prepararlo e avvisarti per il ritiro o la consegna. La base giuridica è l’esecuzione dell’ordine che fai tu (art. 6, par. 1, lett. b del GDPR), quindi non serve un consenso separato.",
+        body: "Servono solo a gestire il tuo ordine: confermarlo, prepararlo e avvisarti per il ritiro o la consegna. La base giuridica è l’esecuzione dell’ordine che fai tu (art. 6, par. 1, lett. b del GDPR), quindi non serve un consenso separato. Le misure contro gli invii automatici e gli ordini in attesa abusivi (vedi «Memoria del browser» e «Verifica di sicurezza») si basano sul legittimo interesse a prevenire gli abusi (art. 6, par. 1, lett. f del GDPR).",
       },
       {
         heading: "Per quanto tempo",
@@ -422,7 +437,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       },
       {
         heading: "I tuoi diritti",
-        body: "Puoi chiedere di accedere ai tuoi dati, correggerli o cancellarli, oppure limitarne o opporti al trattamento, contattando direttamente il ristorante. Puoi anche presentare reclamo al Garante per la protezione dei dati personali.",
+        body: "Puoi chiedere di accedere ai tuoi dati, correggerli o cancellarli, ricevere in un formato di uso comune i dati che hai fornito (portabilità) o limitarne il trattamento; puoi anche opporti alle misure di sicurezza basate sul legittimo interesse. Contatta direttamente il ristorante. Puoi anche presentare reclamo al Garante per la protezione dei dati personali.",
       },
       {
         heading: "Memoria del browser",
@@ -430,11 +445,11 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       },
       {
         heading: "Verifica di sicurezza",
-        body: "Se la verifica di sicurezza è attiva, alla cassa il browser si collega direttamente a Cloudflare Turnstile per bloccare gli invii automatici. Cloudflare tratta quindi il tuo indirizzo IP e informazioni tecniche sul browser e sul dispositivo (come lo user agent), eventualmente anche fuori dall’UE o dallo SEE, secondo l’informativa privacy di Cloudflare per Turnstile. Noi inviamo solo la prova e un’impronta del ristorante e della richiesta, senza nome, telefono, indirizzo o piatti.",
+        body: "Se la verifica di sicurezza è attiva, alla cassa il browser si collega direttamente a Cloudflare Turnstile per bloccare gli invii automatici. Cloudflare tratta quindi il tuo indirizzo IP e informazioni tecniche sul browser e sul dispositivo (come lo user agent), eventualmente anche fuori dall’UE o dallo SEE, sulla base dell’EU-U.S. Data Privacy Framework o delle clausole contrattuali standard dell’UE, secondo l’informativa privacy di Cloudflare per Turnstile. Noi inviamo solo la prova e un’impronta del ristorante e della richiesta, senza nome, telefono, indirizzo o piatti.",
       },
       {
         heading: "Servizi di mappe",
-        body: "Se il ristorante calcola il costo di consegna in automatico, quando tocchi «Calcola la consegna» (o premi Invio nel campo dell’indirizzo) l’indirizzo che hai inserito viene inviato a Geoapify (servizio di mappe dell’UE, che tratta la richiesta nell’UE) solo per calcolare la distanza su strada dal ristorante; nome, telefono e piatti non vengono inviati. Di norma Geoapify conserva i registri delle richieste al massimo 24 ore; in casi eccezionali, come attività sospette o fraudolente, può conservare i dettagli di singole richieste fino a 2 mesi. L’ordine conserva la distanza e il costo, non il punto trovato; l’indirizzo viene cancellato come indicato sopra. Per la consegna, il personale del ristorante può aprire il tuo indirizzo in Google Maps per vedere posizione e percorso: Google riceve così l’indirizzo, eventualmente anche fuori dall’UE, secondo l’informativa privacy di Google.",
+        body: "Se il ristorante calcola il costo di consegna in automatico, quando tocchi «Calcola la consegna» (o premi Invio nel campo dell’indirizzo) l’indirizzo che hai inserito viene inviato a Geoapify (servizio di mappe dell’UE, che tratta la richiesta nell’UE) solo per calcolare la distanza su strada dal ristorante; nome, telefono e piatti non vengono inviati. Di norma Geoapify conserva i registri delle richieste al massimo 24 ore; in casi eccezionali, come attività sospette o fraudolente, può conservare i dettagli di singole richieste fino a 2 mesi. L’ordine conserva la distanza e il costo, non il punto trovato; l’indirizzo viene cancellato come indicato sopra. Per la consegna, il personale del ristorante può aprire il tuo indirizzo in Google Maps per vedere posizione e percorso: Google riceve così l’indirizzo, eventualmente anche fuori dall’UE, sulla base dell’EU-U.S. Data Privacy Framework o delle clausole contrattuali standard dell’UE, secondo l’informativa privacy di Google.",
       },
     ],
   },
@@ -622,18 +637,25 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       allCancelled: "Please contact the restaurant to find out what happened.",
     },
     privacyTitle: "Privacy notice",
+    privacySummaryTitle: "In short",
+    privacySummary: [
+      "Your details are used only for this order.",
+      "No analytics, no advertising.",
+      "Name, phone and address are deleted after 30 days.",
+      "Any questions? Contact the restaurant directly.",
+    ],
     privacySections: (restaurant, phone) => [
       {
         heading: "Who handles your data",
-        body: `The controller is ${restaurant}${phone ? ` (phone ${phone})` : ""}. TavoloFlow provides the restaurant’s ordering software and, as processor, handles the data only on the restaurant’s instructions.`,
+        body: `The controller is ${restaurant}${phone ? ` (phone ${phone})` : ""}. TavoloFlow provides the restaurant’s ordering software and, as processor, handles the data only on the restaurant’s instructions. The data is stored on the servers of the hosting provider TavoloFlow uses; the other recipients are listed under «Security verification» and «Map services».`,
       },
       {
         heading: "What we collect",
-        body: "The name and phone you enter when you order; for a delivery, also the address and doorbell or floor notes.",
+        body: "The name and phone you enter when you order; for a delivery, also the address and doorbell or floor notes. The name and phone (and, for a delivery, the address) are required: without them the order can’t be sent. Doorbell and floor notes are optional.",
       },
       {
         heading: "Purpose and legal basis",
-        body: "Only to handle your order: confirm it, prepare it and tell you about pickup or delivery. The legal basis is performing the order you place (GDPR Article 6(1)(b)), so no separate consent is needed.",
+        body: "Only to handle your order: confirm it, prepare it and tell you about pickup or delivery. The legal basis is performing the order you place (GDPR Article 6(1)(b)), so no separate consent is needed. The measures against automated orders and abusive waiting orders (see «Browser storage» and «Security verification») rely on the legitimate interest in preventing abuse (GDPR Article 6(1)(f)).",
       },
       {
         heading: "How long",
@@ -641,7 +663,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       },
       {
         heading: "Your rights",
-        body: "You can ask to access, correct or delete your data, or to restrict or object to its use, by contacting the restaurant directly. You can also complain to the Italian data protection authority (Garante per la protezione dei dati personali).",
+        body: "You can ask to access, correct or delete your data, to receive the data you provided in a commonly used format (portability) or to restrict its use; you can also object to the security measures based on legitimate interest. Contact the restaurant directly. You can also complain to the Italian data protection authority (Garante per la protezione dei dati personali).",
       },
       {
         heading: "Browser storage",
@@ -649,11 +671,11 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       },
       {
         heading: "Security verification",
-        body: "When security verification is enabled, your browser connects directly to Cloudflare Turnstile at checkout to block automated orders. Cloudflare therefore processes your IP address and technical browser and device information (such as the user agent), possibly outside the EU/EEA, under Cloudflare’s Turnstile privacy policy. We send only the proof and a restaurant/request binding digest, not names, phones, addresses or dishes.",
+        body: "When security verification is enabled, your browser connects directly to Cloudflare Turnstile at checkout to block automated orders. Cloudflare therefore processes your IP address and technical browser and device information (such as the user agent), possibly outside the EU/EEA, on the basis of the EU-U.S. Data Privacy Framework or the EU standard contractual clauses, under Cloudflare’s Turnstile privacy policy. We send only the proof and a restaurant/request binding digest, not names, phones, addresses or dishes.",
       },
       {
         heading: "Map services",
-        body: "If the restaurant calculates delivery fees automatically, when you tap «Calculate delivery fee» (or press Enter in the address field) the delivery address you entered is sent to Geoapify (an EU mapping service that processes the request within the EU) only to work out the road distance from the restaurant; names, phones and dishes are not sent. Geoapify normally keeps request logs for at most 24 hours; in exceptional cases, such as suspicious or fraudulent activity, it may keep details of individual requests for up to 2 months. The order keeps the distance and the fee, not the point found; the address is deleted as described above. To deliver, restaurant staff may open your address in Google Maps to see the location and route: Google then receives the address, possibly outside the EU, under Google’s privacy policy.",
+        body: "If the restaurant calculates delivery fees automatically, when you tap «Calculate delivery fee» (or press Enter in the address field) the delivery address you entered is sent to Geoapify (an EU mapping service that processes the request within the EU) only to work out the road distance from the restaurant; names, phones and dishes are not sent. Geoapify normally keeps request logs for at most 24 hours; in exceptional cases, such as suspicious or fraudulent activity, it may keep details of individual requests for up to 2 months. The order keeps the distance and the fee, not the point found; the address is deleted as described above. To deliver, restaurant staff may open your address in Google Maps to see the location and route: Google then receives the address, possibly outside the EU, on the basis of the EU-U.S. Data Privacy Framework or the EU standard contractual clauses, under Google’s privacy policy.",
       },
     ],
   },
