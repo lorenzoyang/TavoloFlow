@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { staffNavItems } from "@/features/accounts/navigation";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatTime } from "@/lib/format";
 import { displayName } from "@/lib/language";
 import { optionSummary } from "@/lib/options";
 import { sessionTitle } from "@/lib/session-label";
@@ -160,7 +160,12 @@ function PassContent({ account }: { account: CurrentAccount }) {
                     : "bg-muted-foreground/40",
               )}
             />
-            {model.head ? c.lastSync(formatDateTime(model.head.receivedAt, language)) : c.notSynced}
+            {/* The green dot says it is fresh; the full date matters only once updates stop. */}
+            {model.head
+              ? model.stalled
+                ? c.lastSync(formatDateTime(model.head.receivedAt, language))
+                : c.synced(formatTime(model.head.receivedAt, language))
+              : c.notSynced}
           </p>
         </div>
         {model.stalled && (

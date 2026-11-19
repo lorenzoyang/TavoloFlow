@@ -652,9 +652,11 @@ once accepted, the estimated time in large type on its own. `state.ts` derives w
 `phase`, `sessionStatus`, `closeReason` and the dish statuses (`orderView`, `statusCopy`): waiting,
 expired, rejected with or without a reason, preparing (with the estimated time), ready, all dishes
 cancelled, completed (`PAID`) and closed (`NO_SHOW` or `VOIDED`), with pickup and delivery wording
-where the customer's next step differs. An `OUT_OF_RANGE` rejection reads "the restaurant can't
-deliver to this address": a restaurant may refuse a quoted address too, one inside the distance but
-outside the area its note describes, so the wording never contradicts the quote. The progress line has three steps: sent, accepted and ready.
+where the customer's next step differs. When the order did not go ahead (expired, rejected, all
+dishes cancelled) the status line is a short headline ("Order not accepted") and the reason, when
+there is one, follows on its own line (`statusReason`). An `OUT_OF_RANGE` rejection's reason reads
+"this address is outside the delivery area": a restaurant may refuse a quoted address too, one inside
+the distance but outside the area its note describes, so the wording never contradicts the quote. The progress line has three steps: sent, accepted and ready.
 There is no collected or delivered step: the customer meets staff at the handover, pass taps are
 optional and the owner may close the bill much later, so the page could not know in time. A `PAID`
 closure shows every step done and the neutral "order completed".
@@ -910,7 +912,10 @@ A missing phone or week is explained in one warning. Each card shows its own sav
 beside the button that sent it; editing the card again clears a saved result (a failure stays until
 the next attempt), so "saved" never stands beside unsaved changes. The page top keeps only read
 errors.
-Time inputs cannot hold 24:00, so 00:00 as a closing time means midnight. The query key is
+Time inputs cannot hold 24:00, so 00:00 as a closing time means midnight; the status card writes a
+slot or pause ending at midnight as 24:00 (`formatClosingTime`, `formatWeekdayClosingTime`). Each day
+with slots offers "Copy to other days": a dialog ticks every other day by default and replaces the
+ticked days' slots in the draft (`copyDay`), which the owner still saves. The query key is
 `["online-settings", restaurantId, userId]`; the visible page rereads it every 60 seconds because
 slots and pauses change with the clock. Local form edits survive background refreshes until saved or
 discarded.

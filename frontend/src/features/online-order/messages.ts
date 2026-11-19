@@ -1,6 +1,16 @@
 import type { Language } from "@/lib/language";
 import type { StatusCopy } from "./state";
 
+// The line under a short status headline when the order did not go ahead; other states have none.
+const zhReasons: Partial<Record<StatusCopy, string>> = {
+  expired: "餐厅没有及时确认。可以致电餐厅，或重新下单。",
+  rejectedSoldOut: "部分菜品已售完。",
+  rejectedBusy: "餐厅现在太忙。",
+  rejectedClosing: "餐厅即将打烊。",
+  rejectedOutOfRange: "这个地址不在配送范围内。",
+  allCancelled: "请联系餐厅了解情况。",
+};
+
 const zh = {
   // Menu page
   title: "线上点单",
@@ -149,20 +159,21 @@ const zh = {
   cannotCancel: "如需修改或取消订单，请致电餐厅。",
   status: {
     waiting: "已提交，等待餐厅确认",
-    expired: "餐厅未能及时确认，订单未生效。请致电餐厅，或重新下单。",
-    rejectedSoldOut: "餐厅无法接单：部分菜品已售完。",
-    rejectedBusy: "餐厅无法接单：餐厅现在太忙。",
-    rejectedClosing: "餐厅无法接单：餐厅即将打烊。",
-    rejectedOutOfRange: "餐厅无法配送到这个地址。",
-    rejectedNoReason: "餐厅暂时无法接单。",
+    expired: "订单未生效",
+    rejectedSoldOut: "餐厅没有接单",
+    rejectedBusy: "餐厅没有接单",
+    rejectedClosing: "餐厅没有接单",
+    rejectedOutOfRange: "餐厅没有接单",
+    rejectedNoReason: "餐厅没有接单",
     preparingPickup: "已接单，请按预计时间前来取餐",
     preparingDelivery: "已接单，正在准备",
     readyPickup: "可以取餐了",
     readyDelivery: "餐已做好，将尽快送到",
-    allCancelled: "订单菜品已全部取消，请联系餐厅。",
+    allCancelled: "菜品已全部取消",
     completed: "订单已完成",
     closed: "订单已关闭",
   } satisfies Record<StatusCopy, string>,
+  statusReason: zhReasons,
   // Privacy page
   privacyTitle: "隐私说明",
   privacySections: (restaurant: string, phone: string | null) => [
@@ -369,20 +380,27 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     cannotCancel: "Per modificare o annullare l’ordine, chiama il ristorante.",
     status: {
       waiting: "Inviato, in attesa di conferma",
-      expired:
-        "Il ristorante non ha confermato in tempo: l’ordine non è valido. Chiama il ristorante o ordina di nuovo.",
-      rejectedSoldOut: "Il ristorante non può accettare: alcuni piatti sono esauriti.",
-      rejectedBusy: "Il ristorante non può accettare: ora è troppo pieno.",
-      rejectedClosing: "Il ristorante non può accettare: sta per chiudere.",
-      rejectedOutOfRange: "Il ristorante non può consegnare a questo indirizzo.",
-      rejectedNoReason: "Il ristorante per ora non può accettare l’ordine.",
+      expired: "Ordine non confermato",
+      rejectedSoldOut: "Ordine non accettato",
+      rejectedBusy: "Ordine non accettato",
+      rejectedClosing: "Ordine non accettato",
+      rejectedOutOfRange: "Ordine non accettato",
+      rejectedNoReason: "Ordine non accettato",
       preparingPickup: "Ordine accettato: passa all’orario previsto",
       preparingDelivery: "Ordine accettato, in preparazione",
       readyPickup: "Pronto da ritirare",
       readyDelivery: "Pronto, arriverà il prima possibile",
-      allCancelled: "Tutti i piatti dell’ordine sono stati annullati: contatta il ristorante.",
+      allCancelled: "Piatti tutti annullati",
       completed: "Ordine completato",
       closed: "Ordine chiuso",
+    },
+    statusReason: {
+      expired: "Il ristorante non ha confermato in tempo. Puoi chiamarlo o ordinare di nuovo.",
+      rejectedSoldOut: "Alcuni piatti sono esauriti.",
+      rejectedBusy: "Il ristorante ora è troppo pieno.",
+      rejectedClosing: "Il ristorante sta per chiudere.",
+      rejectedOutOfRange: "Questo indirizzo è fuori dalla zona di consegna.",
+      allCancelled: "Contatta il ristorante per sapere cosa è successo.",
     },
     privacyTitle: "Informativa privacy",
     privacySections: (restaurant, phone) => [
@@ -581,20 +599,27 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     cannotCancel: "To change or cancel the order, call the restaurant.",
     status: {
       waiting: "Sent, waiting for the restaurant",
-      expired:
-        "The restaurant didn’t confirm in time, so the order isn’t valid. Call the restaurant or order again.",
-      rejectedSoldOut: "The restaurant can’t take the order: some dishes are sold out.",
-      rejectedBusy: "The restaurant can’t take the order: it’s too busy right now.",
-      rejectedClosing: "The restaurant can’t take the order: it’s about to close.",
-      rejectedOutOfRange: "The restaurant can’t deliver to this address.",
-      rejectedNoReason: "The restaurant can’t take the order right now.",
+      expired: "Order not confirmed",
+      rejectedSoldOut: "Order not accepted",
+      rejectedBusy: "Order not accepted",
+      rejectedClosing: "Order not accepted",
+      rejectedOutOfRange: "Order not accepted",
+      rejectedNoReason: "Order not accepted",
       preparingPickup: "Accepted: come at the estimated time",
       preparingDelivery: "Accepted and being prepared",
       readyPickup: "Ready to collect",
       readyDelivery: "Ready, coming to you as soon as possible",
-      allCancelled: "Every dish in this order was cancelled. Please contact the restaurant.",
+      allCancelled: "All dishes cancelled",
       completed: "Order completed",
       closed: "Order closed",
+    },
+    statusReason: {
+      expired: "The restaurant didn’t confirm in time. You can call it or order again.",
+      rejectedSoldOut: "Some dishes are sold out.",
+      rejectedBusy: "The restaurant is too busy right now.",
+      rejectedClosing: "The restaurant is about to close.",
+      rejectedOutOfRange: "This address is outside the delivery area.",
+      allCancelled: "Please contact the restaurant to find out what happened.",
     },
     privacyTitle: "Privacy notice",
     privacySections: (restaurant, phone) => [

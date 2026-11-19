@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import type { OrderLine } from "@/features/orders/api";
-import { formatDateTime, formatMoney, shortId } from "@/lib/format";
+import { formatDateTime, formatMoney, formatTime, shortId } from "@/lib/format";
 import { displayName } from "@/lib/language";
 import { sessionText } from "@/lib/session-label";
 import { staffMessages } from "@/lib/staff-messages";
@@ -129,8 +129,11 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
                     : "bg-muted-foreground/40",
               )}
             />
+            {/* The green dot says it is fresh; the full date matters only once updates stop. */}
             {model.summary
-              ? c.lastSync(formatDateTime(model.summary.receivedAt, language))
+              ? model.stalled
+                ? c.lastSync(formatDateTime(model.summary.receivedAt, language))
+                : c.synced(formatTime(model.summary.receivedAt, language))
               : c.notSynced}
           </p>
         </div>

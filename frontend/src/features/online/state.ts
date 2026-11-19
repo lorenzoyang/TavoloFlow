@@ -49,6 +49,14 @@ export function weekDraft(hours: OnlineHour[]): WeekDraft {
   return week;
 }
 
+// Gives other weekdays the same slots as one day, replacing theirs; the owner still saves the week.
+export function copyDay(week: WeekDraft, from: number, to: readonly number[]): WeekDraft {
+  const copy = { ...week };
+  for (const day of to)
+    if (day !== from) copy[day] = (week[from] ?? []).map((slot) => ({ ...slot }));
+  return copy;
+}
+
 export type WeekProblem = "time" | "order" | "overlap" | "tooMany";
 export type WeekResult =
   { ok: true; hours: OnlineHour[] } | { ok: false; weekday: number; problem: WeekProblem };

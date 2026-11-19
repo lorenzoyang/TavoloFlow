@@ -66,6 +66,10 @@ const zh = {
   removeSlot: (day: string, index: number) => `删除${day}第 ${index} 段`,
   saveHours: "保存营业时间",
   discardChanges: "放弃修改",
+  copyDay: "复制到其他日子",
+  copyTitle: (day: string) => `复制${day}的时段`,
+  copyHint: "选择要改成相同时段的日子，它们原来的时段会被替换。点「保存营业时间」后才生效。",
+  copyConfirm: "复制",
   weekProblem: (day: string, problem: WeekProblem) =>
     `${day}：${
       {
@@ -211,6 +215,11 @@ export const onlineMessages: Record<Language, typeof zh> = {
     removeSlot: (day, index) => `Rimuovi la fascia ${index} di ${day}`,
     saveHours: "Salva orari",
     discardChanges: "Annulla modifiche",
+    copyDay: "Copia su altri giorni",
+    copyTitle: (day) => `Copia le fasce di ${day}`,
+    copyHint:
+      "Scegli i giorni che devono avere le stesse fasce: le loro fasce attuali vengono sostituite. Valgono dopo «Salva orari».",
+    copyConfirm: "Copia",
     weekProblem: (day, problem) =>
       `${day}: ${
         {
@@ -354,6 +363,11 @@ export const onlineMessages: Record<Language, typeof zh> = {
     removeSlot: (day, index) => `Remove ${day} slot ${index}`,
     saveHours: "Save hours",
     discardChanges: "Discard changes",
+    copyDay: "Copy to other days",
+    copyTitle: (day) => `Copy ${day} slots`,
+    copyHint:
+      "Pick the days that should have the same slots: their current slots are replaced. They apply once you tap «Save hours».",
+    copyConfirm: "Copy",
     weekProblem: (day, problem) =>
       `${day}: ${
         {

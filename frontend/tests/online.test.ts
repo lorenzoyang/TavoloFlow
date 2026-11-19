@@ -22,6 +22,7 @@ import {
   requestTimes,
   parseTime,
   sameDelivery,
+  copyDay,
   sameHours,
   timeInputValue,
   typedDeliveryFee,
@@ -92,6 +93,27 @@ test("a valid week becomes sorted hours and round-trips through the draft", () =
     { opens: "15:00", closes: "16:00" },
   ];
   assert.equal(weekHours(week).ok, true);
+});
+
+test("copying a day replaces the chosen days' slots with independent copies", () => {
+  const week = empty();
+  week[2] = [
+    { opens: "12:00", closes: "15:00" },
+    { opens: "19:00", closes: "00:00" },
+  ];
+  week[3] = [{ opens: "11:00", closes: "14:00" }];
+  const copied = copyDay(week, 2, [2, 3, 4]);
+  assert.deepEqual(copied[3], week[2]);
+  assert.deepEqual(copied[4], week[2]);
+  // The source day, the days not chosen and the original draft stay as they were.
+  assert.equal(copied[2], week[2]);
+  assert.deepEqual(copied[1], []);
+  assert.deepEqual(week[3], [{ opens: "11:00", closes: "14:00" }]);
+  // Editing a copy never edits the source.
+  copied[3][0].opens = "10:00";
+  assert.equal(week[2][0].opens, "12:00");
+  // Copying a closed day closes the chosen days.
+  assert.deepEqual(copyDay(week, 1, [3])[3], []);
 });
 
 test("invalid days name the weekday and the problem", () => {
@@ -172,11 +194,11 @@ test("sessions are named by their table or their online ticket in every language
   assert.equal(sessionText(table, "en"), "Table 5");
   assert.equal(sessionTitle(pickup, "zh"), "自取 #12");
   assert.equal(sessionTitle(pickup, "it"), "Ritiro #12");
-  assert.equal(sessionText(pickup, "en"), "Pickup #12 · Marco · 18:25");
+  assert.equal(sessionText(pickup, "en"), "Pickup #12 · Marco · Expected 18:25");
   assert.equal(sessionTitle({ ...pickup, channel: "DELIVERY" }, "it"), "Consegna #12");
-  // Contact data cleared after 30 days leaves the number and time.
+  // Contact data cleared after 30 days leaves the number and the estimated time.
   const cleared = { ...pickup, online: { ...pickup.online!, customerName: null } };
-  assert.equal(sessionText(cleared, "zh"), "自取 #12 · 18:25");
+  assert.equal(sessionText(cleared, "zh"), "自取 #12 · 预计 18:25");
   assert.equal(namesSession(table), true);
   assert.equal(namesSession(pickup), true);
   assert.equal(namesSession({ ...table, tableLabel: null }), false);

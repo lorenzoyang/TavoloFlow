@@ -9,6 +9,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -21,7 +30,7 @@ import { ServiceNotOffered } from "@/features/accounts/ServiceNotOffered";
 import { qrPng } from "@/features/tables/qr-image";
 import { isLocalOnlyUrl, publicMenuUrl } from "@/features/tables/qr-url";
 import { errorMessage, withTimeout } from "@/lib/api";
-import { formatTime, formatWeekdayTime } from "@/lib/format";
+import { formatClosingTime, formatWeekdayClosingTime, formatWeekdayTime } from "@/lib/format";
 import { LANGUAGES, type Language } from "@/lib/language";
 import { staffMessages } from "@/lib/staff-messages";
 import { isLive, onLifecycleChange } from "@/lib/useLiveView";
@@ -42,6 +51,7 @@ import {
 } from "./api";
 import { onlineMessages } from "./messages";
 import {
+  copyDay,
   couponInput,
   deliveryDraft,
   deliveryInput,
@@ -108,11 +118,11 @@ function StatusCard({
   const hint = explained
     ? null
     : settings.status === "OPEN" && settings.currentSlotEndsAt
-      ? m.openHint(formatTime(settings.currentSlotEndsAt, language))
+      ? m.openHint(formatClosingTime(settings.currentSlotEndsAt, language))
       : settings.status === "BUSY"
         ? m.busyHint
         : settings.status === "PAUSED" && settings.pausedUntil
-          ? m.pausedHint(formatWeekdayTime(settings.pausedUntil, language))
+          ? m.pausedHint(formatWeekdayClosingTime(settings.pausedUntil, language))
           : settings.status === "CLOSED_HOURS" && settings.nextOpensAt
             ? m.closedHint(formatWeekdayTime(settings.nextOpensAt, language))
             : settings.status === "NOT_OFFERED"
@@ -147,7 +157,7 @@ function StatusCard({
                 onClick={() => send((signal) => pauseOnline("SLOT", signal))}
               >
                 {settings.currentSlotEndsAt
-                  ? m.pauseSlot(formatTime(settings.currentSlotEndsAt, language))
+                  ? m.pauseSlot(formatClosingTime(settings.currentSlotEndsAt, language))
                   : m.pauseSlotUnavailable}
               </Button>
               <p className="text-sm text-muted-foreground">{m.pauseSlotHint}</p>
@@ -374,11 +384,15 @@ function HoursCard({
   const week = draft ?? weekDraft(settings.hours);
   const parsed = weekHours(week);
   const unchanged = draft === null || (parsed.ok && sameHours(parsed.hours, settings.hours));
-  const edit = (weekday: number, slots: WeekDraft[number]) => {
+  // The day whose slots the copy dialog offers to other days; kept while the dialog closes, and
+  // counted so each opening starts with every other day ticked again.
+  const [copying, setCopying] = useState<{ from: number; open: boolean; n: number } | null>(null);
+  const change = (next: WeekDraft) => {
     edited();
     setError("");
-    setDraft({ ...week, [weekday]: slots });
+    setDraft(next);
   };
+  const edit = (weekday: number, slots: WeekDraft[number]) => change({ ...week, [weekday]: slots });
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
@@ -482,23 +496,42 @@ function HoursCard({
                       </Button>
                     </div>
                   ))}
-                  {slots.length < 2 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() =>
-                        edit(weekday, [
-                          ...slots,
-                          slots.length === 0
-                            ? { opens: "12:00", closes: "14:30" }
-                            : { opens: "19:00", closes: "22:00" },
-                        ])
-                      }
-                    >
-                      <Plus />
-                      {m.addSlot}
-                    </Button>
-                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {slots.length < 2 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() =>
+                          edit(weekday, [
+                            ...slots,
+                            slots.length === 0
+                              ? { opens: "12:00", closes: "14:30" }
+                              : { opens: "19:00", closes: "22:00" },
+                          ])
+                        }
+                      >
+                        <Plus />
+                        {m.addSlot}
+                      </Button>
+                    )}
+                    {/* Most restaurants keep the same hours on most days. */}
+                    {slots.length > 0 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() =>
+                          setCopying((last) => ({
+                            from: weekday,
+                            open: true,
+                            n: (last?.n ?? 0) + 1,
+                          }))
+                        }
+                      >
+                        <Copy />
+                        {m.copyDay}
+                      </Button>
+                    )}
+                  </div>
                 </fieldset>
               );
             })}
@@ -524,6 +557,19 @@ function HoursCard({
             )}
           </div>
         </form>
+        {copying && (
+          <CopyDayDialog
+            key={copying.n}
+            from={copying.from}
+            open={copying.open}
+            busy={busy}
+            close={() => setCopying({ ...copying, open: false })}
+            copy={(to) => {
+              change(copyDay(week, copying.from, to));
+              setCopying({ ...copying, open: false });
+            }}
+          />
+        )}
       </CardContent>
     </Card>
   );
@@ -533,6 +579,62 @@ function HoursCard({
 // language, saved together like the week of hours. The switch turns the whole card on, so it comes
 // first, and the badge beside the title shows the saved state: a switch changed but not saved never
 // reads as delivery being on. Turning it on still needs the coordinates and a band when saving.
+// Picks the days that take one day's slots: every other day starts ticked, the usual case.
+function CopyDayDialog({
+  from,
+  open,
+  busy,
+  close,
+  copy,
+}: {
+  from: number;
+  open: boolean;
+  busy: boolean;
+  close: () => void;
+  copy: (to: number[]) => void;
+}) {
+  const language = useStaffLanguage();
+  const m = onlineMessages[language];
+  const [to, setTo] = useState<number[]>(() => WEEKDAYS.filter((day) => day !== from));
+  return (
+    <Dialog open={open} onOpenChange={(next) => !next && close()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="text-lg font-semibold">
+            {m.copyTitle(m.weekdays[from - 1])}
+          </DialogTitle>
+          <DialogDescription>{m.copyHint}</DialogDescription>
+        </DialogHeader>
+        <ul>
+          {WEEKDAYS.filter((day) => day !== from).map((day) => (
+            <li key={day}>
+              <label className="flex min-h-11 items-center gap-3">
+                <Checkbox
+                  checked={to.includes(day)}
+                  onCheckedChange={(checked) =>
+                    setTo((days) =>
+                      checked ? [...days, day] : days.filter((value) => value !== day),
+                    )
+                  }
+                />
+                {m.weekdays[day - 1]}
+              </label>
+            </li>
+          ))}
+        </ul>
+        <DialogFooter>
+          <Button variant="outline" onClick={close}>
+            {staffMessages[language].cancel}
+          </Button>
+          <Button disabled={busy || to.length === 0} onClick={() => copy(to)}>
+            {m.copyConfirm}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function DeliveryCard({
   settings,
   busy,

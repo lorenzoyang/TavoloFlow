@@ -218,7 +218,6 @@ function BillTotal({ bill, timeZone }: { bill: BillSummary; timeZone: string }) 
       <p className="text-sm text-muted-foreground">
         {online ? m.online.times(opened, closed) : m.times(opened, closed)}
       </p>
-      <p className="text-xs break-all text-muted-foreground">{m.sessionId(bill.sessionId)}</p>
     </div>
   );
 }
@@ -242,9 +241,12 @@ function BillDetails({
       {bill && (
         <>
           <BillTotal bill={bill} timeZone={timeZone} />
-          <p className="text-sm leading-6 text-muted-foreground">
-            {m.shown(model.orders.length, bill.orderCount)}
-          </p>
+          {/* Only while some orders are not loaded; the amount above always counts them all. */}
+          {model.query.hasNextPage && (
+            <p className="text-sm leading-6 text-muted-foreground">
+              {m.shown(model.orders.length, bill.orderCount)}
+            </p>
+          )}
           {model.orders.map((order) => (
             <BillOrder key={order.id} order={order} timeZone={timeZone} />
           ))}
@@ -428,7 +430,7 @@ export function ActiveBillPanel({
             </Button>
           }
         >
-          <span className="break-all">{m.pending(action.sessionId)}</span>
+          {m.pending(shortId(action.sessionId))}
         </Notice>
       ))}
       {model.session.isError && (

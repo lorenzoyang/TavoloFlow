@@ -150,7 +150,9 @@ and amount the human saw; a preliminary GET is not a substitute for the server t
 
 Before writing, persist minimal `{ sessionId, kind }` per tab/restaurant/account. Never persist the
 bill body, code or credentials. If storage fails, retain in-memory recovery and warn the operator to
-record the visit ID before refreshing. Timeout, network failure and 5xx mean an unknown result.
+check the result on the page before refreshing. The bill detail shows no visit ID; a pending closure
+names the visit by its short reference (`shortId`), and the "showing N of M orders" note appears only
+while more orders remain to load, since the amount always counts them all. Timeout, network failure and 5xx mean an unknown result.
 
 | Original-session recovery result | UI behavior                                                                                                   |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------- |

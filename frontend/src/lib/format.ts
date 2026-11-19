@@ -57,17 +57,38 @@ export function formatTime(
   });
 }
 
+const weekday = (value: string | number, language: Language, timeZone: string) =>
+  new Date(value).toLocaleDateString(locales[language], { timeZone, weekday: "short" });
+
 // "Wed 12:00" in the restaurant's time zone, for moments within the coming week.
 export function formatWeekdayTime(
   value: string | number,
   language: Language = "zh",
   timeZone = RESTAURANT_TIME_ZONE,
 ) {
-  const weekday = new Date(value).toLocaleDateString(locales[language], {
-    timeZone,
-    weekday: "short",
-  });
-  return `${weekday} ${formatTime(value, language, timeZone)}`;
+  return `${weekday(value, language, timeZone)} ${formatTime(value, language, timeZone)}`;
+}
+
+// A moment that ends something (a slot of opening hours, a pause): midnight is the end of the day
+// before, so it reads 24:00, as the hours editor writes it, never as a 00:00 already past.
+export function formatClosingTime(
+  value: string | number,
+  language: Language = "zh",
+  timeZone = RESTAURANT_TIME_ZONE,
+) {
+  const time = formatTime(value, language, timeZone);
+  return time === "00:00" ? "24:00" : time;
+}
+
+// "Wed 24:00" rather than "Thu 00:00" for an end at midnight.
+export function formatWeekdayClosingTime(
+  value: string | number,
+  language: Language = "zh",
+  timeZone = RESTAURANT_TIME_ZONE,
+) {
+  const time = formatClosingTime(value, language, timeZone);
+  const day = time === "24:00" ? new Date(value).getTime() - 60_000 : value;
+  return `${weekday(day, language, timeZone)} ${time}`;
 }
 
 // A short reference people can read out. Server IDs are UUIDv7, whose leading digits are a timestamp
