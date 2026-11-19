@@ -61,8 +61,9 @@ kitchen, the pass and the bill.
 
 ![Guest menu, option picker and cart on a phone](docs/images/guest-en.webp)
 
-**One online order, start to finish** (about 20 seconds): a customer orders a delivery from the
-restaurant's link, staff accept it with the fee and a time, then the kitchen, the pass and the bill.
+**One online order, start to finish** (about 25 seconds): a customer opens the restaurant's link,
+calculates the delivery fee at checkout and places the order. Staff accept it by choosing an estimated
+delivery time, then it goes through the kitchen, the pass and the bill.
 
 ![An online delivery: the customer orders, staff accept it, kitchen, pass and bill](docs/images/walkthrough-online-en.webp)
 

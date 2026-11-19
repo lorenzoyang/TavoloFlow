@@ -64,8 +64,9 @@ cucina, pass e conto.
 
 ![Menu, opzioni del piatto e carrello su un telefono](docs/images/guest-it.webp)
 
-**Un ordine online dall'inizio alla fine** (circa 20 secondi): un cliente ordina una consegna dal link
-del ristorante, lo staff la accetta con il costo di consegna e un orario, poi cucina, pass e conto.
+**Un ordine online dall'inizio alla fine** (circa 25 secondi): un cliente apre il link del ristorante,
+calcola il costo di consegna alla cassa e invia l'ordine. Lo staff lo accetta scegliendo l'orario
+previsto per la consegna, poi cucina, pass e conto.
 
 ![Una consegna online: il cliente ordina, lo staff accetta, cucina, pass e conto](docs/images/walkthrough-online-it.webp)
 
