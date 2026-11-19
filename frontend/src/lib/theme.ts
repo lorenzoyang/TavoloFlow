@@ -1,5 +1,5 @@
-// Restaurant colour presets, chosen by the platform. Each non-default theme is a [data-theme] block in
-// index.css. Their names (the colour, not a cuisine) and hints live in features/platform/messages.ts.
+// Restaurant brand and customer banner presets, chosen by the platform. Each non-default theme is a
+// [data-theme] block in index.css. Its name and hint live in features/platform/messages.ts.
 export const THEMES = ["TERRACOTTA", "LACQUER", "INDIGO", "INK", "TARO"] as const;
 export type RestaurantTheme = (typeof THEMES)[number];
 export const DEFAULT_THEME: RestaurantTheme = "TERRACOTTA";

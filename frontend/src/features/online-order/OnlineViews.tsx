@@ -71,7 +71,7 @@ export function OnlineHeader({
       selectLanguage={selectLanguage}
       details={
         delivery === undefined ? undefined : (
-          <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+          <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
             <ServiceTag icon={ShoppingBag}>{m.pickup}</ServiceTag>
             {delivery && <ServiceTag icon={Bike}>{m.delivery}</ServiceTag>}
           </ul>

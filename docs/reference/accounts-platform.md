@@ -186,10 +186,12 @@ removes them.
 ## Presentation settings
 
 Only the platform sets a restaurant theme: TERRACOTTA, LACQUER, INDIGO, INK or TARO. The update changes
-only that field, sends the target value and needs no confirmation. Themes affect brand colors only;
-state colors, fonts and layout stay shared. `restaurantTheme` in store identity and `restaurant.theme`
-in public bootstrap feed `useDocumentTheme` on `<html>`, including portals. Sign-in, first password
-change and platform pages keep the default palette.
+only that field, sends the target value and needs no confirmation. Themes set the brand palette for
+signed-in staff and customer pages. The shared banner on the QR menu, online menu, order status and
+privacy pages has a theme-specific gradient, pattern and trim. Platform theme choices preview the
+same banner styles. All themes share state colors, fonts, radius and layout. `restaurantTheme` in
+store identity and `restaurant.theme` in public bootstrap feed `useDocumentTheme` on `<html>`,
+including portals. Sign-in, first password change and platform pages use the default palette.
 
 The optional map URL is platform-only and reserved for a future public restaurant list. It must be an
 HTTPS Google Maps link (`maps.app.goo.gl`, `maps.google.*`, or `google.*/maps`), at most 2048 characters.

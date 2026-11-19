@@ -121,7 +121,7 @@ const zh = {
   theme: "主题",
   themeForm: "更换餐厅主题",
   themeHint:
-    "只改变颜色，不影响布局和数据。顾客菜单约 30 秒内更新，店铺页面在重新打开或切回前台时更新。",
+    "主题应用于顾客端的页眉和店铺配色。顾客菜单约 30 秒内更新，店铺页面在重新打开或切回前台时更新。",
   saveTheme: "保存主题",
   noMap: "尚未登记",
   editMapForm: "编辑 Google 地图链接",
@@ -182,7 +182,7 @@ const zh = {
   deleteForever: "永久删除",
   confirm: "确认执行",
   // Themes and map links.
-  themeLegend: "餐厅主题（顾客菜单与店铺页面的配色）",
+  themeLegend: "餐厅主题",
   themes: {
     TERRACOTTA: { name: "赤陶", hint: "默认 · 意式、综合" },
     LACQUER: { name: "朱漆", hint: "中餐" },
@@ -310,7 +310,7 @@ export const platformMessages: Record<Language, typeof zh> = {
     theme: "Tema",
     themeForm: "Cambia tema del ristorante",
     themeHint:
-      "Cambia solo i colori, non la struttura né i dati. Il menu dei clienti si aggiorna entro circa 30 secondi, le pagine del locale alla riapertura o al ritorno in primo piano.",
+      "Il tema si applica alle testate delle pagine dei clienti e ai colori delle pagine del locale. Il menu dei clienti si aggiorna entro circa 30 secondi, le pagine del locale alla riapertura o al ritorno in primo piano.",
     saveTheme: "Salva tema",
     noMap: "Non registrato",
     editMapForm: "Modifica link a Google Maps",
@@ -372,7 +372,7 @@ export const platformMessages: Record<Language, typeof zh> = {
     stateChanged: "Lo stato è cambiato: annulla e verifica di nuovo.",
     deleteForever: "Elimina definitivamente",
     confirm: "Conferma",
-    themeLegend: "Tema del ristorante (colori del menu dei clienti e delle pagine del locale)",
+    themeLegend: "Tema del ristorante",
     themes: {
       TERRACOTTA: { name: "Terracotta", hint: "Predefinito · italiano, vario" },
       LACQUER: { name: "Lacca", hint: "Cucina cinese" },
@@ -495,7 +495,7 @@ export const platformMessages: Record<Language, typeof zh> = {
     theme: "Theme",
     themeForm: "Change restaurant theme",
     themeHint:
-      "Changes only the colours, not the layout or data. The guest menu updates within about 30 seconds, restaurant pages when reopened or brought back to the foreground.",
+      "The theme styles customer page headers and restaurant page colours. The guest menu updates within about 30 seconds, restaurant pages when reopened or brought back to the foreground.",
     saveTheme: "Save theme",
     noMap: "Not registered",
     editMapForm: "Edit Google Maps link",
@@ -557,7 +557,7 @@ export const platformMessages: Record<Language, typeof zh> = {
     stateChanged: "The state has changed: cancel and check again.",
     deleteForever: "Delete permanently",
     confirm: "Confirm",
-    themeLegend: "Restaurant theme (colours of the guest menu and restaurant pages)",
+    themeLegend: "Restaurant theme",
     themes: {
       TERRACOTTA: { name: "Terracotta", hint: "Default · Italian, general" },
       LACQUER: { name: "Lacquer", hint: "Chinese" },

@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from "react";
-import { Copy, KeyRound } from "lucide-react";
+import { Check, Copy, KeyRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,27 +22,34 @@ export function ThemeChoices({
   return (
     <fieldset className="space-y-2">
       <legend className="mb-2 text-sm font-medium">{m.themeLegend}</legend>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-        {THEMES.map((theme) => (
-          <label
-            key={theme}
-            data-theme={themeAttribute(theme) ?? undefined}
-            className="flex min-h-14 cursor-pointer items-center gap-2.5 rounded-xl border bg-background p-2.5 text-foreground has-checked:border-primary has-checked:ring-2 has-checked:ring-primary/40 has-focus-visible:ring-3 has-focus-visible:ring-ring/50 has-disabled:cursor-not-allowed has-disabled:opacity-50"
-          >
-            <input
-              type="radio"
-              name={name}
-              value={theme}
-              defaultChecked={theme === defaultValue}
-              className="sr-only"
-            />
-            <span aria-hidden="true" className="size-7 shrink-0 rounded-full bg-primary" />
-            <span className="min-w-0">
-              <span className="block text-sm font-medium">{m.themes[theme].name}</span>
-              <span className="block text-xs text-muted-foreground">{m.themes[theme].hint}</span>
-            </span>
-          </label>
-        ))}
+      <div className="@container">
+        <div className="grid grid-cols-2 gap-2 @min-[28rem]:grid-cols-3 @min-[45rem]:grid-cols-5">
+          {THEMES.map((theme) => (
+            <label
+              key={theme}
+              data-theme={themeAttribute(theme) ?? undefined}
+              className="group flex min-w-0 cursor-pointer flex-col rounded-xl border bg-background focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring has-checked:border-primary has-disabled:cursor-not-allowed has-disabled:opacity-50"
+            >
+              <input
+                type="radio"
+                name={name}
+                value={theme}
+                defaultChecked={theme === defaultValue}
+                className="sr-only"
+              />
+              <span className="restaurant-banner flex min-h-16 items-end justify-between gap-1.5 rounded-t-[calc(var(--radius-xl)-1px)] px-3 pt-2.5 pb-3 text-sm leading-tight font-semibold">
+                <span className="min-w-0 wrap-break-word">{m.themes[theme].name}</span>
+                <Check
+                  aria-hidden="true"
+                  className="invisible size-4 shrink-0 group-has-checked:visible"
+                />
+              </span>
+              <span className="px-3 py-2 text-xs text-muted-foreground">
+                {m.themes[theme].hint}
+              </span>
+            </label>
+          ))}
+        </div>
       </div>
     </fieldset>
   );

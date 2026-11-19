@@ -90,7 +90,7 @@ export function MenuHeader({
       language={language}
       selectLanguage={selectLanguage}
       details={
-        <p className="flex min-h-11 items-center font-medium text-muted-foreground wrap-break-word">
+        <p className="grid min-h-11 grid-cols-1 content-center font-medium wrap-break-word">
           {m.table} {data.table.tableLabel}
         </p>
       }
@@ -109,7 +109,7 @@ export function MenuHeader({
   );
 }
 
-// The restaurant's name on a band of its own accent colour, shared by the QR and online pages. The
+// The restaurant's themed banner is shared by the QR and online pages. The
 // language switch keeps the name's row, so phones spend one row less on the header; details (the
 // table, the services) and actions (the phone) sit below, with the refresh button at their right.
 export function RestaurantHeader({
@@ -128,7 +128,7 @@ export function RestaurantHeader({
   refresh?: ReactNode;
 }) {
   return (
-    <header className="border-b border-border/70 bg-linear-to-b from-accent to-background pt-safe">
+    <header className="restaurant-banner border-b border-border/70 pt-safe">
       <div className="mx-auto max-w-6xl space-y-3 px-4 pt-5 pb-4">
         <div className="flex items-start justify-between gap-3">
           <h1 className="min-w-0 flex-1 pt-1.5 font-display text-2xl leading-tight font-semibold wrap-break-word sm:pt-1 sm:text-3xl">
@@ -138,7 +138,7 @@ export function RestaurantHeader({
         </div>
         {(details || actions || refresh) && (
           <div className="flex items-end justify-between gap-3">
-            <div className="min-w-0 flex-1 space-y-3">
+            <div className="min-w-0 flex-1 space-y-3 text-(--restaurant-banner-detail)">
               {details}
               {actions}
             </div>
