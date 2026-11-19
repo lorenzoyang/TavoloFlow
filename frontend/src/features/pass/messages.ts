@@ -2,7 +2,7 @@ import type { Language } from "@/lib/language";
 
 const zh = {
   title: "传菜",
-  description: "厨房出餐后菜品出现在这里，最早出餐的桌在前。取走菜品时点「已送达」。",
+  description: "厨房出餐后菜品出现在这里，最早出餐的在前。取走菜品时点「已送达」。",
   refresh: "刷新菜品",
   toServe: (count: number) => `待送 ${count} 道`,
   justReady: "刚出餐",

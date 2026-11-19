@@ -128,6 +128,8 @@ function OrderContent({
   const success = view === "ready" || view === "collected";
   const delivery = order.fulfillment === "DELIVERY";
   const { Icon, className: iconClass } = viewIcons[view];
+  const copy = statusCopy(order);
+  const reason = m.statusReason[copy];
   // While the order is prepared, the estimated time is the one thing to remember: it stands alone.
   const estimate =
     view === "preparing" && order.estimatedAt ? formatTime(order.estimatedAt, language) : null;
@@ -172,9 +174,11 @@ function OrderContent({
                     <Icon className="size-5" />
                   </span>
                   <span className={cn("min-w-0 pt-1 wrap-break-word", success && "text-success")}>
-                    {estimate ? m.accepted : m.status[statusCopy(order)]}
+                    {estimate ? m.accepted : m.status[copy]}
                   </span>
                 </p>
+                {/* A short headline, then why, aligned with the headline's text. */}
+                {reason && <p className="pl-12 leading-6 text-muted-foreground">{reason}</p>}
                 {estimate && (
                   <div>
                     <p className="font-display text-5xl font-semibold tabular-nums">{estimate}</p>
@@ -195,7 +199,10 @@ function OrderContent({
             {step !== null && <OrderProgress step={step} delivery={delivery} language={language} />}
             {view === "waiting" && (
               <p className="text-sm leading-6">
-                {m.waitingHint(formatTime(order.expiresAt, language))} {m.updating}
+                {/* Chinese sentences follow each other without a space. */}
+                {[m.waitingHint(formatTime(order.expiresAt, language)), m.updating].join(
+                  language === "zh" ? "" : " ",
+                )}
               </p>
             )}
             {/* When the order did not go ahead, calling is the next step: the phone moves here. */}
@@ -283,7 +290,9 @@ function OrderContent({
                   view === "allCancelled" && "text-muted-foreground line-through",
                 )}
               >
-                {formatMoney(order.deliveryFeeCents, language)}
+                {order.deliveryFeeCents === 0
+                  ? m.free
+                  : formatMoney(order.deliveryFeeCents, language)}
               </span>
             </div>
           )}

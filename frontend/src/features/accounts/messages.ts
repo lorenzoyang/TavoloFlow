@@ -11,7 +11,6 @@ const zh = {
   loginFootnote: "请使用管理员提供的老板或员工账号。",
   sessionNote: "登录保留 30 天，关闭浏览器后仍有效。请在共用设备上及时退出。",
   greeting: "你好，",
-  workspaces: "工作台",
   management: "管理",
   accountSection: "账号",
   restaurant: "所属餐厅",
@@ -76,7 +75,7 @@ const zh = {
       staffDescription: "查看桌位与用餐状态",
     },
     pass: { label: "传菜", description: "出餐口平板：已出餐、待送到桌的菜品" },
-    onlineOrders: { label: "线上订单", description: "接单、拒单，查看进行中的线上订单" },
+    onlineOrders: { label: "线上", description: "接单、拒单，查看进行中的线上订单" },
     online: { label: "线上点单设置", description: "线上链接和二维码、营业时间、暂停接单" },
     history: { label: "历史账单", description: "按日期查看已关闭的账单" },
     settings: { label: "员工账号", description: "重置员工的登录密码" },
@@ -98,7 +97,6 @@ export const accountMessages: Record<Language, typeof zh> = {
     sessionNote:
       "L’accesso dura 30 giorni, anche chiudendo il browser. Sui dispositivi condivisi esci quando hai finito.",
     greeting: "Ciao, ",
-    workspaces: "Postazioni",
     management: "Gestione",
     accountSection: "Account",
     restaurant: "Ristorante",
@@ -168,7 +166,7 @@ export const accountMessages: Record<Language, typeof zh> = {
       },
       pass: { label: "Pass", description: "Tablet del pass: piatti pronti da portare ai tavoli" },
       onlineOrders: {
-        label: "Ordini online",
+        label: "Online",
         description: "Accetta, rifiuta e segui gli ordini online",
       },
       online: {
@@ -192,7 +190,6 @@ export const accountMessages: Record<Language, typeof zh> = {
     sessionNote:
       "Sign-in lasts 30 days, even after closing the browser. On shared devices, sign out when you’re done.",
     greeting: "Hi, ",
-    workspaces: "Stations",
     management: "Management",
     accountSection: "Account",
     restaurant: "Restaurant",
@@ -260,7 +257,7 @@ export const accountMessages: Record<Language, typeof zh> = {
       },
       pass: { label: "Pass", description: "Pass tablet: ready dishes to take to the tables" },
       onlineOrders: {
-        label: "Online orders",
+        label: "Online",
         description: "Accept, reject and follow online orders",
       },
       online: {

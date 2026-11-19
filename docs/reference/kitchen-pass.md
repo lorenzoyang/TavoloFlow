@@ -66,7 +66,8 @@ Kitchen order fields: `id`, `sessionId`, `channel`, `tableLabel`, `online`, `sta
 [order line DTO](dining-ordering.md#order-apis-and-snapshots). `channel` is `DINE_IN`, `PICKUP` or
 `DELIVERY`; dine-in orders have a `tableLabel` and a null `online`, accepted online orders a null
 `tableLabel` and `online: { number, customerName, estimatedAt }`, never the phone or address. Screens
-name both through `lib/session-label.ts` ("Table 5", "Pickup #12" with the name and estimated time);
+name both through `lib/session-label.ts` ("Table 5", "Pickup #12" with the name and the estimated
+time, labelled "Expected 18:25" so it never reads as the time the order came in);
 the dish view keeps a short session title and shows the estimated time beside the existing wait on
 one line, without a customer-name row. Estimated time stays whole and wait text may truncate at
 360px. Order tickets and pass cards retain the name and estimated time through `SessionName`;
@@ -126,7 +127,9 @@ See [billing](billing-history.md).
 
 Both screens poll every 10 seconds only while visible and online and refresh loaded pages. A failed,
 offline, 30-second-old or not-yet-refreshed-after-resume view blocks writes. A three-second grace delays
-routine synchronization warnings, not write gating; failures/offline status warn immediately.
+routine synchronization warnings, not write gating; failures/offline status warn immediately. The
+status line beside the green dot gives only the time of the last update ("Updated 13:16"); once the
+view is stalled (red dot) it gives the full date and time of the last successful one.
 
 Kitchen persists minimal `{ orderId, sessionId, itemId, kind }` markers per tab/restaurant/account before
 writing; one pending action blocks its order. The marker appears only once the result is unknown.

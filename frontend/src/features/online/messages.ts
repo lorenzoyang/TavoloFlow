@@ -66,6 +66,10 @@ const zh = {
   removeSlot: (day: string, index: number) => `删除${day}第 ${index} 段`,
   saveHours: "保存营业时间",
   discardChanges: "放弃修改",
+  copyDay: "复制到其他日子",
+  copyTitle: (day: string) => `复制${day}的时段`,
+  copyHint: "选择要改成相同时段的日子，它们原来的时段会被替换。点「保存营业时间」后才生效。",
+  copyConfirm: "复制",
   weekProblem: (day: string, problem: WeekProblem) =>
     `${day}：${
       {
@@ -211,6 +215,11 @@ export const onlineMessages: Record<Language, typeof zh> = {
     removeSlot: (day, index) => `Rimuovi la fascia ${index} di ${day}`,
     saveHours: "Salva orari",
     discardChanges: "Annulla modifiche",
+    copyDay: "Copia su altri giorni",
+    copyTitle: (day) => `Copia le fasce di ${day}`,
+    copyHint:
+      "Scegli i giorni che devono avere le stesse fasce: le loro fasce attuali vengono sostituite. Valgono dopo «Salva orari».",
+    copyConfirm: "Copia",
     weekProblem: (day, problem) =>
       `${day}: ${
         {
@@ -354,6 +363,11 @@ export const onlineMessages: Record<Language, typeof zh> = {
     removeSlot: (day, index) => `Remove ${day} slot ${index}`,
     saveHours: "Save hours",
     discardChanges: "Discard changes",
+    copyDay: "Copy to other days",
+    copyTitle: (day) => `Copy ${day} slots`,
+    copyHint:
+      "Pick the days that should have the same slots: their current slots are replaced. They apply once you tap «Save hours».",
+    copyConfirm: "Copy",
     weekProblem: (day, problem) =>
       `${day}: ${
         {
@@ -449,20 +463,21 @@ const ordersZh = {
   fulfillment: { PICKUP: "自取", DELIVERY: "配送" },
   waited: (minutes: number) => `已等 ${minutes} 分钟`,
   remaining: (time: string) => `剩 ${time}`,
-  call: (phone: string) => `拨打 ${phone}`,
+  callButton: "拨打",
+  routeButton: "路线",
+  mapButton: "在地图中打开",
   subtotal: (amount: string) => `小计 ${amount}`,
   acceptWith: "接单并选择预计取餐时间",
   minutes: (minutes: number) => `${minutes} 分钟`,
   acceptLabel: (number: number, minutes: number) => `接单 #${number}，${minutes} 分钟后可取`,
   acceptWithDelivery: "接单并选择预计送达时间",
+  acceptAfterBand: "先选配送档位，再选预计送达时间",
   acceptDeliveryLabel: (number: number, minutes: number) =>
     `接单 #${number}，${minutes} 分钟内送达`,
-  tierChoice: "配送档位",
-  tierOption: (distance: string, fee: string) => `${distance} 内 · ${fee}`,
+  tierChoice: "配送档位（按路线的路程）",
+  tierDistance: (distance: string) => `${distance} 内`,
   free: "免费",
-  tierHint: "点开地址查看从餐厅出发的路线和路程，按路程选一档。",
   noTiers: "餐厅没有配送档位，选不了配送费：请打电话和顾客商量，或拒单。",
-  route: "查看从餐厅出发的路线",
   quotedFee: (fee: string, distance: string) => `配送费 ${fee} · 约 ${distance} · 已向顾客报价`,
   deliveryTotal: (subtotal: string, fee: string, total: string) =>
     `小计 ${subtotal} + 配送费 ${fee} = 合计 ${total}`,
@@ -519,22 +534,22 @@ export const onlineOrdersMessages: Record<Language, typeof ordersZh> = {
     fulfillment: { PICKUP: "Ritiro", DELIVERY: "Consegna" },
     waited: (minutes) => `In attesa da ${minutes} min`,
     remaining: (time) => `Scade tra ${time}`,
-    call: (phone) => `Chiama ${phone}`,
+    callButton: "Chiama",
+    routeButton: "Percorso",
+    mapButton: "Apri in Maps",
     subtotal: (amount) => `Subtotale ${amount}`,
     acceptWith: "Accetta e scegli tra quanto sarà pronto",
     minutes: (minutes) => `${minutes} min`,
     acceptLabel: (number, minutes) => `Accetta #${number}, pronto tra ${minutes} minuti`,
     acceptWithDelivery: "Accetta e scegli tra quanto arriva",
+    acceptAfterBand: "Scegli prima la fascia, poi tra quanto arriva",
     acceptDeliveryLabel: (number, minutes) =>
       `Accetta #${number}, consegna entro ${minutes} minuti`,
-    tierChoice: "Fascia di consegna",
-    tierOption: (distance, fee) => `Entro ${distance} · ${fee}`,
+    tierChoice: "Fascia di consegna (in base ai km del percorso)",
+    tierDistance: (distance) => `Entro ${distance}`,
     free: "gratis",
-    tierHint:
-      "Apri l’indirizzo per vedere percorso e distanza dal ristorante, poi scegli la fascia.",
     noTiers:
       "Il ristorante non ha fasce di consegna, quindi non c’è un costo da scegliere: chiama il cliente o rifiuta l’ordine.",
-    route: "Vedi il percorso dal ristorante",
     quotedFee: (fee, distance) => `Consegna ${fee} · circa ${distance} · già indicata al cliente`,
     deliveryTotal: (subtotal, fee, total) =>
       `Subtotale ${subtotal} + consegna ${fee} = totale ${total}`,
@@ -588,22 +603,22 @@ export const onlineOrdersMessages: Record<Language, typeof ordersZh> = {
     fulfillment: { PICKUP: "Pickup", DELIVERY: "Delivery" },
     waited: (minutes) => `Waiting ${minutes} min`,
     remaining: (time) => `Expires in ${time}`,
-    call: (phone) => `Call ${phone}`,
+    callButton: "Call",
+    routeButton: "Route",
+    mapButton: "Open in Maps",
     subtotal: (amount) => `Subtotal ${amount}`,
     acceptWith: "Accept and choose when it’s ready",
     minutes: (minutes) => `${minutes} min`,
     acceptLabel: (number, minutes) => `Accept #${number}, ready in ${minutes} minutes`,
     acceptWithDelivery: "Accept and choose when it arrives",
+    acceptAfterBand: "Pick the delivery band first, then when it arrives",
     acceptDeliveryLabel: (number, minutes) =>
       `Accept #${number}, delivered within ${minutes} minutes`,
-    tierChoice: "Delivery band",
-    tierOption: (distance, fee) => `Within ${distance} · ${fee}`,
+    tierChoice: "Delivery band (by route distance)",
+    tierDistance: (distance) => `Within ${distance}`,
     free: "free",
-    tierHint:
-      "Open the address to see the route and distance from the restaurant, then pick the band.",
     noTiers:
       "The restaurant has no delivery bands, so there is no fee to pick: call the customer or reject the order.",
-    route: "See the route from the restaurant",
     quotedFee: (fee, distance) =>
       `Delivery fee ${fee} · about ${distance} · quoted to the customer`,
     deliveryTotal: (subtotal, fee, total) =>

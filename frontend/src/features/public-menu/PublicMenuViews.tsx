@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ChevronUp, Plus, RefreshCw, ShoppingBag, UtensilsCrossed } from "lucide-react";
 import { DishPrice } from "@/components/dish-price";
 import { EmptyState } from "@/components/empty-state";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { formatMoney } from "@/lib/format";
 import { displayName, isLanguage, LANGUAGES, type Language } from "@/lib/language";
+import { useHistorySheet } from "@/lib/useHistorySheet";
 import { cn } from "@/lib/utils";
 import type { MenuItem, OptionGroup } from "@/features/menu/api";
 import { DishPhoto } from "@/features/menu/ItemImage";
@@ -323,8 +324,19 @@ export function MenuList({
 }) {
   const m = messages[language];
   const groups = data.menu.optionGroups;
-  // The dish whose options are being chosen; its picker adds it to the cart.
+  // The dish whose options are being chosen; its picker adds it to the cart. The picker is a history
+  // step, so the back gesture closes it.
   const [picking, setPicking] = useState<MenuItem | null>(null);
+  const options = useHistorySheet("options");
+  // Follows the refreshed menu: a dish that disappears closes the picker (as does a reload, which keeps
+  // the history step but not the dish).
+  const pickedItem = options.open
+    ? (data.menu.items.find((item) => item.id === picking?.id) ?? null)
+    : null;
+  const lostPick = options.open && pickedItem === null;
+  useEffect(() => {
+    if (lostPick) options.hide();
+  });
   // A removed category falls back to the full menu.
   const selected = data.menu.categories.find((category) => category.id === categoryId);
   const categories = selected ? [selected] : data.menu.categories;
@@ -377,9 +389,11 @@ export function MenuList({
                     language={language}
                     defaultLanguage={data.restaurant.defaultLanguage}
                     count={counts.get(item.id) ?? 0}
-                    add={() =>
-                      itemGroups(item, groups).length > 0 ? setPicking(item) : cart.add(item)
-                    }
+                    add={() => {
+                      if (!itemGroups(item, groups).length) return cart.add(item);
+                      setPicking(item);
+                      options.show();
+                    }}
                     disabled={disabled}
                   />
                 ))}
@@ -390,17 +404,16 @@ export function MenuList({
           </section>
         );
       })}
-      {/* Follows the refreshed menu: a dish that disappears closes the picker. */}
       <OptionPicker
-        item={data.menu.items.find((item) => item.id === picking?.id) ?? null}
+        item={pickedItem}
         groups={groups}
         defaultLanguage={data.restaurant.defaultLanguage}
         language={language}
         disabled={disabled}
-        close={() => setPicking(null)}
+        close={options.hide}
         add={(item, optionIds) => {
           cart.add(item, optionIds);
-          setPicking(null);
+          options.hide();
         }}
       />
     </div>
@@ -413,12 +426,15 @@ export function CartBar({
   amountCents,
   language,
   open,
+  note,
 }: {
   cart: Pick<MenuCart, "cart" | "review">;
   // Online checkout supplies its discounted total; QR carts use the sum of their lines.
   amountCents?: number;
   language: Language;
   open: () => void;
+  // A short status after the count, such as the restaurant not taking orders right now.
+  note?: string;
 }) {
   const m = orderMessages[language];
   const portions = cart.cart.lines.reduce((n, line) => n + line.quantity, 0);
@@ -437,7 +453,8 @@ export function CartBar({
         <span className="min-w-0 flex-1 font-medium">
           {pending ? m.lookup : cart.review ? m.confirming : m.viewCart}
           <span className="block text-sm opacity-85">
-            {portions} {m.portions}
+            {m.portionCount(portions)}
+            {note && ` · ${note}`}
           </span>
         </span>
         <span className="text-lg font-semibold tabular-nums">

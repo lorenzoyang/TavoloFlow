@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   formatCents,
+  formatClosingTime,
   formatDateTime,
   formatKm,
   formatMoney,
   formatTime,
+  formatWeekdayClosingTime,
   formatWeekdayTime,
   parsePrice,
   shortId,
@@ -86,6 +88,17 @@ test("moments within the week show the restaurant's weekday and 24-hour time", (
   assert.equal(formatWeekdayTime("2026-11-18T11:00:00Z", "zh"), "周三 12:00");
   assert.equal(formatWeekdayTime("2026-11-18T11:00:00Z", "it"), "mer 12:00");
   assert.equal(formatWeekdayTime("2026-11-18T11:00:00Z", "en"), "Wed 12:00");
+});
+
+test("an end at midnight reads 24:00 of the day it ends", () => {
+  // Thursday 19 November 2026, 00:00 in Rome is Wednesday 23:00 UTC.
+  assert.equal(formatClosingTime("2026-11-18T23:00:00Z", "zh"), "24:00");
+  assert.equal(formatClosingTime("2026-11-18T21:30:00Z", "it"), "22:30");
+  assert.equal(formatWeekdayClosingTime("2026-11-18T23:00:00Z", "zh"), "周三 24:00");
+  assert.equal(formatWeekdayClosingTime("2026-11-18T23:00:00Z", "en"), "Wed 24:00");
+  assert.equal(formatWeekdayClosingTime("2026-11-18T21:30:00Z", "it"), "mer 22:30");
+  // Summer time: 00:00 in Rome is 22:00 UTC.
+  assert.equal(formatWeekdayClosingTime("2026-07-01T22:00:00Z", "en"), "Wed 24:00");
 });
 
 test("short references come from the random tail, so records created together stay distinct", () => {

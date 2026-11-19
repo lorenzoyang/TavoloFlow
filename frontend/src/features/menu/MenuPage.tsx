@@ -18,8 +18,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import { isSameAccount, refreshAfterWrite } from "@/features/accounts/queries";
 import type { CurrentAccount } from "@/features/accounts/api";
+import { staffNavItems } from "@/features/accounts/navigation";
 import { ApiError, errorMessage } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
+import { staffMessages } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import {
@@ -75,6 +77,9 @@ function MenuContent({ account }: { account: CurrentAccount }) {
   const options = menuQuery(account);
   const query = useQuery(options);
   const owner = account.role === "OWNER";
+  // Only pages outside the tabs link back: with dine-in and online ordering both on, the menu is a
+  // Home entry.
+  const isTab = staffNavItems(account, language).some((item) => item.to === "/staff/menu");
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [tab, setTab] = useState<"dishes" | "options">("dishes");
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -196,6 +201,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
       <PageHeader
         title={m.title}
         description={owner ? m.ownerHint : m.staffHint}
+        back={isTab ? undefined : { to: "/staff", label: staffMessages[language].home }}
         actions={
           <Button
             variant="outline"

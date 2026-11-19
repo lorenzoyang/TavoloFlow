@@ -23,8 +23,30 @@ public static class OnlineDelivery
     public const double MinStreetConfidence = 0.9;
 
     // The search circle reaches a little beyond the farthest band: road distance is never shorter than
-    // the straight line, so a match out there is priced as out of range rather than not found.
+    // the straight line, so a match out there is priced as out of range rather than not found. A precise
+    // match found only without the circle is out of range without a route.
     public const int SearchMarginMeters = 5000;
+
+    // The language of the towns quotes name: every restaurant is in Italy (EUR, Europe/Rome), so towns
+    // read as customers write them and as street signs show them ("Firenze", never "Florence").
+    public const string PlaceNamesLanguage = "it";
+
+    // The mean Earth radius, for straight-line distances between coordinates.
+    public const double EarthRadiusMeters = 6_371_008.8;
+
+    // The straight-line (great-circle) distance between two points, in metres.
+    public static double StraightMeters(decimal lat1, decimal lng1, double lat2, double lng2)
+    {
+        static double Radians(double degrees) => degrees * Math.PI / 180;
+        var dLat = Radians(lat2 - (double)lat1);
+        var dLng = Radians(lng2 - (double)lng1);
+        var a =
+            Math.Pow(Math.Sin(dLat / 2), 2)
+            + Math.Cos(Radians((double)lat1))
+                * Math.Cos(Radians(lat2))
+                * Math.Pow(Math.Sin(dLng / 2), 2);
+        return 2 * EarthRadiusMeters * Math.Asin(Math.Min(1, Math.Sqrt(a)));
+    }
 
     // Trimmed, with runs of whitespace collapsed: what a quote is bound to. Null when blank.
     public static string? NormalizeAddress(string? value)

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  checkoutBlock,
+  checkoutFields,
   checkoutProblems,
   clearOrderToken,
   couponDiscountCents,
@@ -10,9 +12,11 @@ import {
   deliveryShortfallCents,
   emptyOnlineCart,
   existingSubmission,
+  feeRange,
   feeStatus,
   onlineCartAmounts,
   onlineCartKey,
+  nextCheckoutField,
   orderEnded,
   orderProgress,
   orderTokenKey,
@@ -95,7 +99,64 @@ test("delivery also needs an address of 1-200 characters and takes notes of up t
   assert.deepEqual(checkoutProblems({ ...delivery, address: "a".repeat(201) }), ["address"]);
   assert.deepEqual(checkoutProblems({ ...delivery, notes: ` ${"n".repeat(100)} ` }), []);
   assert.deepEqual(checkoutProblems({ ...delivery, notes: "n".repeat(101) }), ["notes"]);
-  assert.deepEqual(checkoutProblems({ ...delivery, name: "", address: "" }), ["name", "address"]);
+  // In the fields' order, so checkout focuses the address before the name.
+  assert.deepEqual(checkoutProblems({ ...delivery, name: "", address: "" }), ["address", "name"]);
+});
+
+test("a delivery asks for the address first, and Enter walks the fields without placing the order", () => {
+  assert.deepEqual(checkoutFields("PICKUP"), ["name", "phone"]);
+  assert.deepEqual(checkoutFields("DELIVERY"), ["address", "notes", "name", "phone"]);
+  assert.equal(nextCheckoutField("DELIVERY", "address"), "notes");
+  assert.equal(nextCheckoutField("DELIVERY", "notes"), "name");
+  assert.equal(nextCheckoutField("DELIVERY", "name"), "phone");
+  assert.equal(nextCheckoutField("DELIVERY", "phone"), null);
+  assert.equal(nextCheckoutField("PICKUP", "name"), "phone");
+  assert.equal(nextCheckoutField("PICKUP", "phone"), null);
+  // A pickup has no address: Enter there (a field left from a delivery choice) goes nowhere.
+  assert.equal(nextCheckoutField("PICKUP", "address"), null);
+});
+
+test("the fee summary spans the cheapest and dearest band up to the farthest", () => {
+  assert.equal(feeRange([]), null);
+  assert.deepEqual(
+    feeRange([
+      { maxMeters: 2000, feeCents: 100 },
+      { maxMeters: 6000, feeCents: 300 },
+      { maxMeters: 4000, feeCents: 200 },
+    ]),
+    { minCents: 100, maxCents: 300, maxMeters: 6000 },
+  );
+  assert.deepEqual(feeRange([{ maxMeters: 3000, feeCents: 0 }]), {
+    minCents: 0,
+    maxCents: 0,
+    maxMeters: 3000,
+  });
+});
+
+test("the checkout button says the first reason it cannot go", () => {
+  const ready = {
+    live: true,
+    contextReady: true,
+    fee: "manual" as const,
+    shortfallCents: 0,
+    settling: false,
+    verifying: false,
+  };
+  assert.equal(checkoutBlock(ready), null);
+  assert.equal(checkoutBlock({ ...ready, live: false, contextReady: false }), "offline");
+  assert.equal(checkoutBlock({ ...ready, contextReady: false, fee: "OUT_OF_RANGE" }), "context");
+  assert.equal(checkoutBlock({ ...ready, fee: "OUT_OF_RANGE", shortfallCents: 400 }), "outOfRange");
+  assert.equal(checkoutBlock({ ...ready, shortfallCents: 400, verifying: true }), "minOrder");
+  // While the fee still has to be asked for, the same button asks for it.
+  assert.equal(checkoutBlock({ ...ready, fee: "lookup", verifying: true }), null);
+  assert.equal(checkoutBlock({ ...ready, fee: "lookup", shortfallCents: 1 }), "minOrder");
+  // A fee that has just appeared holds the button a moment, before the security check counts.
+  assert.equal(
+    checkoutBlock({ ...ready, fee: "QUOTED", settling: true, verifying: true }),
+    "settling",
+  );
+  assert.equal(checkoutBlock({ ...ready, fee: "UNKNOWN", verifying: true }), "verifying");
+  assert.equal(checkoutBlock({ ...ready, fee: "UNKNOWN" }), null);
 });
 
 test("the intent sends trimmed contact details and the confirmed lines", () => {

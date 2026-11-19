@@ -30,16 +30,17 @@ export function sessionTitle(session: SessionNaming, language: Language) {
     : m.delivery(session.online.number);
 }
 
-// The customer name and estimated time shown after an online order's title; null for dine-in.
+// The customer name and estimated time shown after an online order's title; null for dine-in. The time
+// says it is an estimate, so staff never take it for the time the order came in.
 export function sessionDetail(session: SessionNaming, language: Language) {
   if (session.channel === "DINE_IN" || !session.online) return null;
   return {
     name: session.online.customerName,
-    time: formatTime(session.online.estimatedAt, language),
+    time: staffMessages[language].estimated(formatTime(session.online.estimatedAt, language)),
   };
 }
 
-// One line for notices, dialog titles and labels: "Ritiro #12 · Marco · 18:25".
+// One line for notices, dialog titles and labels: "Ritiro #12 · Marco · Previsto 18:25".
 export function sessionText(session: SessionNaming, language: Language) {
   const detail = sessionDetail(session, language);
   return [sessionTitle(session, language), detail?.name, detail?.time].filter(Boolean).join(" · ");

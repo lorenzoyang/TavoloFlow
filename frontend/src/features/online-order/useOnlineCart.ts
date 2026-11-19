@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { ApiError, withTimeout } from "@/lib/api";
 import { randomUuid } from "@/lib/ids";
-import { isLive, useLiveView } from "@/lib/useLiveView";
+import { isLive, useLiveActive } from "@/lib/useLiveView";
 import { useOperations } from "@/lib/useOperations";
 import type { MenuItem } from "@/features/menu/api";
 import {
@@ -89,16 +89,21 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     live.current = data;
   }, [data]);
   const ops = useOperations();
-  const view = useLiveView();
+  const active = useLiveActive();
   const contextOptions = onlineContextQuery(slug);
   const context = useQuery({
     ...contextOptions,
-    enabled: view.active,
-    refetchInterval: (query) => (view.active && query.state.data?.pending ? 10_000 : false),
+    enabled: active,
+    refetchInterval: (query) => (active && query.state.data?.pending ? 10_000 : false),
     refetchIntervalInBackground: false,
   });
-  const checkoutBlocked =
-    !view.active || !context.data || context.isError || !!context.data.pending;
+  const contextReady = !!context.data && !context.isError && !context.data.pending;
+  const checkoutBlocked = !active || !contextReady;
+  // Set for a moment after a delivery fee answer arrives, so a repeated tap on the button that asked
+  // for it cannot place the order before the customer has seen the fee.
+  const [settling, setSettling] = useState(false);
+  const settleTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(settleTimer.current), []);
   const amounts = onlineCartAmounts(cart, review, form);
   // Delivery only: what the amount shown still lacks to reach the minimum. A new delivery order
   // cannot be sent while it is positive; the server checks again.
@@ -245,6 +250,8 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
         setForm({ ...form, fulfillment: "PICKUP" });
         setMessage("deliveryOff");
       }
+      // The checkout is a page of its own, so the system back gesture returns to the menu.
+      void navigate({ to: "/r/$slug/checkout", params: { slug } });
     } catch (e) {
       if (work.active())
         setMessage(
@@ -299,10 +306,14 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     if (!address || address.length > MAX_ADDRESS_LENGTH) return;
     const work = start("checkout");
     if (!work) return;
-    const answer = (quote: Awaited<ReturnType<typeof readDeliveryQuote>>) =>
+    const answer = (quote: Awaited<ReturnType<typeof readDeliveryQuote>>) => {
       setForm((value) =>
         value.address.trim() === address ? { ...value, quote: { ...quote, address } } : value,
       );
+      setSettling(true);
+      window.clearTimeout(settleTimer.current);
+      settleTimer.current = window.setTimeout(() => setSettling(false), 1000);
+    };
     try {
       const quote = await readDeliveryQuote(slug, address, work.signal);
       if (work.active()) answer(quote);
@@ -426,7 +437,10 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     contextFailed: context.isError,
     contextChecking: !context.data && !context.isError,
     contextRefreshing: context.isFetching,
+    live: active,
+    contextReady,
     checkoutBlocked,
+    settling,
     minOrderShortfall,
     feeStatus: fee,
     quote: currentQuote(form),

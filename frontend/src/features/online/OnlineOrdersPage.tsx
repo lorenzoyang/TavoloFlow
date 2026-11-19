@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Phone, RefreshCw, ShoppingBag } from "lucide-react";
+import { RefreshCw, ShoppingBag } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { LoadingState } from "@/components/loading-state";
@@ -7,7 +7,6 @@ import { Notice } from "@/components/notice";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { buttonVariants } from "@/components/ui/button-variants";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
@@ -20,7 +19,7 @@ import { staffMessages } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import type { OnlineActiveOrder, OnlinePendingPage, OnlinePendingRequest } from "./api";
-import { DeliveryAddress } from "./DeliveryAddress";
+import { ContactActions, DeliveryAddress } from "./DeliveryAddress";
 import { onlineOrdersMessages } from "./messages";
 import {
   activeProgress,
@@ -40,15 +39,6 @@ const progressBadges = { preparing: "warning", ready: "success", cancelled: "out
 
 // Less than this left: the countdown turns red, so someone decides before the request expires.
 const URGENT_SECONDS = 180;
-
-function CallLink({ phone, label }: { phone: string; label: string }) {
-  return (
-    <a href={`tel:${phone}`} className={cn(buttonVariants({ variant: "outline" }), "w-full")}>
-      <Phone />
-      {label}
-    </a>
-  );
-}
 
 // An amount that never wraps between the euro sign and the digits inside a longer line.
 const amount = (cents: number, language: Language) =>
@@ -101,6 +91,9 @@ function PendingCard({
           {request.customerName && (
             <p className="text-lg font-medium wrap-break-word">{request.customerName}</p>
           )}
+          {request.customerPhone && (
+            <p className="text-sm text-muted-foreground tabular-nums">{request.customerPhone}</p>
+          )}
         </div>
         <div className="shrink-0 text-right text-sm">
           <p className="text-muted-foreground">{m.waited(times.waitedMinutes)}</p>
@@ -114,16 +107,14 @@ function PendingCard({
           </p>
         </div>
       </header>
-      {request.customerPhone && (
-        <CallLink phone={request.customerPhone} label={m.call(request.customerPhone)} />
-      )}
       {delivery && request.deliveryAddress && (
-        <DeliveryAddress
-          address={request.deliveryAddress}
-          notes={request.deliveryNotes}
-          origin={origin}
-        />
+        <DeliveryAddress address={request.deliveryAddress} notes={request.deliveryNotes} />
       )}
+      <ContactActions
+        phone={request.customerPhone}
+        address={delivery ? request.deliveryAddress : null}
+        origin={origin}
+      />
       <ul className="divide-y border-y">
         {request.items.map((line, index) => {
           const name = displayName(line, request.defaultLanguage, language);
@@ -176,7 +167,7 @@ function PendingCard({
             {quoted !== null ? (
               <p className="text-sm font-medium">
                 {m.quotedFee(
-                  amount(quoted, language),
+                  quoted === 0 ? m.free : amount(quoted, language),
                   formatKm(request.deliveryDistanceMeters ?? 0, language),
                 )}
               </p>
@@ -188,33 +179,35 @@ function PendingCard({
             {quoted !== null ? null : tiers.length === 0 ? (
               <Notice tone="warning">{m.noTiers}</Notice>
             ) : (
-              <>
-                <p className="text-sm text-muted-foreground">{m.tierHint}</p>
-                <RadioGroup
-                  aria-labelledby={tierLabelId}
-                  value={tier ? String(tier.maxMeters) : ""}
-                  disabled={disabled}
-                  onValueChange={(value) =>
-                    setPicked(tiers.find((t) => String(t.maxMeters) === value) ?? null)
-                  }
-                  className="grid-cols-1 sm:grid-cols-2"
-                >
-                  {tiers.map((tier) => (
-                    <label
-                      key={tier.maxMeters}
-                      className="flex min-h-11 min-w-0 cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm font-medium transition-colors has-data-checked:border-primary/40 has-data-checked:bg-accent"
-                    >
-                      <RadioGroupItem value={String(tier.maxMeters)} />
-                      <span className="min-w-0 tabular-nums">
-                        {m.tierOption(
-                          formatKm(tier.maxMeters, language),
-                          tier.feeCents === 0 ? m.free : amount(tier.feeCents, language),
-                        )}
-                      </span>
-                    </label>
-                  ))}
-                </RadioGroup>
-              </>
+              // Compact cells, three to a row on phones: up to five bands fit in two rows. The
+              // radio covers its cell, so the whole cell is the target; the picked one is filled.
+              <RadioGroup
+                aria-labelledby={tierLabelId}
+                value={tier ? String(tier.maxMeters) : ""}
+                disabled={disabled}
+                onValueChange={(value) =>
+                  setPicked(tiers.find((t) => String(t.maxMeters) === value) ?? null)
+                }
+                className="grid-cols-3 sm:grid-cols-5"
+              >
+                {tiers.map((tier) => (
+                  <label
+                    key={tier.maxMeters}
+                    className="relative flex min-h-14 min-w-0 cursor-pointer flex-col items-center justify-center rounded-xl border px-1 py-2 text-center text-sm font-medium tabular-nums transition-colors has-focus-visible:ring-3 has-focus-visible:ring-ring/50 has-data-checked:border-primary has-data-checked:bg-accent has-data-checked:text-accent-foreground has-data-disabled:cursor-not-allowed has-data-disabled:opacity-50"
+                  >
+                    <RadioGroupItem
+                      value={String(tier.maxMeters)}
+                      className="absolute inset-0 size-auto aspect-auto rounded-xl border-0 opacity-0"
+                    />
+                    <span className="min-w-0 wrap-break-word">
+                      {m.tierDistance(formatKm(tier.maxMeters, language))}
+                    </span>
+                    <span className="min-w-0">
+                      {tier.feeCents === 0 ? m.free : amount(tier.feeCents, language)}
+                    </span>
+                  </label>
+                ))}
+              </RadioGroup>
             )}
             {fee !== null && (
               <p className="rounded-xl bg-secondary px-3 py-2 text-sm font-semibold tabular-nums">
@@ -234,7 +227,14 @@ function PendingCard({
             )}
           </div>
         )}
-        <p className="text-sm font-medium">{delivery ? m.acceptWithDelivery : m.acceptWith}</p>
+        {/* The times stay disabled until a band is picked: say so where they are. */}
+        <p className="text-sm font-medium">
+          {!delivery
+            ? m.acceptWith
+            : quoted === null && tiers.length > 0 && fee === null
+              ? m.acceptAfterBand
+              : m.acceptWithDelivery}
+        </p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {(delivery ? DELIVERY_MINUTES : PICKUP_MINUTES).map((minutes) => (
             <Button
@@ -284,6 +284,9 @@ function ActiveCard({ order }: { order: OnlineActiveOrder }) {
           {order.customerName && (
             <p className="font-medium wrap-break-word">{order.customerName}</p>
           )}
+          {order.customerPhone && (
+            <p className="text-sm text-muted-foreground tabular-nums">{order.customerPhone}</p>
+          )}
         </div>
         <Badge variant={progressBadges[progress]}>{m.progress[progress]}</Badge>
       </header>
@@ -303,12 +306,13 @@ function ActiveCard({ order }: { order: OnlineActiveOrder }) {
           {m.couponIncluded(order.coupon.code, order.coupon.percentOff)}
         </p>
       )}
-      {order.customerPhone && (
-        <CallLink phone={order.customerPhone} label={m.call(order.customerPhone)} />
-      )}
       {order.channel === "DELIVERY" && order.deliveryAddress && (
         <DeliveryAddress address={order.deliveryAddress} notes={order.deliveryNotes} />
       )}
+      <ContactActions
+        phone={order.customerPhone}
+        address={order.channel === "DELIVERY" ? order.deliveryAddress : null}
+      />
     </article>
   );
 }
@@ -316,7 +320,6 @@ function ActiveCard({ order }: { order: OnlineActiveOrder }) {
 function OnlineOrdersContent({ account }: { account: CurrentAccount }) {
   const language = useStaffLanguage();
   const m = onlineOrdersMessages[language];
-  const c = staffMessages[language];
   const model = useOnlineOrders(account);
   const [rejecting, setRejecting] = useState<OnlinePendingRequest | null>(null);
   const [reason, setReason] = useState<RejectReason | null>(null);
@@ -337,7 +340,6 @@ function OnlineOrdersContent({ account }: { account: CurrentAccount }) {
       <PageHeader
         title={m.title}
         description={m.description}
-        back={{ to: "/staff", label: c.home }}
         actions={
           <Button
             variant="outline"

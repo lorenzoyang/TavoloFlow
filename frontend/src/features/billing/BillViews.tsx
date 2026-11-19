@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { CurrentAccount } from "@/features/accounts/api";
 import type { KitchenOrder } from "@/features/kitchen/api";
-import { DeliveryAddress } from "@/features/online/DeliveryAddress";
+import { ContactActions, DeliveryAddress } from "@/features/online/DeliveryAddress";
 import { typedDeliveryFee } from "@/features/online/state";
 import { displayName } from "@/lib/language";
 import { optionSummary } from "@/lib/options";
@@ -198,28 +198,26 @@ function BillTotal({ bill, timeZone }: { bill: BillSummary; timeZone: string }) 
           {online.customerName && (
             <p className="font-medium wrap-break-word">{online.customerName}</p>
           )}
+          {online.customerPhone && (
+            <p className="text-sm text-muted-foreground tabular-nums">{online.customerPhone}</p>
+          )}
           {bill.status === "ACTIVE" && (
             <p className="text-sm">
               {m.online.estimated(formatTime(online.estimatedAt, language, timeZone))}
             </p>
           )}
-          {online.customerPhone && (
-            <a
-              href={`tel:${online.customerPhone}`}
-              className={buttonVariants({ variant: "outline", size: "sm" })}
-            >
-              {m.online.call(online.customerPhone)}
-            </a>
-          )}
           {bill.channel === "DELIVERY" && online.deliveryAddress && (
             <DeliveryAddress address={online.deliveryAddress} notes={online.deliveryNotes} />
           )}
+          <ContactActions
+            phone={online.customerPhone}
+            address={bill.channel === "DELIVERY" ? online.deliveryAddress : null}
+          />
         </div>
       )}
       <p className="text-sm text-muted-foreground">
         {online ? m.online.times(opened, closed) : m.times(opened, closed)}
       </p>
-      <p className="text-xs break-all text-muted-foreground">{m.sessionId(bill.sessionId)}</p>
     </div>
   );
 }
@@ -243,9 +241,12 @@ function BillDetails({
       {bill && (
         <>
           <BillTotal bill={bill} timeZone={timeZone} />
-          <p className="text-sm leading-6 text-muted-foreground">
-            {m.shown(model.orders.length, bill.orderCount)}
-          </p>
+          {/* Only while some orders are not loaded; the amount above always counts them all. */}
+          {model.query.hasNextPage && (
+            <p className="text-sm leading-6 text-muted-foreground">
+              {m.shown(model.orders.length, bill.orderCount)}
+            </p>
+          )}
           {model.orders.map((order) => (
             <BillOrder key={order.id} order={order} timeZone={timeZone} />
           ))}
@@ -429,7 +430,7 @@ export function ActiveBillPanel({
             </Button>
           }
         >
-          <span className="break-all">{m.pending(action.sessionId)}</span>
+          {m.pending(shortId(action.sessionId))}
         </Notice>
       ))}
       {model.session.isError && (

@@ -15,9 +15,10 @@ orders to staff devices.
 The platform turns QR dine-in and online ordering on per restaurant and sets the online link. The
 contracts (`services`, `slug`, `SERVICE_HAS_OPEN_WORK`, `SLUG_CONFLICT`, `DINE_IN_NOT_OFFERED`) are in
 [accounts and platform](accounts-platform.md#services-and-online-link). Store identity carries
-`services: { dineIn, online }`: online ordering adds the Online orders (`/staff/online`) and Online
-ordering settings (`/staff/online-settings`) entries to 首页 for both roles, and pages of a service that
-is off render a "service not offered" state.
+`services: { dineIn, online }`: online ordering adds the Online orders tab (`/staff/online`, always
+the last tab; with dine-in also on, the menu moves to 首页 to keep five tabs) and the Online ordering
+settings (`/staff/online-settings`) entry on 首页 for both roles, and pages of a service that is off
+render a "service not offered" state.
 
 ## Settings APIs
 
@@ -137,20 +138,27 @@ errors, an unknown link and the per-IP budget answer as usual):
 | `result` | Meaning |
 | --- | --- |
 | `QUOTED` | `town` (Geoapify's `city`, may be null), `distanceMeters`, `feeCents` of the nearest band that reaches it, and the signed `quote` |
-| `OUT_OF_RANGE` | The road distance is beyond the farthest band |
+| `OUT_OF_RANGE` | The road distance is beyond the farthest band, or the address was found only outside the search circle; `town` as found, `distanceMeters` when routed |
 | `UNKNOWN` | No automatic quote: not found precisely enough, a malformed answer, an outage, a cap, or no automatic quotes here |
 
 Geoapify is called through its EU endpoint, `api-eu.geoapify.com`, the one its data processing
-agreement keeps inside the EU. A quote that gets as far as the route costs two credits:
+agreement keeps inside the EU. A quote costs at most two credits:
 `/v1/geocode/search` with the address, `filter=circle:lng,lat,r`
 around the restaurant (`r` is the farthest band plus 5 km, `SearchMarginMeters`, so farther matches are
-priced as out of range), `bias=proximity:lng,lat` and `limit=1`; then `/v1/routing` with
+priced as out of range), `bias=proximity:lng,lat`, `lang=it` (towns as customers write them, "Firenze"
+rather than "Florence": every restaurant is in Italy; `OnlineDelivery.PlaceNamesLanguage`) and `limit=1`;
+then, for a precise match, `/v1/routing` with
 `waypoints=lat,lng|lat,lng` and `mode=drive`, taking the route's `distance` in metres with Geoapify's
 default free-flow traffic, so an address keeps its price. Only a `building` or `amenity` match whose
 `rank.confidence_street_level` is at least 0.9 is priced (`OnlineDelivery.QuotableMatches`,
 `MinStreetConfidence`): a street without its number can lie kilometres from the house on a long road,
 and a typo can match another street. A malformed answer (a match without coordinates, a route without
-its distance or with a negative one) is not priced either. Both rules come from a 27-address spike in Prato and may need
+its distance or with a negative one) is not priced either. When the circle holds no precise match, the
+same search runs once more without the filter, still biased to the restaurant, instead of the route: a
+precise match whose straight-line distance (`OnlineDelivery.StraightMeters`) exceeds the circle is
+`OUT_OF_RANGE` with its town and no distance, since the road is never shorter; anything else stays
+`UNKNOWN`. An address in another town therefore says so, and a typo that matches far away shows the
+town it matched. A failed first search is not repeated. Both rules come from a 27-address spike in Prato and may need
 adjusting with real orders. The named `geoapify` HttpClient has a 5-second timeout, no redirects, no
 retries and no loggers, because the key travels in the URL; a failure logs one warning with the HTTP
 status or exception type and never the address, key, coordinates or a response body.
@@ -485,14 +493,15 @@ the menu forgets the remembered token.
 
 ## Customer pages
 
-`features/online-order/` serves three anonymous routes outside the staff and platform layouts; none
+`features/online-order/` serves four anonymous routes outside the staff and platform layouts; none
 links a manifest, and Caddy's SPA fallback lists `/r` and `/o` beside `/q`.
 
-| Route               | Page                                                                     |
-| ------------------- | ------------------------------------------------------------------------ |
-| `/r/{slug}`         | Menu, cart and checkout (`OnlineMenuPage`)                               |
-| `/r/{slug}/privacy` | Privacy notice (`PrivacyPage`; the route file is `r.$slug_.privacy.tsx`) |
-| `/o/{token}`        | Order status (`OnlineOrderPage`)                                         |
+| Route                | Page                                                                      |
+| -------------------- | ------------------------------------------------------------------------- |
+| `/r/{slug}`          | Menu and cart (`OnlineMenuPage`)                                          |
+| `/r/{slug}/checkout` | Checkout (`OnlineCheckoutPage`), nested under the menu                    |
+| `/r/{slug}/privacy`  | Privacy notice (`PrivacyPage`; the route file is `r.$slug_.privacy.tsx`)  |
+| `/o/{token}`         | Order status (`OnlineOrderPage`)                                          |
 
 Query keys use the `public` prefix, so staff sign-in and sign-out never clear them:
 `["public", "online", slug]` for the bootstrap (reread every 30 seconds, shared by the menu and the
@@ -506,10 +515,14 @@ restaurant theme.
 
 The menu reuses the QR page's `MenuList`, option picker, `CartBar` and the cart's line list
 (`CartLines`); their props take any cart with `{ lines, pending }`, and the pure line rules in
-`orders/state.ts` (`addItem`, `editLine`, `refreshCart`, `validateCart`) are generic over it. The header
-shows the restaurant's phone as a `tel:` button in every status. A status other than `OPEN` is
+`orders/state.ts` (`addItem`, `editLine`, `refreshCart`, `validateCart`) are generic over it. As on the
+QR page, the phone cart sheet and the option picker are history steps (`lib/useHistorySheet.ts`), so
+the back gesture closes them instead of leaving the page, and the menu keeps its scroll position. The header
+shows the restaurant's phone as a `tel:` button in every status, and the services offered as plain
+text with icons, never styled like a button. A status other than `OPEN` is
 explained by a text-only notice below it and keeps the checkout closed; browsing and building a cart
-stay possible. A remembered order still in
+stay possible. The cart repeats the reason as a warning above its disabled button, and the phone cart
+bar adds "can't order right now" after the count, so a customer scrolled past the notice still sees it. A remembered order still in
 progress shows "you have an order in progress" with a link to its status page.
 
 The menu also reads the same-origin ordering context on load, focus/reconnect and before checkout.
@@ -522,53 +535,88 @@ are available in Chinese, Italian and English.
 
 The cart lives in `sessionStorage` under `tavoloflow:cart:{restaurantId}:online` (version 3: lines
 carry the dish's sale price and the pending intent its coupon and delivery quote; separate from every QR cart, other
-versions discarded as damaged), with the QR cart's limits. Checkout is two steps: "Checkout" rereads the bootstrap,
-requires `OPEN` and refreshes the lines' prices and choices; the confirmation then shows the lines,
-total, an optional coupon field, name and phone fields (validated like the server), the
-as-soon-as-possible note and a one-line privacy notice linking to the privacy page. "Apply" (or Enter
-in the field, which never places the order) trims and uppercases the code, asks the coupon check and,
-on success, keeps `{ code, percentOff }` in the checkout form: the totals then show the subtotal, the
-coupon line with its discount (`couponDiscountCents`, rounded down like the server) and the discounted
-total, and "Remove" drops it. The panel and mobile cart bar share `onlineCartAmounts`: a coupon counts
+versions discarded as damaged), with the QR cart's limits. The cart is a bottom sheet on phones and a
+side column from `lg`; checkout is a page of its own, `/r/{slug}/checkout`, at every width.
+"Checkout" rereads the bootstrap, requires `OPEN`, refreshes the lines' prices and choices and opens
+the page. The route nests under the menu: `OnlineMenuPage` keeps `useOnlineCart`, passes it through
+`OnlineCheckoutContext`, hides the menu (still mounted) and renders the page in its outlet, so the
+cart, the checkout form and the menu's images survive, and the system back gesture returns to the
+menu where it was scrolled (the router scrolls every navigation to the top, so the menu restores its
+position on `onRendered`). The page exists only for a reviewed cart: a reload, a saved link or a
+return from the status page replaces it with the menu, and a refusal that frees the cart returns to
+the cart, where its notice shows. The header's back arrow and the system back return to the menu with
+the cart open again; "Add dishes" (below) returns with it closed. Leaving keeps the cart and the form,
+cancels in-flight checkout preparation and keeps any submission or recovery in progress. The header
+also has the language switch. The page scrolls as an ordinary document with a sticky footer, so a
+phone keyboard opens and closes over it without moving a fixed sheet.
+
+The page shows the read-only lines, then the form in dependency order (`checkoutFields`): with
+delivery on, a pickup/delivery choice whose delivery option states the minimum; for delivery the
+address (placeholder "street, number, town"), the optional doorbell/floor notes and the delivery
+details; below a separator, name and phone (validated like the server, with one hint line); a "Have a
+coupon code?" link that opens the coupon field; the as-soon-as-possible line; and a one-line privacy
+notice linking to the privacy page. Enter never places the order: it moves to the next field
+(`nextCheckoutField`), the last field only closes the keyboard, the address asks for the fee while
+automatic quotes still need it (closing the keyboard, so the answer above the button shows), the
+coupon field applies the code, and an Enter that confirms an input method's composition is ignored.
+The footer's button is outside the form and of type `button`, so implicit form submission cannot place
+an order either. Field problems show once the button is tried, in the fields' order
+(`checkoutProblems`), and the first one comes to the middle of the screen, clear of the sticky footer,
+and takes the focus (`reveal`, as in the menu forms).
+
+"Apply" trims and uppercases the code, asks the coupon check and, on success, keeps
+`{ code, percentOff }` in the checkout form: the totals then show the subtotal, the coupon line with
+its discount (`couponDiscountCents`, rounded down like the server) and the discounted total, and
+"Remove" drops it. The checkout and the mobile cart bar share `onlineCartAmounts`: a coupon counts
 while confirming, and an unresolved submission keeps the coupon saved in its intent, including after a
-reload. The back arrow returns to the editable cart. Before submission, closing the mobile sheet
-returns to the menu and restores the add buttons. Both keep the cart and checkout form. Closing
-cancels in-flight checkout preparation and keeps any submission or recovery in progress. Ordinary
-cart editing shows the item total before the coupon. An unusable code says so without touching the
-cart. With delivery on, the header says "pickup or delivery" and confirmation starts with a
-pickup/delivery choice; delivery adds the address and the optional
-doorbell/floor notes, the price list ("within 3 km € 2.00", free bands as "free", and "no delivery
-beyond" the farthest band, `formatKm`), the restaurant's note in the customer's language (falling back
-to the default language, then Italian, Chinese and English; `deliveryNote` in `state.ts`) and a line
-saying the restaurant confirms the fee from the road distance, which the status page shows after
-acceptance. The total is then labelled
-as the items total, and the privacy line also names the address. With a minimum, the delivery box
-states it, and while delivery is chosen the footer shows "minimum X, Y to go" whenever the total shown
-is below it (`deliveryShortfallCents`): during checkout that total is after the coupon, as the server
-compares, so "Place order" stays disabled; in ordinary cart editing it is the item total, so customers
-who went back to add dishes see what is still missing. A `DELIVERY_MIN_ORDER` refusal frees the intent,
-says the dishes don't reach the minimum and rereads the menu.
+reload. Ordinary cart editing shows the item total before the coupon. An unusable code says so right
+under the coupon field, scrolled into view, until the code is edited (never in the footer), without
+touching the cart. While a delivery has no fee yet, the total is labelled as the items total;
+the delivery privacy line also names the address.
+
+The footer holds the amounts, the one reason the button cannot be tapped and the button.
+`checkoutBlock` picks the first reason: offline, the ordering context unknown or blocked (its own
+notice, with the waiting order's link or a retry), out of range, below the minimum, a fee that has just
+appeared, the security check. While a delivery has no fee yet the button reads "Calculate delivery
+fee" and asks for it; then only the address must be valid, and only the context and the minimum block
+it. Below the minimum (`deliveryShortfallCents`, on the total after the coupon, as the server
+compares) the reason reads "minimum X, Y to go" with "Add dishes" and "Switch to pickup"; ordinary
+cart editing shows the same line with the item total, so customers who went back to add dishes see
+what is still missing. A `DELIVERY_MIN_ORDER` refusal frees the intent, says the dishes don't reach the
+minimum and rereads the menu.
+
+The delivery details under the address (`DeliveryDetails`) show, without automatic quotes, the price
+list ("within 3 km € 2.00", free bands as "free", and "no delivery beyond" the farthest band,
+`formatKm`) and a line saying the restaurant confirms the fee from the road distance, which the status
+page shows after acceptance; then the restaurant's note in the customer's language (falling back to
+the default language, then Italian, Chinese and English; `deliveryNote` in `state.ts`); and, whenever
+automatic quotes apply or a quote is shown, "Powered by Geoapify · © OpenStreetMap contributors",
+linked to geoapify.com and OpenStreetMap's copyright page.
 
 With automatic quotes (`deliveryAutoQuote`), the fee of the typed address is asked for only when the
-customer taps "Calculate delivery fee" (`lookupFee`; a failed request counts as `UNKNOWN`), so no
-address goes to Geoapify unasked; the hint beside it says the address goes to the map service. The
-request sends the trimmed text the order will send, which the server binds the quote to, and the
-answer belongs to that text only: any other change, spacing included, makes it stale (`currentQuote`,
-`feeStatus`). If automatic quotes stop meanwhile, a `QUOTED` answer keeps counting for the amounts, the
-order and the credits, while any other answer falls back to the price list. `QUOTED` shows "delivery to {town} · fee X" with a hint to add the town
-or postcode if the town is wrong, and the footer shows the items total, the fee and the total
+customer taps the footer's "Calculate delivery fee" or presses Enter in the address (`lookupFee`; a
+failed request counts as `UNKNOWN`), so no address goes to Geoapify unasked. Until then the details
+say the address goes to the map service and sum the bands up in one line (`feeRange`: the lowest and
+highest fee as amounts, "€ 0.00–€ 5.00", "free" only when every band is, and the farthest distance). The request sends the trimmed text the order will send, which
+the server binds the quote to, and the answer belongs to that text only: any other change, spacing
+included, makes it stale (`currentQuote`, `feeStatus`) and the button asks again. If automatic quotes
+stop meanwhile, a `QUOTED` answer keeps counting for the amounts, the order and the credits, while any
+other answer falls back to the price list. Any answer holds the button for a second (`settling`), so
+repeated taps cannot place the order before the customer has seen the fee. `QUOTED` shows as a
+success, "delivery to {town} · {distance} · fee X", with the question "not {town}? add the town or
+postcode and calculate again" (a fee of 0 reads "free", there and in the footer), and the footer
+shows the items total, the fee and the total
 (`onlineCartAmounts`' `deliveryFeeCents` and `payableCents`; the delivery minimum still compares the
-dishes). `OUT_OF_RANGE` says the address is outside the area, offers the phone and keeps "Place order"
-disabled. `UNKNOWN` shows the price list and "the restaurant confirms the fee", like a restaurant
-without automatic quotes, and lets the customer order. While the address has not been priced, the
-submit button reads "Calculate delivery fee" and its tap asks for the fee instead of placing the
-order. The box credits "Powered by Geoapify · © OpenStreetMap contributors", linked to geoapify.com and
-OpenStreetMap's copyright page, whenever automatic quotes apply or a quote is shown. The delivery
-privacy line says the data go to the restaurant, without "only", since the address may also reach
-Geoapify and Google Maps (see the privacy page). The intent carries
-`deliveryQuote: { quote, feeCents }` (null otherwise), saved and read back with the rest; a
-`DELIVERY_QUOTE_INVALID` refusal frees the intent, drops the quote so checkout asks again, and rereads
-the menu. If "Checkout" finds delivery turned
+dishes). `OUT_OF_RANGE` puts "this address is in {town}, outside the delivery area" (without a town,
+"this address is outside the delivery area") above the disabled button, with "Switch to pickup" and the
+phone, and shows the price list. `UNKNOWN` shows the price list and,
+above the button, asks for the house number and town (only house-level matches are priced, so a
+street without its number is the usual cause) while letting the customer order, the restaurant then
+confirming the fee from the price list. The delivery privacy line says the
+data go to the restaurant, without "only", since the address may also reach Geoapify and Google Maps
+(see the privacy page). The intent carries `deliveryQuote: { quote, feeCents }` (null otherwise),
+saved and read back with the rest; a `DELIVERY_QUOTE_INVALID` refusal frees the intent, drops the
+quote so checkout asks again, and rereads the menu. If "Checkout" finds delivery turned
 off since the customer chose it, the form goes back to pickup and says so; a `DELIVERY_NOT_OFFERED`
 refusal says the restaurant isn't delivering and pickup is possible. Placing the order builds the
 intent (request ID from `randomUuid`, fulfillment, trimmed name, normalized phone, trimmed address and
@@ -582,8 +630,9 @@ On success the cart is cleared, the status token is remembered per restaurant in
 opens `/o/{token}`. An understood rejection of a first attempt frees the cart and says why, with the
 restaurant's phone. A lost or failed response keeps the intent pending: the page recovers by
 `GET .../requests/by-client-id/{id}` on mount and every 30 seconds while pending, never by POST, and
-offers "check the result", "retry the same order" (the identical saved request with a fresh CSRF token)
-and the phone. After an unknown result, a retry frees the intent only when it is rejected with a code
+offers "check the result", "send again" (the identical saved request with a fresh CSRF token, so it
+cannot order twice) and the phone, in plain words: it cannot confirm yet whether the order was sent,
+and the cart cannot change until then. After an unknown result, a retry frees the intent only when it is rejected with a code
 the server returns after its duplicate check (`SERVICE_SUSPENDED`, `ONLINE_NOT_OFFERED`,
 `ONLINE_PAUSED`, `ONLINE_CLOSED`, `ONLINE_BUSY`, `DELIVERY_NOT_OFFERED`, `COUPON_INVALID`,
 `DELIVERY_MIN_ORDER`, `ONLINE_BROWSER_PENDING`, `ONLINE_IP_WAITING_LIMIT`,
@@ -603,7 +652,11 @@ once accepted, the estimated time in large type on its own. `state.ts` derives w
 `phase`, `sessionStatus`, `closeReason` and the dish statuses (`orderView`, `statusCopy`): waiting,
 expired, rejected with or without a reason, preparing (with the estimated time), ready, all dishes
 cancelled, completed (`PAID`) and closed (`NO_SHOW` or `VOIDED`), with pickup and delivery wording
-where the customer's next step differs. The progress line has three steps: sent, accepted and ready.
+where the customer's next step differs. When the order did not go ahead (expired, rejected, all
+dishes cancelled) the status line is a short headline ("Order not accepted") and the reason, when
+there is one, follows on its own line (`statusReason`). An `OUT_OF_RANGE` rejection's reason reads
+"this address is outside the delivery area": a restaurant may refuse a quoted address too, one inside
+the distance but outside the area its note describes, so the wording never contradicts the quote. The progress line has three steps: sent, accepted and ready.
 There is no collected or delivered step: the customer meets staff at the handover, pass taps are
 optional and the owner may close the bill much later, so the page could not know in time. A `PAID`
 closure shows every step done and the neutral "order completed".
@@ -617,7 +670,8 @@ The privacy page names the restaurant as controller and TavoloFlow as processor,
 purpose, legal basis (performance of the customer's own order), retention, the customer's rights, the
 browser storage used, the optional security verification and, under map services: with automatic
 quotes, that the delivery address goes to Geoapify (processed in the EU) only to compute the road
-distance once the customer taps "Calculate delivery fee", with request logs normally kept at most
+distance once the customer asks for the fee ("Calculate delivery fee", or Enter in the address), with
+request logs normally kept at most
 24 hours and details of individual requests up to 2 months in exceptional cases such as suspicious
 or fraudulent activity, and that the order keeps the distance and fee but not the point found; and
 that staff may open the address in Google Maps to deliver, so Google receives it, possibly outside
@@ -686,7 +740,7 @@ With online ordering on, `StaffLayout` mounts `OnlinePendingBanner` for signed-i
 `GET /api/staff/online/pending` every 10 seconds while the page is visible and online (store key
 `["online-pending", restaurantId, userId]`, shared with the online orders page) and, while requests
 wait, shows one sticky line above every staff page: "N online orders to accept · View", or a warning
-once the 20-request cap stops customers. It rings `onlineRing` (low-high pairs, unlike the kitchen's
+once the 20-request cap stops customers. On the online orders page itself it drops "View". It rings `onlineRing` (low-high pairs, unlike the kitchen's
 rising pair and the pass's three beeps) every 3 seconds while the newest list is under 30 seconds old,
 has someone waiting and the shared `syncIsFresh` rule passes (no failed read, visible and online,
 and refreshed since resume). A failed, stale or paused view stops the ringing; cached counts remain
@@ -696,27 +750,31 @@ until then it says "tap the page to turn on the ringing".
 
 ### Online orders page
 
-`/staff/online` (from 首页, with a back link) lists the pending requests, each with its number,
-fulfillment badge, name, a `tel:` call button, for delivery the address with the doorbell notes,
-linked to the driving route from the restaurant's coordinates (`routeUrl`, the customer's own text as
-destination, so Google Maps shows the road distance that decides the band) or, without coordinates,
-to a plain search (`mapsUrl`), waited and remaining time on the server's clock
+`/staff/online` (the last tab, so without a back link) lists the pending requests, each with its
+number, fulfillment badge, name and phone, for delivery the address with the doorbell notes as text,
+then "Call" and, for delivery, "Route" side by side (`ContactActions`, outlined in the restaurant's
+primary colour): the route is the driving route from the restaurant's coordinates (`routeUrl`, the
+customer's own text as destination, so Google Maps shows the road distance that decides the band) or,
+without coordinates, "Open in Maps", a plain search (`mapsUrl`); then waited and remaining time on the
+server's clock
 (`requestTimes`, red under three minutes), the lines with options and remarks, and the subtotal; with a
 coupon, its line and discount, and for pickup the amount to collect. One tap on 10, 20, 30 or 45
 minutes accepts a pickup. A quoted delivery shows "delivery fee X · about Y km · quoted to the
 customer", with no band to pick and its times enabled at once. Any other delivery first takes a band,
-picked from the restaurant's current ones ("within 3 km · € 2.00"; without bands the card says to
+picked from the restaurant's current ones (compact cells, three to a row on phones, "within 3 km"
+over "€ 2.00", under "Delivery band (by route distance)"; without bands the card says to
 call the customer or reject; a picked band whose distance or fee the owner changes meanwhile is no
 longer picked, so a new fee is never sent without being chosen again), then
 shows "subtotal + delivery fee = total" ("subtotal − discount + delivery fee = total" with a coupon), and only then enables 30, 45, 60 and
-90 minutes. Reject opens `ConfirmDialog` with an optional reason; "outside the delivery area" is
+90 minutes, two by two on phones (one tap accepts); until a band is picked, the line above the times
+says to pick the band first. Reject opens `ConfirmDialog` with an optional reason; "outside the delivery area" is
 offered for delivery only (`rejectReasons`). Writes are blocked while
 the list is failed, stale or not refreshed since resume (`syncIsFresh`); every outcome rereads the
 pending, active, kitchen, pass and bills views, and an unknown result says to check the refreshed list.
 Below, the read-only In progress list shows each accepted order's number, name, estimated time, the
 amount to collect (with the delivery fee it includes, while it counts, and a "coupon taken off" line),
-call button, delivery address
-link and progress (cooking, ready or all cancelled): the only place STAFF see an accepted customer's
+phone, delivery address, the same call and map buttons (a plain search)
+and progress (cooking, ready or all cancelled): the only place STAFF see an accepted customer's
 phone and address, and what a rider collects, since the kitchen and pass never show them and STAFF have
 no bills page.
 
@@ -854,7 +912,10 @@ A missing phone or week is explained in one warning. Each card shows its own sav
 beside the button that sent it; editing the card again clears a saved result (a failure stays until
 the next attempt), so "saved" never stands beside unsaved changes. The page top keeps only read
 errors.
-Time inputs cannot hold 24:00, so 00:00 as a closing time means midnight. The query key is
+Time inputs cannot hold 24:00, so 00:00 as a closing time means midnight; the status card writes a
+slot or pause ending at midnight as 24:00 (`formatClosingTime`, `formatWeekdayClosingTime`). Each day
+with slots offers "Copy to other days": a dialog ticks every other day by default and replaces the
+ticked days' slots in the draft (`copyDay`), which the owner still saves. The query key is
 `["online-settings", restaurantId, userId]`; the visible page rereads it every 60 seconds because
 slots and pauses change with the clock. Local form edits survive background refreshes until saved or
 discarded.
@@ -931,12 +992,16 @@ discarded.
   and follow it to the status page; open the privacy page; reopen the menu to see the order in
   progress; simulate a lost response (recovered by GET, one POST), a request that never arrived
   (manual retry resends it unchanged), a reload during an unknown result, and a retry rejected by a
-  pause (the cart is freed); pause and check that the checkout stays closed. With a delivery cart
-  below the minimum, close confirmation, add dishes from the menu, and reopen the cart. Check that
-  the next checkout keeps the form and updates the shortfall. Close during a delayed checkout read
-  and verify that the cart is editable. Close during an unresolved submission and verify that the
-  original request remains available to recover. Staff side at 360px in zh,
+  pause (the cart is freed); pause and check that the checkout stays closed. Press Enter in every
+  field and check that it moves on and never submits. With a delivery cart below the minimum, use
+  "Add dishes", add a dish and check out again: the form is kept and the shortfall updated. Ask for
+  the fee of an address without a house number, with one, and beyond the bands, and tap again right
+  after an answer. Use the back arrow, the system back and a reload on the checkout page, and the back
+  gesture (an iPhone's edge swipe, the browser's back) with the cart or a dish's options open. Close
+  during a delayed checkout read and verify that the cart is editable. Leave during an unresolved
+  submission and verify that the original request remains available to recover. Staff side at 360px in zh,
   it and en: the banner and its tap hint on every staff page, the ringing continuing with the kitchen
-  sound off, accept and reject (with the dialog), a lost accept response, the kitchen, pass, bills and
+  sound off, the five tabs with Online last (and the menu on 首页 with dine-in on), the call and route
+  buttons and the band cells, accept and reject (with the dialog), a lost accept response, the kitchen, pass, bills and
   history labels with a 30-character name, checkout of a pickup order, and closing one as not
   collected with the history filter.

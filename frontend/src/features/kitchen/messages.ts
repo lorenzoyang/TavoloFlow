@@ -35,11 +35,11 @@ const zh = {
     `${kind === "ready" ? "完成" : "取消"}操作结果待确认 · 订单 #${order}${item ? ` · 菜品 #${item}` : " · 旧版整单操作"}`,
   viewTabs: "厨房视图",
   listSummary: (status: string, total: number | string, shown: number) =>
-    `${status}共 ${total} 笔 · 已显示 ${shown} 笔。仅显示正在用餐的订单。`,
+    `${status}共 ${total} 笔 · 已显示 ${shown} 笔。仅显示还没结账的订单。`,
   loading: "正在读取订单…",
   empty: { NEW: "暂无待处理订单。", PROCESSED: "暂无已处理订单。" } as Record<OrderStatus, string>,
   dishSummary: (dishes: number, portions: number) =>
-    `待出餐 ${dishes} 道菜，共 ${portions} 份。仅显示正在用餐的订单。`,
+    `待出餐 ${dishes} 道菜，共 ${portions} 份。仅显示还没结账的订单。`,
   dishesIncomplete: "还有较新的订单未加载，以上数量可能不完整。",
   emptyDishes: "暂无待出餐菜品。",
   categories: "本屏分类",
@@ -116,11 +116,11 @@ export const kitchenMessages: Record<Language, typeof zh> = {
       `Esito da verificare: ${kind === "ready" ? "pronto" : "annullamento"} · ordine #${order}${item ? ` · piatto #${item}` : " · vecchia operazione sull’intero ordine"}`,
     viewTabs: "Vista della cucina",
     listSummary: (status, total, shown) =>
-      `${status}: ${total} ordini, ${shown} visualizzati. Solo visite in corso.`,
+      `${status}: ${total} ordini, ${shown} visualizzati. Solo conti ancora aperti.`,
     loading: "Caricamento ordini…",
     empty: { NEW: "Nessun ordine da fare.", PROCESSED: "Nessun ordine evaso." },
     dishSummary: (dishes, portions) =>
-      `Da fare: ${dishes === 1 ? "1 piatto" : `${dishes} piatti`}, ${portions === 1 ? "1 porzione" : `${portions} porzioni`}. Solo visite in corso.`,
+      `Da fare: ${dishes === 1 ? "1 piatto" : `${dishes} piatti`}, ${portions === 1 ? "1 porzione" : `${portions} porzioni`}. Solo conti ancora aperti.`,
     dishesIncomplete:
       "Ci sono ordini più recenti non ancora caricati: i totali potrebbero essere incompleti.",
     emptyDishes: "Nessun piatto da fare.",
@@ -199,11 +199,11 @@ export const kitchenMessages: Record<Language, typeof zh> = {
       `Result to check: ${kind === "ready" ? "ready" : "cancellation"} · order #${order}${item ? ` · dish #${item}` : " · old whole-order action"}`,
     viewTabs: "Kitchen view",
     listSummary: (status, total, shown) =>
-      `${status}: ${total} orders, ${shown} shown. Open visits only.`,
+      `${status}: ${total} orders, ${shown} shown. Open bills only.`,
     loading: "Loading orders…",
     empty: { NEW: "No orders to do.", PROCESSED: "No orders done." },
     dishSummary: (dishes, portions) =>
-      `To do: ${dishes === 1 ? "1 dish" : `${dishes} dishes`}, ${portions === 1 ? "1 portion" : `${portions} portions`}. Open visits only.`,
+      `To do: ${dishes === 1 ? "1 dish" : `${dishes} dishes`}, ${portions === 1 ? "1 portion" : `${portions} portions`}. Open bills only.`,
     dishesIncomplete: "Newer orders aren’t loaded yet: the totals may be incomplete.",
     emptyDishes: "No dishes to do.",
     categories: "Categories",

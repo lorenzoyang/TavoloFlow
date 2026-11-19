@@ -15,6 +15,14 @@ export function onLifecycleChange(handler: () => void) {
   };
 }
 
+// Only whether the view is live, without a clock: for pages that gate polling and writes but show no
+// age, so they do not rerender every second.
+export function useLiveActive() {
+  const [active, setActive] = useState(isLive);
+  useEffect(() => onLifecycleChange(() => setActive(isLive())), []);
+  return active;
+}
+
 // Whether the view is live, when it last resumed (data received before that is stale), and a 1-second clock.
 export function useLiveView() {
   const [active, setActive] = useState(isLive);

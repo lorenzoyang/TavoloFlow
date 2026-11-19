@@ -36,7 +36,10 @@ public sealed record DemoItem(
     bool IsAvailable,
     string Image,
     // Optional: the dish is on sale at this price, below PriceCents.
-    long? SalePriceCents = null
+    long? SalePriceCents = null,
+    // Optional: the short code menus, kitchen and bills show before the name ("R1"). Key only links
+    // fixtures (photos, option groups) and is never shown.
+    string? ItemCode = null
 );
 
 // Items lists the dish keys that use the group; groups keep the fixture's order on every dish.

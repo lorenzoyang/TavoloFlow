@@ -74,8 +74,10 @@ public sealed class DeliveryQuoteLimits(IOptions<GeoapifyOptions> options) : IDi
     }
 }
 
-// Where an address is and how far by road: the town to show and the driving distance in metres.
-public sealed record RoutedAddress(string? Town, int Meters);
+// Where an address is and how far by road: the town to show and the driving distance in metres. A
+// precise match beyond the search circle has no distance: farther than the circle in a straight line,
+// it is farther by road too, so no route is asked for and it is out of range.
+public sealed record RoutedAddress(string? Town, int? Meters);
 
 public interface IDeliveryRouting
 {
@@ -91,7 +93,9 @@ public interface IDeliveryRouting
     );
 }
 
-// One address search and one drive route per quote (two credits). The key travels in the URL, so the
+// At most two calls per quote (two credits): an address search inside a circle around the restaurant,
+// then a drive route, or, when nothing precise is found inside, the same search without the circle. The
+// key travels in the URL, so the
 // named HttpClient has no loggers; failures log only the HTTP status or the exception type, never the
 // address, the key, coordinates or a response body. Traffic is the default free flow, so the same
 // address keeps the same price. The EU endpoint is the one Geoapify's DPA keeps inside the EU.
@@ -120,25 +124,38 @@ public sealed class GeoapifyRouting(
         var lat = originLat.ToString(CultureInfo.InvariantCulture);
         var lng = originLng.ToString(CultureInfo.InvariantCulture);
         var client = clients.CreateClient(HttpClientName);
-        try
-        {
-            // The search takes longitude first; the route takes latitude first.
-            var found = await GetAsync<SearchResponse>(
+        // The search takes longitude first; the route takes latitude first.
+        Task<SearchResponse?> Search(string filter) =>
+            GetAsync<SearchResponse>(
                 client,
                 $"{Endpoint}/v1/geocode/search?text={Uri.EscapeDataString(address)}"
-                    + $"&filter=circle:{lng},{lat},{radiusMeters}&bias=proximity:{lng},{lat}"
+                    + $"{filter}&bias=proximity:{lng},{lat}&lang={OnlineDelivery.PlaceNamesLanguage}"
                     + $"&limit=1&format=json&apiKey={key}",
                 ct
             );
-            // A malformed answer (a missing point, a missing or impossible distance) is not priced
-            // either; an impossible point fails the route.
-            var match = found?.Results?.FirstOrDefault();
-            if (
-                match is not { Lat: not null, Lon: not null }
-                || !OnlineDelivery.QuotableMatches.Contains(match.ResultType)
-                || (match.Rank?.ConfidenceStreetLevel ?? 0) < OnlineDelivery.MinStreetConfidence
-            )
+        try
+        {
+            var found = await Search($"&filter=circle:{lng},{lat},{radiusMeters}");
+            if (found is null)
                 return null;
+            var match = Precise(found);
+            if (match is null)
+            {
+                // Nothing precise near the restaurant: once more anywhere, still biased to it. A precise
+                // match outside the circle is out of range, with its town, so a customer who meant
+                // another place can tell; anything else stays unpriced.
+                var anywhere = Precise(await Search(""));
+                return
+                    anywhere is not null
+                    && OnlineDelivery.StraightMeters(
+                        originLat,
+                        originLng,
+                        anywhere.Lat!.Value,
+                        anywhere.Lon!.Value
+                    ) > radiusMeters
+                    ? new(anywhere.City, null)
+                    : null;
+            }
             var waypoints = string.Create(
                 CultureInfo.InvariantCulture,
                 $"{lat},{lng}|{match.Lat},{match.Lon}"
@@ -176,6 +193,16 @@ public sealed class GeoapifyRouting(
             return null;
         }
     }
+
+    // Only a house number or a named place with a confident street is priced. A malformed answer (a
+    // missing point, a missing or impossible distance) is not priced either; an impossible point fails
+    // the route.
+    private static SearchResult? Precise(SearchResponse? found) =>
+        found?.Results?.FirstOrDefault() is { Lat: not null, Lon: not null } match
+        && OnlineDelivery.QuotableMatches.Contains(match.ResultType)
+        && (match.Rank?.ConfidenceStreetLevel ?? 0) >= OnlineDelivery.MinStreetConfidence
+            ? match
+            : null;
 
     private async Task<T?> GetAsync<T>(HttpClient client, string url, CancellationToken ct)
         where T : class
@@ -339,19 +366,21 @@ public sealed class DeliveryQuoteService(
         );
         if (routed is null)
             return Unknown;
-        if (OnlineDelivery.TierFee(tiers, routed.Meters) is not { } fee)
-            return new(DeliveryQuoteResponse.OutOfRange);
+        // Out of range keeps the town (and the distance when routed), so a customer can see where the
+        // address was found.
+        if (routed.Meters is not { } meters || OnlineDelivery.TierFee(tiers, meters) is not { } fee)
+            return new(DeliveryQuoteResponse.OutOfRange, routed.Town, routed.Meters);
         return new(
             DeliveryQuoteResponse.Quoted,
             routed.Town,
-            routed.Meters,
+            meters,
             fee,
             quotes.Sign(
                 restaurant.Id,
                 address,
                 originLat,
                 originLng,
-                routed.Meters,
+                meters,
                 now.UtcDateTime + DeliveryQuotes.Lifetime
             )
         );

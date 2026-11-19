@@ -13,6 +13,7 @@ export function TurnstileChallenge({
   onProof,
   retry,
   fallback,
+  quiet = false,
 }: {
   siteKey: string;
   binding: string;
@@ -20,6 +21,8 @@ export function TurnstileChallenge({
   onProof: (proof: VerificationProof | null) => void;
   retry: () => void;
   fallback: ReactNode;
+  // Without its own progress line: the checkout says it above its button, and the widget shows its tick.
+  quiet?: boolean;
 }) {
   const target = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
@@ -92,7 +95,7 @@ export function TurnstileChallenge({
         >
           {m.verificationUnavailable}
         </Notice>
-      ) : (
+      ) : quiet ? null : (
         <p role="status" className="text-sm leading-6 text-muted-foreground">
           {ready ? m.verificationReady : m.verificationRequired}
         </p>

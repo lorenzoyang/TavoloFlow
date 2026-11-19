@@ -35,6 +35,8 @@ public sealed class OnlineDeliveryQuoteTests(PostgreSqlFixture database)
         places["Via Vicina 1"] = Near;
         places["Via Media 2"] = new("amenity", 0.9, "Prato", 6000);
         places["Via Lontana 3"] = new("building", 1, "Campi Bisenzio", 12_000);
+        places["Piazza Remota 7, Firenze"] = new("building", 1, "Firenze", 40_000);
+        places["Via Remota, Firenze"] = new("street", 1, "Firenze", 40_000);
         places["Via Lunga"] = new("street", 1, "Prato", 2000);
         places["Via Marni 1"] = new("building", 0.33, "Prato", 4000);
         places["Via Senza Punto 4"] = new("building", 1, "Prato", null);
@@ -58,42 +60,77 @@ public sealed class OnlineDeliveryQuoteTests(PostgreSqlFixture database)
         Assert.False(string.IsNullOrEmpty(near.Quote));
         // The band's limit is inclusive.
         Assert.Equal(400, (await QuoteAsync(client, shop, "Via Media 2")).FeeCents);
+        // Out of range says where the address was found.
         Assert.Equal(
-            new DeliveryQuoteResponse(DeliveryQuoteResponse.OutOfRange),
+            new DeliveryQuoteResponse(DeliveryQuoteResponse.OutOfRange, "Campi Bisenzio", 12_000),
             await QuoteAsync(client, shop, "Via Lontana 3")
         );
 
-        // The search sends the restaurant's point, longitude first, and a circle beyond the last band.
+        // The search sends the restaurant's point, longitude first, a circle beyond the last band and
+        // asks for Italian place names.
         var search = QueryHelpers.ParseQuery(host.GeoapifyService.Calls.First().Query);
         Assert.Equal(
             (
                 "Via Vicina 1",
                 "circle:11.096122,43.880153,15000",
                 "proximity:11.096122,43.880153",
+                "it",
                 Key
             ),
             (
                 search["text"].ToString(),
                 search["filter"].ToString(),
                 search["bias"].ToString(),
+                search["lang"].ToString(),
                 search["apiKey"].ToString()
             )
         );
 
-        // A street without its number, a doubtful match, no match and an outage are not priced, and
-        // only a precise match asks for a route.
+        // A precise match only outside the circle is out of range without a route: the search is
+        // repeated without the circle, still biased to the restaurant.
         var calls = host.GeoapifyService.Calls.Count;
-        foreach (var address in new[] { "Via Lunga", "Via Marni 1", "Via Sconosciuta 9" })
+        Assert.Equal(
+            new DeliveryQuoteResponse(DeliveryQuoteResponse.OutOfRange, "Firenze"),
+            await QuoteAsync(client, shop, "Piazza Remota 7, Firenze")
+        );
+        var anywhere = QueryHelpers.ParseQuery(host.GeoapifyService.Calls.Last().Query);
+        Assert.Equal(
+            (calls + 2, "/v1/geocode/search", false, "proximity:11.096122,43.880153"),
+            (
+                host.GeoapifyService.Calls.Count,
+                host.GeoapifyService.Calls.Last().AbsolutePath,
+                anywhere.ContainsKey("filter"),
+                anywhere["bias"].ToString()
+            )
+        );
+
+        // A street without its number, a doubtful match, no match (near or anywhere) and an outage
+        // are not priced; each searches once more without the circle, and only a precise match asks
+        // for a route.
+        calls = host.GeoapifyService.Calls.Count;
+        foreach (
+            var address in new[]
+            {
+                "Via Lunga",
+                "Via Marni 1",
+                "Via Sconosciuta 9",
+                "Via Remota, Firenze",
+            }
+        )
             Assert.Equal(
                 new DeliveryQuoteResponse(DeliveryQuoteResponse.Unknown),
                 await QuoteAsync(client, shop, address)
             );
-        Assert.Equal(calls + 3, host.GeoapifyService.Calls.Count);
+        Assert.Equal(calls + 8, host.GeoapifyService.Calls.Count);
+        Assert.DoesNotContain(
+            host.GeoapifyService.Calls.Skip(calls),
+            call => call.AbsolutePath == "/v1/routing"
+        );
 
-        // Malformed answers are not priced: a match without coordinates (no route is asked for), a
-        // negative distance and a route without its distance (both after the route call).
+        // Malformed answers are not priced: a match without coordinates (searched near and anywhere,
+        // no route), a negative distance and a route without its distance (both after the route call).
         foreach (
-            var (address, callsMade) in new[] { ("Via Senza Punto 4", 1), ("Via Rovescia 5", 2) }
+            var (address, callsMade) in new[] { ("Via Senza Punto 4", 2), ("Via Rovescia 5", 2) }
         )
         {
             calls = host.GeoapifyService.Calls.Count;

@@ -433,7 +433,7 @@ export function CartLines({
                     <Plus />
                   </Button>
                   <span className="text-xs text-muted-foreground">
-                    {formatMoney(unit, language)} / {m.portions}
+                    {m.unitPrice(formatMoney(unit, language))}
                   </span>
                   <Button
                     variant="ghost"
@@ -448,7 +448,7 @@ export function CartLines({
                 </div>
                 <Input
                   maxLength={200}
-                  placeholder={m.remark}
+                  placeholder={m.remarkPlaceholder}
                   aria-label={`${m.remark} · ${name.text}`}
                   value={line.remark}
                   disabled={frozen}

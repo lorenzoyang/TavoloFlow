@@ -29,12 +29,11 @@ const zh = {
     `共 ${orders} 笔订单、${items} 项 · 待出餐 ${waiting} 项 · 已取消 ${cancelled} 项`,
   times: (opened: string, closed: string | null) =>
     `开桌：${opened}${closed ? ` · 关桌：${closed}` : ""}`,
-  sessionId: (id: string) => `用餐编号：${id}`,
   details: "账单明细",
   readError: "账单暂时无法更新，请恢复连接后刷新。",
   loading: "正在读取账单…",
   shown: (shown: number, total: number) =>
-    `已显示 ${shown} / ${total} 笔。应收包含本轮全部未取消菜品，与已加载页数无关。`,
+    `已显示 ${shown} / ${total} 笔订单；应收已包含全部订单。`,
   noOrders: "本轮从未产生订单。",
   loadMore: "加载更多账单订单",
   // Closing the visit.
@@ -44,7 +43,7 @@ const zh = {
   refresh: "刷新账单",
   conflict: (amount: string, waiting: number) =>
     `上次提交被拒绝时：应收 ${amount}，待处理 ${waiting} 项。请核对下方最新账单。`,
-  storageWarning: "浏览器无法保存待确认提示，请在当前页面核对结果，刷新前记录本轮用餐编号。",
+  storageWarning: "浏览器无法保存待确认提示，请在当前页面核对结果，核对完再刷新。",
   verify: "核对原用餐状态",
   pending: (id: string) => `关闭结果待确认 · 用餐 #${id}。系统不会自动重新提交。`,
   closedTitle: (table: string) => `${table} · 本轮已结束`,
@@ -111,7 +110,6 @@ const zh = {
     times: (accepted: string, closed: string | null) =>
       `接单：${accepted}${closed ? ` · 关闭：${closed}` : ""}`,
     estimated: (time: string) => `预计 ${time}`,
-    call: (phone: string) => `拨打 ${phone}`,
     closedHint: "这一单已结束，顾客的订单页会显示结果。",
     summary: (time: string) => `${time} 接单`,
     paidButton: "已取餐，核对收款",
@@ -198,12 +196,11 @@ export const billingMessages: Record<Language, typeof zh> = {
     counts: (orders, items, waiting, cancelled) =>
       `${plural(orders, "ordine", "ordini")}, ${plural(items, "piatto", "piatti")} · da fare ${waiting} · annullati ${cancelled}`,
     times: (opened, closed) => `Aperto: ${opened}${closed ? ` · Chiuso: ${closed}` : ""}`,
-    sessionId: (id) => `ID visita: ${id}`,
     details: "Dettaglio del conto",
     readError: "Impossibile aggiornare il conto: aggiorna quando torna la connessione.",
     loading: "Caricamento del conto…",
     shown: (shown, total) =>
-      `Visualizzati ${shown} di ${total} ordini. Il totale comprende tutti i piatti non annullati della visita, anche quelli non ancora caricati.`,
+      `Visualizzati ${shown} di ${total} ordini; il totale li comprende tutti.`,
     noOrders: "Nessun ordine in questa visita.",
     loadMore: "Carica altri ordini",
     checkout: "Chiusura della visita",
@@ -213,7 +210,7 @@ export const billingMessages: Record<Language, typeof zh> = {
     conflict: (amount, waiting) =>
       `Al momento del rifiuto: da incassare ${amount}, da fare ${waiting}. Controlla il conto aggiornato qui sotto.`,
     storageWarning:
-      "Il browser non può salvare gli avvisi in sospeso: verifica l’esito qui e annota l’ID della visita prima di ricaricare.",
+      "Il browser non può salvare gli avvisi in sospeso: verifica l’esito qui prima di ricaricare.",
     verify: "Verifica la visita",
     pending: (id) =>
       `Chiusura da verificare · visita #${id}. Nulla verrà reinviato automaticamente.`,
@@ -286,7 +283,6 @@ export const billingMessages: Record<Language, typeof zh> = {
       active: "In corso",
       times: (accepted, closed) => `Accettato: ${accepted}${closed ? ` · Chiuso: ${closed}` : ""}`,
       estimated: (time) => `Previsto ${time}`,
-      call: (phone) => `Chiama ${phone}`,
       closedHint: "Ordine concluso: la pagina del cliente mostra l’esito.",
       summary: (time) => `accettato ${time}`,
       paidButton: "Ritirato, verifica incasso",
@@ -375,12 +371,10 @@ export const billingMessages: Record<Language, typeof zh> = {
     counts: (orders, items, waiting, cancelled) =>
       `${plural(orders, "order", "orders")}, ${plural(items, "dish", "dishes")} · to do ${waiting} · cancelled ${cancelled}`,
     times: (opened, closed) => `Opened: ${opened}${closed ? ` · Closed: ${closed}` : ""}`,
-    sessionId: (id) => `Visit ID: ${id}`,
     details: "Bill details",
     readError: "Can’t update the bill: refresh when the connection is back.",
     loading: "Loading the bill…",
-    shown: (shown, total) =>
-      `Showing ${shown} of ${total} orders. The total includes every dish of the visit that isn’t cancelled, loaded or not.`,
+    shown: (shown, total) => `Showing ${shown} of ${total} orders; the total includes them all.`,
     noOrders: "No orders in this visit.",
     loadMore: "Load more orders",
     checkout: "Close the visit",
@@ -390,7 +384,7 @@ export const billingMessages: Record<Language, typeof zh> = {
     conflict: (amount, waiting) =>
       `When it was rejected: due ${amount}, to do ${waiting}. Check the updated bill below.`,
     storageWarning:
-      "The browser can’t save pending notices: check the result here and note the visit ID before reloading.",
+      "The browser can’t save pending notices: check the result here before reloading.",
     verify: "Check the visit",
     pending: (id) => `Closing to be checked · visit #${id}. Nothing is resent automatically.`,
     closedTitle: (table) => `${table} · visit closed`,
@@ -458,7 +452,6 @@ export const billingMessages: Record<Language, typeof zh> = {
       active: "In progress",
       times: (accepted, closed) => `Accepted: ${accepted}${closed ? ` · Closed: ${closed}` : ""}`,
       estimated: (time) => `Expected ${time}`,
-      call: (phone) => `Call ${phone}`,
       closedHint: "This order is closed: the customer’s order page shows the outcome.",
       summary: (time) => `accepted ${time}`,
       paidButton: "Collected, check payment",

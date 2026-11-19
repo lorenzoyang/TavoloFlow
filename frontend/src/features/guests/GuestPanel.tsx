@@ -202,7 +202,7 @@ export function GuestPanel({ guest, language }: { guest: Guest; language: Langua
             void guest.join();
           }}
         >
-          <label htmlFor="guest-join-code" className="text-sm font-medium">
+          <label htmlFor="guest-join-code" className="block text-center text-sm font-medium">
             {m.code}
           </label>
           {/* Keep IME text unchanged while editing; the API normalizes case on submission. */}
@@ -213,9 +213,11 @@ export function GuestPanel({ guest, language }: { guest: Guest; language: Langua
             autoCorrect="off"
             spellCheck={false}
             maxLength={4}
+            // Four dots, sized like the code: the field reads as a short code to type, not a line.
+            placeholder="····"
             value={guest.input}
             onChange={(e) => guest.setInput(e.target.value)}
-            className="h-16 pl-[0.5em] text-center font-mono text-3xl font-semibold tracking-[0.5em]"
+            className="mx-auto block h-16 w-56 pl-[0.5em] text-center font-mono text-3xl font-semibold tracking-[0.5em] placeholder:text-muted-foreground/40"
             aria-describedby="guest-feedback"
             disabled={guest.busy || !guest.entranceAllowed}
           />
