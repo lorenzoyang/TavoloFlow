@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, Outlet, useMatchRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { RefreshCw, X } from "lucide-react";
 import { BrandMark } from "@/components/brand";
 import { Notice } from "@/components/notice";
@@ -21,6 +21,7 @@ import {
   MenuSkeleton,
 } from "@/features/public-menu/PublicMenuViews";
 import { onlineMenuQuery, type OnlineMenu } from "./api";
+import { OnlineCheckoutContext } from "./checkout-context";
 import { onlineOrderMessages } from "./messages";
 import { ActiveOrder, OnlineCartPanel, OnlineHeader, OrderingContextNotice } from "./OnlineViews";
 import { useRestaurantLanguage } from "./useRestaurantLanguage";
@@ -67,18 +68,73 @@ function MenuContent({
   useDocumentTheme(data.restaurant.theme);
   const cart = useOnlineCart(slug, data);
   const wide = useMediaQuery(WIDE_SCREEN);
+  const router = useRouter();
+  const navigate = useNavigate();
+  const matchRoute = useMatchRoute();
   const [categoryId, setCategoryId] = useState("");
   const [cartOpen, setCartOpen] = useState(false);
   const m = onlineOrderMessages[language];
   const mm = menuMessages[language];
   const closed = closedNotice(data, language);
   const phone = data.restaurant.publicPhone;
+
+  // The checkout is a child page (/r/{slug}/checkout): the menu stays mounted but hidden, so its
+  // images, scroll position and this cart model survive, and the system back gesture returns here.
+  // The sheet keeps its open state meanwhile, so going back shows the cart again.
+  const inCheckout = !!matchRoute({ to: "/r/$slug/checkout", params: { slug } });
+  const checkoutPath = router.buildLocation({ to: "/r/$slug/checkout", params: { slug } }).pathname;
+  const menuScroll = useRef(0);
+  const wasCheckout = useRef(false);
+  const reviewed = useRef(false);
+  const leaving = useRef(false);
+  function startCheckout() {
+    menuScroll.current = window.scrollY;
+    void cart.checkout();
+  }
+  // Checkout is only ever entered from the menu, so going back returns there.
+  function backToMenu() {
+    if (leaving.current) return;
+    leaving.current = true;
+    router.history.back();
+  }
+  function leave(openCart: boolean) {
+    if (!openCart) setCartOpen(false);
+    backToMenu();
+  }
+  useLayoutEffect(() => {
+    if (inCheckout && cart.review) reviewed.current = true;
+    if (inCheckout === wasCheckout.current) return;
+    wasCheckout.current = inCheckout;
+    if (inCheckout) return;
+    // Back on the menu by any way out: the form stays, the review of the lines does not.
+    reviewed.current = false;
+    leaving.current = false;
+    cart.back();
+  });
+  // The router scrolls every navigation to the top; coming back from the checkout returns to where
+  // the customer left the menu instead.
+  useEffect(
+    () =>
+      router.subscribe("onRendered", ({ fromLocation, toLocation }) => {
+        if (fromLocation?.pathname === checkoutPath && toLocation.pathname !== checkoutPath)
+          window.scrollTo(0, menuScroll.current);
+      }),
+    [router, checkoutPath],
+  );
+  // The checkout exists only for a reviewed cart. A reload or a saved link goes to the menu instead;
+  // a refusal that frees the cart (the review is dropped) returns to it, where its notice shows. A
+  // placed order empties the cart while its status page opens, so nothing happens then.
+  useEffect(() => {
+    if (!inCheckout || cart.review || cart.busy) return;
+    if (!reviewed.current) void navigate({ to: "/r/$slug", params: { slug }, replace: true });
+    else if (cart.cart.lines.length) backToMenu();
+  });
   const cartPanel = (
     <OnlineCartPanel
       cart={cart}
       data={data}
-      slug={slug}
       language={language}
+      checkout={startCheckout}
       closedNotice={closed}
       headerAction={
         wide ? undefined : (
@@ -99,102 +155,105 @@ function MenuContent({
     />
   );
   return (
-    <div lang={language} className="min-h-dvh">
-      <OnlineHeader
-        name={data.restaurant.name}
-        phone={phone}
-        delivery={data.restaurant.deliveryEnabled}
-        language={language}
-        selectLanguage={selectLanguage}
-        action={
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label={m.retry}
-            disabled={refreshing}
-            onClick={refresh}
-          >
-            <RefreshCw className={cn(refreshing && "animate-spin")} />
-          </Button>
-        }
-      />
-      <div className="mx-auto max-w-6xl px-4 pb-36 lg:grid lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start lg:gap-8 lg:pb-12">
-        <main className="min-w-0 space-y-5 pt-5">
-          <OrderingContextNotice model={cart} language={language} />
-          {!cart.waitingOrder && (
-            <ActiveOrder restaurantId={data.restaurant.id} language={language} />
-          )}
-          {closed ? (
-            // Text only: the header keeps the restaurant's phone right above it.
-            <Notice tone="warning">{closed}</Notice>
-          ) : (
-            <p className="text-sm leading-6 text-muted-foreground">{m.open}</p>
-          )}
-          {error && (
-            <Notice
-              tone="error"
-              action={
-                <Button variant="outline" disabled={refreshing} onClick={refresh}>
-                  <RefreshCw />
-                  {m.retry}
-                </Button>
-              }
+    <OnlineCheckoutContext.Provider value={{ cart, data, slug, language, selectLanguage, leave }}>
+      {inCheckout && <Outlet />}
+      <div lang={language} hidden={inCheckout} className="min-h-dvh">
+        <OnlineHeader
+          name={data.restaurant.name}
+          phone={phone}
+          delivery={data.restaurant.deliveryEnabled}
+          language={language}
+          selectLanguage={selectLanguage}
+          action={
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label={m.retry}
+              disabled={refreshing}
+              onClick={refresh}
             >
-              {m.stale}
-            </Notice>
+              <RefreshCw className={cn(refreshing && "animate-spin")} />
+            </Button>
+          }
+        />
+        <div className="mx-auto max-w-6xl px-4 pb-36 lg:grid lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start lg:gap-8 lg:pb-12">
+          <main className="min-w-0 space-y-5 pt-5">
+            <OrderingContextNotice model={cart} language={language} />
+            {!cart.waitingOrder && (
+              <ActiveOrder restaurantId={data.restaurant.id} language={language} />
+            )}
+            {closed ? (
+              // Text only: the header keeps the restaurant's phone right above it.
+              <Notice tone="warning">{closed}</Notice>
+            ) : (
+              <p className="text-sm leading-6 text-muted-foreground">{m.open}</p>
+            )}
+            {error && (
+              <Notice
+                tone="error"
+                action={
+                  <Button variant="outline" disabled={refreshing} onClick={refresh}>
+                    <RefreshCw />
+                    {m.retry}
+                  </Button>
+                }
+              >
+                {m.stale}
+              </Notice>
+            )}
+            <MenuList
+              data={data}
+              language={language}
+              cart={cart}
+              categoryId={categoryId}
+              selectCategory={setCategoryId}
+            />
+            <footer className="space-y-1 border-t pt-5 text-xs leading-6 text-muted-foreground">
+              <p>{mm.allergyHint}</p>
+              <p>
+                <Link to="/r/$slug/privacy" params={{ slug }} className="underline">
+                  {m.privacy}
+                </Link>
+              </p>
+            </footer>
+          </main>
+          {wide && !inCheckout && (
+            // The panel scrolls its own body between a fixed head and footer, and pads itself.
+            <aside className="sticky top-6 mt-5 flex max-h-[calc(100dvh-3rem)] flex-col overflow-hidden rounded-2xl border bg-card shadow-xs">
+              {cartPanel}
+            </aside>
           )}
-          <MenuList
-            data={data}
-            language={language}
-            cart={cart}
-            categoryId={categoryId}
-            selectCategory={setCategoryId}
-          />
-          <footer className="space-y-1 border-t pt-5 text-xs leading-6 text-muted-foreground">
-            <p>{mm.allergyHint}</p>
-            <p>
-              <Link to="/r/$slug/privacy" params={{ slug }} className="underline">
-                {m.privacy}
-              </Link>
-            </p>
-          </footer>
-        </main>
-        {wide && (
-          // The panel scrolls its own body between a fixed head and footer, and pads itself.
-          <aside className="sticky top-6 mt-5 flex max-h-[calc(100dvh-3rem)] flex-col overflow-hidden rounded-2xl border bg-card shadow-xs">
-            {cartPanel}
-          </aside>
+        </div>
+        {!wide && (
+          <>
+            {cart.cart.lines.length > 0 && (
+              <CartBar
+                cart={cart}
+                amountCents={cart.amounts.payableCents}
+                language={language}
+                open={() => setCartOpen(true)}
+              />
+            )}
+            <Sheet
+              open={cartOpen && !inCheckout}
+              onOpenChange={(open) => {
+                if (!open) cart.back();
+                setCartOpen(open);
+              }}
+            >
+              <SheetContent
+                side="bottom"
+                showCloseButton={false}
+                aria-labelledby="cart-title"
+                className="max-h-[90dvh] gap-0 rounded-t-3xl"
+              >
+                {cartPanel}
+              </SheetContent>
+            </Sheet>
+          </>
         )}
       </div>
-      {!wide && (
-        <>
-          {cart.cart.lines.length > 0 && (
-            <CartBar
-              cart={cart}
-              amountCents={cart.amounts.payableCents}
-              language={language}
-              open={() => setCartOpen(true)}
-            />
-          )}
-          <Sheet
-            open={cartOpen}
-            onOpenChange={(open) => {
-              if (!open) cart.back();
-              setCartOpen(open);
-            }}
-          >
-            <SheetContent
-              side="bottom"
-              showCloseButton={false}
-              aria-labelledby="cart-title"
-              className="max-h-[90dvh] gap-0 rounded-t-3xl"
-            >
-              {cartPanel}
-            </SheetContent>
-          </Sheet>
-        </>
-      )}
-    </div>
+    </OnlineCheckoutContext.Provider>
   );
 }
 

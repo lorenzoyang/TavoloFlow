@@ -164,13 +164,31 @@ const validCoupon = (coupon: CouponPreview | null) =>
   coupon === null ||
   (normalizeCouponCode(coupon.code) === coupon.code && validCouponPercent(coupon.percentOff));
 
+// The checkout fields in the order they appear: a delivery asks for the address first, right under
+// the choice that opens it, because the address decides whether and for how much the restaurant
+// delivers; the contact details follow.
+export const checkoutFields = (fulfillment: Fulfillment): CheckoutProblem[] =>
+  fulfillment === "DELIVERY" ? ["address", "notes", "name", "phone"] : ["name", "phone"];
+
+// Where Enter moves from a field: the next one, or null on the last (which closes the keyboard).
+// Enter never places the order.
+export function nextCheckoutField(
+  fulfillment: Fulfillment,
+  field: CheckoutProblem,
+): CheckoutProblem | null {
+  const fields = checkoutFields(fulfillment);
+  const index = fields.indexOf(field);
+  return index >= 0 && index < fields.length - 1 ? fields[index + 1] : null;
+}
+
 // The server's rules: a trimmed name of 1-30 characters and the shared phone rule; delivery also needs
-// an address of 1-200 characters and takes optional notes of up to 100. Pickup ignores both.
+// an address of 1-200 characters and takes optional notes of up to 100. Pickup ignores both. The
+// problems come in the fields' order, so the first one is where checkout puts the focus.
 export function checkoutProblems(form: CheckoutForm): CheckoutProblem[] {
   const name = form.name.trim();
   const address = form.address.trim();
   const delivery = form.fulfillment === "DELIVERY";
-  return [
+  const problems = new Set<CheckoutProblem>([
     ...(name.length < 1 || name.length > MAX_NAME_LENGTH ? (["name"] as const) : []),
     ...(normalizePhone(form.phone) === null ? (["phone"] as const) : []),
     ...(delivery && (address.length < 1 || address.length > MAX_ADDRESS_LENGTH)
@@ -179,7 +197,45 @@ export function checkoutProblems(form: CheckoutForm): CheckoutProblem[] {
     ...(delivery && form.notes.trim().length > MAX_DELIVERY_NOTES_LENGTH
       ? (["notes"] as const)
       : []),
-  ];
+  ]);
+  return checkoutFields(form.fulfillment).filter((field) => problems.has(field));
+}
+
+// The lowest and highest band fee and the farthest distance, for the one-line summary checkout shows
+// before an automatic quote; null without bands.
+export function feeRange(tiers: readonly { maxMeters: number; feeCents: number }[]) {
+  if (!tiers.length) return null;
+  const fees = tiers.map((tier) => tier.feeCents);
+  return {
+    minCents: Math.min(...fees),
+    maxCents: Math.max(...fees),
+    maxMeters: Math.max(...tiers.map((tier) => tier.maxMeters)),
+  };
+}
+
+// Why "Place order" cannot be tapped now, shown right above it; null when it can. The first reason
+// wins: the browser must be live and the ordering context known, then the address must be in range
+// and the dishes must reach the minimum. While the fee still has to be asked for, the same button asks
+// for it, so nothing else blocks. A fee that has just appeared holds the button for a moment, so a
+// repeated tap cannot place the order before the customer has seen it; then the security check.
+export type CheckoutBlock =
+  "offline" | "context" | "outOfRange" | "minOrder" | "settling" | "verifying";
+export function checkoutBlock(state: {
+  live: boolean;
+  contextReady: boolean;
+  fee: FeeStatus;
+  shortfallCents: number;
+  settling: boolean;
+  verifying: boolean;
+}): CheckoutBlock | null {
+  if (!state.live) return "offline";
+  if (!state.contextReady) return "context";
+  if (state.fee === "OUT_OF_RANGE") return "outOfRange";
+  if (state.shortfallCents > 0) return "minOrder";
+  if (state.fee === "lookup") return null;
+  if (state.settling) return "settling";
+  if (state.verifying) return "verifying";
+  return null;
 }
 
 // The restaurant's delivery note in the customer's language, falling back like dish descriptions:
