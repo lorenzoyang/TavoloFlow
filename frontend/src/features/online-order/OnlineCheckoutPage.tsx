@@ -60,7 +60,15 @@ function OnlineCheckout({
   const m = onlineOrderMessages[language];
   const phone = data.restaurant.publicPhone;
   const callAction = phone ? <PhoneLink phone={phone} language={language} /> : undefined;
-  const verification = useVerification(model, data, language, callAction ?? null);
+  // In the form the footer says a check is running, and the widget shows its tick, so the challenge
+  // keeps quiet; a pending submission's retry has no footer reason, so it speaks there.
+  const verification = useVerification(
+    model,
+    data,
+    language,
+    callAction ?? null,
+    !model.cart.pending,
+  );
   // Field problems show once the customer tries the button: for the fee only the address counts.
   const [tried, setTried] = useState<"lookup" | "order" | null>(null);
   const [couponOpen, setCouponOpen] = useState(false);

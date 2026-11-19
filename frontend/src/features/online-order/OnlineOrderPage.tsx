@@ -195,7 +195,10 @@ function OrderContent({
             {step !== null && <OrderProgress step={step} delivery={delivery} language={language} />}
             {view === "waiting" && (
               <p className="text-sm leading-6">
-                {m.waitingHint(formatTime(order.expiresAt, language))} {m.updating}
+                {/* Chinese sentences follow each other without a space. */}
+                {[m.waitingHint(formatTime(order.expiresAt, language)), m.updating].join(
+                  language === "zh" ? "" : " ",
+                )}
               </p>
             )}
             {/* When the order did not go ahead, calling is the next step: the phone moves here. */}

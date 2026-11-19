@@ -426,12 +426,15 @@ export function CartBar({
   amountCents,
   language,
   open,
+  note,
 }: {
   cart: Pick<MenuCart, "cart" | "review">;
   // Online checkout supplies its discounted total; QR carts use the sum of their lines.
   amountCents?: number;
   language: Language;
   open: () => void;
+  // A short status after the count, such as the restaurant not taking orders right now.
+  note?: string;
 }) {
   const m = orderMessages[language];
   const portions = cart.cart.lines.reduce((n, line) => n + line.quantity, 0);
@@ -451,6 +454,7 @@ export function CartBar({
           {pending ? m.lookup : cart.review ? m.confirming : m.viewCart}
           <span className="block text-sm opacity-85">
             {portions} {m.portions}
+            {note && ` · ${note}`}
           </span>
         </span>
         <span className="text-lg font-semibold tabular-nums">

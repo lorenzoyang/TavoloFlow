@@ -448,7 +448,7 @@ export function CartLines({
                 </div>
                 <Input
                   maxLength={200}
-                  placeholder={m.remark}
+                  placeholder={m.remarkPlaceholder}
                   aria-label={`${m.remark} · ${name.text}`}
                   value={line.remark}
                   disabled={frozen}

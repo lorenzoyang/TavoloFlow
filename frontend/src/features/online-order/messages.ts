@@ -19,7 +19,7 @@ const zh = {
   notOffered: "这家餐厅现在不接受线上点单，这里只显示菜单。",
   suspended: "这家餐厅的服务已暂停，暂时无法线上下单。",
   activeOrder: "你有一个进行中的订单。",
-  browserPending: "这个浏览器已有订单等待餐厅接单。购物车已保留，请先查看已有订单。",
+  browserPending: "你有一个订单正在等餐厅处理，处理后才能再下新单；购物车会保留。",
   ipWaitingLimit: "这个网络下已有较多订单等待接单，这一单尚未提交。请稍后再试。",
   browserRequired: "浏览器未能保存下单 Cookie。请允许本站 Cookie 后刷新页面。",
   contextChecking: "正在检查待接单订单…",
@@ -28,9 +28,10 @@ const zh = {
   privacy: "隐私说明",
   // Cart and checkout
   cart: "购物车",
-  cartHint: "购物车只保存在这个标签页。",
+  cartHint: "关闭这个页面后，购物车会清空。",
   empty: "购物车是空的。",
   checkout: "去结账",
+  cartBarClosed: "暂时不能下单",
   checkoutTitle: "确认订单",
   back: "返回购物车",
   addMore: "返回加菜",
@@ -84,9 +85,10 @@ const zh = {
     `你的姓名和电话只交给 ${restaurant} 处理这一单，30 天后删除。`,
   privacyLineDelivery: (restaurant: string) =>
     `你的姓名、电话和地址交给 ${restaurant} 处理这一单，30 天后删除。`,
-  unknown: "订单结果待确认。在查到原来的结果之前，购物车已锁定，不会重复下单。",
+  unknown:
+    "暂时无法确认订单是否已提交，在此之前购物车不能修改。请点「查询订单结果」；如果还没提交，可以「重新提交」，不会重复下单。",
   lookup: "查询订单结果",
-  retryOriginal: "重试原来的订单",
+  retryOriginal: "重新提交",
   // Submission problems; each notice also offers the restaurant's phone
   changed: "菜单有变化，请检查最新的价格和供应情况，再提交。",
   closed: "现在不在线上接单时间内，订单没有提交。",
@@ -105,7 +107,7 @@ const zh = {
   verificationRetry: "重新验证",
   verifying: "正在进行安全验证，完成后才能提交。",
   offlineNow: "没有网络，恢复连接后才能提交。",
-  notFound: "还没有查到结果。这不表示订单失败，可以稍后再查，或重试原来的订单。",
+  notFound: "还没有查到结果，这不表示订单失败。可以稍后再查，或点「重新提交」。",
   offline: "网络或结果无法确认。请恢复网络后查询原来的订单结果。",
   generic: "操作没有完成。请检查网络，或致电餐厅。",
   limits: "最多 30 行、每行 1–20 份、总共 100 份；菜品备注最多 200 个字符。",
@@ -223,7 +225,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     suspended: "Il servizio del ristorante è sospeso: per ora non si può ordinare online.",
     activeOrder: "Hai un ordine in corso.",
     browserPending:
-      "Questo browser ha già un ordine in attesa. Il carrello è conservato: controlla l’ordine precedente.",
+      "Hai già un ordine in attesa: potrai ordinarne un altro dopo la risposta del ristorante. Il carrello resta com’è.",
     ipWaitingLimit:
       "Troppi ordini da questa rete sono in attesa. Questo ordine non è stato inviato: riprova tra poco.",
     browserRequired:
@@ -234,9 +236,10 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     viewOrder: "Vedi l’ordine",
     privacy: "Privacy",
     cart: "Carrello",
-    cartHint: "Il carrello resta solo in questa scheda.",
+    cartHint: "Se chiudi questa pagina, il carrello si svuota.",
     empty: "Il carrello è vuoto.",
     checkout: "Vai alla cassa",
+    cartBarClosed: "Ordini non disponibili ora",
     checkoutTitle: "Conferma l’ordine",
     back: "Torna al carrello",
     addMore: "Aggiungi piatti",
@@ -295,9 +298,9 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     privacyLineDelivery: (restaurant) =>
       `Nome, telefono e indirizzo vanno a ${restaurant} per questo ordine e si cancellano dopo 30 giorni.`,
     unknown:
-      "L’esito dell’ordine va verificato. Il carrello resta bloccato finché non si conosce l’esito dell’invio originale, così non parte un doppione.",
+      "Non sappiamo ancora se l’ordine è stato inviato: fino ad allora il carrello non si può modificare. Tocca «Verifica l’esito»; se non è partito, «Invia di nuovo» non lo manda due volte.",
     lookup: "Verifica l’esito",
-    retryOriginal: "Riprova lo stesso ordine",
+    retryOriginal: "Invia di nuovo",
     changed: "Il menu è cambiato: controlla prezzi e disponibilità aggiornati, poi invia di nuovo.",
     closed: "Ora siamo fuori dall’orario degli ordini online: l’ordine non è stato inviato.",
     linkGone: "Questo link per ordinare online non vale più: l’ordine non è stato inviato.",
@@ -319,7 +322,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     verifying: "Verifica di sicurezza in corso: poi potrai inviare.",
     offlineNow: "Sei offline: potrai inviare quando torna la connessione.",
     notFound:
-      "Ancora nessun esito. Non significa che l’ordine sia fallito: puoi verificare più tardi o riprovare lo stesso ordine.",
+      "Ancora nessun esito: non significa che l’ordine sia fallito. Puoi verificare più tardi o toccare «Invia di nuovo».",
     offline:
       "Connessione o esito non confermati. Torna online e verifica l’esito dell’ordine originale.",
     generic: "Operazione non riuscita. Controlla la connessione o chiama il ristorante.",
@@ -437,7 +440,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     suspended: "This restaurant’s service is suspended, so online ordering isn’t available.",
     activeOrder: "You have an order in progress.",
     browserPending:
-      "This browser already has an order awaiting acceptance. Your cart is saved: check the existing order first.",
+      "You already have an order waiting for the restaurant; you can place another once it answers. Your cart is kept.",
     ipWaitingLimit:
       "Too many orders from this network are awaiting acceptance. This order was not submitted: try again shortly.",
     browserRequired:
@@ -447,9 +450,10 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     viewOrder: "View order",
     privacy: "Privacy",
     cart: "Your cart",
-    cartHint: "The cart stays in this tab only.",
+    cartHint: "Closing this page empties the cart.",
     empty: "Your cart is empty.",
     checkout: "Checkout",
+    cartBarClosed: "Can’t order right now",
     checkoutTitle: "Confirm your order",
     back: "Back to cart",
     addMore: "Add dishes",
@@ -508,9 +512,9 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     privacyLineDelivery: (restaurant) =>
       `Your name, phone and address go to ${restaurant} for this order and are deleted after 30 days.`,
     unknown:
-      "The order result needs checking. The cart stays locked until the original result is known, so nothing is sent twice.",
+      "We can’t confirm yet whether the order was sent, so the cart can’t be changed for now. Tap «Check the result»; if it wasn’t sent, «Send again» won’t send it twice.",
     lookup: "Check the result",
-    retryOriginal: "Retry the same order",
+    retryOriginal: "Send again",
     changed: "The menu has changed. Check the latest prices and availability, then send again.",
     closed: "Online ordering is outside its hours right now; the order wasn’t sent.",
     linkGone: "This online ordering link no longer works; the order wasn’t sent.",
@@ -532,7 +536,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     verifying: "Security check in progress; you can submit once it’s done.",
     offlineNow: "You’re offline; you can submit once you’re back online.",
     notFound:
-      "No result found yet. That doesn’t mean the order failed: check again later or retry the same order.",
+      "No result found yet. That doesn’t mean the order failed: check again later or tap «Send again».",
     offline:
       "The connection or result couldn’t be confirmed. Reconnect and check the original order.",
     generic: "That didn’t work. Check your connection or call the restaurant.",

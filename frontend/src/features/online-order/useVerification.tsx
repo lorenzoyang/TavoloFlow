@@ -12,12 +12,14 @@ import {
 
 // The security check in front of a submission, shared by the checkout page and the cart's retry of an
 // unknown result. A proof binds the restaurant and the request ID and is spent by one attempt: every
-// attempt, successful or not, renders a fresh challenge.
+// attempt, successful or not, renders a fresh challenge. `quiet` drops the challenge's own progress
+// line where the page already says it beside the button.
 export function useVerification(
   model: ReturnType<typeof useOnlineCart>,
   data: OnlineMenu,
   language: Language,
   fallback: ReactNode,
+  quiet = false,
 ) {
   const [proof, setProof] = useState<VerificationProof | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -49,6 +51,7 @@ export function useVerification(
         onProof={setProof}
         retry={reset}
         fallback={fallback}
+        quiet={quiet}
       />
     ) : null;
   // Whether a submission still waits for its proof.

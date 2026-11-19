@@ -35,10 +35,12 @@ export function PhoneLink({
   );
 }
 
+// What the restaurant offers, as plain text: no border or fill, so it never reads as a button beside
+// the real ones (the phone, the language switch).
 function ServiceTag({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
   return (
-    <li className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-card/70 px-3 py-1 whitespace-nowrap">
-      <Icon aria-hidden="true" className="size-4 shrink-0 text-primary" />
+    <li className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      <Icon aria-hidden="true" className="size-4 shrink-0" />
       {children}
     </li>
   );
@@ -68,7 +70,7 @@ export function OnlineHeader({
       selectLanguage={selectLanguage}
       details={
         delivery === undefined ? undefined : (
-          <ul className="flex flex-wrap gap-2 text-sm font-medium">
+          <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
             <ServiceTag icon={ShoppingBag}>{m.pickup}</ServiceTag>
             {delivery && <ServiceTag icon={Bike}>{m.delivery}</ServiceTag>}
           </ul>
@@ -367,19 +369,18 @@ export function OnlineCartPanel({
         <div className="space-y-3 border-t px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] lg:px-5 lg:pb-5">
           {noticesInFooter && notices}
           <AmountLines model={model} language={language} />
+          {/* Warnings like the checkout's reasons above its button. */}
           {model.minOrderShortfall > 0 && minOrderCents !== null && (
-            <p className="rounded-lg bg-secondary px-3 py-2 text-sm font-medium">
+            <Notice tone="warning">
               {m.minOrderShort(
                 formatMoney(minOrderCents, language),
                 formatMoney(model.minOrderShortfall, language),
               )}
-            </p>
+            </Notice>
           )}
           {!pending && (
             <>
-              {closedNotice && (
-                <p className="text-sm leading-6 text-muted-foreground">{closedNotice}</p>
-              )}
+              {closedNotice && <Notice tone="warning">{closedNotice}</Notice>}
               <Button
                 size="lg"
                 className="w-full"

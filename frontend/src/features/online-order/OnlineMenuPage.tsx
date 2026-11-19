@@ -236,6 +236,7 @@ function MenuContent({
                 amountCents={cart.amounts.payableCents}
                 language={language}
                 open={cartSheet.show}
+                note={closed ? m.cartBarClosed : undefined}
               />
             )}
             <Sheet

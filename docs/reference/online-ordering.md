@@ -518,9 +518,11 @@ The menu reuses the QR page's `MenuList`, option picker, `CartBar` and the cart'
 `orders/state.ts` (`addItem`, `editLine`, `refreshCart`, `validateCart`) are generic over it. As on the
 QR page, the phone cart sheet and the option picker are history steps (`lib/useHistorySheet.ts`), so
 the back gesture closes them instead of leaving the page, and the menu keeps its scroll position. The header
-shows the restaurant's phone as a `tel:` button in every status. A status other than `OPEN` is
+shows the restaurant's phone as a `tel:` button in every status, and the services offered as plain
+text with icons, never styled like a button. A status other than `OPEN` is
 explained by a text-only notice below it and keeps the checkout closed; browsing and building a cart
-stay possible. A remembered order still in
+stay possible. The cart repeats the reason as a warning above its disabled button, and the phone cart
+bar adds "can't order right now" after the count, so a customer scrolled past the notice still sees it. A remembered order still in
 progress shows "you have an order in progress" with a link to its status page.
 
 The menu also reads the same-origin ordering context on load, focus/reconnect and before checkout.
@@ -628,8 +630,9 @@ On success the cart is cleared, the status token is remembered per restaurant in
 opens `/o/{token}`. An understood rejection of a first attempt frees the cart and says why, with the
 restaurant's phone. A lost or failed response keeps the intent pending: the page recovers by
 `GET .../requests/by-client-id/{id}` on mount and every 30 seconds while pending, never by POST, and
-offers "check the result", "retry the same order" (the identical saved request with a fresh CSRF token)
-and the phone. After an unknown result, a retry frees the intent only when it is rejected with a code
+offers "check the result", "send again" (the identical saved request with a fresh CSRF token, so it
+cannot order twice) and the phone, in plain words: it cannot confirm yet whether the order was sent,
+and the cart cannot change until then. After an unknown result, a retry frees the intent only when it is rejected with a code
 the server returns after its duplicate check (`SERVICE_SUSPENDED`, `ONLINE_NOT_OFFERED`,
 `ONLINE_PAUSED`, `ONLINE_CLOSED`, `ONLINE_BUSY`, `DELIVERY_NOT_OFFERED`, `COUPON_INVALID`,
 `DELIVERY_MIN_ORDER`, `ONLINE_BROWSER_PENDING`, `ONLINE_IP_WAITING_LIMIT`,
