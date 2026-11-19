@@ -129,7 +129,8 @@ public sealed class GeoapifyRouting(
             GetAsync<SearchResponse>(
                 client,
                 $"{Endpoint}/v1/geocode/search?text={Uri.EscapeDataString(address)}"
-                    + $"{filter}&bias=proximity:{lng},{lat}&limit=1&format=json&apiKey={key}",
+                    + $"{filter}&bias=proximity:{lng},{lat}&lang={OnlineDelivery.PlaceNamesLanguage}"
+                    + $"&limit=1&format=json&apiKey={key}",
                 ct
             );
         try

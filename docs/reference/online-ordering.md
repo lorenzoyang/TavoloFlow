@@ -145,7 +145,9 @@ Geoapify is called through its EU endpoint, `api-eu.geoapify.com`, the one its d
 agreement keeps inside the EU. A quote costs at most two credits:
 `/v1/geocode/search` with the address, `filter=circle:lng,lat,r`
 around the restaurant (`r` is the farthest band plus 5 km, `SearchMarginMeters`, so farther matches are
-priced as out of range), `bias=proximity:lng,lat` and `limit=1`; then, for a precise match, `/v1/routing` with
+priced as out of range), `bias=proximity:lng,lat`, `lang=it` (towns as customers write them, "Firenze"
+rather than "Florence": every restaurant is in Italy; `OnlineDelivery.PlaceNamesLanguage`) and `limit=1`;
+then, for a precise match, `/v1/routing` with
 `waypoints=lat,lng|lat,lng` and `mode=drive`, taking the route's `distance` in metres with Geoapify's
 default free-flow traffic, so an address keeps its price. Only a `building` or `amenity` match whose
 `rank.confidence_street_level` is at least 0.9 is priced (`OnlineDelivery.QuotableMatches`,
@@ -660,7 +662,8 @@ The privacy page names the restaurant as controller and TavoloFlow as processor,
 purpose, legal basis (performance of the customer's own order), retention, the customer's rights, the
 browser storage used, the optional security verification and, under map services: with automatic
 quotes, that the delivery address goes to Geoapify (processed in the EU) only to compute the road
-distance once the customer taps "Calculate delivery fee", with request logs normally kept at most
+distance once the customer asks for the fee ("Calculate delivery fee", or Enter in the address), with
+request logs normally kept at most
 24 hours and details of individual requests up to 2 months in exceptional cases such as suspicious
 or fraudulent activity, and that the order keeps the distance and fee but not the point found; and
 that staff may open the address in Google Maps to deliver, so Google receives it, possibly outside

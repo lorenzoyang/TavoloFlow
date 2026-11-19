@@ -194,7 +194,7 @@ const zh = {
     },
     {
       heading: "地图服务",
-      body: "餐厅启用自动配送费时，你点「计算配送费」后，填写的配送地址会发给 Geoapify（欧盟的地图服务，请求只在欧盟处理），只用来算出从餐厅出发的路程；不发送姓名、电话或菜品。Geoapify 的请求记录通常最多保留 24 小时；遇到可疑或欺诈活动等特殊情况，个别请求的细节最多保留 2 个月。订单里保存路程和配送费，不保存查到的位置；地址按上面的规则删除。送餐时，餐厅员工可能在 Google 地图中打开你的地址，查看位置和路线，这时 Google 会收到这个地址，处理可能发生在欧盟以外，适用 Google 的隐私政策。",
+      body: "餐厅启用自动配送费时，你点「计算配送费」或在地址框按回车后，填写的配送地址会发给 Geoapify（欧盟的地图服务，请求只在欧盟处理），只用来算出从餐厅出发的路程；不发送姓名、电话或菜品。Geoapify 的请求记录通常最多保留 24 小时；遇到可疑或欺诈活动等特殊情况，个别请求的细节最多保留 2 个月。订单里保存路程和配送费，不保存查到的位置；地址按上面的规则删除。送餐时，餐厅员工可能在 Google 地图中打开你的地址，查看位置和路线，这时 Google 会收到这个地址，处理可能发生在欧盟以外，适用 Google 的隐私政策。",
     },
   ],
 };
@@ -413,7 +413,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       },
       {
         heading: "Servizi di mappe",
-        body: "Se il ristorante calcola il costo di consegna in automatico, quando tocchi «Calcola la consegna» l’indirizzo che hai inserito viene inviato a Geoapify (servizio di mappe dell’UE, che tratta la richiesta nell’UE) solo per calcolare la distanza su strada dal ristorante; nome, telefono e piatti non vengono inviati. Di norma Geoapify conserva i registri delle richieste al massimo 24 ore; in casi eccezionali, come attività sospette o fraudolente, può conservare i dettagli di singole richieste fino a 2 mesi. L’ordine conserva la distanza e il costo, non il punto trovato; l’indirizzo viene cancellato come indicato sopra. Per la consegna, il personale del ristorante può aprire il tuo indirizzo in Google Maps per vedere posizione e percorso: Google riceve così l’indirizzo, eventualmente anche fuori dall’UE, secondo l’informativa privacy di Google.",
+        body: "Se il ristorante calcola il costo di consegna in automatico, quando tocchi «Calcola la consegna» (o premi Invio nel campo dell’indirizzo) l’indirizzo che hai inserito viene inviato a Geoapify (servizio di mappe dell’UE, che tratta la richiesta nell’UE) solo per calcolare la distanza su strada dal ristorante; nome, telefono e piatti non vengono inviati. Di norma Geoapify conserva i registri delle richieste al massimo 24 ore; in casi eccezionali, come attività sospette o fraudolente, può conservare i dettagli di singole richieste fino a 2 mesi. L’ordine conserva la distanza e il costo, non il punto trovato; l’indirizzo viene cancellato come indicato sopra. Per la consegna, il personale del ristorante può aprire il tuo indirizzo in Google Maps per vedere posizione e percorso: Google riceve così l’indirizzo, eventualmente anche fuori dall’UE, secondo l’informativa privacy di Google.",
       },
     ],
   },
@@ -624,7 +624,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       },
       {
         heading: "Map services",
-        body: "If the restaurant calculates delivery fees automatically, when you tap «Calculate delivery fee» the delivery address you entered is sent to Geoapify (an EU mapping service that processes the request within the EU) only to work out the road distance from the restaurant; names, phones and dishes are not sent. Geoapify normally keeps request logs for at most 24 hours; in exceptional cases, such as suspicious or fraudulent activity, it may keep details of individual requests for up to 2 months. The order keeps the distance and the fee, not the point found; the address is deleted as described above. To deliver, restaurant staff may open your address in Google Maps to see the location and route: Google then receives the address, possibly outside the EU, under Google’s privacy policy.",
+        body: "If the restaurant calculates delivery fees automatically, when you tap «Calculate delivery fee» (or press Enter in the address field) the delivery address you entered is sent to Geoapify (an EU mapping service that processes the request within the EU) only to work out the road distance from the restaurant; names, phones and dishes are not sent. Geoapify normally keeps request logs for at most 24 hours; in exceptional cases, such as suspicious or fraudulent activity, it may keep details of individual requests for up to 2 months. The order keeps the distance and the fee, not the point found; the address is deleted as described above. To deliver, restaurant staff may open your address in Google Maps to see the location and route: Google then receives the address, possibly outside the EU, under Google’s privacy policy.",
       },
     ],
   },

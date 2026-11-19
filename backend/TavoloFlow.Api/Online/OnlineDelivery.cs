@@ -27,6 +27,10 @@ public static class OnlineDelivery
     // match found only without the circle is out of range without a route.
     public const int SearchMarginMeters = 5000;
 
+    // The language of the towns quotes name: every restaurant is in Italy (EUR, Europe/Rome), so towns
+    // read as customers write them and as street signs show them ("Firenze", never "Florence").
+    public const string PlaceNamesLanguage = "it";
+
     // The mean Earth radius, for straight-line distances between coordinates.
     public const double EarthRadiusMeters = 6_371_008.8;
 

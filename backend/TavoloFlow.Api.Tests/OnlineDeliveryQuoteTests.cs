@@ -66,19 +66,22 @@ public sealed class OnlineDeliveryQuoteTests(PostgreSqlFixture database)
             await QuoteAsync(client, shop, "Via Lontana 3")
         );
 
-        // The search sends the restaurant's point, longitude first, and a circle beyond the last band.
+        // The search sends the restaurant's point, longitude first, a circle beyond the last band and
+        // asks for Italian place names.
         var search = QueryHelpers.ParseQuery(host.GeoapifyService.Calls.First().Query);
         Assert.Equal(
             (
                 "Via Vicina 1",
                 "circle:11.096122,43.880153,15000",
                 "proximity:11.096122,43.880153",
+                "it",
                 Key
             ),
             (
                 search["text"].ToString(),
                 search["filter"].ToString(),
                 search["bias"].ToString(),
+                search["lang"].ToString(),
                 search["apiKey"].ToString()
             )
         );
