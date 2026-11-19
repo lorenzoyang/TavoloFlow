@@ -453,7 +453,7 @@ export function CartBar({
         <span className="min-w-0 flex-1 font-medium">
           {pending ? m.lookup : cart.review ? m.confirming : m.viewCart}
           <span className="block text-sm opacity-85">
-            {portions} {m.portions}
+            {m.portionCount(portions)}
             {note && ` · ${note}`}
           </span>
         </span>

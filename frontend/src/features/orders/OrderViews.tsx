@@ -433,7 +433,7 @@ export function CartLines({
                     <Plus />
                   </Button>
                   <span className="text-xs text-muted-foreground">
-                    {formatMoney(unit, language)} / {m.portions}
+                    {m.unitPrice(formatMoney(unit, language))}
                   </span>
                   <Button
                     variant="ghost"
