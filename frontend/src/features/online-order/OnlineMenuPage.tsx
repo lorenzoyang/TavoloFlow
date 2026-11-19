@@ -10,6 +10,7 @@ import { PRODUCT_NAME } from "@/lib/brand";
 import { formatWeekdayTime } from "@/lib/format";
 import type { Language } from "@/lib/language";
 import { useDocumentTheme } from "@/lib/useDocumentTheme";
+import { useHistorySheet } from "@/lib/useHistorySheet";
 import { useMediaQuery, WIDE_SCREEN } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/utils";
 import { orderMessages } from "@/features/orders/messages";
@@ -72,7 +73,8 @@ function MenuContent({
   const navigate = useNavigate();
   const matchRoute = useMatchRoute();
   const [categoryId, setCategoryId] = useState("");
-  const [cartOpen, setCartOpen] = useState(false);
+  // The phone cart is a history step, so the back gesture closes it instead of leaving the menu.
+  const cartSheet = useHistorySheet("cart");
   const m = onlineOrderMessages[language];
   const mm = menuMessages[language];
   const closed = closedNotice(data, language);
@@ -80,26 +82,28 @@ function MenuContent({
 
   // The checkout is a child page (/r/{slug}/checkout): the menu stays mounted but hidden, so its
   // images, scroll position and this cart model survive, and the system back gesture returns here.
-  // The sheet keeps its open state meanwhile, so going back shows the cart again.
+  // Opened from the phone cart, the entry before it is the open cart, so going back shows it again.
   const inCheckout = !!matchRoute({ to: "/r/$slug/checkout", params: { slug } });
   const checkoutPath = router.buildLocation({ to: "/r/$slug/checkout", params: { slug } }).pathname;
   const menuScroll = useRef(0);
   const wasCheckout = useRef(false);
   const reviewed = useRef(false);
   const leaving = useRef(false);
+  const fromCart = useRef(false);
   function startCheckout() {
     menuScroll.current = window.scrollY;
+    fromCart.current = cartSheet.open;
     void cart.checkout();
   }
-  // Checkout is only ever entered from the menu, so going back returns there.
-  function backToMenu() {
+  // Checkout is only ever entered from the menu, so going back returns there: to the open cart when it
+  // came from it, or one step further for the menu alone.
+  function backToMenu(steps = 1) {
     if (leaving.current) return;
     leaving.current = true;
-    router.history.back();
+    router.history.go(-steps);
   }
   function leave(openCart: boolean) {
-    if (!openCart) setCartOpen(false);
-    backToMenu();
+    backToMenu(!openCart && fromCart.current ? 2 : 1);
   }
   useLayoutEffect(() => {
     if (inCheckout && cart.review) reviewed.current = true;
@@ -231,14 +235,15 @@ function MenuContent({
                 cart={cart}
                 amountCents={cart.amounts.payableCents}
                 language={language}
-                open={() => setCartOpen(true)}
+                open={cartSheet.show}
               />
             )}
             <Sheet
-              open={cartOpen && !inCheckout}
+              open={cartSheet.open}
               onOpenChange={(open) => {
-                if (!open) cart.back();
-                setCartOpen(open);
+                if (open) return;
+                cart.back();
+                cartSheet.hide();
               }}
             >
               <SheetContent

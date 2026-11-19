@@ -8,6 +8,7 @@ import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PRODUCT_NAME } from "@/lib/brand";
 import type { Language } from "@/lib/language";
+import { useHistorySheet } from "@/lib/useHistorySheet";
 import { useMediaQuery, WIDE_SCREEN } from "@/lib/useMediaQuery";
 import { useDocumentTheme } from "@/lib/useDocumentTheme";
 import { publicMenuQuery, type PublicMenu } from "./api";
@@ -59,7 +60,8 @@ function MenuContent({
   const wide = useMediaQuery(WIDE_SCREEN);
   const [categoryId, setCategoryId] = useState("");
   const [view, setView] = useState<"menu" | "orders">("menu");
-  const [cartOpen, setCartOpen] = useState(false);
+  // The phone cart is a history step, so the back gesture closes it instead of leaving the menu.
+  const cartSheet = useHistorySheet("cart");
   // Set when the phone cart closes to let the guest join first: focus then goes to the join control.
   const focusJoin = useRef(false);
   const m = messages[language];
@@ -105,10 +107,10 @@ function MenuContent({
           ? undefined
           : () => {
               focusJoin.current = true;
-              setCartOpen(false);
+              cartSheet.hide();
             }
       }
-      onDone={wide ? undefined : () => setCartOpen(false)}
+      onDone={wide ? undefined : cartSheet.hide}
     />
   );
   const menu = (
@@ -192,9 +194,14 @@ function MenuContent({
       {!wide && !guest.visit.ended && (
         <>
           {cart.cart.lines.length > 0 && (
-            <CartBar cart={cart} language={language} open={() => setCartOpen(true)} />
+            <CartBar cart={cart} language={language} open={cartSheet.show} />
           )}
-          <Sheet open={cartOpen} onOpenChange={setCartOpen}>
+          <Sheet
+            open={cartSheet.open}
+            onOpenChange={(open) => {
+              if (!open) cartSheet.hide();
+            }}
+          >
             <SheetContent
               side="bottom"
               showCloseButton={false}
