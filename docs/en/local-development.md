@@ -153,7 +153,7 @@ In PowerShell, set the variable first with `$env:DEMO_PORT = "8081"`, then run t
 
 ### Changing the demo data
 
-The data lives in [`demo/data/`](../../demo/data/): `restaurant.json`, `accounts.json`, `tables.json` and `menu.json`. The photos are in [`demo/images/`](../../demo/images/), as 640×640 WebP, and the prompts I generated them with are in `demo/image-prompts.json`. In `menu.json`, `optionGroups` lists the option groups; each one names in `items` the keys of the dishes that use it.
+The data lives in [`demo/data/`](../../demo/data/): `restaurant.json`, `accounts.json`, `tables.json` and `menu.json`. The photos are in [`demo/images/`](../../demo/images/), as 640×640 WebP, and the prompts I generated them with are in `demo/image-prompts.json`. In `menu.json`, a dish’s `key` only links photos and option groups and is never shown; `itemCode` is the short code that menus, the kitchen and bills show before the name (R1, A3…). `optionGroups` lists the option groups; each one names in `items` the keys of the dishes that use it.
 
 These files are copied into the `init` image at build time, so after a change you need `--build`. And they only apply to an empty database: to see them on a demo that already ran, you have to reset it. The seeder is strict: a JSON field it doesn't know makes the import fail, and the reason is in the `init` logs.
 

@@ -153,7 +153,7 @@ Da PowerShell si imposta prima la variabile, con `$env:DEMO_PORT = "8081"`, e po
 
 ### Modificare i dati della demo
 
-I dati stanno in [`demo/data/`](../../demo/data/): `restaurant.json`, `accounts.json`, `tables.json` e `menu.json`. Le foto stanno in [`demo/images/`](../../demo/images/), in WebP 640×640, e i prompt con cui le ho generate in `demo/image-prompts.json`. In `menu.json`, `optionGroups` elenca i gruppi di opzioni; ognuno indica in `items` le chiavi dei piatti che lo usano.
+I dati stanno in [`demo/data/`](../../demo/data/): `restaurant.json`, `accounts.json`, `tables.json` e `menu.json`. Le foto stanno in [`demo/images/`](../../demo/images/), in WebP 640×640, e i prompt con cui le ho generate in `demo/image-prompts.json`. In `menu.json` la `key` di un piatto serve solo a collegare foto e gruppi di opzioni e non si vede mai; `itemCode` è il codice breve che menu, cucina e conto mostrano prima del nome (R1, A3…). `optionGroups` elenca i gruppi di opzioni; ognuno indica in `items` le chiavi dei piatti che lo usano.
 
 Questi file vengono copiati nell'immagine di `init` durante la build, quindi dopo una modifica serve `--build`. E valgono solo per un database vuoto: per vederli su una demo già avviata bisogna azzerarla. Il seeder è severo: un campo JSON che non conosce fa fallire l'importazione, e il motivo si legge nei log di `init`.
 

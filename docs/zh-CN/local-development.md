@@ -153,7 +153,7 @@ DEMO_PORT=8081 docker compose -f demo/compose.yaml up -d --build
 
 ### 修改演示数据
 
-数据在 [`demo/data/`](../../demo/data/) 里：`restaurant.json`、`accounts.json`、`tables.json` 和 `menu.json`。照片在 [`demo/images/`](../../demo/images/)，格式是 640×640 的 WebP；生成照片用的提示词在 `demo/image-prompts.json`。`menu.json` 里的 `optionGroups` 列出选项组，每个组在 `items` 里列出使用它的菜品的 key。
+数据在 [`demo/data/`](../../demo/data/) 里：`restaurant.json`、`accounts.json`、`tables.json` 和 `menu.json`。照片在 [`demo/images/`](../../demo/images/)，格式是 640×640 的 WebP；生成照片用的提示词在 `demo/image-prompts.json`。`menu.json` 里菜品的 `key` 只用来关联照片和选项组，界面上不显示；`itemCode` 是菜单、厨房和账单在菜名前显示的短编号（R1、A3…）。`optionGroups` 列出选项组，每个组在 `items` 里列出使用它的菜品的 key。
 
 这些文件在构建时被复制进 `init` 镜像，所以修改后需要加 `--build`。而且它们只对空数据库生效：要在已经运行过的演示上看到修改，需要先重置。导入程序很严格：遇到不认识的 JSON 字段会导致导入失败，原因可以在 `init` 的日志里看到。
 

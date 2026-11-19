@@ -115,7 +115,7 @@ public sealed class DemoSeeder(
             var content = MenuValidation.Normalize(
                 new MenuItemInput(
                     category.Id,
-                    item.Key,
+                    item.ItemCode,
                     item.Names.Zh,
                     item.Names.It,
                     item.Names.En,

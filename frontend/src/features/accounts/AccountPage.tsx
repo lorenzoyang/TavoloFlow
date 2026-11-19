@@ -10,33 +10,13 @@ import { PushSection } from "@/features/push/PushSection";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import type { CurrentAccount } from "./api";
 import { accountMessages } from "./messages";
-import { staffManagementItems, staffNavItems, type StaffDestination } from "./navigation";
+import { staffManagementItems, type StaffDestination } from "./navigation";
 import { AuthBoundary } from "./AuthBoundary";
 import { LanguageSwitch } from "./LanguageSwitch";
 import { LogoutButton } from "./LogoutButton";
 import { useInstallOffer } from "./useInstallApp";
 
 const linkFocus = "outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
-
-function WorkspaceTile({ item }: { item: StaffDestination }) {
-  const Icon = item.icon;
-  return (
-    <Link
-      to={item.to}
-      className={`flex min-h-36 flex-col gap-3 rounded-2xl border bg-card p-4 shadow-xs transition-colors hover:border-primary/40 hover:bg-accent/40 ${linkFocus}`}
-    >
-      <span className="flex size-11 items-center justify-center rounded-xl bg-accent text-accent-foreground">
-        <Icon aria-hidden="true" className="size-5" />
-      </span>
-      <span>
-        <span className="block text-base font-semibold">{item.label}</span>
-        <span className="mt-1 block text-sm leading-5 text-muted-foreground">
-          {item.description}
-        </span>
-      </span>
-    </Link>
-  );
-}
 
 function ManagementRow({ item }: { item: StaffDestination }) {
   const Icon = item.icon;
@@ -104,18 +84,7 @@ function Home({ account, passwordChanged }: { account: CurrentAccount; passwordC
       />
       {passwordChanged && <Notice tone="success">{m.changeSuccess}</Notice>}
       <ServiceSuspendedNotice account={account} />
-      <section aria-labelledby="home-workspaces" className="space-y-3">
-        <h2 id="home-workspaces" className="text-sm font-medium text-muted-foreground">
-          {m.workspaces}
-        </h2>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {staffNavItems(account, language)
-            .filter((item) => item.to !== "/staff")
-            .map((item) => (
-              <WorkspaceTile key={item.to} item={item} />
-            ))}
-        </div>
-      </section>
+      {/* The daily pages are the tabs; home lists only what the tabs leave out. */}
       {management.length > 0 && (
         <section aria-labelledby="home-management" className="space-y-3">
           <h2 id="home-management" className="text-sm font-medium text-muted-foreground">

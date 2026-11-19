@@ -11,7 +11,6 @@ const zh = {
   loginFootnote: "请使用管理员提供的老板或员工账号。",
   sessionNote: "登录保留 30 天，关闭浏览器后仍有效。请在共用设备上及时退出。",
   greeting: "你好，",
-  workspaces: "工作台",
   management: "管理",
   accountSection: "账号",
   restaurant: "所属餐厅",
@@ -98,7 +97,6 @@ export const accountMessages: Record<Language, typeof zh> = {
     sessionNote:
       "L’accesso dura 30 giorni, anche chiudendo il browser. Sui dispositivi condivisi esci quando hai finito.",
     greeting: "Ciao, ",
-    workspaces: "Postazioni",
     management: "Gestione",
     accountSection: "Account",
     restaurant: "Ristorante",
@@ -192,7 +190,6 @@ export const accountMessages: Record<Language, typeof zh> = {
     sessionNote:
       "Sign-in lasts 30 days, even after closing the browser. On shared devices, sign out when you’re done.",
     greeting: "Hi, ",
-    workspaces: "Stations",
     management: "Management",
     accountSection: "Account",
     restaurant: "Restaurant",
