@@ -64,6 +64,7 @@ const zh = {
   quotedFee: (fee: string) => `配送费 ${fee}`,
   quoteTownCheck: (town: string) => `不是 ${town}？在地址里加上城市名或邮编，再算一次。`,
   outOfRange: "这个地址超出配送范围。",
+  outOfRangeTown: (town: string) => `这个地址在 ${town}，超出配送范围。`,
   quoteUnknown:
     "没能算出配送费：请写上门牌号和城市，再算一次。也可以直接下单，餐厅按价目表确认配送费。",
   attribution: { geoapify: "Powered by Geoapify", osm: "© OpenStreetMap contributors" },
@@ -272,6 +273,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     quotedFee: (fee) => `costo ${fee}`,
     quoteTownCheck: (town) => `Non è ${town}? Aggiungi comune o CAP all’indirizzo e ricalcola.`,
     outOfRange: "Questo indirizzo è fuori dalla zona di consegna.",
+    outOfRangeTown: (town) => `Questo indirizzo è a ${town}, fuori dalla zona di consegna.`,
     quoteUnknown:
       "Non riusciamo a calcolare il costo: aggiungi numero civico e comune e ricalcola. Puoi anche ordinare subito: il ristorante conferma il costo secondo le tariffe.",
     attribution: { geoapify: "Powered by Geoapify", osm: "© OpenStreetMap contributors" },
@@ -484,6 +486,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     quoteTownCheck: (town) =>
       `Not ${town}? Add the town or postcode to the address and calculate again.`,
     outOfRange: "This address is outside the delivery area.",
+    outOfRangeTown: (town) => `This address is in ${town}, outside the delivery area.`,
     quoteUnknown:
       "We couldn’t work out the fee: add the house number and town, then calculate again. You can also order now: the restaurant confirms the fee from the price list.",
     attribution: { geoapify: "Powered by Geoapify", osm: "© OpenStreetMap contributors" },

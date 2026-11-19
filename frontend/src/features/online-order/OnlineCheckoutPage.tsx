@@ -162,7 +162,8 @@ function OnlineCheckout({
           </>
         }
       >
-        {m.outOfRange}
+        {/* Where the address was found, so a customer who meant another place can tell. */}
+        {model.quote?.town ? m.outOfRangeTown(model.quote.town) : m.outOfRange}
       </Notice>
     );
   else if (block === "minOrder" && minOrderCents !== null)
