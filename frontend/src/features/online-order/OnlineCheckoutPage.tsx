@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Bike, ShoppingBag } from "lucide-react";
 import { Notice } from "@/components/notice";
@@ -10,6 +10,7 @@ import { formatKm, formatMoney } from "@/lib/format";
 import type { Language } from "@/lib/language";
 import { cn } from "@/lib/utils";
 import { CartLines } from "@/features/orders/OrderViews";
+import { reveal } from "@/features/menu/form-values";
 import { LanguageToggle } from "@/features/public-menu/PublicMenuViews";
 import type { OnlineMenu } from "./api";
 import { useOnlineCheckout, type OnlineCheckoutContextValue } from "./checkout-context";
@@ -64,6 +65,16 @@ function OnlineCheckout({
   const [tried, setTried] = useState<"lookup" | "order" | null>(null);
   const [couponOpen, setCouponOpen] = useState(false);
   const [couponText, setCouponText] = useState("");
+  // The code last tried: a refusal shows under the field until the code is edited.
+  const [couponTried, setCouponTried] = useState("");
+  const couponRefused = model.message === "couponInvalid" && couponText === couponTried;
+  // The refusal appears under the field, which may sit right above the sticky footer: bring it up.
+  useEffect(() => {
+    if (couponRefused)
+      document
+        .getElementById("online-coupon-problem")
+        ?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [couponRefused]);
   const addressRef = useRef<HTMLInputElement>(null);
   const notesRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -94,12 +105,13 @@ function OnlineCheckout({
   const choose = (fulfillment: Fulfillment) => model.setForm({ ...form, fulfillment });
 
   // The footer's button takes the next step: a delivery not yet priced asks for its fee (only the
-  // address has to be valid for that), then the same button places the order.
+  // address has to be valid for that), then the same button places the order. A field to fix comes
+  // to the middle of the screen, clear of the sticky footer, and takes the focus.
   function next() {
     if (needsLookup) {
       if (problems.includes("address")) {
         setTried((value) => value ?? "lookup");
-        addressRef.current?.focus();
+        reveal(addressRef.current);
         return;
       }
       void model.lookupFee();
@@ -107,7 +119,7 @@ function OnlineCheckout({
     }
     setTried("order");
     if (problems.length) {
-      fields[problems[0]].current?.focus();
+      reveal(fields[problems[0]].current);
       return;
     }
     void verification.submit(false);
@@ -137,6 +149,7 @@ function OnlineCheckout({
   }
 
   function applyCoupon() {
+    setCouponTried(couponText);
     void model.applyCoupon(couponText);
   }
 
@@ -215,7 +228,14 @@ function OnlineCheckout({
         </div>
       </header>
       <main className="mx-auto w-full max-w-xl flex-1 space-y-4 px-4 pt-4 pb-6">
-        {pending && <MessageNotices model={model} language={language} callAction={callAction} />}
+        {pending && (
+          <MessageNotices
+            model={model}
+            language={language}
+            callAction={callAction}
+            except="couponInvalid"
+          />
+        )}
         {pending && verification.challenge}
         {pending && (
           <PendingNotice
@@ -407,6 +427,8 @@ function OnlineCheckout({
                     maxLength={20}
                     value={couponText}
                     disabled={model.busy}
+                    aria-invalid={couponRefused}
+                    aria-describedby={couponRefused ? "online-coupon-problem" : undefined}
                     onChange={(event) => setCouponText(event.target.value.toUpperCase())}
                     onKeyDown={(event) => {
                       // Enter applies the code; it never places the order.
@@ -424,6 +446,11 @@ function OnlineCheckout({
                     {m.applyCoupon}
                   </Button>
                 </div>
+                {couponRefused && (
+                  <p id="online-coupon-problem" role="alert" className="text-sm text-destructive">
+                    {m.couponInvalid}
+                  </p>
+                )}
               </div>
             ) : (
               // Most customers have no code, so the field stays out of the way until asked for.
@@ -456,7 +483,15 @@ function OnlineCheckout({
       </main>
       <footer className="sticky bottom-0 z-10 border-t bg-background">
         <div className="mx-auto max-w-xl space-y-3 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          {!pending && <MessageNotices model={model} language={language} callAction={callAction} />}
+          {/* A refused coupon shows under its own field instead. */}
+          {!pending && (
+            <MessageNotices
+              model={model}
+              language={language}
+              callAction={callAction}
+              except="couponInvalid"
+            />
+          )}
           <AmountLines model={model} language={language} />
           {!pending && reason}
           {!pending && (
@@ -503,7 +538,7 @@ function DeliveryDetails({
             {[
               quote.town && m.quotedTown(quote.town),
               quote.distanceMeters !== null && formatKm(quote.distanceMeters, language),
-              m.quotedFee(formatMoney(quote.feeCents, language)),
+              quote.feeCents === 0 ? m.free : m.quotedFee(formatMoney(quote.feeCents, language)),
             ]
               .filter(Boolean)
               .join(" · ")}
@@ -518,10 +553,11 @@ function DeliveryDetails({
           {m.quoteHint}
           {range && (
             <span className="block">
+              {/* A range reads as amounts ("€ 0.00–€ 5.00"); "free" only when every band is. */}
               {m.feeSummary(
                 range.minCents === range.maxCents
                   ? money(range.minCents)
-                  : `${money(range.minCents)}–${money(range.maxCents)}`,
+                  : `${formatMoney(range.minCents, language)}–${formatMoney(range.maxCents, language)}`,
                 formatKm(range.maxMeters, language),
               )}
             </span>

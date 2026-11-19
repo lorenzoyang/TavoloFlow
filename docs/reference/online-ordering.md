@@ -559,15 +559,17 @@ automatic quotes still need it (closing the keyboard, so the answer above the bu
 coupon field applies the code, and an Enter that confirms an input method's composition is ignored.
 The footer's button is outside the form and of type `button`, so implicit form submission cannot place
 an order either. Field problems show once the button is tried, in the fields' order
-(`checkoutProblems`), and the first one takes the focus.
+(`checkoutProblems`), and the first one comes to the middle of the screen, clear of the sticky footer,
+and takes the focus (`reveal`, as in the menu forms).
 
 "Apply" trims and uppercases the code, asks the coupon check and, on success, keeps
 `{ code, percentOff }` in the checkout form: the totals then show the subtotal, the coupon line with
 its discount (`couponDiscountCents`, rounded down like the server) and the discounted total, and
 "Remove" drops it. The checkout and the mobile cart bar share `onlineCartAmounts`: a coupon counts
 while confirming, and an unresolved submission keeps the coupon saved in its intent, including after a
-reload. Ordinary cart editing shows the item total before the coupon. An unusable code says so
-without touching the cart. While a delivery has no fee yet, the total is labelled as the items total;
+reload. Ordinary cart editing shows the item total before the coupon. An unusable code says so right
+under the coupon field, scrolled into view, until the code is edited (never in the footer), without
+touching the cart. While a delivery has no fee yet, the total is labelled as the items total;
 the delivery privacy line also names the address.
 
 The footer holds the amounts, the one reason the button cannot be tapped and the button.
@@ -593,14 +595,15 @@ With automatic quotes (`deliveryAutoQuote`), the fee of the typed address is ask
 customer taps the footer's "Calculate delivery fee" or presses Enter in the address (`lookupFee`; a
 failed request counts as `UNKNOWN`), so no address goes to Geoapify unasked. Until then the details
 say the address goes to the map service and sum the bands up in one line (`feeRange`: the lowest and
-highest fee and the farthest distance). The request sends the trimmed text the order will send, which
+highest fee as amounts, "€ 0.00–€ 5.00", "free" only when every band is, and the farthest distance). The request sends the trimmed text the order will send, which
 the server binds the quote to, and the answer belongs to that text only: any other change, spacing
 included, makes it stale (`currentQuote`, `feeStatus`) and the button asks again. If automatic quotes
 stop meanwhile, a `QUOTED` answer keeps counting for the amounts, the order and the credits, while any
 other answer falls back to the price list. Any answer holds the button for a second (`settling`), so
 repeated taps cannot place the order before the customer has seen the fee. `QUOTED` shows as a
 success, "delivery to {town} · {distance} · fee X", with the question "not {town}? add the town or
-postcode and calculate again", and the footer shows the items total, the fee and the total
+postcode and calculate again" (a fee of 0 reads "free", there and in the footer), and the footer
+shows the items total, the fee and the total
 (`onlineCartAmounts`' `deliveryFeeCents` and `payableCents`; the delivery minimum still compares the
 dishes). `OUT_OF_RANGE` puts "this address is in {town}, outside the delivery area" (without a town,
 "this address is outside the delivery area") above the disabled button, with "Switch to pickup" and the
@@ -758,7 +761,8 @@ over "€ 2.00", under "Delivery band (by route distance)"; without bands the ca
 call the customer or reject; a picked band whose distance or fee the owner changes meanwhile is no
 longer picked, so a new fee is never sent without being chosen again), then
 shows "subtotal + delivery fee = total" ("subtotal − discount + delivery fee = total" with a coupon), and only then enables 30, 45, 60 and
-90 minutes, two by two on phones (one tap accepts). Reject opens `ConfirmDialog` with an optional reason; "outside the delivery area" is
+90 minutes, two by two on phones (one tap accepts); until a band is picked, the line above the times
+says to pick the band first. Reject opens `ConfirmDialog` with an optional reason; "outside the delivery area" is
 offered for delivery only (`rejectReasons`). Writes are blocked while
 the list is failed, stale or not refreshed since resume (`syncIsFresh`); every outcome rereads the
 pending, active, kitchen, pass and bills views, and an unknown result says to check the refreshed list.

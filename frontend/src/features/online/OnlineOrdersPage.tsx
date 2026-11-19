@@ -167,7 +167,7 @@ function PendingCard({
             {quoted !== null ? (
               <p className="text-sm font-medium">
                 {m.quotedFee(
-                  amount(quoted, language),
+                  quoted === 0 ? m.free : amount(quoted, language),
                   formatKm(request.deliveryDistanceMeters ?? 0, language),
                 )}
               </p>
@@ -227,7 +227,14 @@ function PendingCard({
             )}
           </div>
         )}
-        <p className="text-sm font-medium">{delivery ? m.acceptWithDelivery : m.acceptWith}</p>
+        {/* The times stay disabled until a band is picked: say so where they are. */}
+        <p className="text-sm font-medium">
+          {!delivery
+            ? m.acceptWith
+            : quoted === null && tiers.length > 0 && fee === null
+              ? m.acceptAfterBand
+              : m.acceptWithDelivery}
+        </p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {(delivery ? DELIVERY_MINUTES : PICKUP_MINUTES).map((minutes) => (
             <Button

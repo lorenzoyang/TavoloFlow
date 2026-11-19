@@ -283,7 +283,9 @@ function OrderContent({
                   view === "allCancelled" && "text-muted-foreground line-through",
                 )}
               >
-                {formatMoney(order.deliveryFeeCents, language)}
+                {order.deliveryFeeCents === 0
+                  ? m.free
+                  : formatMoney(order.deliveryFeeCents, language)}
               </span>
             </div>
           )}

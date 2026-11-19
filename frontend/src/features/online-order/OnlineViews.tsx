@@ -175,15 +175,18 @@ export function MessageNotices({
   model,
   language,
   callAction,
+  except,
 }: {
   model: ReturnType<typeof useOnlineCart>;
   language: Language;
   callAction: ReactNode;
+  // A message the page shows elsewhere, beside the field it is about.
+  except?: OnlineOrderMessage;
 }) {
   const m = onlineOrderMessages[language];
   return (
     <>
-      {model.message && model.message !== "browserPending" && (
+      {model.message && model.message !== "browserPending" && model.message !== except && (
         <Notice
           tone={messageTone(model.message)}
           action={model.cart.pending ? undefined : callAction}
@@ -269,7 +272,9 @@ export function AmountLines({
           </p>
           <p className="flex items-baseline justify-between gap-3 text-sm">
             <span>{m.deliveryFee}</span>
-            <span className="tabular-nums">{formatMoney(deliveryFeeCents, language)}</span>
+            <span className="tabular-nums">
+              {deliveryFeeCents === 0 ? m.free : formatMoney(deliveryFeeCents, language)}
+            </span>
           </p>
         </>
       )}

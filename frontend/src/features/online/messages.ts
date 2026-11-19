@@ -457,6 +457,7 @@ const ordersZh = {
   minutes: (minutes: number) => `${minutes} 分钟`,
   acceptLabel: (number: number, minutes: number) => `接单 #${number}，${minutes} 分钟后可取`,
   acceptWithDelivery: "接单并选择预计送达时间",
+  acceptAfterBand: "先选配送档位，再选预计送达时间",
   acceptDeliveryLabel: (number: number, minutes: number) =>
     `接单 #${number}，${minutes} 分钟内送达`,
   tierChoice: "配送档位（按路线的路程）",
@@ -527,6 +528,7 @@ export const onlineOrdersMessages: Record<Language, typeof ordersZh> = {
     minutes: (minutes) => `${minutes} min`,
     acceptLabel: (number, minutes) => `Accetta #${number}, pronto tra ${minutes} minuti`,
     acceptWithDelivery: "Accetta e scegli tra quanto arriva",
+    acceptAfterBand: "Scegli prima la fascia, poi tra quanto arriva",
     acceptDeliveryLabel: (number, minutes) =>
       `Accetta #${number}, consegna entro ${minutes} minuti`,
     tierChoice: "Fascia di consegna (in base ai km del percorso)",
@@ -595,6 +597,7 @@ export const onlineOrdersMessages: Record<Language, typeof ordersZh> = {
     minutes: (minutes) => `${minutes} min`,
     acceptLabel: (number, minutes) => `Accept #${number}, ready in ${minutes} minutes`,
     acceptWithDelivery: "Accept and choose when it arrives",
+    acceptAfterBand: "Pick the delivery band first, then when it arrives",
     acceptDeliveryLabel: (number, minutes) =>
       `Accept #${number}, delivered within ${minutes} minutes`,
     tierChoice: "Delivery band (by route distance)",
