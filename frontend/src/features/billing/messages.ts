@@ -111,7 +111,6 @@ const zh = {
     times: (accepted: string, closed: string | null) =>
       `接单：${accepted}${closed ? ` · 关闭：${closed}` : ""}`,
     estimated: (time: string) => `预计 ${time}`,
-    call: (phone: string) => `拨打 ${phone}`,
     closedHint: "这一单已结束，顾客的订单页会显示结果。",
     summary: (time: string) => `${time} 接单`,
     paidButton: "已取餐，核对收款",
@@ -286,7 +285,6 @@ export const billingMessages: Record<Language, typeof zh> = {
       active: "In corso",
       times: (accepted, closed) => `Accettato: ${accepted}${closed ? ` · Chiuso: ${closed}` : ""}`,
       estimated: (time) => `Previsto ${time}`,
-      call: (phone) => `Chiama ${phone}`,
       closedHint: "Ordine concluso: la pagina del cliente mostra l’esito.",
       summary: (time) => `accettato ${time}`,
       paidButton: "Ritirato, verifica incasso",
@@ -458,7 +456,6 @@ export const billingMessages: Record<Language, typeof zh> = {
       active: "In progress",
       times: (accepted, closed) => `Accepted: ${accepted}${closed ? ` · Closed: ${closed}` : ""}`,
       estimated: (time) => `Expected ${time}`,
-      call: (phone) => `Call ${phone}`,
       closedHint: "This order is closed: the customer’s order page shows the outcome.",
       summary: (time) => `accepted ${time}`,
       paidButton: "Collected, check payment",

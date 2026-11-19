@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useMatchRoute } from "@tanstack/react-router";
 import { BellRing } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import type { CurrentAccount } from "@/features/accounts/api";
@@ -46,6 +46,9 @@ export function OnlinePendingBanner({ account }: { account: CurrentAccount }) {
     return () => window.clearInterval(timer);
   }, [ringing, play]);
 
+  // On the online orders page itself the list is right below, so the banner only rings and asks for
+  // the tap that unlocks sound.
+  const onOrdersPage = !!useMatchRoute()({ to: "/staff/online" });
   const banner = pendingBanner(count);
   if (!banner) return null;
   return (
@@ -58,9 +61,11 @@ export function OnlinePendingBanner({ account }: { account: CurrentAccount }) {
         <p className="min-w-0 flex-1 truncate font-semibold">
           {banner.full ? m.bannerFull(count) : m.banner(count)}
         </p>
-        <Link to="/staff/online" className={buttonVariants({ variant: "outline" })}>
-          {m.view}
-        </Link>
+        {!onOrdersPage && (
+          <Link to="/staff/online" className={buttonVariants({ variant: "outline" })}>
+            {m.view}
+          </Link>
+        )}
       </div>
       {(soundBlocked || soundUnsupported) && (
         <p className="mx-auto max-w-6xl pb-2 text-sm">
