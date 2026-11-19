@@ -138,20 +138,25 @@ errors, an unknown link and the per-IP budget answer as usual):
 | `result` | Meaning |
 | --- | --- |
 | `QUOTED` | `town` (Geoapify's `city`, may be null), `distanceMeters`, `feeCents` of the nearest band that reaches it, and the signed `quote` |
-| `OUT_OF_RANGE` | The road distance is beyond the farthest band |
+| `OUT_OF_RANGE` | The road distance is beyond the farthest band, or the address was found only outside the search circle; `town` as found, `distanceMeters` when routed |
 | `UNKNOWN` | No automatic quote: not found precisely enough, a malformed answer, an outage, a cap, or no automatic quotes here |
 
 Geoapify is called through its EU endpoint, `api-eu.geoapify.com`, the one its data processing
-agreement keeps inside the EU. A quote that gets as far as the route costs two credits:
+agreement keeps inside the EU. A quote costs at most two credits:
 `/v1/geocode/search` with the address, `filter=circle:lng,lat,r`
 around the restaurant (`r` is the farthest band plus 5 km, `SearchMarginMeters`, so farther matches are
-priced as out of range), `bias=proximity:lng,lat` and `limit=1`; then `/v1/routing` with
+priced as out of range), `bias=proximity:lng,lat` and `limit=1`; then, for a precise match, `/v1/routing` with
 `waypoints=lat,lng|lat,lng` and `mode=drive`, taking the route's `distance` in metres with Geoapify's
 default free-flow traffic, so an address keeps its price. Only a `building` or `amenity` match whose
 `rank.confidence_street_level` is at least 0.9 is priced (`OnlineDelivery.QuotableMatches`,
 `MinStreetConfidence`): a street without its number can lie kilometres from the house on a long road,
 and a typo can match another street. A malformed answer (a match without coordinates, a route without
-its distance or with a negative one) is not priced either. Both rules come from a 27-address spike in Prato and may need
+its distance or with a negative one) is not priced either. When the circle holds no precise match, the
+same search runs once more without the filter, still biased to the restaurant, instead of the route: a
+precise match whose straight-line distance (`OnlineDelivery.StraightMeters`) exceeds the circle is
+`OUT_OF_RANGE` with its town and no distance, since the road is never shorter; anything else stays
+`UNKNOWN`. An address in another town therefore says so, and a typo that matches far away shows the
+town it matched. A failed first search is not repeated. Both rules come from a 27-address spike in Prato and may need
 adjusting with real orders. The named `geoapify` HttpClient has a 5-second timeout, no redirects, no
 retries and no loggers, because the key travels in the URL; a failure logs one warning with the HTTP
 status or exception type and never the address, key, coordinates or a response body.
@@ -508,7 +513,9 @@ restaurant theme.
 
 The menu reuses the QR page's `MenuList`, option picker, `CartBar` and the cart's line list
 (`CartLines`); their props take any cart with `{ lines, pending }`, and the pure line rules in
-`orders/state.ts` (`addItem`, `editLine`, `refreshCart`, `validateCart`) are generic over it. The header
+`orders/state.ts` (`addItem`, `editLine`, `refreshCart`, `validateCart`) are generic over it. As on the
+QR page, the phone cart sheet and the option picker are history steps (`lib/useHistorySheet.ts`), so
+the back gesture closes them instead of leaving the page, and the menu keeps its scroll position. The header
 shows the restaurant's phone as a `tel:` button in every status. A status other than `OPEN` is
 explained by a text-only notice below it and keeps the checkout closed; browsing and building a cart
 stay possible. A remembered order still in
@@ -593,12 +600,12 @@ repeated taps cannot place the order before the customer has seen the fee. `QUOT
 success, "delivery to {town} · {distance} · fee X", with the question "not {town}? add the town or
 postcode and calculate again", and the footer shows the items total, the fee and the total
 (`onlineCartAmounts`' `deliveryFeeCents` and `payableCents`; the delivery minimum still compares the
-dishes). `OUT_OF_RANGE` puts "this address is outside the delivery area" above the disabled button,
-with "Switch to pickup" and the phone, and shows the price list. `UNKNOWN` shows the price list and,
+dishes). `OUT_OF_RANGE` puts "this address is in {town}, outside the delivery area" (without a town,
+"this address is outside the delivery area") above the disabled button, with "Switch to pickup" and the
+phone, and shows the price list. `UNKNOWN` shows the price list and,
 above the button, asks for the house number and town (only house-level matches are priced, so a
 street without its number is the usual cause) while letting the customer order, the restaurant then
-confirming the fee from the price list. Searches stay within the farthest band plus 5 km, so an
-address much farther away is also `UNKNOWN`, not `OUT_OF_RANGE`. The delivery privacy line says the
+confirming the fee from the price list. The delivery privacy line says the
 data go to the restaurant, without "only", since the address may also reach Geoapify and Google Maps
 (see the privacy page). The intent carries `deliveryQuote: { quote, feeCents }` (null otherwise),
 saved and read back with the rest; a `DELIVERY_QUOTE_INVALID` refusal frees the intent, drops the
@@ -974,7 +981,8 @@ discarded.
   field and check that it moves on and never submits. With a delivery cart below the minimum, use
   "Add dishes", add a dish and check out again: the form is kept and the shortfall updated. Ask for
   the fee of an address without a house number, with one, and beyond the bands, and tap again right
-  after an answer. Use the back arrow, the system back and a reload on the checkout page. Close
+  after an answer. Use the back arrow, the system back and a reload on the checkout page, and the back
+  gesture (an iPhone's edge swipe, the browser's back) with the cart or a dish's options open. Close
   during a delayed checkout read and verify that the cart is editable. Leave during an unresolved
   submission and verify that the original request remains available to recover. Staff side at 360px in zh,
   it and en: the banner and its tap hint on every staff page, the ringing continuing with the kitchen

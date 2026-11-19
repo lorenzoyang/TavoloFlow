@@ -312,7 +312,8 @@ earlier data with a warning. Sold-out dishes remain visible; unreviewed allergen
 A dish on sale shows its regular price struck through above the sale price. A dish with option groups
 opens an option picker instead of entering the cart at once; its price reads "from" when an option costs
 extra, and it shows as sold out once a required group has fewer options in
-stock than its minimum.
+stock than its minimum. The picker and the phone cart sheet are history steps (`lib/useHistorySheet.ts`):
+the back gesture closes them rather than leaving the menu, which keeps its scroll position.
 The restaurant theme applies after bootstrap loads; invalid/loading entrances keep the default theme.
 
 ## Errors and verification
