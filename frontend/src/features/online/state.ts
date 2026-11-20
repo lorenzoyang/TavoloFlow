@@ -217,6 +217,29 @@ export function applyFreeDeliveryMinimum(
   }));
 }
 
+export function freeDeliveryChanges(tiers: TierDraft[], savedTiers: DeliveryTier[]) {
+  const saved = new Map(
+    savedTiers.map((tier) => [tier.maxMeters, tier.freeDeliveryMinCents ?? null]),
+  );
+  const amounts = new Set<number>();
+  let restoresBaseFee = false;
+  for (const tier of tiers) {
+    const maxMeters = parseKm(tier.km);
+    const previous = maxMeters === null ? null : (saved.get(maxMeters) ?? null);
+    if (maxMeters !== null) saved.delete(maxMeters);
+    const minimum = tier.freeDeliveryMinCents;
+    if (previous === minimum) continue;
+    if (previous !== null) amounts.add(previous);
+    if (minimum !== null) amounts.add(minimum);
+    if (previous !== null && minimum === null) restoresBaseFee = true;
+  }
+  // A deleted or moved band can also remove a group's last member.
+  for (const minimum of saved.values()) {
+    if (minimum !== null) amounts.add(minimum);
+  }
+  return { amounts, restoresBaseFee };
+}
+
 export function deliveryDraft(settings: DeliverySettings): DeliveryDraft {
   return {
     origin: formatOrigin(settings.deliveryOriginLat, settings.deliveryOriginLng),

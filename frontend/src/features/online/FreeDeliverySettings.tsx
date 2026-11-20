@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { Notice } from "@/components/notice";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -9,18 +10,26 @@ import { formatCents, formatKm, formatMoney, parsePrice } from "@/lib/format";
 import { staffMessages } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { onlineMessages } from "./messages";
-import { applyFreeDeliveryMinimum, deliveryTierRanges, type TierDraft } from "./state";
+import {
+  applyFreeDeliveryMinimum,
+  deliveryTierRanges,
+  freeDeliveryChanges,
+  type DeliveryTier,
+  type TierDraft,
+} from "./state";
 
 export type FreeDeliveryEdit = number | "new" | null;
 
 export function FreeDeliverySettings({
   tiers,
+  savedTiers,
   editing,
   busy,
   onEdit,
   onApply,
 }: {
   tiers: TierDraft[];
+  savedTiers?: DeliveryTier[];
   editing: FreeDeliveryEdit;
   busy: boolean;
   onEdit: (edit: FreeDeliveryEdit) => void;
@@ -29,6 +38,7 @@ export function FreeDeliverySettings({
   const language = useStaffLanguage();
   const m = onlineMessages[language].freeDelivery;
   const ranges = deliveryTierRanges(tiers);
+  const changes = savedTiers && freeDeliveryChanges(tiers, savedTiers);
   const groups = new Map<number, string[]>();
   for (const band of ranges ?? []) {
     const minimum = tiers[band.index].freeDeliveryMinCents;
@@ -42,9 +52,21 @@ export function FreeDeliverySettings({
         {m.title}
       </h3>
       {groups.size > 0 && (
-        <ul className="space-y-1">
+        <ul className="divide-y border-y">
           {[...groups].map(([amount, bands]) => (
-            <li key={amount}>
+            <li key={amount} className="flex items-center justify-between gap-2 py-1">
+              <div className="min-w-0 space-y-1 py-1">
+                <p className="text-sm font-medium wrap-break-word">
+                  {m.summary(formatMoney(amount, language))}
+                </p>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <p className="min-w-0 text-sm wrap-break-word text-muted-foreground">
+                    {bands.join(m.bandSeparator)}
+                    {m.bandSuffix}
+                  </p>
+                  {changes?.amounts.has(amount) && <Badge variant="outline">{m.unsaved}</Badge>}
+                </div>
+              </div>
               <Button
                 type="button"
                 variant="outline"
@@ -52,11 +74,14 @@ export function FreeDeliverySettings({
                 aria-label={m.edit(formatMoney(amount, language))}
                 onClick={() => onEdit(amount)}
               >
-                {m.summary(formatMoney(amount, language), bands.join(", "))}
+                {m.editAction}
               </Button>
             </li>
           ))}
         </ul>
+      )}
+      {changes && changes.amounts.size > 0 && (
+        <Notice>{changes.restoresBaseFee ? m.removalPending : m.saveHint}</Notice>
       )}
       {editing !== null && ranges ? (
         <ThresholdEditor
@@ -111,14 +136,22 @@ function ThresholdEditor({
   const allRef = useRef<HTMLButtonElement>(null);
   const removing = selected.length === 0 && original !== null;
 
+  function removeGroup() {
+    apply(applyFreeDeliveryMinimum(tiers, original, [], null));
+  }
+
   function submit() {
-    const minimum = removing ? null : parsePrice(amount);
-    if (!removing && minimum === null) {
+    if (removing) {
+      removeGroup();
+      return;
+    }
+    const minimum = parsePrice(amount);
+    if (minimum === null) {
       setProblem("amount");
       reveal(amountRef.current);
       return;
     }
-    if (selected.length === 0 && !removing) {
+    if (selected.length === 0) {
       setProblem("bands");
       reveal(allRef.current);
       return;
@@ -198,12 +231,23 @@ function ThresholdEditor({
         <Notice tone="error">{problem === "amount" ? m.amountProblem : m.bandsProblem}</Notice>
       )}
       <div className="flex flex-wrap gap-2">
-        <Button type="button" disabled={busy} onClick={submit}>
-          {removing ? m.remove : m.apply}
+        <Button type="button" variant="secondary" disabled={busy} onClick={submit}>
+          {m.done}
         </Button>
         <Button type="button" variant="outline" disabled={busy} onClick={cancel}>
           {staffMessages[language].cancel}
         </Button>
+        {original !== null && (
+          <Button
+            type="button"
+            variant="ghost"
+            className="text-destructive hover:text-destructive"
+            disabled={busy}
+            onClick={removeGroup}
+          >
+            {m.remove}
+          </Button>
+        )}
       </div>
     </div>
   );

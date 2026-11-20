@@ -867,13 +867,20 @@ function DeliveryCard({
           </div>
           <FreeDeliverySettings
             tiers={value.tiers}
+            savedTiers={draft ? settings.deliveryTiers : undefined}
             editing={freeDeliveryEdit?.selection ?? null}
             busy={busy}
             onEdit={(selection) =>
               setFreeDeliveryEdit(selection === null ? null : { selection, snapshot: value })
             }
             onApply={(tiers) => {
-              edit({ ...value, tiers });
+              if (
+                tiers.some(
+                  (tier, index) =>
+                    tier.freeDeliveryMinCents !== value.tiers[index].freeDeliveryMinCents,
+                )
+              )
+                edit({ ...value, tiers });
               setFreeDeliveryEdit(null);
             }}
           />
