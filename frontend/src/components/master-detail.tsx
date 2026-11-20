@@ -42,6 +42,7 @@ export function MasterDetail({
         {open && (
           <aside
             aria-label={title}
+            data-slot="detail-scroll"
             className="sticky top-6 max-h-[calc(100dvh-3rem)] overflow-y-auto rounded-2xl border bg-card p-5 shadow-xs"
           >
             <div className="mb-4 flex items-start justify-between gap-3">
@@ -94,7 +95,9 @@ export function MasterDetail({
               <X />
             </SheetClose>
           </SheetHeader>
-          <div className="pb-safe flex-1 overflow-y-auto p-4">{detail}</div>
+          <div data-slot="detail-scroll" className="pb-safe flex-1 overflow-y-auto p-4">
+            {detail}
+          </div>
         </SheetContent>
       </Sheet>
     </>

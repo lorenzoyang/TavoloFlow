@@ -129,6 +129,12 @@ requires an active restaurant service, enabled dine-in and an enabled table. The
 only gates the guest entry point. The kitchen and the guest's table order list include both kinds
 of orders. `orders.is_staff_placed` records which path created the order for bill detail display.
 
+Staff open dish options as a browser history step. Back dismisses the picker and restores the
+scroll position in the Floor detail. Returning from the order or sending it brings staff back to
+the same visit. When staff open an order link directly, its Back button shows that visit's detail.
+In the review dialog, the table title wraps and the list of dishes can scroll while the action
+buttons stay within the viewport.
+
 The staff draft and frozen request live in tab storage keyed by restaurant, account and visit.
 Recovery only reads the original staff submission. An explicit retry of that same payload and ID
 is available after a lookup has returned `ORDER_NOT_FOUND`. A definitively rejected first submission

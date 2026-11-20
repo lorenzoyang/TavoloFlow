@@ -437,8 +437,7 @@ export function CartLines({
                   </span>
                   <Button
                     variant="ghost"
-                    size="sm"
-                    className="ml-auto"
+                    className="ml-auto px-3 text-[0.8rem]"
                     disabled={frozen}
                     onClick={() => change(index, { quantity: 0 })}
                     aria-label={`${m.remove}: ${name.text}`}

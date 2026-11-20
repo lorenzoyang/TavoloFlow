@@ -20,6 +20,7 @@ export function ConfirmDialog({
   title,
   description,
   children,
+  contentClassName,
   confirmLabel,
   cancelLabel,
   tone = "default",
@@ -33,6 +34,7 @@ export function ConfirmDialog({
   title: ReactNode;
   description?: ReactNode;
   children?: ReactNode;
+  contentClassName?: string;
   confirmLabel: string;
   cancelLabel?: string;
   tone?: "default" | "destructive";
@@ -50,7 +52,7 @@ export function ConfirmDialog({
         if (!next && !busy) onCancel();
       }}
     >
-      <AlertDialogContent initialFocus={initialFocus}>
+      <AlertDialogContent className={contentClassName} initialFocus={initialFocus}>
         <AlertDialogHeader>
           <AlertDialogTitle className="text-lg font-semibold wrap-break-word">
             {title}

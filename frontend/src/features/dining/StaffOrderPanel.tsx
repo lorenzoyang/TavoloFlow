@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Plus } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -15,6 +15,7 @@ import { dishPriceCents, itemGroups } from "@/features/orders/options";
 import { totalCents } from "@/features/orders/state";
 import { formatMoney } from "@/lib/format";
 import { displayName } from "@/lib/language";
+import { useHistorySheet } from "@/lib/useHistorySheet";
 import { useLiveActive } from "@/lib/useLiveView";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { staffOrderMessages } from "./staff-order-messages";
@@ -46,12 +47,23 @@ export function StaffOrderPanel({
   const menu = query.data;
   const [category, setCategory] = useState("");
   const [optionItemId, setOptionItemId] = useState<string | null>(null);
+  const panel = useRef<HTMLElement>(null);
+  const options = useHistorySheet(
+    "staff-order-options",
+    false,
+    () => panel.current?.closest<HTMLElement>('[data-slot="detail-scroll"]') ?? null,
+  );
   const cartHeading = useRef<HTMLHeadingElement>(null);
   const model = useStaffOrder({ account, tableId, sessionId, canSubmit, onDone });
   const { cart, review, busy, ended } = model;
   const locked = !canSubmit || !active || ended;
   const frozen = locked || busy || !!cart.pending || !!review;
-  const optionItem = menu?.items.find((item) => item.id === optionItemId) ?? null;
+  const optionItem = options.open
+    ? (menu?.items.find((item) => item.id === optionItemId) ?? null)
+    : null;
+  useEffect(() => {
+    if (options.open && (!optionItem || closed || ended || cart.pending)) options.hide();
+  });
   const defaultLanguage = menu?.defaultLanguage ?? language;
   const currentCategory = menu?.categories.some((entry) => entry.id === category) ? category : "";
   const dishes = menu?.items.filter(
@@ -60,7 +72,7 @@ export function StaffOrderPanel({
   const subtotal = (lines: typeof cart.lines) => formatMoney(totalCents(lines), language);
 
   return (
-    <section aria-label={m.place} className="min-w-0 space-y-4">
+    <section ref={panel} aria-label={m.place} className="min-w-0 space-y-4">
       <Button variant="ghost" onClick={onBack}>
         <ArrowLeft aria-hidden="true" /> {m.back}
       </Button>
@@ -146,8 +158,10 @@ export function StaffOrderPanel({
                     aria-label={m.add(name.text)}
                     disabled={frozen || unavailable || query.isError}
                     onClick={() => {
-                      if (itemGroups(item, menu.optionGroups).length) setOptionItemId(item.id);
-                      else model.add(item, menu);
+                      if (itemGroups(item, menu.optionGroups).length) {
+                        setOptionItemId(item.id);
+                        options.show();
+                      } else model.add(item, menu);
                     }}
                   >
                     <Plus aria-hidden="true" />
@@ -165,10 +179,10 @@ export function StaffOrderPanel({
             defaultLanguage={defaultLanguage}
             language={language}
             disabled={frozen}
-            close={() => setOptionItemId(null)}
+            close={options.hide}
             add={(item, ids) => {
               model.add(item, menu, ids);
-              setOptionItemId(null);
+              options.hide();
             }}
           />
         </>
@@ -220,7 +234,12 @@ export function StaffOrderPanel({
       )}
       <ConfirmDialog
         open={!!review && !!menu}
-        title={`${m.review} · ${tableTitle}`}
+        title={
+          <span className="block wrap-anywhere">
+            {m.review} · {tableTitle}
+          </span>
+        }
+        contentClassName="max-h-[calc(100dvh-2rem)] grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto]"
         confirmLabel={m.send}
         busy={busy}
         confirmDisabled={locked}
@@ -228,7 +247,7 @@ export function StaffOrderPanel({
         onCancel={model.dismissReview}
       >
         {review && menu && (
-          <div className="max-h-[45dvh] overflow-y-auto">
+          <div className="min-h-0 max-h-[45dvh] overflow-y-auto">
             <CartLines
               lines={review.lines}
               editable={false}

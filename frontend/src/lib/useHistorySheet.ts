@@ -1,22 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useRouter } from "@tanstack/react-router";
 
-export type HistorySheet = "cart" | "options";
+export type HistorySheet = "cart" | "options" | "staff-order-options";
 
 declare module "@tanstack/react-router" {
   interface HistoryState {
-    // A customer page's open bottom sheet (useHistorySheet).
+    // An open bottom sheet (useHistorySheet).
     sheet?: HistorySheet;
   }
 }
 
-// A customer page's bottom sheet (the cart, a dish's options) as a step in the browser history. Opening
+// Treat a bottom sheet (the cart, a dish's options) as a step in the browser history. Opening
 // it adds an entry that only marks the sheet in its state, with the same URL, so the back gesture
 // (Android's back button, an iPhone's edge swipe, an in-app browser's back arrow) closes the sheet
 // instead of leaving the page, where a closed tab would lose the cart. Closing it from the page goes
 // back over that entry. The router scrolls every history step to the top, so closing restores the
 // scroll position the page had when the sheet opened.
-export function useHistorySheet(name: HistorySheet, restoreOnMount = true) {
+export function useHistorySheet(
+  name: HistorySheet,
+  restoreOnMount = true,
+  scrollElement?: () => HTMLElement | null,
+) {
   const router = useRouter();
   const state = useLocation({ select: (location) => location.state });
   const marked = state.sheet === name;
@@ -24,7 +28,7 @@ export function useHistorySheet(name: HistorySheet, restoreOnMount = true) {
   const [discardedKey] = useState(() => (marked && !restoreOnMount ? key : null));
   const discarded = marked && key === discardedKey;
   const open = marked && !discarded;
-  const scroll = useRef<number>(undefined);
+  const scroll = useRef<{ element: HTMLElement | null; top: number }>(undefined);
   // One history step at a time: a second tap before the first lands would add or remove another entry.
   const moving = useRef(false);
   useEffect(() => {
@@ -59,15 +63,19 @@ export function useHistorySheet(name: HistorySheet, restoreOnMount = true) {
           fromLocation?.state.sheet === name &&
           toLocation.state.sheet !== name &&
           fromLocation.pathname === toLocation.pathname
-        )
-          window.scrollTo(0, scroll.current);
+        ) {
+          const { element, top } = scroll.current;
+          if (element) element.scrollTop = top;
+          else window.scrollTo(0, top);
+        }
       }),
     [router, name],
   );
   function show() {
     if (marked || moving.current) return;
     moving.current = true;
-    scroll.current = window.scrollY;
+    const element = scrollElement?.() ?? null;
+    scroll.current = { element, top: element?.scrollTop ?? window.scrollY };
     void router.navigate({
       to: ".",
       search: true,
