@@ -55,25 +55,25 @@ public static class OnlineDelivery
         return parts is { Length: > 0 } ? string.Join(' ', parts) : null;
     }
 
-    // The fee of the nearest band that reaches the distance; null beyond the farthest band.
-    public static long? TierFee(IEnumerable<DeliveryTierResponse> tiers, int meters) =>
-        tiers.OrderBy(t => t.MaxMeters).FirstOrDefault(t => meters <= t.MaxMeters)?.FeeCents;
+    // The nearest band that reaches the road distance; null beyond the farthest band.
+    public static DeliveryTierResponse? TierForDistance(
+        IEnumerable<DeliveryTierResponse> tiers,
+        int meters
+    ) => tiers.OrderBy(t => t.MaxMeters).FirstOrDefault(t => meters <= t.MaxMeters);
 
     // Repeated by ck_restaurant_delivery_min_order.
     public static bool ValidMinOrder(long? cents) =>
         cents is null or (>= 1 and <= InputRules.MaxSafeCents);
 
-    // The minimum is about whether the trip is worth it, so it compares what the restaurant receives for
-    // the dishes: after the coupon, never counting the fee. Pickup orders have no minimum.
-    public static bool MeetsMinimum(long itemsCents, int? couponPercentOff, long? minOrderCents) =>
-        minOrderCents is not { } minimum
-        || itemsCents
-            - (
-                couponPercentOff is { } percent
-                    ? OnlineCoupons.DiscountCents(itemsCents, percent)
-                    : 0
-            )
-            >= minimum;
+    // Both delivery thresholds use the dishes after the coupon, excluding the delivery fee.
+    public static long DiscountedItemsCents(long itemsCents, int? couponPercentOff) =>
+        itemsCents
+        - (couponPercentOff is { } percent ? OnlineCoupons.DiscountCents(itemsCents, percent) : 0);
+
+    public static long FeeForTier(DeliveryTierResponse tier, long discountedItemsCents) =>
+        tier.FreeDeliveryMinCents is { } minimum && discountedItemsCents >= minimum
+            ? 0
+            : tier.FeeCents;
 
     // Both set and in range, or both null; rounded to six decimals. Null when invalid.
     public static (decimal? Lat, decimal? Lng)? Origin(decimal? lat, decimal? lng)
@@ -91,18 +91,23 @@ public static class OnlineDelivery
 
     // Up to five bands, each 1 m to 30 km with a fee from 0 (free) within the safe-integer range, at
     // distinct distances; returned nearest first. Null when invalid.
-    public static (int MaxMeters, long FeeCents)[]? Tiers(DeliveryTierInput?[]? input)
+    public static DeliveryTierResponse[]? Tiers(DeliveryTierInput?[]? input)
     {
         if (input is null || input.Length > MaxTiers || input.Any(t => t is null))
             return null;
         var tiers = input
-            .Select(t => (MaxMeters: t!.MaxMeters ?? 0, FeeCents: t.FeeCents ?? -1))
+            .Select(t => new DeliveryTierResponse(
+                t!.MaxMeters ?? 0,
+                t.FeeCents ?? -1,
+                t.FreeDeliveryMinCents
+            ))
             .OrderBy(t => t.MaxMeters)
             .ToArray();
         return
             tiers.All(t =>
                 t.MaxMeters is >= 1 and <= MaxMeters
                 && t.FeeCents is >= 0 and <= InputRules.MaxSafeCents
+                && ValidMinOrder(t.FreeDeliveryMinCents)
             )
             && tiers.Select(t => t.MaxMeters).Distinct().Count() == tiers.Length
             ? tiers
@@ -118,6 +123,6 @@ public static class OnlineDelivery
             .DeliveryTiers.AsNoTracking()
             .Where(t => t.RestaurantId == restaurantId)
             .OrderBy(t => t.MaxMeters)
-            .Select(t => new DeliveryTierResponse(t.MaxMeters, t.FeeCents))
+            .Select(t => new DeliveryTierResponse(t.MaxMeters, t.FeeCents, t.FreeDeliveryMinCents))
             .ToArrayAsync(ct);
 }

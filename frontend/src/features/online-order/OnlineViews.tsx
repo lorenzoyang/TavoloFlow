@@ -279,6 +279,11 @@ export function AmountLines({
               {deliveryFeeCents === 0 ? m.free : formatMoney(deliveryFeeCents, language)}
             </span>
           </p>
+          {model.freeDeliveryShortfall > 0 && model.minOrderShortfall === 0 && (
+            <p className="text-sm text-muted-foreground">
+              {m.freeDeliveryRemaining(formatMoney(model.freeDeliveryShortfall, language))}
+            </p>
+          )}
         </>
       )}
       <p className="flex items-baseline justify-between gap-3 text-lg font-semibold">

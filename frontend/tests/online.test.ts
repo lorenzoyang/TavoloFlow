@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   activeProgress,
+  applyFreeDeliveryMinimum,
   couponInput,
   DELIVERY_MINUTES,
   deliveryDraft,
   deliveryInput,
+  deliveryTierRanges,
+  emptyTierDraft,
   formatCountdown,
   formatMinute,
   mapsUrl,
@@ -308,8 +311,8 @@ test("fee bands take kilometres and a fee, save nearest first and round-trip unc
     deliveryOriginLat: 43.88015,
     deliveryOriginLng: 11.09612,
     deliveryTiers: [
-      { maxMeters: 2500, feeCents: 0 },
-      { maxMeters: 6000, feeCents: 400 },
+      { maxMeters: 2500, feeCents: 0, freeDeliveryMinCents: null },
+      { maxMeters: 6000, feeCents: 400, freeDeliveryMinCents: 3000 },
     ],
   };
   const draft = deliveryDraft(saved);
@@ -318,8 +321,8 @@ test("fee bands take kilometres and a fee, save nearest first and round-trip unc
     enabled: true,
     origin: "43.88015, 11.09612",
     tiers: [
-      { km: "2.5", fee: "0.00" },
-      { km: "6", fee: "4.00" },
+      { km: "2.5", fee: "0.00", freeDeliveryMinCents: null },
+      { km: "6", fee: "4.00", freeDeliveryMinCents: 3000 },
     ],
   });
   const same = deliveryInput(draft);
@@ -329,16 +332,16 @@ test("fee bands take kilometres and a fee, save nearest first and round-trip unc
   const typed = deliveryInput({
     ...draft,
     tiers: [
-      { km: "10", fee: "6" },
-      { km: "0,5", fee: "0" },
-      { km: "30", fee: "12,50" },
+      { ...emptyTierDraft, km: "10", fee: "6" },
+      { ...emptyTierDraft, km: "0,5", fee: "0" },
+      { ...emptyTierDraft, km: "30", fee: "12,50" },
     ],
   });
   assert.ok(typed.ok);
   assert.deepEqual(typed.input.tiers, [
-    { maxMeters: 500, feeCents: 0 },
-    { maxMeters: 10_000, feeCents: 600 },
-    { maxMeters: 30_000, feeCents: 1250 },
+    { maxMeters: 500, feeCents: 0, freeDeliveryMinCents: null },
+    { maxMeters: 10_000, feeCents: 600, freeDeliveryMinCents: null },
+    { maxMeters: 30_000, feeCents: 1250, freeDeliveryMinCents: null },
   ]);
   assert.ok(!sameDelivery(typed.input, saved));
 
@@ -356,7 +359,10 @@ test("fee bands take kilometres and a fee, save nearest first and round-trip unc
       { field: "tier", index: 1, part: "repeated" },
     ],
   ] as const)
-    assert.deepEqual(deliveryInput({ ...draft, tiers: [...tiers] }), { ok: false, problem });
+    assert.deepEqual(
+      deliveryInput({ ...draft, tiers: tiers.map((tier) => ({ ...emptyTierDraft, ...tier })) }),
+      { ok: false, problem },
+    );
   assert.deepEqual(deliveryInput({ ...draft, origin: "Via Roma 1" }), {
     ok: false,
     problem: { field: "origin" },
@@ -364,8 +370,24 @@ test("fee bands take kilometres and a fee, save nearest first and round-trip unc
   assert.equal(MAX_DELIVERY_TIERS, 5);
 });
 
+test("free delivery applies one threshold to selected bands, and editing can move or clear it", () => {
+  const tiers = ["6", "2", "4"].map((km) => ({ ...emptyTierDraft, km, fee: "4" }));
+  assert.deepEqual(deliveryTierRanges(tiers), [
+    { index: 1, minMeters: 0, maxMeters: 2000 },
+    { index: 2, minMeters: 2000, maxMeters: 4000 },
+    { index: 0, minMeters: 4000, maxMeters: 6000 },
+  ]);
+  const amounts = (rows: typeof tiers) => rows.map((tier) => tier.freeDeliveryMinCents);
+  const withNear = applyFreeDeliveryMinimum(tiers, null, [1, 2], 2500);
+  const withFar = applyFreeDeliveryMinimum(withNear, null, [0], 3000);
+  assert.deepEqual(amounts(withFar), [3000, 2500, 2500]);
+  const replaced = applyFreeDeliveryMinimum(withFar, 2500, [0, 1], 2800);
+  assert.deepEqual(amounts(replaced), [2800, 2800, null]);
+  assert.deepEqual(amounts(applyFreeDeliveryMinimum(replaced, 2800, [], null)), [null, null, null]);
+});
+
 test("delivery turns on only with the coordinates and a band, and off keeps both", () => {
-  const tiers = [{ km: "3", fee: "2" }];
+  const tiers = [{ ...emptyTierDraft, km: "3", fee: "2" }];
   const origin = "43.88015, 11.09612";
   for (const draft of [
     { ...blankDraft, enabled: true, tiers },
@@ -377,7 +399,7 @@ test("delivery turns on only with the coordinates and a band, and off keeps both
   assert.ok(off.ok);
   assert.deepEqual(
     [off.input.originLat, off.input.originLng, off.input.tiers],
-    [43.88015, 11.09612, [{ maxMeters: 3000, feeCents: 200 }]],
+    [43.88015, 11.09612, [{ maxMeters: 3000, feeCents: 200, freeDeliveryMinCents: null }]],
   );
 });
 

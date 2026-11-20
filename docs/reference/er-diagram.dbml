@@ -86,7 +86,8 @@ Table restaurants {
 Table delivery_tiers {
   restaurant_id uuid [not null]
   max_meters int [not null, note: 'Road distance from the restaurant this band covers, 1 to 30000; the farthest band is the delivery limit']
-  fee_cents bigint [not null, note: 'Delivery fee for the band; 0 is free']
+  fee_cents bigint [not null, note: 'Base delivery fee for the band; 0 is free']
+  free_delivery_min_cents bigint [note: 'Optional discounted food subtotal at or above which this band is free']
 
   Indexes {
     (restaurant_id, max_meters) [pk]
@@ -94,6 +95,7 @@ Table delivery_tiers {
   Checks {
     `max_meters BETWEEN 1 AND 30000` [name: 'ck_delivery_tier_distance']
     `fee_cents BETWEEN 0 AND 9007199254740991` [name: 'ck_delivery_tier_fee']
+    `free_delivery_min_cents BETWEEN 1 AND 9007199254740991` [name: 'ck_delivery_tier_free_delivery_min']
   }
   Note: 'OWNER fee bands by road distance, at most five, replaced together with the delivery settings'
 }

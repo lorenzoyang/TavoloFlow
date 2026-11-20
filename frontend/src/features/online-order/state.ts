@@ -9,7 +9,13 @@ import type {
 } from "./api.ts";
 import type { Language } from "../../lib/language.ts";
 import { isUuid } from "../../lib/ids.ts";
-import { normalizeCouponCode, normalizePhone, validCouponPercent } from "../online/state.ts";
+import {
+  deliveryFeeForTier,
+  normalizeCouponCode,
+  normalizePhone,
+  validCouponPercent,
+  type DeliveryTier,
+} from "../online/state.ts";
 import {
   CartError,
   cartKey,
@@ -110,11 +116,11 @@ export function feeStatus(form: QuoteForm, autoQuote: boolean): FeeStatus {
   return autoQuote ? (result ?? "lookup") : "manual";
 }
 
-// The signed fee a delivery order carries: the quote for the current address, or null.
-function intentQuote(form: QuoteForm): OnlineIntent["deliveryQuote"] {
+// The signed distance for the current address and the final fee shown, or null.
+function intentQuote(form: QuoteForm, finalFeeCents?: number): OnlineIntent["deliveryQuote"] {
   const quote = form.fulfillment === "DELIVERY" ? currentQuote(form) : null;
   return quote?.result === "QUOTED" && quote.quote && quote.feeCents !== null
-    ? { quote: quote.quote, feeCents: quote.feeCents }
+    ? { quote: quote.quote, feeCents: finalFeeCents ?? quote.feeCents }
     : null;
 }
 
@@ -126,16 +132,17 @@ export function onlineCartAmounts(
   cart: OnlineCart,
   review: OnlineCart | null,
   form: Pick<CheckoutForm, "coupon"> & QuoteForm,
+  tier: DeliveryTier | null = null,
 ) {
   const itemsCents = totalCents(review?.lines ?? cart.lines);
   const coupon = cart.pending ? cart.pending.coupon : review ? form.coupon : null;
   const discountCents = coupon ? couponDiscountCents(itemsCents, coupon.percentOff) : 0;
+  const total = itemsCents - discountCents;
   const deliveryFeeCents = cart.pending
     ? (cart.pending.deliveryQuote?.feeCents ?? null)
-    : review
-      ? (intentQuote(form)?.feeCents ?? null)
+    : review && tier && form.fulfillment === "DELIVERY"
+      ? deliveryFeeForTier(tier, total)
       : null;
-  const total = itemsCents - discountCents;
   return {
     itemsCents,
     coupon,
@@ -146,9 +153,17 @@ export function onlineCartAmounts(
   };
 }
 
+export function quotedDeliveryTier(form: QuoteForm, tiers: readonly DeliveryTier[]) {
+  const quote = form.fulfillment === "DELIVERY" ? currentQuote(form) : null;
+  const meters = quote?.distanceMeters;
+  return quote?.result === "QUOTED" && meters != null
+    ? (tiers.find((tier) => meters <= tier.maxMeters) ?? null)
+    : null;
+}
+
 // How much a delivery order still lacks to reach the minimum: 0 when it does or there is none. Pass
 // onlineCartAmounts' total: during checkout it is the dishes after the coupon, which the server compares
-// (OnlineDelivery.MeetsMinimum); the fee never counts.
+// (OnlineDelivery.DiscountedItemsCents); the fee never counts.
 export const deliveryShortfallCents = (totalCents: number, minOrderCents: number | null) =>
   minOrderCents === null ? 0 : Math.max(0, minOrderCents - totalCents);
 
@@ -264,6 +279,7 @@ export function createOnlineIntent(
   cart: OnlineCart,
   form: CheckoutForm,
   requestId: string,
+  finalDeliveryFeeCents?: number,
 ): OnlineIntent {
   validateCart(cart);
   const phone = normalizePhone(form.phone);
@@ -272,7 +288,7 @@ export function createOnlineIntent(
   if (form.fulfillment !== "PICKUP" && form.fulfillment !== "DELIVERY")
     throw new CartError("limits");
   if (checkoutProblems(form).length || !validCoupon(form.coupon)) throw new CartError("limits");
-  const deliveryQuote = intentQuote(form);
+  const deliveryQuote = intentQuote(form, finalDeliveryFeeCents);
   if (!validQuote(deliveryQuote)) throw new CartError("limits");
   const delivery = form.fulfillment === "DELIVERY";
   return {
@@ -374,6 +390,7 @@ const rejectedAfterDuplicateCheck = [
   "COUPON_INVALID",
   "DELIVERY_MIN_ORDER",
   "DELIVERY_QUOTE_INVALID",
+  "DELIVERY_FEE_CHANGED",
   "ONLINE_BROWSER_PENDING",
   "ONLINE_IP_WAITING_LIMIT",
 ];

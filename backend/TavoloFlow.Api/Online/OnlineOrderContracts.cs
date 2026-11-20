@@ -54,8 +54,8 @@ public sealed record OnlineRequestInput(
     string? TurnstileToken = null
 );
 
-// The signed quote checkout received for this address and the fee the customer saw, which the
-// submission checks against the restaurant's current bands.
+// The signed road distance for this address and the final fee shown at checkout, which submission
+// recomputes from the current band and the verified discounted dishes.
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record OnlineRequestDeliveryQuoteInput(
     [Required] string? Quote,
@@ -66,7 +66,7 @@ public sealed record OnlineRequestDeliveryQuoteInput(
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record DeliveryQuoteInput([Required] string? Address);
 
-// QUOTED carries the town the address was found in, the road distance, the band's fee and the signed
+// QUOTED carries the town the address was found in, the road distance, the band's base fee and the signed
 // quote to send with the order; OUT_OF_RANGE is beyond the farthest band; UNKNOWN means no automatic
 // quote (not found precisely enough, the service or a limit unavailable, or no automatic quotes here),
 // so checkout shows the price list and the restaurant confirms the fee.

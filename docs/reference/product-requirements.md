@@ -95,11 +95,13 @@ are cancelled, and staff repeat it on the till that issues the receipt (see
 
 Delivery fees go by road distance. OWNER sets the restaurant's location, up to five fee bands (the
 farthest is the delivery limit) and an optional minimum order, compared with the dishes after the
-coupon. With a deployment Geoapify key, customers can ask for the fee at checkout. A successful
+coupon. OWNER can set an optional free-delivery threshold per band and apply an amount to several
+bands at once. The discounted food subtotal also determines free delivery. With a deployment
+Geoapify key, customers can ask for the fee at checkout. A successful
 quote shows the fee before ordering and keeps it on acceptance. If the calculated road distance
 exceeds the farthest band, checkout blocks the delivery request. With no key or when no quote or
 range result is available, checkout shows the price list and whoever accepts the order checks the
-route, picks a band, and confirms the fee. See
+route, picks a band, and confirms the fee calculated from its current rules. See
 [automatic delivery quotes](online-ordering.md#automatic-delivery-quotes).
 
 Production deployments enable Managed Turnstile verification for new online requests by default.

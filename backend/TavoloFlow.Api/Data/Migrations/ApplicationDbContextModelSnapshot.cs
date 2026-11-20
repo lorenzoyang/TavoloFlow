@@ -37,6 +37,10 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("fee_cents");
 
+                    b.Property<long?>("FreeDeliveryMinCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("free_delivery_min_cents");
+
                     b.HasKey("RestaurantId", "MaxMeters");
 
                     b.ToTable("delivery_tiers", null, t =>
@@ -44,6 +48,8 @@ namespace TavoloFlow.Api.Data.Migrations
                             t.HasCheckConstraint("ck_delivery_tier_distance", "max_meters BETWEEN 1 AND 30000");
 
                             t.HasCheckConstraint("ck_delivery_tier_fee", "fee_cents BETWEEN 0 AND 9007199254740991");
+
+                            t.HasCheckConstraint("ck_delivery_tier_free_delivery_min", "free_delivery_min_cents BETWEEN 1 AND 9007199254740991");
                         });
                 });
 

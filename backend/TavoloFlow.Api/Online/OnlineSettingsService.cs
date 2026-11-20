@@ -119,7 +119,7 @@ public sealed class OnlineSettingsService(
         var tiers =
             OnlineDelivery.Tiers(input.Tiers)
             ?? throw ApiException.Validation(
-                $"Send at most {OnlineDelivery.MaxTiers} tiers at distinct distances of 1 to {OnlineDelivery.MaxMeters} metres, each with a fee of 0 or more cents.",
+                $"Send at most {OnlineDelivery.MaxTiers} tiers at distinct distances of 1 to {OnlineDelivery.MaxMeters} metres, with a non-negative fee and an optional positive free-delivery minimum in cents.",
                 "tiers",
                 "Invalid tiers."
             );
@@ -153,6 +153,7 @@ public sealed class OnlineSettingsService(
                 RestaurantId = restaurantId,
                 MaxMeters = t.MaxMeters,
                 FeeCents = t.FeeCents,
+                FreeDeliveryMinCents = t.FreeDeliveryMinCents,
             })
         );
         await db.SaveChangesAsync(ct);

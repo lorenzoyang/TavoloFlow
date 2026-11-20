@@ -84,7 +84,7 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
                 "estimatedMinutes",
                 "Invalid time."
             );
-        var fee = DeliveryFee(request, input.DeliveryFeeCents);
+        var fee = await DeliveryFeeAsync(request, input, ct);
 
         var dishIds = request.Lines.Select(line => line.MenuItemId).Distinct().ToArray();
         var existing = (
@@ -142,12 +142,16 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
         return result;
     }
 
-    // A quoted delivery keeps the fee the customer was shown; any other delivery requires an explicit
-    // fee, 0 for free. The bill (items plus fee) stays a safe integer.
-    private static long? DeliveryFee(OnlineRequest request, long? fee)
+    private async Task<long?> DeliveryFeeAsync(
+        OnlineRequest request,
+        OnlineAcceptInput input,
+        CancellationToken ct
+    )
     {
+        var fee = input.DeliveryFeeCents;
+        var maxMeters = input.DeliveryTierMaxMeters;
         if (request.Fulfillment != OnlineFulfillment.Delivery)
-            return fee is null
+            return fee is null && maxMeters is null
                 ? null
                 : throw ApiException.Validation(
                     "Pickup orders take no delivery fee.",
@@ -155,7 +159,7 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
                     "Pickup only."
                 );
         if (request.DeliveryFeeCents is { } quoted)
-            return fee is null
+            return fee is null && maxMeters is null
                 ? quoted
                 : throw ApiException.Validation(
                     "This delivery keeps the fee quoted to the customer.",
@@ -172,7 +176,18 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
                 "deliveryFeeCents",
                 "Invalid fee."
             );
-        return cents;
+        var tiers = await OnlineDelivery.TiersAsync(db, request.RestaurantId, ct);
+        if (maxMeters is null && tiers.All(tier => tier.FreeDeliveryMinCents is null))
+            return cents;
+        var tier =
+            tiers.SingleOrDefault(tier => tier.MaxMeters == maxMeters)
+            ?? throw OnlineErrors.DeliveryFeeChanged();
+        var discountedItems = OnlineDelivery.DiscountedItemsCents(
+            request.ItemsTotalCents,
+            request.CouponPercentOff
+        );
+        var currentFee = OnlineDelivery.FeeForTier(tier, discountedItems);
+        return currentFee == cents ? currentFee : throw OnlineErrors.DeliveryFeeChanged();
     }
 
     // Only the request row: read the time after acquiring UPDATE, just like acceptance. A decision that

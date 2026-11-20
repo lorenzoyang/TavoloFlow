@@ -24,6 +24,7 @@ import { ContactActions, DeliveryAddress } from "./DeliveryAddress";
 import { onlineOrdersMessages } from "./messages";
 import {
   activeProgress,
+  deliveryFeeForTier,
   DELIVERY_MINUTES,
   formatCountdown,
   PICKUP_MINUTES,
@@ -74,12 +75,14 @@ function PendingCard({
   // A fee quoted to the customer is kept as it is; acceptance sends none.
   const quoted = request.deliveryFeeCents;
   const tier = tiers.find(
-    (t) => t.maxMeters === picked?.maxMeters && t.feeCents === picked.feeCents,
+    (t) =>
+      t.maxMeters === picked?.maxMeters &&
+      t.feeCents === picked.feeCents &&
+      t.freeDeliveryMinCents === picked.freeDeliveryMinCents,
   );
-  const fee = quoted ?? tier?.feeCents ?? null;
-  // The coupon comes off the dishes only; the band's fee is added in full.
   const discount = request.coupon?.discountCents ?? 0;
   const due = request.itemsTotalCents - discount;
+  const fee = quoted ?? (tier ? deliveryFeeForTier(tier, due) : null);
   const tierLabelId = `delivery-tier-${request.id}`;
   return (
     <article className="space-y-3 rounded-2xl border bg-card p-4 shadow-xs">
@@ -193,23 +196,26 @@ function PendingCard({
                 }
                 className="grid-cols-3 sm:grid-cols-5"
               >
-                {tiers.map((tier) => (
-                  <label
-                    key={tier.maxMeters}
-                    className="relative flex min-h-14 min-w-0 cursor-pointer flex-col items-center justify-center rounded-xl border px-1 py-2 text-center text-sm font-medium tabular-nums transition-colors has-focus-visible:ring-3 has-focus-visible:ring-ring/50 has-data-checked:border-primary has-data-checked:bg-accent has-data-checked:text-accent-foreground has-data-disabled:cursor-not-allowed has-data-disabled:opacity-50"
-                  >
-                    <RadioGroupItem
-                      value={String(tier.maxMeters)}
-                      className="absolute inset-0 size-auto aspect-auto rounded-xl border-0 opacity-0"
-                    />
-                    <span className="min-w-0 wrap-break-word">
-                      {m.tierDistance(formatKm(tier.maxMeters, language))}
-                    </span>
-                    <span className="min-w-0">
-                      {tier.feeCents === 0 ? m.free : amount(tier.feeCents, language)}
-                    </span>
-                  </label>
-                ))}
+                {tiers.map((tier) => {
+                  const bandFee = deliveryFeeForTier(tier, due);
+                  return (
+                    <label
+                      key={tier.maxMeters}
+                      className="relative flex min-h-14 min-w-0 cursor-pointer flex-col items-center justify-center rounded-xl border px-1 py-2 text-center text-sm font-medium tabular-nums transition-colors has-focus-visible:ring-3 has-focus-visible:ring-ring/50 has-data-checked:border-primary has-data-checked:bg-accent has-data-checked:text-accent-foreground has-data-disabled:cursor-not-allowed has-data-disabled:opacity-50"
+                    >
+                      <RadioGroupItem
+                        value={String(tier.maxMeters)}
+                        className="absolute inset-0 size-auto aspect-auto rounded-xl border-0 opacity-0"
+                      />
+                      <span className="min-w-0 wrap-break-word">
+                        {m.tierDistance(formatKm(tier.maxMeters, language))}
+                      </span>
+                      <span className="min-w-0">
+                        {bandFee === 0 ? m.free : amount(bandFee, language)}
+                      </span>
+                    </label>
+                  );
+                })}
               </RadioGroup>
             )}
             {fee !== null && (
@@ -230,6 +236,9 @@ function PendingCard({
             )}
           </div>
         )}
+        {model.notice?.requestId === request.id && (
+          <Notice tone={model.notice.tone}>{model.notice.text}</Notice>
+        )}
         {/* The times stay disabled until a band is picked: say so where they are. */}
         <p className="text-sm font-medium">
           {!delivery
@@ -249,9 +258,16 @@ function PendingCard({
                   ? m.acceptDeliveryLabel(request.number, minutes)
                   : m.acceptLabel(request.number, minutes)
               }
-              onClick={() =>
-                void model.accept(request, minutes, delivery && quoted === null ? fee : null)
-              }
+              onClick={async () => {
+                const manual = delivery && quoted === null;
+                const accepted = await model.accept(
+                  request,
+                  minutes,
+                  manual ? fee : null,
+                  manual ? (tier?.maxMeters ?? null) : null,
+                );
+                if (!accepted) setPicked(null);
+              }}
             >
               {m.minutes(minutes)}
             </Button>
@@ -358,7 +374,9 @@ function OnlineOrdersContent({ account }: { account: CurrentAccount }) {
         }
       />
       <div className="space-y-3">
-        {model.notice && <Notice tone={model.notice.tone}>{model.notice.text}</Notice>}
+        {model.notice && !model.notice.requestId && (
+          <Notice tone={model.notice.tone}>{model.notice.text}</Notice>
+        )}
         {(model.pending.isError || model.active.isError) && (
           <Notice tone="error">{m.readError}</Notice>
         )}

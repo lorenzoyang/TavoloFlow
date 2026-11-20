@@ -368,13 +368,16 @@ public sealed class DeliveryQuoteService(
             return Unknown;
         // Out of range keeps the town (and the distance when routed), so a customer can see where the
         // address was found.
-        if (routed.Meters is not { } meters || OnlineDelivery.TierFee(tiers, meters) is not { } fee)
+        if (
+            routed.Meters is not { } meters
+            || OnlineDelivery.TierForDistance(tiers, meters) is not { } tier
+        )
             return new(DeliveryQuoteResponse.OutOfRange, routed.Town, routed.Meters);
         return new(
             DeliveryQuoteResponse.Quoted,
             routed.Town,
             meters,
-            fee,
+            tier.FeeCents,
             quotes.Sign(
                 restaurant.Id,
                 address,

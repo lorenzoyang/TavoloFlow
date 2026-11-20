@@ -21,12 +21,19 @@ internal sealed class DeliveryTierConfiguration : IEntityTypeConfiguration<Deliv
                     "ck_delivery_tier_fee",
                     "fee_cents BETWEEN 0 AND 9007199254740991"
                 );
+                table.HasCheckConstraint(
+                    "ck_delivery_tier_free_delivery_min",
+                    "free_delivery_min_cents BETWEEN 1 AND 9007199254740991"
+                );
             }
         );
         builder.HasKey(tier => new { tier.RestaurantId, tier.MaxMeters });
         builder.Property(tier => tier.RestaurantId).HasColumnName("restaurant_id");
         builder.Property(tier => tier.MaxMeters).HasColumnName("max_meters");
         builder.Property(tier => tier.FeeCents).HasColumnName("fee_cents");
+        builder
+            .Property(tier => tier.FreeDeliveryMinCents)
+            .HasColumnName("free_delivery_min_cents");
         builder
             .HasOne(tier => tier.Restaurant)
             .WithMany()

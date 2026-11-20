@@ -142,17 +142,18 @@ export const onlineActiveQuery = (account: AccountScope) =>
   });
 
 // Both apply only to a request still waiting; a repeat or a lost race returns ONLINE_REQUEST_CHANGED.
-// Delivery sends the chosen band's fee in cents (0 when free); pickup sends null.
+// Manual delivery sends the chosen band and its final fee; pickup and quoted deliveries send null.
 export const acceptOnlineRequest = (
   id: string,
   estimatedMinutes: number,
   deliveryFeeCents: number | null,
+  deliveryTierMaxMeters: number | null,
   signal: AbortSignal,
 ) =>
   write<OnlineActiveOrder>(
     `/api/staff/online/requests/${id}/accept`,
     "POST",
-    { estimatedMinutes, deliveryFeeCents },
+    { estimatedMinutes, deliveryFeeCents, deliveryTierMaxMeters },
     signal,
   );
 export const rejectOnlineRequest = (id: string, reason: RejectReason | null, signal: AbortSignal) =>

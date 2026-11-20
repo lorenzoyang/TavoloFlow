@@ -7,5 +7,6 @@ public sealed class DeliveryTier
     public Guid RestaurantId { get; set; }
     public int MaxMeters { get; set; }
     public long FeeCents { get; set; }
+    public long? FreeDeliveryMinCents { get; set; }
     public Restaurant Restaurant { get; set; } = null!;
 }

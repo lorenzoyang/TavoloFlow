@@ -120,11 +120,9 @@ public sealed class OnlineRequestService(
         // Delivery is the OWNER's switch; it never closes pickup.
         if (form.Fulfillment == OnlineFulfillment.Delivery && !restaurant.DeliveryEnabled)
             throw OnlineErrors.DeliveryNotOffered();
-        // A quoted fee is promised to the customer and kept on acceptance, so it must still be this
-        // restaurant's quote for this address, unexpired, from the current starting point and priced
-        // the same by the current bands. Settings writes take restaurant UPDATE, so neither the point
-        // nor the bands can change under this SHARE lock.
+        // Verify the road distance and find its current band. Settings writes take restaurant UPDATE.
         int? quotedMeters = null;
+        DeliveryTierResponse? quotedTier = null;
         if (form.Quote is { } quoted)
         {
             quotedMeters = quotes.Distance(
@@ -135,14 +133,12 @@ public sealed class OnlineRequestService(
                 quoted.Signed,
                 now.UtcDateTime
             );
-            if (
-                quotedMeters is not { } distance
-                || OnlineDelivery.TierFee(
-                    await OnlineDelivery.TiersAsync(db, restaurantId, ct),
-                    distance
-                ) != quoted.FeeCents
-            )
+            if (quotedMeters is not { } distance)
                 throw OnlineErrors.DeliveryQuoteInvalid();
+            var tiers = await OnlineDelivery.TiersAsync(db, restaurantId, ct);
+            quotedTier =
+                OnlineDelivery.TierForDistance(tiers, distance)
+                ?? throw OnlineErrors.DeliveryQuoteInvalid();
         }
         // Coupon writes take restaurant UPDATE, so this SHARE lock sees the coupon whole or not at all.
         // Acceptance never checks it again: the customer was promised this total.
@@ -163,16 +159,23 @@ public sealed class OnlineRequestService(
         }
         var lines = await OrderLines.SnapshotAsync(db, restaurantId, form.Lines, ct);
         var itemsTotal = OrderLines.Total(lines);
-        // Compared with the server's own prices, after the coupon the customer applied.
+        var discountedItems = OnlineDelivery.DiscountedItemsCents(
+            itemsTotal,
+            form.Coupon?.PercentOff
+        );
         if (
             form.Fulfillment == OnlineFulfillment.Delivery
-            && !OnlineDelivery.MeetsMinimum(
-                itemsTotal,
-                form.Coupon?.PercentOff,
-                restaurant.DeliveryMinOrderCents
-            )
+            && restaurant.DeliveryMinOrderCents is { } minimum
+            && discountedItems < minimum
         )
             throw OnlineErrors.DeliveryMinOrder();
+        long? deliveryFee = null;
+        if (quotedTier is not null && form.Quote is { } confirmed)
+        {
+            deliveryFee = OnlineDelivery.FeeForTier(quotedTier, discountedItems);
+            if (deliveryFee != confirmed.FeeCents)
+                throw OnlineErrors.DeliveryFeeChanged();
+        }
         var submittedAt = now.UtcDateTime;
         var request = new OnlineRequest
         {
@@ -189,7 +192,7 @@ public sealed class OnlineRequestService(
             CustomerPhone = form.Phone,
             DeliveryAddress = form.Address,
             DeliveryNotes = form.Notes,
-            DeliveryFeeCents = form.Quote?.FeeCents,
+            DeliveryFeeCents = deliveryFee,
             DeliveryDistanceMeters = quotedMeters,
             Lines = [.. lines],
             ItemsTotalCents = itemsTotal,

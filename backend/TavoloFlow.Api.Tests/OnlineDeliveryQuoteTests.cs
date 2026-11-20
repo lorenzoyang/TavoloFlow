@@ -328,6 +328,109 @@ public sealed class OnlineDeliveryQuoteTests(PostgreSqlFixture database)
     }
 
     [Fact]
+    public async Task Submit_FreeDelivery_UsesTheDiscountedTotalAndLocksTheFinalFee()
+    {
+        using var host = Host();
+        var shop = await SeedAsync();
+        host.GeoapifyService.Places["Via Media 2"] = new("building", 1, "Prato", 5000);
+        await using (var db = database.CreateContext())
+        {
+            await db
+                .DeliveryTiers.Where(t =>
+                    t.RestaurantId == shop.RestaurantId && t.MaxMeters <= 6000
+                )
+                .ExecuteUpdateAsync(u =>
+                    u.SetProperty(
+                        t => t.FreeDeliveryMinCents,
+                        t => t.MaxMeters == 3000 ? 2400L : 3000L
+                    )
+                );
+            db.OnlineCoupons.Add(
+                new()
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = shop.RestaurantId,
+                    Code = "EAT10",
+                    PercentOff = 10,
+                }
+            );
+            await db.SaveChangesAsync();
+        }
+        using var customer = host.Browser();
+        var menu = await MenuAsync(customer, shop);
+        Assert.Equal(new DeliveryTierResponse(3000, 200, 2400), menu.Restaurant.DeliveryTiers[0]);
+        var near = await QuoteAsync(customer, shop, "Via Vicina 1");
+        Assert.Equal(200, near.FeeCents);
+        var waived = new { quote = near.Quote, feeCents = 0 };
+        var coupon = new { code = "EAT10", percentOff = 10 };
+        await AssertErrorAsync(
+            await SubmitAsync(
+                customer,
+                shop,
+                Body(Guid.NewGuid(), shop, "Via Vicina 1", waived, coupon)
+            ),
+            HttpStatusCode.Conflict,
+            "DELIVERY_FEE_CHANGED"
+        );
+        await UpdateRestaurantAsync(shop, u => u.SetProperty(r => r.DeliveryMinOrderCents, 2300L));
+        await AssertErrorAsync(
+            await SubmitAsync(
+                customer,
+                shop,
+                Body(Guid.NewGuid(), shop, "Via Vicina 1", Quoted(near), coupon)
+            ),
+            HttpStatusCode.Conflict,
+            "DELIVERY_MIN_ORDER"
+        );
+        var order = Body(Guid.NewGuid(), shop, "Via Vicina 1", waived);
+        var created = await SubmitAsync(customer, shop, order);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var stored = (await created.Content.ReadFromJsonAsync<OnlineSubmissionResponse>())!;
+
+        using var fartherCustomer = host.Browser();
+        var far = await QuoteAsync(fartherCustomer, shop, "Via Media 2");
+        Assert.Equal((5000, 400L), (far.DistanceMeters, far.FeeCents));
+        await AssertErrorAsync(
+            await SubmitAsync(
+                fartherCustomer,
+                shop,
+                Body(Guid.NewGuid(), shop, "Via Media 2", new { quote = far.Quote, feeCents = 0 })
+            ),
+            HttpStatusCode.Conflict,
+            "DELIVERY_FEE_CHANGED"
+        );
+        Assert.Equal(
+            HttpStatusCode.Created,
+            (
+                await SubmitAsync(
+                    fartherCustomer,
+                    shop,
+                    Body(Guid.NewGuid(), shop, "Via Media 2", Quoted(far))
+                )
+            ).StatusCode
+        );
+
+        // The owner removes the waiver after submission. Recovery and acceptance use the stored fee.
+        await SetTiersAsync(shop, (3000, 200), (6000, 400));
+        var repeated = await SubmitAsync(customer, shop, order);
+        Assert.Equal(HttpStatusCode.OK, repeated.StatusCode);
+        Assert.Equal(stored, await repeated.Content.ReadFromJsonAsync<OnlineSubmissionResponse>());
+        using var staff = await OnlineTestData.LoginAsync(host, shop.Staff);
+        var pending = (
+            await staff.GetFromJsonAsync<OnlinePendingPage>("/api/staff/online/pending")
+        )!.Items.Single(item => item.Number == stored.Number);
+        Assert.Equal(0, pending.DeliveryFeeCents);
+        var accepted = await PostAsync(
+            staff,
+            $"/api/staff/online/requests/{pending.Id}/accept",
+            new { estimatedMinutes = 30 }
+        );
+        Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+        var active = (await accepted.Content.ReadFromJsonAsync<OnlineActiveOrderResponse>())!;
+        Assert.Equal((0L, 2400L), (active.DeliveryFeeCents, active.TotalAmountCents));
+    }
+
+    [Fact]
     public async Task Submit_UnusableQuote_RejectsAfterTheDuplicateCheckWithoutUsingANumber()
     {
         using var host = Host();
@@ -343,7 +446,11 @@ public sealed class OnlineDeliveryQuoteTests(PostgreSqlFixture database)
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
         var stored = (await first.Content.ReadFromJsonAsync<OnlineSubmissionResponse>())!;
 
-        async Task AssertInvalid(string address, object deliveryQuote)
+        async Task AssertInvalid(
+            string address,
+            object deliveryQuote,
+            string code = "DELIVERY_QUOTE_INVALID"
+        )
         {
             using var customer = host.Browser();
             await AssertErrorAsync(
@@ -353,16 +460,20 @@ public sealed class OnlineDeliveryQuoteTests(PostgreSqlFixture database)
                     Body(Guid.NewGuid(), shop, address, deliveryQuote)
                 ),
                 HttpStatusCode.Conflict,
-                "DELIVERY_QUOTE_INVALID"
+                code
             );
         }
         await AssertInvalid("Via Vicina 1", new { quote = quote.Quote + "x", feeCents = 200L });
         await AssertInvalid("Via Vicina 1", Quoted(foreign));
         await AssertInvalid("Via Vicina 10", Quoted(quote));
-        await AssertInvalid("Via Vicina 1", new { quote = quote.Quote, feeCents = 400L });
+        await AssertInvalid(
+            "Via Vicina 1",
+            new { quote = quote.Quote, feeCents = 400L },
+            "DELIVERY_FEE_CHANGED"
+        );
         // The bands changed since the quote: another fee, or beyond the farthest band.
         await SetTiersAsync(shop, (3000, 250), (6000, 400));
-        await AssertInvalid("Via Vicina 1", Quoted(quote));
+        await AssertInvalid("Via Vicina 1", Quoted(quote), "DELIVERY_FEE_CHANGED");
         await SetTiersAsync(shop, (2000, 200));
         await AssertInvalid("Via Vicina 1", Quoted(quote));
         await SetTiersAsync(shop, (3000, 200), (6000, 400), (10_000, 600));
@@ -411,7 +522,13 @@ public sealed class OnlineDeliveryQuoteTests(PostgreSqlFixture database)
         new { quote = quote.Quote, feeCents = quote.FeeCents };
 
     // Two 12 € ramen; delivery to address, or pickup when address is null.
-    private static object Body(Guid id, OnlineShop shop, string? address, object? deliveryQuote) =>
+    private static object Body(
+        Guid id,
+        OnlineShop shop,
+        string? address,
+        object? deliveryQuote,
+        object? coupon = null
+    ) =>
         new
         {
             clientRequestId = id,
@@ -421,7 +538,7 @@ public sealed class OnlineDeliveryQuoteTests(PostgreSqlFixture database)
             deliveryAddress = address,
             deliveryNotes = (string?)null,
             items = new[] { new OrderLineInput(shop.Dish.Id, 2, 1200, null, []) },
-            coupon = (object?)null,
+            coupon,
             deliveryQuote,
         };
 

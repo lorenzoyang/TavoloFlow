@@ -128,7 +128,7 @@ export const onlineMenuQuery = (slug: string) =>
     },
   });
 
-// The fee for an address: QUOTED with the town, road distance, fee and the signed quote the order sends;
+// The fee for an address: QUOTED with the town, road distance, base fee and signed distance;
 // OUT_OF_RANGE beyond the farthest band; UNKNOWN when it can't be priced automatically, so the price
 // list applies and the restaurant confirms the fee.
 export type DeliveryQuote = {

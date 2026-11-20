@@ -350,7 +350,13 @@ function OnlineCheckout({
                     </p>
                   )}
                 </div>
-                <DeliveryDetails fee={fee} quote={model.quote} data={data} language={language} />
+                <DeliveryDetails
+                  fee={fee}
+                  quote={model.quote}
+                  finalFee={model.amounts.deliveryFeeCents}
+                  data={data}
+                  language={language}
+                />
               </>
             )}
             <div className={cn("space-y-4", delivery && "border-t pt-4")}>
@@ -525,11 +531,13 @@ function OnlineCheckout({
 function DeliveryDetails({
   fee,
   quote,
+  finalFee,
   data,
   language,
 }: {
   fee: FeeStatus;
   quote: AddressQuote | null;
+  finalFee: number | null;
   data: OnlineMenu;
   language: Language;
 }) {
@@ -540,13 +548,13 @@ function DeliveryDetails({
   const money = (cents: number) => (cents === 0 ? m.free : formatMoney(cents, language));
   return (
     <div className="space-y-3 text-sm leading-6">
-      {fee === "QUOTED" && quote?.feeCents != null && (
+      {fee === "QUOTED" && quote && finalFee !== null && (
         <Notice tone="success">
           <span className="block font-medium wrap-break-word">
             {[
               quote.town && m.quotedTown(quote.town),
               quote.distanceMeters !== null && formatKm(quote.distanceMeters, language),
-              quote.feeCents === 0 ? m.free : m.quotedFee(formatMoney(quote.feeCents, language)),
+              finalFee === 0 ? m.free : m.quotedFee(formatMoney(finalFee, language)),
             ]
               .filter(Boolean)
               .join(" · ")}

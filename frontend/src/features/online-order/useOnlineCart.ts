@@ -14,7 +14,7 @@ import {
   refreshCart,
   type CartLine,
 } from "@/features/orders/state";
-import { normalizeCouponCode } from "@/features/online/state";
+import { freeDeliveryShortfall, normalizeCouponCode } from "@/features/online/state";
 import {
   onlineMenuKey,
   onlineContextQuery,
@@ -40,6 +40,7 @@ import {
   existingSubmission,
   onlineCartAmounts,
   onlineCartKey,
+  quotedDeliveryTier,
   restoreOnlineCart,
   saveOrderToken,
   submissionFailure,
@@ -104,7 +105,8 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
   const [settling, setSettling] = useState(false);
   const settleTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(settleTimer.current), []);
-  const amounts = onlineCartAmounts(cart, review, form);
+  const tier = quotedDeliveryTier(form, data.restaurant.deliveryTiers);
+  const amounts = onlineCartAmounts(cart, review, form, tier);
   // Delivery only: what the amount shown still lacks to reach the minimum. A new delivery order
   // cannot be sent while it is positive; the server checks again.
   const minOrderShortfall =
@@ -112,7 +114,8 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
       ? deliveryShortfallCents(amounts.totalCents, data.restaurant.deliveryMinOrderCents)
       : 0;
   // What checkout says about the delivery fee for the address now typed.
-  const fee = feeStatus(form, data.restaurant.deliveryAutoQuote);
+  const addressFee = feeStatus(form, data.restaurant.deliveryAutoQuote);
+  const fee = addressFee === "QUOTED" && !tier ? "OUT_OF_RANGE" : addressFee;
   const waitingToken = context.data?.pending?.statusToken;
   useEffect(() => {
     const storage = deviceStorage();
@@ -366,7 +369,12 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
       }
       if (!retry) {
         if (!requestId) return;
-        pending = createOnlineIntent(review!, form, requestId);
+        pending = createOnlineIntent(
+          review!,
+          form,
+          requestId,
+          amounts.deliveryFeeCents ?? undefined,
+        );
         if (!remember({ ...review!, pending }, true)) return;
       }
       // A manual replay also needs durable storage; never silently rebuild a lost intent.
@@ -417,6 +425,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
           "DELIVERY_NOT_OFFERED",
           "DELIVERY_MIN_ORDER",
           "DELIVERY_QUOTE_INVALID",
+          "DELIVERY_FEE_CHANGED",
         ].includes(e.code)
       )
         void client.invalidateQueries({ queryKey: onlineMenuKey(slug) });
@@ -442,6 +451,8 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     checkoutBlocked,
     settling,
     minOrderShortfall,
+    freeDeliveryShortfall:
+      tier && !cart.pending ? freeDeliveryShortfall(tier, amounts.totalCents) : 0,
     feeStatus: fee,
     quote: currentQuote(form),
     lookupFee,

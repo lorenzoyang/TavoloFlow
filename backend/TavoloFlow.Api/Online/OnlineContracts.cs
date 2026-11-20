@@ -29,7 +29,11 @@ public sealed record OnlinePauseInput(
 
 // One fee band: up to MaxMeters of road distance, FeeCents (0 for free).
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record DeliveryTierInput([Required] int? MaxMeters, [Required] long? FeeCents);
+public sealed record DeliveryTierInput(
+    [Required] int? MaxMeters,
+    [Required] long? FeeCents,
+    long? FreeDeliveryMinCents = null
+);
 
 // Delivery: the switch, the optional note per language, the optional minimum order, the restaurant's
 // coordinates and the fee bands (an empty list for none), replaced together. Blank notes are stored as
@@ -48,7 +52,11 @@ public sealed record OnlineDeliveryInput(
 );
 
 // Nearest first; the last one is the farthest the restaurant delivers.
-public sealed record DeliveryTierResponse(int MaxMeters, long FeeCents);
+public sealed record DeliveryTierResponse(
+    int MaxMeters,
+    long FeeCents,
+    long? FreeDeliveryMinCents = null
+);
 
 // A new coupon: the code customers type (trimmed and uppercased), the percentage off the dishes and an
 // optional last local day, not before today. Coupons are never edited: delete one and create another.
@@ -165,8 +173,11 @@ public static class OnlineErrors
         new(
             409,
             "DELIVERY_QUOTE_INVALID",
-            "The delivery quote has expired or no longer matches this address or the restaurant's fees."
+            "The delivery quote has expired or no longer matches the address or delivery area."
         );
+
+    public static ApiException DeliveryFeeChanged() =>
+        new(409, "DELIVERY_FEE_CHANGED", "The delivery fee or selected delivery band has changed.");
 
     // After the duplicate check, like COUPON_INVALID: nothing was stored. The menu carries the minimum.
     public static ApiException DeliveryMinOrder() =>

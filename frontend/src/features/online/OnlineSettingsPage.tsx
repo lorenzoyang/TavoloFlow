@@ -50,6 +50,7 @@ import {
   type OnlineSettings,
 } from "./api";
 import { onlineMessages } from "./messages";
+import { FreeDeliverySettings, type FreeDeliveryEdit } from "./FreeDeliverySettings";
 import {
   copyDay,
   couponInput,
@@ -651,8 +652,12 @@ function DeliveryCard({
   const m = onlineMessages[useStaffLanguage()];
   // The local edit survives background refreshes until it is saved or discarded.
   const [draft, setDraft] = useState<DeliveryDraft | null>(null);
+  const [freeDeliveryEdit, setFreeDeliveryEdit] = useState<{
+    selection: NonNullable<FreeDeliveryEdit>;
+    snapshot: DeliveryDraft;
+  } | null>(null);
   const [error, setError] = useState("");
-  const value = draft ?? deliveryDraft(settings);
+  const value = draft ?? freeDeliveryEdit?.snapshot ?? deliveryDraft(settings);
   const parsed = deliveryInput(value);
   const unchanged = draft === null || (parsed.ok && sameDelivery(parsed.input, settings));
   // Fields are marked only after a failed save, beside its message.
@@ -674,7 +679,7 @@ function DeliveryCard({
     (problem.part === part || (part === "km" && problem.part === "repeated"));
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || freeDeliveryEdit !== null) return;
     if (!parsed.ok) {
       const { problem } = parsed;
       const [message, field] =
@@ -773,7 +778,11 @@ function DeliveryCard({
               </a>
             )}
           </div>
-          <fieldset className="space-y-2" aria-describedby="delivery-tiers-hint">
+          <fieldset
+            className="space-y-2"
+            aria-describedby="delivery-tiers-hint"
+            disabled={freeDeliveryEdit !== null}
+          >
             <legend className="text-sm font-medium">{m.tiersTitle}</legend>
             <p id="delivery-tiers-hint" className="text-sm leading-6 text-muted-foreground">
               {m.tiersHint}
@@ -856,6 +865,18 @@ function DeliveryCard({
               {m.deliveryMinOrderHint}
             </p>
           </div>
+          <FreeDeliverySettings
+            tiers={value.tiers}
+            editing={freeDeliveryEdit?.selection ?? null}
+            busy={busy}
+            onEdit={(selection) =>
+              setFreeDeliveryEdit(selection === null ? null : { selection, snapshot: value })
+            }
+            onApply={(tiers) => {
+              edit({ ...value, tiers });
+              setFreeDeliveryEdit(null);
+            }}
+          />
           {LANGUAGES.map((language) => (
             <div key={language} className="space-y-2">
               <Label htmlFor={`delivery-note-${language}`}>
@@ -879,7 +900,7 @@ function DeliveryCard({
           {error && <Notice tone="error">{error}</Notice>}
           {feedback}
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={busy || unchanged}>
+            <Button type="submit" disabled={busy || unchanged || freeDeliveryEdit !== null}>
               {m.saveDelivery}
             </Button>
             {draft !== null && (
@@ -890,6 +911,7 @@ function DeliveryCard({
                 onClick={() => {
                   setDraft(null);
                   setError("");
+                  setFreeDeliveryEdit(null);
                 }}
               >
                 {m.discardChanges}

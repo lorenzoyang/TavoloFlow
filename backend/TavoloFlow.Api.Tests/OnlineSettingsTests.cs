@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Entities;
 using TavoloFlow.Api.Online;
 using static TavoloFlow.Api.Tests.AccountTestHost;
@@ -417,7 +418,13 @@ public sealed class OnlineSettingsTests(PostgreSqlFixture database)
                 originLng = lng,
                 tiers,
             };
-        object Tier(int maxMeters, long feeCents) => new { maxMeters, feeCents };
+        object Tier(int maxMeters, long feeCents, long? freeDeliveryMinCents = null) =>
+            new
+            {
+                maxMeters,
+                feeCents,
+                freeDeliveryMinCents,
+            };
 
         foreach (
             var invalid in new[]
@@ -429,6 +436,8 @@ public sealed class OnlineSettingsTests(PostgreSqlFixture database)
                 Body(false, null, null, Tier(0, 200)),
                 Body(false, null, null, Tier(30_001, 200)),
                 Body(false, null, null, Tier(3000, -1)),
+                Body(false, null, null, Tier(3000, 200, 0)),
+                Body(false, null, null, Tier(3000, 200, InputRules.MaxSafeCents + 1)),
                 Body(false, null, null, new { maxMeters = 3000 }),
                 Body(
                     false,
@@ -461,7 +470,7 @@ public sealed class OnlineSettingsTests(PostgreSqlFixture database)
                     Tier(10_000, 600),
                     Tier(3000, 0),
                     Tier(30_000, 1500),
-                    Tier(6000, 400),
+                    Tier(6000, 400, 3000),
                     Tier(1, 0)
                 )
             )
@@ -470,7 +479,7 @@ public sealed class OnlineSettingsTests(PostgreSqlFixture database)
             [
                 new DeliveryTierResponse(1, 0),
                 new DeliveryTierResponse(3000, 0),
-                new DeliveryTierResponse(6000, 400),
+                new DeliveryTierResponse(6000, 400, 3000),
                 new DeliveryTierResponse(10_000, 600),
                 new DeliveryTierResponse(30_000, 1500),
             ],

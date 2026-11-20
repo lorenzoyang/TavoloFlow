@@ -107,6 +107,8 @@ const zh = {
   deliveryOff: "餐厅现在不提供配送，可以改为到店自取。",
   minOrder: "菜品金额没到配送起送金额，订单没有提交。可以加菜，或改为到店自取。",
   quoteChanged: "配送费已失效或有变化，订单没有提交。请重新计算配送费再提交。",
+  feeChanged: "配送费有变化。请重新结账并确认金额。",
+  freeDeliveryRemaining: (amount: string) => `再买 ${amount} 免配送费`,
   csrf: "页面验证已过期，请再提交一次。",
   rateLimited: "提交次数太多，请稍后再试。",
   verificationRequired: "请完成安全验证后再提交；查询原订单不需要验证。",
@@ -329,6 +331,8 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       "I piatti non arrivano al minimo per la consegna: l’ordine non è stato inviato. Aggiungi qualcosa o scegli il ritiro.",
     quoteChanged:
       "Il costo di consegna è scaduto o cambiato: l’ordine non è stato inviato. Ricalcolalo e invia di nuovo.",
+    feeChanged: "Il costo di consegna è cambiato. Torna alla cassa per confermare l’importo.",
+    freeDeliveryRemaining: (amount) => `Aggiungi ${amount} per la consegna gratuita`,
     csrf: "La verifica della pagina è scaduta: invia di nuovo.",
     rateLimited: "Troppi invii: riprova tra poco.",
     verificationRequired:
@@ -557,6 +561,8 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       "The dishes don’t reach the minimum for delivery, so the order wasn’t sent. Add something or choose pickup.",
     quoteChanged:
       "The delivery fee expired or changed, so the order wasn’t sent. Calculate it again and resend.",
+    feeChanged: "The delivery fee changed. Return to checkout to confirm the amount.",
+    freeDeliveryRemaining: (amount) => `Add ${amount} for free delivery`,
     csrf: "The page check expired. Please send again.",
     rateLimited: "Too many attempts. Try again shortly.",
     verificationRequired:
@@ -692,6 +698,7 @@ export type OnlineOrderMessage =
   | "deliveryOff"
   | "minOrder"
   | "quoteChanged"
+  | "feeChanged"
   | "suspended"
   | "linkGone"
   | "invalid"
@@ -726,6 +733,7 @@ export const onlineOrderError = (code: string): OnlineOrderMessage =>
       DELIVERY_NOT_OFFERED: "deliveryOff",
       DELIVERY_MIN_ORDER: "minOrder",
       DELIVERY_QUOTE_INVALID: "quoteChanged",
+      DELIVERY_FEE_CHANGED: "feeChanged",
       SERVICE_SUSPENDED: "suspended",
       ONLINE_LINK_NOT_FOUND: "linkGone",
       VALIDATION_FAILED: "invalid",

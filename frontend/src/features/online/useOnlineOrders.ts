@@ -19,7 +19,7 @@ import {
 import { onlineOrdersMessages } from "./messages";
 import type { RejectReason } from "./state";
 
-export type OrdersNotice = { tone: "success" | "warning" | "error"; text: string };
+type OrdersNotice = { tone: "success" | "warning" | "error"; text: string; requestId?: string };
 
 // The online orders page: the pending list (shared with the banner) and the accepted orders in progress,
 // both polled every 10 seconds while visible and online. Accept and reject persist no pending marker:
@@ -99,6 +99,12 @@ export function useOnlineOrders(account: CurrentAccount) {
       if (!current()) return false;
       if (e instanceof ApiError && e.code === "ONLINE_REQUEST_CHANGED")
         setNotice({ tone: "warning", text: m.changed });
+      else if (e instanceof ApiError && e.code === "DELIVERY_FEE_CHANGED")
+        setNotice({
+          tone: "warning",
+          text: errorMessage(e, undefined, language),
+          requestId: request.id,
+        });
       else if (e instanceof ApiError && e.status < 500)
         setNotice({ tone: "error", text: errorMessage(e, undefined, language) });
       else setNotice({ tone: "warning", text: m.unknown });
@@ -119,9 +125,14 @@ export function useOnlineOrders(account: CurrentAccount) {
     busy,
     notice,
     refresh,
-    accept: (request: OnlinePendingRequest, minutes: number, fee: number | null) =>
+    accept: (
+      request: OnlinePendingRequest,
+      minutes: number,
+      fee: number | null,
+      maxMeters: number | null,
+    ) =>
       decide(request, async (signal) => {
-        const order = await acceptOnlineRequest(request.id, minutes, fee, signal);
+        const order = await acceptOnlineRequest(request.id, minutes, fee, maxMeters, signal);
         const time = formatTime(order.estimatedAt, language);
         return order.channel === "DELIVERY"
           ? m.acceptedDelivery(order.number, time)

@@ -7,14 +7,14 @@ using TavoloFlow.Api.Entities;
 namespace TavoloFlow.Api.Online;
 
 // EstimatedMinutes is one of the fixed choices for the request's fulfillment (pickup: 10/20/30/45,
-// delivery: 30/45/60/90). A quoted delivery keeps its quoted fee and takes none; any other delivery
-// requires the fee in cents, 0 for free delivery; pickup takes none. The page offers only the
-// restaurant's current fee bands; the server takes any valid fee, so a band edited meanwhile never
-// fails an acceptance.
+// delivery: 30/45/60/90). For manual delivery, send the current band's upper distance and the fee
+// shown to staff. Legacy clients can send just the fee when there are no free-delivery thresholds.
+// Pickup and already quoted deliveries take neither field.
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record OnlineAcceptInput(
     [Required] int? EstimatedMinutes,
-    long? DeliveryFeeCents = null
+    long? DeliveryFeeCents = null,
+    int? DeliveryTierMaxMeters = null
 );
 
 // The reason is optional; OUT_OF_RANGE is for delivery only.

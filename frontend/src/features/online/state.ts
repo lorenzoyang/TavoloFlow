@@ -105,10 +105,23 @@ export const MAX_DELIVERY_NOTE_LENGTH = 500;
 export const MAX_DELIVERY_TIERS = 5;
 export const MAX_DELIVERY_METERS = 30_000;
 // One fee band by road distance from the restaurant, nearest first; 0 cents is free delivery.
-export type DeliveryTier = { maxMeters: number; feeCents: number };
+export type DeliveryTier = {
+  maxMeters: number;
+  feeCents: number;
+  freeDeliveryMinCents: number | null;
+};
+export const deliveryFeeForTier = (tier: DeliveryTier, discountedItemsCents: number) =>
+  tier.freeDeliveryMinCents != null && discountedItemsCents >= tier.freeDeliveryMinCents
+    ? 0
+    : tier.feeCents;
+
+export const freeDeliveryShortfall = (tier: DeliveryTier, discountedItemsCents: number) =>
+  tier.feeCents > 0 && tier.freeDeliveryMinCents != null
+    ? Math.max(0, tier.freeDeliveryMinCents - discountedItemsCents)
+    : 0;
 export type Coordinates = { lat: number; lng: number };
 export type DeliveryNotes = { zh: string; it: string; en: string };
-export type TierDraft = { km: string; fee: string };
+export type TierDraft = { km: string; fee: string; freeDeliveryMinCents: number | null };
 export type DeliveryDraft = {
   origin: string;
   tiers: TierDraft[];
@@ -174,7 +187,35 @@ function parseKm(value: string): number | null {
   return meters >= 100 && meters <= MAX_DELIVERY_METERS ? meters : null;
 }
 
-export const emptyTierDraft: TierDraft = { km: "", fee: "" };
+export const emptyTierDraft: TierDraft = { km: "", fee: "", freeDeliveryMinCents: null };
+
+export function deliveryTierRanges(tiers: TierDraft[]) {
+  const ordered = tiers
+    .map((tier, index) => ({ index, maxMeters: parseKm(tier.km) ?? 0 }))
+    .sort((a, b) => a.maxMeters - b.maxMeters);
+  if (ordered.some((tier, index) => tier.maxMeters === (ordered[index - 1]?.maxMeters ?? 0)))
+    return null;
+  return ordered.map((tier, index) => ({
+    ...tier,
+    minMeters: ordered[index - 1]?.maxMeters ?? 0,
+  }));
+}
+
+export function applyFreeDeliveryMinimum(
+  tiers: TierDraft[],
+  original: number | null,
+  selected: number[],
+  minimum: number | null,
+) {
+  return tiers.map((tier, index) => ({
+    ...tier,
+    freeDeliveryMinCents: selected.includes(index)
+      ? minimum
+      : tier.freeDeliveryMinCents === original
+        ? null
+        : tier.freeDeliveryMinCents,
+  }));
+}
 
 export function deliveryDraft(settings: DeliverySettings): DeliveryDraft {
   return {
@@ -182,6 +223,7 @@ export function deliveryDraft(settings: DeliverySettings): DeliveryDraft {
     tiers: settings.deliveryTiers.map((tier) => ({
       km: String(tier.maxMeters / 1000),
       fee: formatCents(tier.feeCents),
+      freeDeliveryMinCents: tier.freeDeliveryMinCents ?? null,
     })),
     minOrder:
       settings.deliveryMinOrderCents === null ? "" : formatCents(settings.deliveryMinOrderCents),
@@ -212,7 +254,7 @@ export function deliveryInput(
       return { ok: false, problem: { field: "tier", index, part: "repeated" } };
     const feeCents = parsePrice(tier.fee, true);
     if (feeCents === null) return { ok: false, problem: { field: "tier", index, part: "fee" } };
-    tiers.push({ maxMeters, feeCents });
+    tiers.push({ maxMeters, feeCents, freeDeliveryMinCents: tier.freeDeliveryMinCents ?? null });
   }
   const minOrder = draft.minOrder.trim();
   const minOrderCents = minOrder === "" ? null : parsePrice(minOrder);
@@ -250,7 +292,8 @@ export const sameDelivery = (input: DeliveryInput, settings: DeliverySettings) =
   input.tiers.every(
     (tier, index) =>
       tier.maxMeters === settings.deliveryTiers[index].maxMeters &&
-      tier.feeCents === settings.deliveryTiers[index].feeCents,
+      tier.feeCents === settings.deliveryTiers[index].feeCents &&
+      tier.freeDeliveryMinCents === (settings.deliveryTiers[index].freeDeliveryMinCents ?? null),
   );
 
 // Coupons: a code customers type, a whole percentage off the dishes and an optional last local day. The

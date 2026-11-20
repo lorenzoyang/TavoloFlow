@@ -16,6 +16,7 @@ import {
   feeStatus,
   onlineCartAmounts,
   onlineCartKey,
+  quotedDeliveryTier,
   nextCheckoutField,
   orderEnded,
   orderProgress,
@@ -30,6 +31,7 @@ import {
   type OnlineCart,
   type OrderView,
 } from "../src/features/online-order/state.ts";
+import { freeDeliveryShortfall } from "../src/features/online/state.ts";
 import { addItem, cartKey, CartError, editLine } from "../src/features/orders/state.ts";
 import type { OnlineOrder } from "../src/features/online-order/api.ts";
 
@@ -657,7 +659,8 @@ test("a delivery quote counts only for the address it was asked about", () => {
 test("a quoted fee joins the total during checkout and stays with an unknown submission", () => {
   const cart = filled();
   const form = { ...delivery, quote: quoted };
-  const amounts = onlineCartAmounts(cart, cart, form);
+  const tier = { maxMeters: 3000, feeCents: 200, freeDeliveryMinCents: null };
+  const amounts = onlineCartAmounts(cart, cart, form, tier);
   assert.equal(amounts.deliveryFeeCents, 200);
   assert.equal(amounts.payableCents, amounts.totalCents + 200);
   // Editing the cart shows the dishes only; the delivery minimum never counts the fee.
@@ -677,4 +680,35 @@ test("a quoted fee joins the total during checkout and stays with an unknown sub
       ),
     "damaged",
   );
+});
+
+test("checkout reprices the matching band after a coupon and freezes the fee actually shown", () => {
+  const cart = filled();
+  const form = { ...delivery, quote: quoted };
+  const tiers = [
+    { maxMeters: 2000, feeCents: 100, freeDeliveryMinCents: 2400 },
+    { maxMeters: 4000, feeCents: 200, freeDeliveryMinCents: 2400 },
+    { maxMeters: 6000, feeCents: 400, freeDeliveryMinCents: 3000 },
+  ];
+  const band = quotedDeliveryTier(form, tiers);
+  assert.equal(band, tiers[1]);
+  assert.equal(
+    quotedDeliveryTier({ ...form, quote: { ...quoted, distanceMeters: 5000 } }, tiers),
+    tiers[2],
+  );
+  assert.equal(quotedDeliveryTier({ ...form, address: "Other address" }, tiers), null);
+  const free = onlineCartAmounts(cart, cart, form, band);
+  assert.equal(free.deliveryFeeCents, 0);
+  const withCoupon = { ...form, coupon: { code: "EAT10", percentOff: 10 } };
+  const discounted = onlineCartAmounts(cart, cart, withCoupon, band);
+  assert.deepEqual(
+    [discounted.totalCents, discounted.deliveryFeeCents, discounted.payableCents],
+    [2160, 200, 2360],
+  );
+  assert.equal(freeDeliveryShortfall(band!, discounted.totalCents), 240);
+  const pending = createOnlineIntent(cart, form, requestId, free.deliveryFeeCents!);
+  assert.deepEqual(pending.deliveryQuote, { quote: "signed-quote", feeCents: 0 });
+  const restored = restoreOnlineCart(JSON.stringify({ ...cart, pending }), restaurant);
+  assert.equal(onlineCartAmounts(restored, cart, withCoupon, tiers[2]).deliveryFeeCents, 0);
+  assert.equal(submissionFailure(409, "DELIVERY_FEE_CHANGED", true), "editable");
 });

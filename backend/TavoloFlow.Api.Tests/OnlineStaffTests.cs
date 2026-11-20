@@ -703,6 +703,51 @@ public sealed class OnlineStaffTests(PostgreSqlFixture database) : IClassFixture
         Assert.Equal(HttpStatusCode.OK, (await AcceptAsync(staff, pickup.Id, 20)).StatusCode);
     }
 
+    [Fact]
+    public async Task Accept_ManualDelivery_UsesTheCurrentBandAndStoredCoupon()
+    {
+        using var host = new AccountTestHost(database);
+        host.Clock.Set(MondayNoon);
+        var shop = await OnlineTestData.SeedShopAsync(database);
+        var request = Delivery(shop, Noon, 1);
+        request.CouponCode = "EAT10";
+        request.CouponPercentOff = 10;
+        await using (var db = database.CreateContext())
+        {
+            db.AddRange(
+                request,
+                new DeliveryTier
+                {
+                    RestaurantId = shop.RestaurantId,
+                    MaxMeters = 4000,
+                    FeeCents = 300,
+                }
+            );
+            await db.SaveChangesAsync();
+        }
+        using var staff = await OnlineTestData.LoginAsync(host, shop.Staff);
+        Assert.Null(
+            Assert.Single((await PendingAsync(staff)).Delivery!.Tiers).FreeDeliveryMinCents
+        );
+        await using (var db = database.CreateContext())
+        {
+            await db
+                .DeliveryTiers.Where(t => t.RestaurantId == shop.RestaurantId)
+                .ExecuteUpdateAsync(u => u.SetProperty(t => t.FreeDeliveryMinCents, 2160L));
+        }
+        foreach (var (fee, band) in new (long, int?)[] { (300, 4000), (300, null), (0, 6000) })
+            await AssertErrorAsync(
+                await AcceptAsync(staff, request.Id, 30, fee, band),
+                HttpStatusCode.Conflict,
+                "DELIVERY_FEE_CHANGED"
+            );
+
+        var accepted = await AcceptAsync(staff, request.Id, 30, 0, 4000);
+        Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+        var order = (await accepted.Content.ReadFromJsonAsync<OnlineActiveOrderResponse>())!;
+        Assert.Equal((0L, 2160L), (order.DeliveryFeeCents, order.TotalAmountCents));
+    }
+
     // The fee counts in the bill while any dish does: PAID and NO_SHOW record it, a fully cancelled
     // delivery still closes as VOIDED at zero.
     [Fact]
@@ -1133,12 +1178,18 @@ public sealed class OnlineStaffTests(PostgreSqlFixture database) : IClassFixture
         HttpClient client,
         Guid id,
         int minutes,
-        long? fee = null
+        long? fee = null,
+        int? band = null
     ) =>
         PostAsync(
             client,
             $"/api/staff/online/requests/{id}/accept",
-            new { estimatedMinutes = minutes, deliveryFeeCents = fee }
+            new
+            {
+                estimatedMinutes = minutes,
+                deliveryFeeCents = fee,
+                deliveryTierMaxMeters = band,
+            }
         );
 
     // A delivery request of two ramen at 12 € (24 € of items) submitted at submittedAt.
