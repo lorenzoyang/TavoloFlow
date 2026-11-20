@@ -73,6 +73,8 @@ Each Floor table is `{ id, tableLabel, isEnabled, session }`. Its nullable sessi
 the shared bill summary's `sessionId`. Opening returns that full summary under `session` and a nullable
 `joinCode`. Summary fields and closure inputs are defined in [billing](billing-history.md#bill-responses).
 Floor entrance data, tables and aggregates come from one Repeatable Read snapshot.
+The Floor switch pauses new guest QR submissions across the restaurant. Staff can still take
+orders for an open table, and guests can still browse and read previously submitted table orders.
 
 Joining returns no code. Guest cookies are HttpOnly, Path `/api/public`, fixed 12-hour session tickets
 without sliding renewal. Identity selection, CSRF scope and production cookie policy are shared with
@@ -90,6 +92,8 @@ restarts reset them. Multi-instance deployments need a shared or edge limiting d
 | `POST /api/public/orders`                                     | Saved intent below, Guest cookie/CSRF | 201 for a new order, 200 for an existing request ID             |
 | `GET /api/public/sessions/{id}/orders`                        | `cursor`, `limit` default 50/max 100  | `{ items, nextCursor, totalAmountCents }`                       |
 | `GET /api/public/sessions/{id}/orders/by-request/{requestId}` | Original visit and UUID               | Original order, or 404 `ORDER_NOT_FOUND` if not currently found |
+| `POST /api/staff/sessions/{id}/orders`                         | `{ clientRequestId, items }`, Store cookie/CSRF | Same order response and 201/200 semantics |
+| `GET /api/staff/sessions/{id}/orders/by-request/{requestId}`   | Original visit and UUID, Store cookie | Original staff-placed order, or 404 `ORDER_NOT_FOUND` |
 
 ```json
 {
@@ -118,6 +122,19 @@ Each option is the snapshot `groupNameZh/It/En`, `nameZh/It/En` and `priceDeltaC
 order (group order, then option order).
 Client request IDs, tickets, codes and serving timestamps are not returned in this order DTO.
 
+The staff endpoints are available to OWNER and STAFF through the Floor's **Take order** action.
+They resolve the tenant from the authenticated store account and the table from its original ACTIVE
+dine-in visit. Staff use the same menu, option picker, cart limits and review as guests. Ordering
+requires an active restaurant service, enabled dine-in and an enabled table. The QR ordering switch
+only gates the guest entry point. The kitchen and the guest's table order list include both kinds
+of orders. `orders.is_staff_placed` records which path created the order for bill detail display.
+
+The staff draft and frozen request live in tab storage keyed by restaurant, account and visit.
+Recovery only reads the original staff submission. An explicit retry of that same payload and ID
+is available after a lookup has returned `ORDER_NOT_FOUND`. A definitively rejected first submission
+can return to the draft. If the visit closes with an unknown result, staff check the original bill
+through the owner. The draft never follows a table into its next visit.
+
 Original order totals and names/codes/allergens/prices/options remain immutable snapshots.
 `unitPriceCents` already includes the option deltas, so every bill sum stays
 `unitPriceCents × quantity`; `allergenCodes` is the dish's codes plus the chosen options', in
@@ -142,7 +159,7 @@ intent may unlock; an already unknown intent follows the stricter recovery rule 
 | Open visit                                  | Restaurant SHARE → table UPDATE; check no ACTIVE visit, insert   |
 | Join / guest code read                      | Restaurant SHARE → table SHARE → session SHARE                   |
 | Create order                                | Restaurant SHARE → table SHARE → session UPDATE                  |
-| Read guest orders / staff code              | Session SHARE                                                    |
+| Read table orders / staff code              | Session SHARE                                                    |
 | Kitchen transition / served write / closure | Session UPDATE                                                   |
 | Set accepting orders                        | Restaurant UPDATE; enabling additionally requires ACTIVE service |
 
@@ -152,9 +169,10 @@ owned by its caller; catalog deletion services own their own transactions. The a
 index is the final opening safeguard.
 
 Order creation first validates the request envelope, identity binding and ACTIVE visit, then looks up
-the original `(session_id, client_request_id)`. If it exists, return it before first-submission input,
+the original `(session_id, client_request_id)`. A replay from the same entry point returns it before first-submission input,
 service, price and availability gates. JSON parsing, identity and CSRF still have to pass. A duplicate
-with different business content cannot create a second order. Closed visits do not permit recovery.
+with different business content cannot create a second order. Reusing a request ID from the other
+entry point returns `VALIDATION_FAILED`. Closed visits do not permit recovery.
 
 For a first submission, restaurant SHARE coordinates with menu writers' UPDATE and table SHARE with
 enablement changes. The server validates quantities, allergens/review, availability and current prices,

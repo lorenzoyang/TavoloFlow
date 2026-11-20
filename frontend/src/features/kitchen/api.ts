@@ -9,6 +9,7 @@ import type { OrderStatus } from "./state";
 export type KitchenOrder = Order &
   SessionNaming & {
     processedAt: string | null;
+    isStaffPlaced?: boolean;
   };
 export type KitchenPage = {
   items: KitchenOrder[];

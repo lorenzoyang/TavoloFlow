@@ -61,9 +61,12 @@ function BillOrder({ order, timeZone }: { order: KitchenOrder; timeZone: string 
           <Badge variant={order.status === "NEW" ? "warning" : cancelled ? "outline" : "success"}>
             {order.status === "NEW" ? m.orderNew : m.orderProcessed}
           </Badge>
-          <span className="text-xs text-muted-foreground">
-            {formatDateTime(order.createdAt, language, timeZone)} · #{shortId(order.id)}
-          </span>
+          <div className="flex min-w-0 flex-wrap gap-x-2 text-xs text-muted-foreground">
+            <span>
+              {formatDateTime(order.createdAt, language, timeZone)} · #{shortId(order.id)}
+            </span>
+            {order.isStaffPlaced && <span>{m.staffPlaced}</span>}
+          </div>
         </div>
         <span className="font-semibold tabular-nums">
           {m.orderDishes(formatMoney(order.payableAmountCents, language))}

@@ -38,7 +38,7 @@ TavoloFlow is a QR-code table ordering system that also takes online orders. Eve
 
 **Staff**, from a phone or tablet; the staff area can be installed as an app (PWA):
 
-- **Floor** (only with QR dine-in, like Tables): sees the tables and their bills, opens a table when guests arrive and tells them the code; pauses or resumes new orders; closes without payment a table with no orders or with every dish cancelled;
+- **Floor** (only with QR dine-in, like Tables): sees the tables and their bills, opens a table when guests arrive and tells them the code. Staff can pause guest QR ordering for all tables and still take orders for open tables. The bill detail shows which orders staff took. Staff can close a table without payment if it has no orders or every dish was cancelled;
 - **Kitchen**: receives new orders with an alert sound, refreshed every 10 seconds; sees them in the Dishes (grouped by dish), Orders and Done views; each screen reopens the last choice between Dishes and Orders and, in the Dishes view, can show only some menu categories (for example a screen just for drinks); sees the options the guest chose under each dish; marks each dish as ready or cancels it; accepted online orders appear together with the tables' ones, as "Pickup #12" or "Delivery #12";
 - **Pass**: on a tablet at the counter, shows the ready dishes to take to the tables; when a dish reaches the table, you tap "Served";
 - **Menu**: marks a dish, or a single option (for example a topping that ran out), as sold out or available again;

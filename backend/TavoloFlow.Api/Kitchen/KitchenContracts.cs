@@ -18,7 +18,8 @@ public sealed record KitchenOrderResponse(
     string DefaultLanguage,
     long TotalAmountCents,
     long PayableAmountCents,
-    OrderLineResponse[] Items
+    OrderLineResponse[] Items,
+    bool IsStaffPlaced
 )
 {
     // Requires Items, DiningSession and its OnlineRequest to be loaded.
@@ -35,7 +36,8 @@ public sealed record KitchenOrderResponse(
             order.DefaultLanguageSnapshot,
             order.TotalAmountCents,
             OrderResponse.Payable(order),
-            OrderLineResponse.ForOrder(order)
+            OrderLineResponse.ForOrder(order),
+            order.IsStaffPlaced
         );
 }
 

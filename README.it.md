@@ -32,7 +32,8 @@ registratore di cassa.
   l'indirizzo fuori zona, la cassa blocca la consegna. I clienti possono usare un codice per uno
   sconto percentuale sui piatti, pagare al ritiro o alla consegna e seguire l'ordine dalla pagina di
   stato.
-- **Lo staff** apre i tavoli in Sala, segue gli ordini in Cucina (raggruppati per piatto o per ordine,
+- **Lo staff** apre i tavoli e prende le ordinazioni in Sala anche quando gli ordini via QR sono in pausa.
+  Segue gli ordini in Cucina (raggruppati per piatto o per ordine,
   con un avviso sonoro e le categorie filtrate per schermo) e segna i piatti serviti dal Pass. Accetta
   o rifiuta gli ordini online, scegliendo il tempo previsto e, per una consegna senza costo calcolato
   alla cassa, la fascia; finché ci sono ordini da accettare un banner suona in ogni pagina dello staff,

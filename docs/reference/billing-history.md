@@ -37,6 +37,9 @@ deliveryFeeCents, billVersion, orderCount, itemCount, newItemCount, cancelledIte
 totalAmountCents
 ```
 
+Bill orders include `isStaffPlaced`, which identifies orders taken by staff for an open dining
+table. Active and historical bill details show this in the order header alongside its time and ID.
+
 `tableId`, `closedAt` and `closeReason` may be null as appropriate. `channel` is `DINE_IN`, `PICKUP` or
 `DELIVERY`. Dine-in visits have `tableLabel` and a null `online`; accepted online orders have no table
 and `online: { number, customerName, customerPhone, estimatedAt, deliveryAddress, deliveryNotes,

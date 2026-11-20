@@ -841,6 +841,12 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("dining_session_id");
 
+                    b.Property<bool>("IsStaffPlaced")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_staff_placed");
+
                     b.Property<DateTime?>("ProcessedAt")
                         .HasColumnType("timestamptz")
                         .HasColumnName("processed_at");

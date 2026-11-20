@@ -13,9 +13,9 @@ const zh = {
   verify: "核对操作结果",
   pending: (kind: "accepting" | "open") =>
     `${kind === "accepting" ? "接单设置结果待确认" : "开桌结果待确认"}，核对完成前暂停新的操作。`,
-  accepting: "扫码接单",
+  accepting: "顾客扫码点餐",
   acceptingOn: "已开启：顾客可以扫码下单。",
-  acceptingOff: "已暂停：不再接收新订单，已提交的订单仍可核对。",
+  acceptingOff: "全店已暂停扫码下单。员工仍可代客点餐。",
   visit: "本轮用餐",
   loading: "正在读取桌位…",
   noTables: "还没有桌位",
@@ -30,7 +30,7 @@ const zh = {
   confirmOpen: "确认开桌",
   // Feedback.
   checkedAccepting: (enabled: boolean): string =>
-    enabled ? "已核对：当前允许接单。" : "已核对：当前已暂停接单。",
+    enabled ? "已核对：顾客扫码点餐已开启。" : "已核对：全店已暂停扫码下单。",
   foundVisit: (codeRequired: boolean): string =>
     codeRequired
       ? "已查到本桌当前用餐，请核对桌号；可主动查看入桌码。"
@@ -44,7 +44,7 @@ const zh = {
       : "开桌成功，顾客扫描本桌二维码即可直接加入点餐。",
   openUnknown: "开桌结果待确认。请重新读取状态；系统不会自动重发开桌。",
   acceptingSaved: (enabled: boolean): string =>
-    enabled ? "已允许接单；实际下单仍须餐厅服务和桌位可用。" : "已暂停新增订单，既有订单仍可核对。",
+    enabled ? "顾客扫码点餐已开启。" : "全店已暂停扫码下单。",
   acceptingUnknown: "接单设置结果待确认，请重新读取状态。",
   // Table tiles and the selected visit.
   tileStatus: (newItems: number, amount: string) =>
@@ -78,9 +78,9 @@ export const diningMessages: Record<Language, typeof zh> = {
     verify: "Verifica esito",
     pending: (kind) =>
       `${kind === "accepting" ? "Impostazione degli ordini" : "Apertura del tavolo"} da verificare: altre operazioni sospese fino alla verifica.`,
-    accepting: "Ordini dal QR",
+    accepting: "Ordini dei clienti via QR",
     acceptingOn: "Attivi: i clienti ordinano scansionando il QR.",
-    acceptingOff: "In pausa: niente nuovi ordini; quelli inviati restano consultabili.",
+    acceptingOff: "Ordini via QR in pausa per tutti i tavoli. Lo staff può ancora prendere ordini.",
     visit: "Visita",
     loading: "Caricamento tavoli…",
     noTables: "Nessun tavolo",
@@ -94,7 +94,9 @@ export const diningMessages: Record<Language, typeof zh> = {
     openHintNoCode: "Dopo l’apertura i clienti ordinano scansionando il QR del tavolo.",
     confirmOpen: "Apri tavolo",
     checkedAccepting: (enabled) =>
-      enabled ? "Verificato: gli ordini sono attivi." : "Verificato: gli ordini sono in pausa.",
+      enabled
+        ? "Verificato: gli ordini via QR sono attivi."
+        : "Verificato: ordini via QR in pausa per tutti i tavoli.",
     foundVisit: (codeRequired) =>
       codeRequired
         ? "Visita in corso trovata: controlla il tavolo; puoi mostrare il codice."
@@ -109,8 +111,8 @@ export const diningMessages: Record<Language, typeof zh> = {
     openUnknown: "Apertura da verificare: ricarica lo stato. Non verrà ripetuta automaticamente.",
     acceptingSaved: (enabled) =>
       enabled
-        ? "Ordini attivati; per ordinare servono comunque servizio e tavolo disponibili."
-        : "Nuovi ordini in pausa; quelli già inviati restano consultabili.",
+        ? "Ordini dei clienti via QR attivati."
+        : "Ordini via QR in pausa per tutti i tavoli.",
     acceptingUnknown: "Impostazione degli ordini da verificare: ricarica lo stato.",
     tileStatus: (newItems, amount) =>
       `Occupato, ${newItems ? `da fare ${newItems}, ` : ""}${amount}`,
@@ -141,9 +143,9 @@ export const diningMessages: Record<Language, typeof zh> = {
     verify: "Check result",
     pending: (kind) =>
       `${kind === "accepting" ? "Ordering setting" : "Table opening"} to be checked: other actions are paused until then.`,
-    accepting: "QR ordering",
+    accepting: "Guest QR ordering",
     acceptingOn: "On: guests order by scanning the QR code.",
-    acceptingOff: "Paused: no new orders; orders already sent stay visible.",
+    acceptingOff: "QR ordering is paused for all tables. Staff can still take orders.",
     visit: "Visit",
     loading: "Loading tables…",
     noTables: "No tables",
@@ -157,7 +159,9 @@ export const diningMessages: Record<Language, typeof zh> = {
     openHintNoCode: "Once open, guests order by scanning the table’s QR code.",
     confirmOpen: "Open table",
     checkedAccepting: (enabled) =>
-      enabled ? "Checked: ordering is on." : "Checked: ordering is paused.",
+      enabled
+        ? "Checked: guest QR ordering is on."
+        : "Checked: QR ordering is paused for all tables.",
     foundVisit: (codeRequired) =>
       codeRequired
         ? "Open visit found: check the table; you can show the code."
@@ -171,9 +175,7 @@ export const diningMessages: Record<Language, typeof zh> = {
         : "Table open: guests order by scanning the table’s QR code.",
     openUnknown: "Opening to be checked: reload the status. It won’t be repeated automatically.",
     acceptingSaved: (enabled) =>
-      enabled
-        ? "Ordering on; guests still need an active service and an available table."
-        : "New orders paused; orders already sent stay visible.",
+      enabled ? "Guest QR ordering is on." : "QR ordering is paused for all tables.",
     acceptingUnknown: "Ordering setting to be checked: reload the status.",
     tileStatus: (newItems, amount) => `Occupied, ${newItems ? `to do ${newItems}, ` : ""}${amount}`,
     tileFree: "Free, tap to open",

@@ -46,7 +46,7 @@ export const messages: Record<Language, Messages> = {
     stale: "菜单更新失败，当前显示上次读取的内容。请重新读取或向服务员确认。",
     suspended: "本餐厅暂未开放扫码点餐，您仍可浏览菜单；如需点餐请联系服务员。",
     disabled: "此桌暂时停用，您仍可浏览菜单。",
-    paused: "餐厅暂未接受扫码订单。",
+    paused: "现在请向服务员点餐。",
     order: "可先编辑购物车；加入本轮用餐并核对订单后提交。",
     unopened: "此桌尚未开桌，可先编辑购物车，请联系服务员开桌。",
     allergens: "过敏原",
@@ -72,7 +72,7 @@ export const messages: Record<Language, Messages> = {
     suspended:
       "Gli ordini tramite QR non sono ancora disponibili in questo ristorante. Puoi comunque consultare il menu; per ordinare rivolgiti al personale.",
     disabled: "Questo tavolo è disabilitato. Puoi comunque consultare il menu.",
-    paused: "Il ristorante non accetta ordini tramite QR al momento.",
+    paused: "Per ordinare, rivolgiti al personale di sala.",
     order: "Prepara il carrello, unisciti al tavolo e controlla l’ordine prima di inviarlo.",
     unopened:
       "Il tavolo non è ancora aperto. Puoi preparare il carrello e chiedere al personale di aprirlo.",
@@ -101,7 +101,7 @@ export const messages: Record<Language, Messages> = {
     suspended:
       "QR ordering isn’t available at this restaurant yet. You can still browse the menu; please ask the staff to order.",
     disabled: "This table is disabled. You can still browse the menu.",
-    paused: "The restaurant is not accepting QR orders at the moment.",
+    paused: "Please ask a member of staff to take your order.",
     order: "Prepare your cart, join this visit, then review and place your order.",
     unopened: "This table is not open yet. You can prepare your cart and ask staff to open it.",
     allergens: "Allergens",

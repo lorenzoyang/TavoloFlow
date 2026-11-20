@@ -44,6 +44,11 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(order => order.ClientRequestId).HasColumnName("client_request_id");
 
         builder
+            .Property(order => order.IsStaffPlaced)
+            .HasColumnName("is_staff_placed")
+            .HasDefaultValue(false);
+
+        builder
             .Property(order => order.Status)
             .HasColumnName("status")
             .HasMaxLength(12)

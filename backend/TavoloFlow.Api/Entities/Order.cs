@@ -12,6 +12,7 @@ public sealed class Order
     public Guid RestaurantId { get; set; }
     public Guid DiningSessionId { get; set; }
     public Guid ClientRequestId { get; set; }
+    public bool IsStaffPlaced { get; set; }
     public OrderStatus Status { get; set; } = OrderStatus.New;
     public long TotalAmountCents { get; set; }
     public required string DefaultLanguageSnapshot { get; set; }

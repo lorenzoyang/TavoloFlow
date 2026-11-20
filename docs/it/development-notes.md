@@ -38,7 +38,7 @@ TavoloFlow è un sistema di ordinazione al tavolo tramite codice QR, che accetta
 
 **Staff**, da telefono o tablet; l'area staff si può installare come app (PWA):
 
-- **Sala** (solo con il QR al tavolo, come i Tavoli): vede i tavoli e i loro conti, apre un tavolo quando arrivano i clienti e comunica il codice; mette in pausa o riattiva i nuovi ordini; chiude senza incasso un tavolo senza ordini o con tutti i piatti annullati;
+- **Sala** (solo con il QR al tavolo, come i Tavoli): vede i tavoli e i loro conti, apre un tavolo quando arrivano i clienti e comunica il codice. Può mettere in pausa gli ordini via QR per tutti i tavoli e continuare a prendere le ordinazioni per i tavoli aperti. Il dettaglio del conto indica quali ordini ha inserito lo staff. Chiude senza incasso un tavolo senza ordini o con tutti i piatti annullati;
 - **Cucina**: riceve i nuovi ordini con un avviso sonoro, aggiornati ogni 10 secondi; li vede nelle viste Piatti (raggruppati per piatto), Ordini ed Evasi; ogni schermo riapre l'ultima scelta tra Piatti e Ordini e, nella vista Piatti, può mostrare solo alcune categorie del menu (per esempio uno schermo solo per le bevande); sotto ogni piatto vede le opzioni scelte dal cliente; segna ogni piatto come pronto o lo annulla; gli ordini online accettati compaiono insieme a quelli dei tavoli, come «Ritiro #12» o «Consegna #12»;
 - **Pass**: su un tablet al bancone, mostra i piatti pronti da portare ai tavoli; quando un piatto arriva al tavolo si tocca «Servito»;
 - **Menu**: segna un piatto, o una singola opzione (per esempio un topping finito), come esaurito o di nuovo disponibile;

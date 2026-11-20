@@ -14,6 +14,7 @@ const zh = {
   // One order inside a bill.
   orderNew: "待处理",
   orderProcessed: "已处理",
+  staffPlaced: "员工代点",
   // An order card's own dishes; only the bill total, with any coupon and fee, says what to collect.
   orderDishes: (amount: string) => `菜品 ${amount}`,
   originalTotal: (amount: string) => `原订单金额：${amount}`,
@@ -184,6 +185,7 @@ export const billingMessages: Record<Language, typeof zh> = {
     },
     orderNew: "Da fare",
     orderProcessed: "Evaso",
+    staffPlaced: "Inserito dallo staff",
     orderDishes: (amount) => `Piatti ${amount}`,
     originalTotal: (amount) => `Totale originale: ${amount}`,
     item: { NEW: "Da fare", READY: "Pronto", CANCELLED: "Annullato · escluso" },
@@ -359,6 +361,7 @@ export const billingMessages: Record<Language, typeof zh> = {
     },
     orderNew: "To do",
     orderProcessed: "Done",
+    staffPlaced: "Staff order",
     orderDishes: (amount) => `Dishes ${amount}`,
     originalTotal: (amount) => `Original total: ${amount}`,
     item: { NEW: "To do", READY: "Ready", CANCELLED: "Cancelled · not charged" },

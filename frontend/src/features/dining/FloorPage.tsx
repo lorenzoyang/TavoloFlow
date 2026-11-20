@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { LayoutGrid, RefreshCw } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -21,22 +21,37 @@ import { cn } from "@/lib/utils";
 import type { FloorTable } from "./api";
 import { SessionSummary, TableTile } from "./FloorViews";
 import { diningMessages } from "./messages";
+import { StaffOrderPanel } from "./StaffOrderPanel";
+import { staffOrderMessages } from "./staff-order-messages";
 import { useFloor } from "./useFloor";
 
-type FloorProps = { sessionId?: string; select: (id: string) => void };
+type FloorProps = {
+  sessionId?: string;
+  ordering: boolean;
+  select: (id: string) => void;
+  showOrder: (sessionId: string, open: boolean) => void;
+};
 
 function FloorContent({
   account,
   sessionId: selected = "",
+  ordering,
   select,
+  showOrder,
 }: FloorProps & { account: CurrentAccount }) {
   const language = useStaffLanguage();
   const m = diningMessages[language];
+  const orderCopy = staffOrderMessages[language];
   const model = useFloor(account, selected, select);
   const { floor, session, busy, pending } = model;
 
   // Opening a table needs a human confirmation.
   const [confirmation, setConfirmation] = useState<FloorTable | null>(null);
+  const [sentSession, setSentSession] = useState<string | null>(null);
+  const orderSent = useCallback(() => {
+    setSentSession(selected);
+    showOrder(selected, false);
+  }, [selected, showOrder]);
   async function confirmOpen() {
     if (!confirmation) return;
     await model.open(confirmation);
@@ -44,9 +59,21 @@ function FloorContent({
   }
 
   const tables = floor.data?.tables ?? [];
+  const selectedTable = tables.find((table) => table.session?.id === selected);
+  const selectedTableId = session.data?.tableId ?? selectedTable?.id;
+  const title = session.data
+    ? sessionTitle(session.data, language)
+    : (selectedTable?.tableLabel ?? m.visit);
   const dining = tables.filter((table) => table.session).length;
   const waiting = tables.reduce((n, table) => n + (table.session?.newItemCount ?? 0), 0);
   const writeLocked = busy || !!pending || !!confirmation;
+  const canOrder =
+    selectedTable?.isEnabled === true &&
+    session.data?.status === "ACTIVE" &&
+    floor.data?.serviceStatus === "ACTIVE" &&
+    !floor.isError &&
+    !session.isError &&
+    !writeLocked;
   return (
     <div>
       <PageHeader
@@ -106,10 +133,23 @@ function FloorContent({
       </div>
       <MasterDetail
         open={!!selected}
-        title={session.data ? sessionTitle(session.data, language) : m.visit}
+        title={title}
         onClose={() => select("")}
         detail={
-          selected && (
+          selected &&
+          (ordering && selectedTableId ? (
+            <StaffOrderPanel
+              key={`${account.restaurantId}:${account.userId}:${selected}`}
+              account={account}
+              tableId={selectedTableId}
+              tableTitle={title}
+              sessionId={selected}
+              canSubmit={canOrder}
+              closed={session.data?.status === "CLOSED"}
+              onBack={() => showOrder(selected, false)}
+              onDone={orderSent}
+            />
+          ) : (
             <div className="space-y-6">
               <SessionSummary
                 session={session.data}
@@ -118,13 +158,31 @@ function FloorContent({
                 disabled={busy || !!pending}
                 viewCode={() => void model.viewCode()}
               />
+              {ordering && !session.isPending && <Notice tone="warning">{orderCopy.ended}</Notice>}
+              {!ordering && sentSession === selected && (
+                <Notice tone="success">{orderCopy.sent}</Notice>
+              )}
+              {!ordering &&
+                session.data?.status === "ACTIVE" &&
+                session.data.channel === "DINE_IN" && (
+                  <Button
+                    className="w-full"
+                    disabled={writeLocked}
+                    onClick={() => {
+                      setSentSession(null);
+                      showOrder(selected, true);
+                    }}
+                  >
+                    {orderCopy.place}
+                  </Button>
+                )}
               <ActiveBillPanel
                 key={`${account.restaurantId}:${account.userId}:${selected}`}
                 account={account}
                 sessionId={selected}
               />
             </div>
-          )
+          ))
         }
       >
         {floor.isPending && <LoadingState label={m.loading} />}
@@ -170,6 +228,7 @@ function FloorContent({
                   }
                   onSelect={() => {
                     model.clearFeedback();
+                    setSentSession(null);
                     if (table.session) select(table.session.id);
                     else setConfirmation(table);
                   }}

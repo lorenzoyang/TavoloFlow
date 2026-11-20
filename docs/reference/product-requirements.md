@@ -125,6 +125,9 @@ Editing can continue with blocked storage, but submitting requires durable inten
 ### 4. Submission and recovery
 
 Guests confirm current items and prices before submitting.
+On Floor, staff can take orders for an open dining table. The QR switch pauses guest submissions
+across all tables while staff can still place orders. The kitchen and bill include both kinds.
+Bill details identify staff-placed orders.
 Each new intent has one saved request ID and the full original body before POST.
 The server validates current access, visit state, availability and prices for a first submission.
 Changed prices or availability require another explicit confirmation.
@@ -205,7 +208,7 @@ all-you-can-eat rules, split bills and sales reports are outside this MVP.
 There is no shared cart, WebSocket delivery or offline business operation queue; push notifications
 exist only as best-effort reminders of new online orders.
 There is no QR/code rotation, device-specific grant revocation, menu publishing workflow,
-manual menu ordering or complete audit-event history.
+staff entry of phone takeaway orders or complete audit-event history.
 The staff area is installable; guest and platform pages remain websites.
 
 ## Acceptance baseline

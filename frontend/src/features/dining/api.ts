@@ -1,6 +1,9 @@
 import { queryOptions } from "@tanstack/react-query";
 import type { AccountScope } from "@/features/accounts/api";
 import type { BillSummary } from "@/features/billing/state";
+import type { Order } from "@/features/orders/api";
+import { confirmedOrder } from "@/features/orders/response";
+import type { OrderInput } from "@/features/orders/state";
 import { request, write } from "@/lib/api";
 import { storeKey } from "@/lib/store-views";
 
@@ -55,3 +58,18 @@ export const setAcceptingOrders = (enabled: boolean, signal: AbortSignal) =>
   write<{ orderingEnabled: boolean }>("/api/staff/accepting-orders", "PATCH", { enabled }, signal);
 export const readStaffJoinCode = (sessionId: string, signal: AbortSignal) =>
   request<CodeResult>(`/api/staff/sessions/${sessionId}/join-code`, { signal });
+
+const staffOrdersPath = (sessionId: string) => `/api/staff/sessions/${sessionId}/orders`;
+export async function placeStaffOrder({ sessionId, ...input }: OrderInput, signal: AbortSignal) {
+  return confirmedOrder(
+    await write<Order>(staffOrdersPath(sessionId), "POST", input, signal),
+    sessionId,
+  );
+}
+export async function readStaffOrderByRequest(intent: OrderInput, signal: AbortSignal) {
+  const { sessionId, clientRequestId } = intent;
+  return confirmedOrder(
+    await request<Order>(`${staffOrdersPath(sessionId)}/by-request/${clientRequestId}`, { signal }),
+    sessionId,
+  );
+}

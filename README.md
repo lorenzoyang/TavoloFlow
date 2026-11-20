@@ -30,7 +30,8 @@ online orders. The app does not process online payments and does not replace a f
   calculation finds the address is out of range, checkout blocks delivery. Customers can use a
   coupon for a percentage off the dishes, pay on collection or delivery, and follow their order
   on a status page.
-- **Staff** open tables on the Floor, follow orders in the Kitchen (grouped by dish or by order, with
+- **Staff** open tables and take orders for guests on the Floor, even while guest QR ordering is paused.
+  They follow orders in the Kitchen (grouped by dish or by order, with
   an alert sound and per-screen category filters), and mark dishes served on the Pass screen. They
   accept or reject online orders, choosing the estimated time and, for a delivery not priced at
   checkout, the fee band; a banner rings on every staff page while orders wait, and devices that turn

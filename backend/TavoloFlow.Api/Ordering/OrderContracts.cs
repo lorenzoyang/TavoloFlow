@@ -13,6 +13,12 @@ public sealed record CreateOrderInput(
     OrderLineInput?[]? Items
 );
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record CreateStaffOrderInput(
+    [Required] Guid? ClientRequestId,
+    OrderLineInput?[]? Items
+);
+
 // ExpectedUnitPriceCents includes the chosen options' deltas; OptionIds is empty for a dish without options.
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record OrderLineInput(

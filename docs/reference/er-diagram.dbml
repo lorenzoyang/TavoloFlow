@@ -516,6 +516,7 @@ Table orders {
   restaurant_id uuid [not null]
   dining_session_id uuid [not null]
   client_request_id uuid [not null, note: 'Same ID on retry; not a secret']
+  is_staff_placed boolean [not null, default: false, note: 'Staff took the order for an open dining table']
   status varchar(12) [not null, default: 'NEW']
   total_amount_cents bigint [not null]
   default_language_snapshot varchar(2) [not null]

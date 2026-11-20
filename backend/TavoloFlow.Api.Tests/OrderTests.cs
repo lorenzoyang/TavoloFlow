@@ -46,6 +46,146 @@ public sealed class OrderTests(PostgreSqlFixture database) : IClassFixture<Postg
 
     private static string LookupPath(Setup s, Guid id) => ListPath(s) + "/by-request/" + id;
 
+    private static string StaffOrdersPath(Setup s) =>
+        $"/api/staff/sessions/{s.Guest.SessionId}/orders";
+
+    [Theory]
+    [InlineData(RestaurantUserRole.Owner)]
+    [InlineData(RestaurantUserRole.Staff)]
+    public async Task StaffCreate_PausedQrAndConcurrentReplay_EntersKitchenAndBillOnce(
+        RestaurantUserRole role
+    )
+    {
+        using var host = new AccountTestHost(database);
+        var setup = await SeedAsync(host, role);
+        using var staff = await LoginAsync(host, setup.User);
+        using var guest = await JoinAsync(host, setup);
+        var guestOrder = setup.Input(1);
+        Assert.Equal(HttpStatusCode.Created, (await SubmitAsync(guest, guestOrder)).StatusCode);
+        await using var db = database.CreateContext();
+        await new DiningService(
+            db,
+            host.Services.GetRequiredService<JoinCodes>(),
+            host.Clock
+        ).SetAcceptingOrdersAsync(setup.Guest.RestaurantId, false, default);
+        await AssertErrorAsync(
+            await SubmitAsync(guest, setup.Input()),
+            HttpStatusCode.Conflict,
+            "ORDERING_PAUSED"
+        );
+
+        var lines = setup.Input().Items;
+        var input = new CreateStaffOrderInput(Guid.NewGuid(), lines);
+        var csrf = await CsrfAsync(staff);
+        var path = StaffOrdersPath(setup);
+        var responses = await Task.WhenAll(
+            PostAsync(staff, path, input, csrf),
+            PostAsync(staff, path, input, csrf)
+        );
+        Assert.Single(responses, result => result.StatusCode == HttpStatusCode.Created);
+        Assert.Single(responses, result => result.StatusCode == HttpStatusCode.OK);
+        var created = (await responses[0].Content.ReadFromJsonAsync<OrderResponse>())!;
+        Assert.Equal(1400, created.PayableAmountCents);
+        Assert.Equal("少盐", created.Items.Single().Remark);
+        Assert.Equal(
+            created.Id,
+            (await responses[1].Content.ReadFromJsonAsync<OrderResponse>())!.Id
+        );
+        var recovered = await staff.GetFromJsonAsync<OrderResponse>(
+            $"{path}/by-request/{input.ClientRequestId}"
+        );
+        Assert.Equal(created.Id, recovered!.Id);
+
+        var bill = (
+            await staff.GetFromJsonAsync<BillPage>(
+                $"/api/staff/sessions/{setup.Guest.SessionId}/bill"
+            )
+        )!;
+        Assert.Equal(3, bill.Summary.BillVersion);
+        Assert.Equal(2100, bill.Summary.TotalAmountCents);
+        Assert.Equal(created.Id, Assert.Single(bill.Orders, o => o.IsStaffPlaced).Id);
+        var kitchen = (await staff.GetFromJsonAsync<KitchenPage>("/api/staff/orders?status=NEW"))!;
+        Assert.Contains(kitchen.Items, order => order.Id == created.Id);
+        var table = (await guest.GetFromJsonAsync<OrderPage>(ListPath(setup)))!;
+        Assert.Contains(table.Items, order => order.Id == created.Id);
+        Assert.DoesNotContain("isStaffPlaced", await guest.GetStringAsync(ListPath(setup)));
+        await AssertErrorAsync(
+            await staff.GetAsync($"{path}/by-request/{guestOrder.ClientRequestId}"),
+            HttpStatusCode.NotFound,
+            "ORDER_NOT_FOUND"
+        );
+    }
+
+    [Fact]
+    public async Task StaffCreate_ForeignVisitAndClosedVisit_RejectedAndSourceSurvivesCheckout()
+    {
+        using var host = new AccountTestHost(database);
+        var setup = await SeedAsync(host, RestaurantUserRole.Owner);
+        var other = await SeedAsync(host);
+        using var owner = await LoginAsync(host, setup.User);
+        using var guest = await JoinAsync(host, setup);
+        var input = new CreateStaffOrderInput(Guid.NewGuid(), setup.Input().Items);
+        var csrf = await CsrfAsync(owner);
+        var path = StaffOrdersPath(setup);
+        await AssertErrorAsync(
+            await PostAsync(owner, StaffOrdersPath(other), input, csrf),
+            HttpStatusCode.NotFound,
+            "SESSION_NOT_FOUND"
+        );
+        await AssertErrorAsync(
+            await PostAsync(owner, path, input, await GuestCsrf(guest)),
+            HttpStatusCode.BadRequest,
+            "CSRF_VALIDATION_FAILED"
+        );
+
+        var response = await PostAsync(owner, path, input, csrf);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var order = (await response.Content.ReadFromJsonAsync<OrderResponse>())!;
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (
+                await PostAsync(
+                    owner,
+                    $"/api/staff/orders/{order.Id}/items/{order.Items.Single().Id}/ready",
+                    new { },
+                    csrf
+                )
+            ).StatusCode
+        );
+        var checkout = await PostAsync(
+            owner,
+            $"/api/owner/sessions/{setup.Guest.SessionId}/checkout",
+            new CheckoutInput(2, order.PayableAmountCents),
+            csrf
+        );
+        Assert.Equal(HttpStatusCode.OK, checkout.StatusCode);
+        await using var db = database.CreateContext();
+        var replacement = await new DiningService(
+            db,
+            host.Services.GetRequiredService<JoinCodes>(),
+            host.Clock
+        ).OpenAsync(setup.Guest.RestaurantId, setup.Table.Id, default);
+        await AssertErrorAsync(
+            await PostAsync(owner, path, input, csrf),
+            HttpStatusCode.Conflict,
+            "SESSION_CLOSED"
+        );
+        await AssertErrorAsync(
+            await owner.GetAsync($"{path}/by-request/{input.ClientRequestId}"),
+            HttpStatusCode.Conflict,
+            "SESSION_CLOSED"
+        );
+        var history = (
+            await owner.GetFromJsonAsync<BillPage>($"/api/owner/history/{setup.Guest.SessionId}")
+        )!;
+        Assert.True(Assert.Single(history.Orders).IsStaffPlaced);
+        Assert.Empty(
+            await db
+                .Orders.Where(o => o.DiningSessionId == replacement.Session.SessionId)
+                .ToListAsync()
+        );
+    }
+
     [Fact]
     public async Task Create_TwoGuestsAndAddOn_PreservesSnapshotsAndSharesOrders()
     {
