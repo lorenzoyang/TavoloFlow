@@ -58,7 +58,7 @@ after they end. A contiguous paid renewal covers the prior deadline. A contiguou
 that deadline outstanding and shows that renewal is awaiting payment. A gap remains visible until
 service resumes. No date or payment automatically suspends the restaurant or changes ordering.
 
-The background task checks at startup and every five minutes. It records the first matching phase
+The background task checks at startup and every 30 minutes. It records the first matching phase
 from one to seven days before the deadline, and the expired phase on or after the deadline. A unique
 key on period, deadline and phase prevents another reminder for the same phase after restarts. Reads
 show only the current renewal reminder, so a missed or superseded reminder does not appear beside the

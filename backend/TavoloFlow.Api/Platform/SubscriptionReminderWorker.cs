@@ -8,7 +8,7 @@ internal sealed class SubscriptionReminderWorker(
     ILogger<SubscriptionReminderWorker> logger
 ) : BackgroundService
 {
-    private static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(30);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
