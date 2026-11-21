@@ -70,7 +70,7 @@ before the shared name-fallback chain; descriptions follow the resolved language
 
 Restaurant themes apply through `<html data-theme>` to signed-in staff and loaded guest menus,
 including portals. Sign-in, first password change and platform pages use the default theme. Brand
-palettes never redefine state colors. The PWA's standalone offline HTML follows the same saved-choice,
+palettes never redefine state colors. The staff PWA's offline HTML follows the same saved-choice,
 browser-language and English fallback rule without loading app assets; see
 [PWA behavior](../docs/reference/pwa.md#service-worker-behavior).
 
@@ -106,10 +106,11 @@ match or installation stops. Pass the same origin on subsequent builds.
 Existing paper QR codes retain their old URLs and need reprinting or redirection after a host change.
 The [self-hosting guide](../docs/en/self-hosting.md) owns the complete release procedure.
 
-## Staff PWA
+## Staff and administrator PWAs
 
-Install from the `/staff` business entry. Only StaffLayout links the manifest, including at login;
-guest and platform routes do not. Registration runs only in production builds in a secure context.
-Use `npm run build` followed by `npm run preview` to test installation and offline navigation locally.
-The worker caches no API, page or assets and provides no offline write queue. See the
+Install from `/staff` or `/platform`. Each layout links its own manifest and registers a worker in
+production builds in a secure context. Staff devices can opt in to new-order notifications and
+administrator devices to renewal reminders. Guest and customer routes do not link a manifest.
+Use `npm run build` followed by `npm run preview` to test installation and the staff offline page
+locally. Both workers leave pages, assets and API data uncached. See the
 [PWA contract](../docs/reference/pwa.md) and [documentation index](../docs/README.md).

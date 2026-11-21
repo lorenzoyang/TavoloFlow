@@ -554,7 +554,7 @@ In development, after changing the model, you create a migration with `dotnet ef
 
 Caddy handles the certificate by itself with the ACME protocol (Let's Encrypt or ZeroSSL): it obtains it at first start and renews it before it expires, with no cron or commands. For it to work you need three things: the `A` record must already point to the VPS, ports 80 and 443 must be reachable from the internet and `ACME_EMAIL` must be a real address.
 
-The [`Caddyfile`](../../deploy/Caddyfile) serves only the `DOMAIN` host. HTTP requests for any other name, or straight to the IP, get a 404 instead of a redirect: the VPS doesn't pretend to be someone else's site. The same file also decides caching: `/api` never cached, files with a hash in their name cached for a year, `index.html`, `sw.js` and the manifest always revalidated (`no-cache`).
+The [`Caddyfile`](../../deploy/Caddyfile) serves only the `DOMAIN` host. HTTP requests for any other name, or straight to the IP, get a 404 instead of a redirect: the VPS doesn't pretend to be someone else's site. The same file also decides caching: `/api` never cached, files with a hash in their name cached for a year, `index.html`, both service workers and their manifests always revalidated (`no-cache`).
 
 #### Checks
 
@@ -576,6 +576,8 @@ curl -I http://app.example.com                    # redirect to https
 curl -I https://app.example.com/staff/login       # 200, no certificate error
 curl -I https://app.example.com/sw.js             # JavaScript, Cache-Control: no-cache
 curl -I https://app.example.com/staff.webmanifest # application/manifest+json, no-cache
+curl -I https://app.example.com/platform-sw.js # JavaScript, Cache-Control: no-cache
+curl -I https://app.example.com/platform.webmanifest # application/manifest+json, no-cache
 curl -i https://app.example.com/api/auth/csrf     # JSON, Cache-Control: no-store
 ```
 
@@ -645,6 +647,10 @@ Check the pages available to the role and services. In Kitchen, test sound and k
 
 Customers on `/q/...`, `/r/...` and `/o/...`, and the platform area, must not offer staff installation. Details are in [`pwa.md`](../reference/pwa.md).
 
+#### The administrator PWA
+
+Open `/platform`, install the app and turn on “Lock-screen notifications” from the restaurant list. The device registration expires with the 30-day sign-in. For the test, register a new period that has already expired and has no paid renewal. Wait for the next check, within 30 minutes. Tap the notification to open the restaurant list and its unread summary. After “Got it”, outstanding renewals still appear in the list.
+
 ### 7. Enabling backups, before real data
 
 Do it now, before the restaurant enters its real menu. I had postponed it too (see "Problems I ran into").
@@ -691,8 +697,6 @@ For everyday releases follow [Releasing with the scripts](releasing.md): two com
 - the [manual procedure](#manual-procedure), for when the scripts are not available or to understand what they do.
 
 Whichever way you choose, keep the existing settings: do not recreate the administrator or `.env`. If the new version needs new variables, add them before installing it, with the steps below. Optional ones, like `GEOAPIFY_API_KEY`, can also be added later. This matters especially for servers that have been running for some time and are only now adding Turnstile: the new version enables verification by default in production, so the installer rejects an upgrade if the old `.env` has no keys.
-
-In the administrator area at `/platform`, install the PWA and opt in to renewal alerts on each device. Tapping an alert opens the restaurant list and the unread summary. Administrator sign-in lasts 30 days.
 
 #### First release with push notifications
 

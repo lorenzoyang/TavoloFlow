@@ -554,7 +554,7 @@ PostgreSQL 和 Caddy 的镜像不在发布包里：第一次启动时由 Docker 
 
 证书由 Caddy 通过 ACME 协议（Let's Encrypt 或 ZeroSSL）自动管理：第一次启动时申请，到期前自动续期，不需要 cron，也不需要任何命令。要让它工作，需要三个条件：`A` 记录已经指向 VPS，80 和 443 端口可以从互联网访问，`ACME_EMAIL` 是一个真实的地址。
 
-[`Caddyfile`](../../deploy/Caddyfile) 只服务 `DOMAIN` 指定的域名。对其他任何域名、或者直接访问 IP 的 HTTP 请求，返回 404 而不是跳转：这台 VPS 不会冒充别人的网站。缓存也由这个文件决定：`/api` 从不缓存，文件名带哈希的文件缓存一年，`index.html`、`sw.js` 和 manifest 每次都要重新验证（`no-cache`）。
+[`Caddyfile`](../../deploy/Caddyfile) 只服务 `DOMAIN` 指定的域名。对其他任何域名、或者直接访问 IP 的 HTTP 请求，返回 404 而不是跳转：这台 VPS 不会冒充别人的网站。缓存也由这个文件决定：`/api` 从不缓存，文件名带哈希的文件缓存一年，`index.html`、两个 service worker 及各自的 manifest 每次都要重新验证（`no-cache`）。
 
 #### 检查
 
@@ -576,6 +576,8 @@ curl -I http://app.example.com                    # 跳转到 https
 curl -I https://app.example.com/staff/login       # 200，没有证书错误
 curl -I https://app.example.com/sw.js             # JavaScript，Cache-Control: no-cache
 curl -I https://app.example.com/staff.webmanifest # application/manifest+json，no-cache
+curl -I https://app.example.com/platform-sw.js # JavaScript，Cache-Control: no-cache
+curl -I https://app.example.com/platform.webmanifest # application/manifest+json，no-cache
 curl -i https://app.example.com/api/auth/csrf     # JSON，Cache-Control: no-store
 ```
 
@@ -645,6 +647,10 @@ sudo bash /opt/tavoloflow/bootstrap-admin.sh
 
 `/q/...`、`/r/...`、`/o/...` 的顾客页面和平台后台都不应提示安装员工应用。详情见 [`pwa.md`](../reference/pwa.md)（英文）。
 
+#### 管理员端 PWA
+
+打开 `/platform` 安装应用，并在餐厅列表开启「锁屏通知」。设备登记随 30 天的登录到期。为测试餐厅新登记一个已到期且没有已付款续期的周期。下一轮检查会在 30 分钟内运行。点锁屏通知进入餐厅列表，查看未读汇总。点「我知道了」后，尚未处理的续费仍显示在列表里。
+
 ### 7. 在录入真实数据之前启用备份
 
 现在就做，在餐厅录入真实菜单之前。我自己也曾经拖延过（见「遇到的问题」）。
@@ -691,8 +697,6 @@ sudo ls -lh /opt/tavoloflow/backups/
 - [手动流程](#手动流程)，在脚本不可用时使用，也用来理解脚本做了什么。
 
 无论用哪种方式，都要保留已有配置：不重新创建管理员或 `.env`。新版本需要新的变量时，先按下面的步骤补上，再安装。可选的变量，比如 `GEOAPIFY_API_KEY`，也可以之后再加。尤其是已经部署很久、现在才加入 Turnstile 的服务器：新版本在生产默认启用验证，旧 `.env` 没有密钥时，安装器会拒绝升级。
-
-在 `/platform` 安装管理员 PWA 后，可在各设备开启续费推送。点通知进入餐厅列表和未读汇总。管理员登录有效期为 30 天。
 
 #### 首次升级到带推送的版本
 

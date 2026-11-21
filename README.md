@@ -18,7 +18,8 @@ taking payment at the till, at pickup or on delivery.
 
 Every interface (guest, staff, administrator) is available in English, Italian and Chinese. The staff
 area installs as a PWA on phones and kitchen tablets, and can show lock-screen notifications of new
-online orders. The app does not process online payments and does not replace a fiscal cash register.
+online orders. The administrator area installs as a PWA for lock-screen renewal reminders. The app
+does not process online payments and does not replace a fiscal cash register.
 
 ## What it does
 
@@ -45,10 +46,12 @@ online orders. The app does not process online payments and does not replace a f
   advance notice for scheduled pickup and delivery rules. Each distance band can waive its fee once
   the food subtotal after coupons reaches its threshold. A separate optional minimum applies to all
   deliveries. Owners create coupon codes, correct delivery fees and
-  close collected or delivered orders.
+  close collected or delivered orders. From Home, owners can read and acknowledge their restaurant's
+  subscription notices.
 - **Platform administrators** create restaurants and their accounts, choose each restaurant's color
-  theme, turn QR dine-in and online ordering on for each restaurant with its online link, and record
-  service periods and annual fees paid offline.
+  theme, and turn QR dine-in and online ordering on for each restaurant with its online link. They set
+  the monthly fee, register one or more months in a single period and confirm payments received
+  outside the app.
 
 There are no order printers, online payments, split bills, stock management, loyalty programmes or
 third-party delivery platforms. Deliveries are prepared as soon as possible. The

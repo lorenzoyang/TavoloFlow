@@ -31,7 +31,7 @@ separate from production.
 - [Product requirements](reference/product-requirements.md): users, scope, visit lifecycle and
   acceptance criteria.
 - [Database schema](reference/er-diagram.dbml) and [ER diagram](reference/er-diagram.png): the
-  twenty-table persistence model. Deployed schema changes are defined by
+  23-table persistence model. Deployed schema changes are defined by
   [EF migrations](../backend/TavoloFlow.Api/Data/Migrations/).
 
 ### Implementation contracts
@@ -44,7 +44,7 @@ separate from production.
 | [Kitchen and pass](reference/kitchen-pass.md)                     | Item processing, category screens, delivery, polling and audio                                         |
 | [Billing and history](reference/billing-history.md)               | Bill confirmation, PAID/EMPTY/VOIDED/NO_SHOW closure and historical queries                            |
 | [Restaurant subscriptions](reference/restaurant-subscriptions.md) | Service periods, offline fee collection, concurrency and reminders                                     |
-| [Staff PWA](reference/pwa.md)                                     | Installation, worker with offline page and push notifications, tablet setup                            |
+| [Staff and administrator PWAs](reference/pwa.md)                  | Installation, staff offline page, order and renewal notifications                                       |
 | [Online ordering](reference/online-ordering.md)                   | Link and hours, customer pages, scheduled pickup, delivery fees and lock-screen push                   |
 
 These describe the current interfaces and their important invariants. Read controllers and DTOs for

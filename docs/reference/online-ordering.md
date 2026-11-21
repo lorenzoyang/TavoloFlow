@@ -980,13 +980,15 @@ details are in [the staff PWA](pwa.md#lock-screen-push).
 Only a committed first submission notifies: `OnlineRequestService.SubmitAsync` enqueues the restaurant,
 the number and the request's expiry after `CommitAsync`; repeats (200) and rejected submissions never do.
 `PushQueue` is an in-process bounded channel (100 items, the oldest dropped when full) that accepts
-nothing while push is off. `PushSender`, the app's only `BackgroundService`, reads it one item at a time:
-it skips a request that has already expired, deletes the restaurant's lapsed devices through
-`PushTargets`, then sends to every remaining device in parallel through the `push` HttpClient (10-second
+nothing while push is off. The `PushSender` background service reads it one item at a time. It skips
+expired requests and deletes the restaurant's lapsed devices through `PushTargets`.
+`WebPushDelivery` sends to the remaining devices in parallel through the `push` HttpClient (10-second
 timeout, no redirects) with `Lib.Net.Http.WebPush`: VAPID authentication (`Authorization: vapid t=…,
 k=…`), aes128gcm encryption for that device, `TTL` the seconds left until `expires_at` and
 `Urgency: high`. The encrypted payload is only `{ "number": 12, "language": "zh" }`: no name, phone,
 address or ID, because notifications pass through the browser vendors' push servers.
+The [subscription reminder worker](restaurant-subscriptions.md#notices-and-follow-up) shares this
+delivery code.
 
 Delivery is best effort: no retry, no outbox, and a restart loses queued items. A push service answering
 404 or 410 means the browser dropped the subscription, so that row is deleted; any other failure is only

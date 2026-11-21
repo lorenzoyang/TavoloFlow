@@ -18,8 +18,9 @@ chiude il conto dopo aver incassato alla cassa, al ritiro o alla consegna.
 
 Tutte le interfacce (cliente, staff, amministratore) sono in italiano, inglese e cinese. L'area staff
 si installa come PWA su telefoni e tablet della cucina, e può ricevere le notifiche a schermo
-bloccato dei nuovi ordini online. L'app non gestisce pagamenti online e non sostituisce il
-registratore di cassa.
+bloccato dei nuovi ordini online. L'area amministratore si installa come PWA per ricevere gli avvisi
+di rinnovo a schermo bloccato. L'app non gestisce pagamenti online e non sostituisce il registratore
+di cassa.
 
 ## Cosa fa
 
@@ -47,10 +48,12 @@ registratore di cassa.
   per il ritiro programmato e regole di consegna. Ogni fascia di distanza può avere una soglia per la
   consegna gratuita, calcolata sui piatti dopo lo sconto. L'ordine minimo facoltativo vale per tutte
   le consegne. Il titolare crea i codici sconto, corregge il costo di
-  consegna e chiude gli ordini ritirati o consegnati.
+  consegna e chiude gli ordini ritirati o consegnati. Nella Home vede gli avvisi di abbonamento del
+  proprio ristorante e può confermarne la lettura.
 - **L'amministratore della piattaforma** crea i ristoranti e i loro account, sceglie il tema di colori
   di ogni ristorante, attiva per ognuno l'ordinazione al tavolo con QR e gli ordini online con il loro
-  link, e registra i periodi di abbonamento e le tariffe pagate fuori dall'app.
+  link. Imposta il canone mensile, registra anche più mesi in un unico periodo e conferma il pagamento
+  ricevuto fuori dall'app.
 
 Non ci sono stampa delle comande, pagamenti online, divisione del conto, gestione del magazzino,
 programmi fedeltà né piattaforme di consegna esterne. Le consegne partono appena possibile. I

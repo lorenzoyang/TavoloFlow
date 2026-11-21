@@ -212,7 +212,7 @@ There is no shared cart, WebSocket delivery or offline business operation queue;
 are best-effort reminders of new online orders for staff devices and subscription renewals for administrator devices.
 There is no QR/code rotation, device-specific grant revocation, menu publishing workflow,
 staff entry of phone takeaway orders or complete audit-event history.
-The staff area is installable; guest and platform pages remain websites.
+The staff and administrator areas are installable PWAs. Guests and customers use the website.
 
 ## Acceptance baseline
 

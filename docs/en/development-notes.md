@@ -62,6 +62,7 @@ TavoloFlow is a QR-code table ordering system that also takes online orders. Eve
 - suspends or reactivates a restaurant, chooses its color theme, decides whether the table code is required, permanently deletes a suspended restaurant;
 - for each restaurant turns on QR dine-in, online ordering or both, and sets the online link (`/r/…`);
 - manages the owner's contact, the monthly fee and the subscription periods, and records the payment of each period, received outside the app;
+- can opt in to lock-screen renewal reminders on each device from the administrator PWA.
 - their interface is also in Chinese, Italian or English, with the same per-device choice as the staff.
 
 ## What it doesn't do (and why)
@@ -69,7 +70,7 @@ TavoloFlow is a QR-code table ordering system that also takes online orders. Eve
 - **Online payments.** Handling payments means fees, payment data security and refunds: too much for a first version.
 - **Fiscal receipts.** TavoloFlow replaces neither the till nor the fiscal register: the receipt is still issued by the restaurant's point-of-sale system.
 - **Printing kitchen tickets.** For the reasons explained above: it needs a compatible cloud printer, and I didn't have one to try it on.
-- **Push notifications for kitchen, pass and bills.** These pages update by asking the server at regular intervals (polling). For a small restaurant it is enough, and much simpler. The only push notification is the one for new online orders, which must arrive even when the phone is locked (see "A PWA for staff").
+- **Push notifications for kitchen, pass and bills.** These pages update by asking the server at regular intervals (polling). For a small restaurant it is enough, and much simpler. Staff can receive a lock-screen notification when a new online order arrives (see "A PWA for staff").
 - **Offline operation.** The app doesn't store pages or data on the device to use them without a network: orders and bills must always be up to date. If the connection drops, an already open page shows the latest data with a warning, but blocks operations (for example closing a bill) until a refresh succeeds; if a page is opened without a network, the staff area only shows a page saying so.
 - **Personal accounts for every waiter.** Each restaurant has a single, shared staff account, plus the owner's. For a small restaurant that is enough, and there is no need to know who did what.
 - **Delivery through external platforms.** Online orders exist, with pickup in store or delivery by the restaurant itself, but without platforms like Glovo or Deliveroo, without online payment. The customer pays at pickup or on delivery. Pickup can be scheduled, and the fee for delivery follows distance bands set by the owner (see "Delivery fee by distance"). A first version of takeaway had been developed and then removed, to keep the first version simple; today's one was redesigned from scratch.
@@ -128,12 +129,12 @@ A few points to keep in mind:
 
 - **One API process, three kinds of users.** The same ASP.NET Core application serves guests (at the table and online), staff and administrators. Each has its own cookie, and the backend understands which one to use by looking at the request URL's path, that is the part after the domain, for example `/api/public/orders` (see "Three identities" below).
 - **Three containers in production:** `db` (PostgreSQL), `api` and `caddy`. Only Caddy exposes ports to the outside (80 and 443): the database and the API can only be reached from Docker's internal network.
-- **One call to the outside.** The API depends on no external service, with one exception: the push notifications of new online orders, which go from the API to Apple's, Google's, Mozilla's or Microsoft's push services. If they don't arrive, the app works anyway.
+- **Sending notifications.** The API sends new-order alerts for staff and renewal reminders for administrators through the browser's push services. The app still shows order and subscription status when a notification fails to arrive.
 - **The Data Protection keys** live in a persistent folder. Data Protection is ASP.NET Core's system for encrypting and signing data, and these are its secret keys. The login cookie, in fact, doesn't point to a session stored on the server: it directly contains the account's "ticket" (see "Three identities"), encrypted and signed with these keys, so the browser can neither read it nor forge it. The same keys also protect the CSRF tokens (explained in "Cookies, CSRF and same-origin") and the table codes stored in the database. If the keys lived only inside the container, they would be lost at every new release: everyone would have to sign in again and the codes of open visits could no longer be read. That is why the folder is set in `DataProtection:KeyRingPath` and lives on a persistent volume.
 
 ### Data model
 
-The database has twenty tables. The complete schema is in [`er-diagram.dbml`](../reference/er-diagram.dbml), and there is also an [image](../reference/er-diagram.png). Grouped by topic:
+The database has 23 tables. The complete schema is in [`er-diagram.dbml`](../reference/er-diagram.dbml), and there is also an [image](../reference/er-diagram.png). Grouped by topic:
 
 | Group               | Tables                                                                                                                                                                                                                                                                                |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -141,8 +142,8 @@ The database has twenty tables. The complete schema is in [`er-diagram.dbml`](..
 | Restaurant and menu | `restaurants`, `menu_categories`, `menu_items`, `menu_item_images` (the photo bytes, kept apart so menu reads don't load them), `menu_option_groups` and `menu_options` (the options shared by dishes), `menu_item_option_groups` (which dishes use which group), `restaurant_tables` |
 | Service             | `dining_sessions`, `orders`, `order_items`                                                                                                                                                                                                                                            |
 | Online orders       | `online_hours` (the weekly hours), `online_counters` (the last order number of each day), `online_requests` (customers' orders, to be accepted), `online_coupons` (the coupon codes), `delivery_tiers` (the delivery fee bands)                                                                                                                                       |
-| Notifications       | `push_subscriptions` (the devices that receive lock-screen notifications)                                                                                                                                                                                                             |
-| Subscription        | `restaurant_subscription_periods`                                                                                                                                                                                                                                                     |
+| Notifications       | `push_subscriptions` (staff devices), `platform_push_subscriptions` (administrator devices)                                                                                                                                                                                           |
+| Subscription        | `restaurant_subscription_periods` (periods and payments), `subscription_notices` (notices and owner acknowledgments), `platform_subscription_receipts` (administrator acknowledgments)                                                                                                |
 
 The central concept is the **visit** (`DiningSession`, table `dining_sessions`). When guests arrive, the staff opens the table from Floor and an `ACTIVE` visit is born, with its own (encrypted) table code and a bill version number, `bill_version`. Guests have no accounts: to the system, a guest is just "a browser that joined this visit".
 
@@ -191,10 +192,10 @@ The backend is a single project, `backend/TavoloFlow.Api/`, organized by topic r
 | `Ordering/`          | idempotent order creation, checking and pricing the chosen options (`OrderOptions`), the line check shared with online orders (`OrderLines`), the table's orders                                                                                                         |
 | `Kitchen/`           | the Kitchen queue, dish ready or cancelled, the Pass, with the names of online orders                                                                                                                                                                                    |
 | `Billing/`           | the bill, the four closures (`PAID`, `VOIDED`, `EMPTY` and, online only, `NO_SHOW`), delivery fee correction, Bill history                                                                                                                                               |
-| `Platform/`          | administrator area: restaurants, services and online link, accounts, subscriptions                                                                                                                                                                                       |
+| `Platform/`          | administration of restaurants, accounts and subscriptions, with notices and scheduled renewal checks                                                                                                                                                                     |
 | `Online/`            | online ordering: settings, menu, submission and recovery, acceptance and rejection; `OnlineAvailability` decides whether ordering is allowed and `OnlineRequestState` handles waiting and expiry; browser/IP source limits and Turnstile verification through `OnlineVerification`; delivery fee: bands, minimum order and automatic quotes with Geoapify (`OnlineDelivery`, `DeliveryQuotes`) |
-| `Push/`              | lock-screen notifications: the VAPID key, device subscriptions, the in-memory queue and sending (`PushSender`)                                                                                                                             |
-| `Data/`, `Entities/` | `ApplicationDbContext`, the EF Core mappings and migrations, the row locks (`RowLocks`), the deletion service; the 18 entities                                                                                                                                           |
+| `Push/`              | VAPID key, device registrations, order queue and shared push delivery                                                                                                                                                                      |
+| `Data/`, `Entities/` | `ApplicationDbContext`, the EF Core mappings and migrations, the row locks (`RowLocks`), the deletion service and the 23 entities                                                                                                                                        |
 
 Each module has an `XxxContracts.cs` file with the DTOs (what goes into and comes out of the API) and the error factories, for example `DiningErrors.SessionClosed()`, plus one or more services with the rules and the transactions.
 
@@ -681,7 +682,7 @@ In Kitchen and during bill closure, when the page is hidden, the network drops o
 
 ### Polling instead of WebSocket
 
-**The choice.** Kitchen, Pass, Floor and Bill receive no notifications from the server: they ask it at regular intervals with TanStack Query's `refetchInterval`. The only thing the server sends on its own is the push notifications of new online orders, an extra reminder for locked phones (see "A PWA for staff"): the pages are still based on polling.
+**The choice.** Kitchen, Pass, Floor and Bill query the server at regular intervals with TanStack Query's `refetchInterval`. Push reaches staff devices for new online orders and administrator devices for renewals.
 
 | Page                                                           | Interval   |
 | -------------------------------------------------------------- | ---------- |
@@ -721,9 +722,9 @@ The check is done by `CsrfValidationFilter`, registered globally because `AddCon
 
 **Why a PWA and not a native app.** Staff use phones and tablets, often already in the restaurant. A native app would mean more code (Android and iOS), publishing in the stores and updates to install on every device. With a PWA the same React code becomes an installable app: an icon on the home screen, a full-screen window, and updates reach everyone without going through the stores, the next time the app is opened or reloaded. An already open page, instead, keeps using the previous version: that is why the server keeps the JavaScript and CSS files of every version (see [self-hosting](self-hosting.md#releasing-a-new-version)).
 
-**Only `/staff`.** The manifest (`/staff.webmanifest`) is not linked in `index.html`: only `StaffLayout` links it, and it also registers the service worker `/sw.js` with scope `/staff`. So guests on `/q/*`, `/r/*` and `/o/*`, who don't need to install anything, are never offered the installation. The manifest's `id`, `start_url` and `scope` are `/staff` without a trailing slash, because the router removes the trailing slash from URLs and the page must stay within the scope.
+**Two installable apps.** `StaffLayout` links `/staff.webmanifest` and registers `/sw.js` with scope `/staff`. `PlatformLayout` links `/platform.webmanifest` and registers `/platform-sw.js` with scope `/platform`. Each manifest uses the same path for `id`, `start_url` and `scope`, without a trailing slash because the router removes it. The layouts add manifests in their own areas, so customer pages do not offer installation.
 
-**A service worker that caches nothing.** The service worker handles only page loads: it always tries the network first, and only if the load fails does it show an offline page written inside it. It doesn't use Cache Storage and leaves all other requests to the browser, including those to `/api`. I give up offline operation, but I never have to worry about old data or an old version of the app stuck in a cache, one of the most common PWA problems. I keep it for the offline page: without a service worker, whoever opens the app without a network would see only the browser's error page. For installation, instead, it is no longer needed today: [Chrome's current criteria](https://web.dev/articles/install-criteria) for offering it don't require a service worker.
+**The staff service worker.** For navigation it always tries the network first, and only if the load fails does it show an offline page written inside it. It doesn't use Cache Storage and leaves all other requests to the browser, including those to `/api`. I give up offline operation, but I never have to worry about old data or an old version of the app stuck in a cache, one of the most common PWA problems. I keep it for the offline page: without a service worker, whoever opens the app without a network would see only the browser's error page. For installation, instead, it is no longer needed today: [Chrome's current criteria](https://web.dev/articles/install-criteria) for offering it don't require a service worker.
 
 **What you gain by installing it:**
 
@@ -731,7 +732,7 @@ The check is done by `CsrfValidationFilter`, registered globally because `AddCon
 - a switch keeps the screen on (Screen Wake Lock API), useful for the kitchen tablet;
 - on iOS the installed app has no browser Back button, so pages outside the tabs have a link to go back (`PageHeader`).
 
-**Lock-screen notifications, only for online orders.** Polling stops when the phone is locked or the app is in the background. For the kitchen that is fine, because whoever is working has the page open; an online order, instead, waits for someone to accept it, and expires after 10 minutes. For this, and only for this, the app uses Web Push: when a new online order arrives, the devices that turned them on receive a system notification with a sound, even when locked.
+**Lock-screen notifications for online orders.** Polling stops when the phone is locked or the app is in the background. For the kitchen that is fine, because whoever is working has the page open. An online order waits for someone to accept it and expires after 10 minutes. Web Push gives opted-in staff devices a system notification with a sound, even when locked.
 
 - **What it contains.** Only the order number and the device language: "New online order #12". No customer name, phone or address, because the notification goes through Apple's, Google's or Mozilla's servers: the content is encrypted for the single device, but the less data leaves, the better. The service worker writes the text in the three languages, like the offline page.
 - **A single key.** The server signs every push with a VAPID key. `.env` needs only one, the private key (`VAPID_PRIVATE_KEY`, 64 hexadecimal characters like the database password): the API derives the public key, the one the browser subscribes with, from it.
@@ -743,7 +744,13 @@ The check is done by `CsrfValidationFilter`, registered globally because `AddCon
 - **Only known services.** The browser chooses the address to send to, so the server accepts only those of the known notification services (Apple, Google, Mozilla, Microsoft) and doesn't follow redirects: otherwise an account could make the server call internal addresses.
 - **iPhone.** On iOS notifications exist only in the app added to the Home Screen (iOS 16.4 or later), not in Safari. With the screen locked one notification arrives with one sound, not continuous ringing.
 
-In the administrator area at `/platform`, install the PWA and opt in to renewal alerts on each device. Tapping an alert opens the restaurant list and the unread summary. Administrator sign-in lasts 30 days.
+### A PWA for administrators
+
+In the administrator area at `/platform`, install the PWA and opt in to renewal alerts on each device. Tapping an alert opens the restaurant list, where the app loads the unread summary. Administrator sign-in lasts 30 days and the device registration expires with it.
+
+Two hosted services share the API process. `PushSender` waits for saved orders in the staff queue. `SubscriptionReminderWorker` checks renewals at API startup and every 30 minutes, even with the browser closed. Both use `WebPushDelivery`. The 60 seconds in the table above is how often the open page reads from the server.
+
+For example, if a period ends on 10 December, the first check on 3 December saves a due-soon notice. At the next check the period is still due soon, so the service attempts another insert. The unique index on period, end date and phase lets PostgreSQL return zero inserted rows through `ON CONFLICT DO NOTHING`. On 10 December the phase changes to expired and can produce another notice. The push batch counts only newly inserted rows and sends a summary per device. Unread notices stay in the app if push delivery fails.
 
 ### Other trade-offs
 
@@ -751,7 +758,7 @@ In the administrator area at `/platform`, install the PWA and opt in to renewal 
 - **Menu: the last change wins.** If the owner edits the same dish from two devices, the last save wins, without conflict warnings. It isn't serious, because what matters is checked by the order: the backend always rechecks prices, availability and options and, if something changed, answers `MENU_CHANGED` with the list of changes (for an option that is sold out or no longer valid the reason is `OPTIONS_CHANGED`).
 - **An error format of my own instead of ProblemDetails.** ASP.NET Core supports a standard error format (ProblemDetails, RFC 9457), but the frontend was already built around the `code` field. Generating everything from a single filter cost less than switching to the standard format, which for a public API would still be the more correct choice.
 - **Contact details are cleared only by a new order.** Online customers’ names, phones, addresses and restaurant-specific browser/IP digests older than 30 days are cleared by the next successful online submission at the same restaurant, without a scheduled background job. If a restaurant gets no further orders, the data remains. Browser/IP digests are already cleared when the restaurant accepts or rejects the request; only expired requests keep them until the 30-day cleanup. The privacy page describes this mechanism, including the 7 days of backups; whether to add scheduled cleanup is decided before launch. The current implementation does not guarantee automatic deletion on day 30.
-- **Subscriptions without history.** The initial design had a subscription events table, with the history of changes, notices to the owner and an ID for each operation against duplicates. I removed it when it became clear that `subscription_version` alone was enough to prevent two changes from consuming the same version. I lost the history, but for a first version it wasn't needed.
+- **The first version of subscriptions.** The initial design had a subscription events table, with the history of changes, notices to the owner and an ID for each operation against duplicates. I removed it when it became clear that `subscription_version` alone was enough to prevent two changes from consuming the same version. I lost the history, but for a first version it wasn't needed. With monthly billing I added stored notices and acknowledgments. `subscription_version` still protects agreement edits.
 
 ## Limits and what I would do differently
 

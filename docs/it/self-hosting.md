@@ -554,7 +554,7 @@ In sviluppo, dopo aver cambiato il modello, crei una migrazione con `dotnet ef m
 
 Il certificato lo gestisce Caddy da solo con il protocollo ACME (Let's Encrypt o ZeroSSL): lo ottiene al primo avvio e lo rinnova prima della scadenza, senza cron né comandi. Perché funzioni servono tre cose: il record `A` deve già puntare alla VPS, le porte 80 e 443 devono essere raggiungibili da internet e `ACME_EMAIL` deve essere un indirizzo vero.
 
-Il [`Caddyfile`](../../deploy/Caddyfile) serve solo il dominio di `DOMAIN`. Le richieste HTTP per qualsiasi altro nome, o direttamente all'IP, ricevono un 404 invece di un redirect: la VPS non finge di essere il sito di qualcun altro. Lo stesso file decide anche la cache: `/api` mai in cache, i file con l'hash nel nome in cache per un anno, `index.html`, `sw.js` e il manifest sempre da ricontrollare (`no-cache`).
+Il [`Caddyfile`](../../deploy/Caddyfile) serve solo il dominio di `DOMAIN`. Le richieste HTTP per qualsiasi altro nome, o direttamente all'IP, ricevono un 404 invece di un redirect: la VPS non finge di essere il sito di qualcun altro. Lo stesso file decide anche la cache: `/api` mai in cache, i file con l'hash nel nome in cache per un anno, `index.html`, i due service worker e i loro manifest sempre da ricontrollare (`no-cache`).
 
 #### Controlli
 
@@ -576,6 +576,8 @@ curl -I http://app.esempio.it                    # redirect a https
 curl -I https://app.esempio.it/staff/login       # 200, nessun errore di certificato
 curl -I https://app.esempio.it/sw.js             # JavaScript, Cache-Control: no-cache
 curl -I https://app.esempio.it/staff.webmanifest # application/manifest+json, no-cache
+curl -I https://app.esempio.it/platform-sw.js # JavaScript, Cache-Control: no-cache
+curl -I https://app.esempio.it/platform.webmanifest # application/manifest+json, no-cache
 curl -i https://app.esempio.it/api/auth/csrf     # JSON, Cache-Control: no-store
 ```
 
@@ -645,6 +647,10 @@ Controlla le pagine disponibili per il ruolo e i servizi. In Cucina prova suono 
 
 I clienti su `/q/...`, `/r/...` e `/o/...` e l'area amministratore non devono proporre l'installazione dello staff. I dettagli sono in [`pwa.md`](../reference/pwa.md).
 
+#### La PWA dell'amministratore
+
+Apri `/platform`, installa l'app e attiva «Notifiche a schermo bloccato» dall'elenco dei ristoranti. La registrazione del dispositivo scade con l'accesso di 30 giorni. Per la prova registra per un ristorante di test un nuovo periodo già scaduto e senza rinnovo pagato. Attendi il prossimo controllo, entro 30 minuti. Tocca la notifica per aprire l'elenco dei ristoranti con gli avvisi da leggere. Dopo «Ho capito», le scadenze ancora da gestire restano nell'elenco.
+
 ### 7. Attivare i backup, prima dei dati veri
 
 Fallo adesso, prima che il ristorante inserisca il menu vero. Anch'io avevo rimandato (vedi «Problemi incontrati»).
@@ -691,8 +697,6 @@ Per i rilasci di tutti i giorni segui la guida [Rilasciare con gli script](relea
 - la [procedura manuale](#procedura-manuale), per quando gli script non sono disponibili o per capire che cosa fanno.
 
 Qualunque strada scegli, conserva la configurazione esistente: non ricreare l’amministratore o `.env`. Se la nuova versione richiede variabili nuove, aggiungile prima di installarla, con i passaggi qui sotto. Quelle facoltative, come `GEOAPIFY_API_KEY`, si possono aggiungere anche dopo. Vale soprattutto per un server in uso da tempo a cui aggiungi Turnstile solo ora: la nuova versione attiva la verifica per impostazione predefinita in produzione, quindi l’installer rifiuta l’aggiornamento se nel vecchio `.env` mancano le chiavi.
-
-Nell’area amministratore `/platform` puoi installare la PWA e attivare gli avvisi di rinnovo su ogni dispositivo. Toccare un avviso apre l’elenco ristoranti con il riepilogo da confermare. L’accesso dura 30 giorni.
 
 #### Prima versione con le notifiche push
 

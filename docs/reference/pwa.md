@@ -123,7 +123,8 @@ Android screen pinning if staff want to restrict navigation. See [Kitchen and Pa
 Production [Caddy configuration](../../deploy/Caddyfile) and release scripts provide:
 
 - HTTPS on the business origin; ordinary LAN HTTP is not suitable for testing full PWA capabilities.
-- `Cache-Control: no-cache` on `/sw.js` and `/staff.webmanifest`, with JavaScript/manifest MIME types.
+- `Cache-Control: no-cache` on `/sw.js`, `/platform-sw.js`, `/staff.webmanifest` and
+  `/platform.webmanifest`, with JavaScript and manifest MIME types.
 - SPA fallback for business routes, including direct `/staff/*`, `/platform/*` and `/q/*` navigation.
 - Immutable caching for hashed assets. The shared asset pool keeps the hashed files of every release
   (nothing prunes it), allowing long-open tabs to load their original lazy chunks.
