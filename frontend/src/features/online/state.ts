@@ -363,6 +363,14 @@ export const DELIVERY_MINUTES = [30, 45, 60, 90] as const;
 
 // Optional reasons staff give for rejecting; OUT_OF_RANGE is for delivery only.
 export type RejectReason = "SOLD_OUT" | "BUSY" | "CLOSING" | "OUT_OF_RANGE";
+
+export const reservationCancelReasons = [
+  "SOLD_OUT",
+  "CANNOT_PREPARE_ON_TIME",
+  "CUSTOMER_REQUEST",
+] as const;
+export type ReservationCancelReason = (typeof reservationCancelReasons)[number];
+
 export const rejectReasons = (fulfillment: "PICKUP" | "DELIVERY"): RejectReason[] =>
   fulfillment === "DELIVERY"
     ? ["SOLD_OUT", "BUSY", "CLOSING", "OUT_OF_RANGE"]

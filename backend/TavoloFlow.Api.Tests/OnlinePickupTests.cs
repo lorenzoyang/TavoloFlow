@@ -169,7 +169,10 @@ public sealed class OnlinePickupTests(PostgreSqlFixture database) : IClassFixtur
         );
         var ticket = released.Items[1];
         var cancel = $"/api/staff/online/sessions/{active.SessionId}/cancel-reservation";
-        Assert.Equal(HttpStatusCode.Conflict, (await PostAsync(staff, cancel, new { })).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.Conflict,
+            (await PostAsync(staff, cancel, new { reason = "SOLD_OUT" })).StatusCode
+        );
         Assert.Equal(Saturday.UtcDateTime, ticket.CreatedAt);
         Assert.Equal(starts, ticket.QueuedAt);
         Assert.Equal(SundayPickup, ticket.Online!.RequestedPickupAt);
@@ -189,8 +192,12 @@ public sealed class OnlinePickupTests(PostgreSqlFixture database) : IClassFixtur
         );
     }
 
-    [Fact]
-    public async Task Reservation_OnlyAllowsFeasiblePreparation_AndCancellationVoidsIt()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("CANNOT_PREPARE_ON_TIME")]
+    public async Task Reservation_OnlyAllowsFeasiblePreparation_AndCancellationVoidsIt(
+        string? reason
+    )
     {
         using var host = new AccountTestHost(database);
         host.Clock.Set(Saturday.AddMinutes(30));
@@ -257,14 +264,28 @@ public sealed class OnlinePickupTests(PostgreSqlFixture database) : IClassFixtur
         Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
         var order = (await accepted.Content.ReadFromJsonAsync<OnlineActiveOrderResponse>())!;
         var cancel = $"/api/staff/online/sessions/{order.SessionId}/cancel-reservation";
-        Assert.Equal(
-            HttpStatusCode.NoContent,
-            (await PostAsync(staff, cancel, new { })).StatusCode
+        var statusPath = $"/api/public/online-orders/{submission.StatusToken}";
+        using var invalid = await PostAsync(staff, cancel, new { reason = "CLOSING" });
+        await AssertErrorAsync(invalid, HttpStatusCode.BadRequest, "VALIDATION_FAILED");
+        Assert.True(
+            (
+                await customer.GetFromJsonAsync<OnlineOrderStatusResponse>(statusPath)
+            )!.AwaitingPreparation
         );
+        object input = reason is null ? new { } : new { reason };
+        Assert.Equal(HttpStatusCode.NoContent, (await PostAsync(staff, cancel, input)).StatusCode);
         host.Clock.Set(new DateTimeOffset(pickup.AddMinutes(-20)));
+        using var legacy = new HttpRequestMessage(HttpMethod.Post, cancel);
+        legacy.Headers.Add("X-CSRF-TOKEN", await CsrfAsync(staff));
+        Assert.Equal(HttpStatusCode.NoContent, (await staff.SendAsync(legacy)).StatusCode);
         Assert.Equal(
             HttpStatusCode.NoContent,
-            (await PostAsync(staff, cancel, new { })).StatusCode
+            (await PostAsync(staff, cancel, new { reason = "CUSTOMER_REQUEST" })).StatusCode
+        );
+        var status = (await customer.GetFromJsonAsync<OnlineOrderStatusResponse>(statusPath))!;
+        Assert.Equal(
+            ("VOIDED", 0L, reason),
+            (status.CloseReason, status.TotalAmountCents, status.ReservationCancelReason)
         );
         var kitchen = await KitchenAsync(staff);
         Assert.Empty(kitchen.Items);

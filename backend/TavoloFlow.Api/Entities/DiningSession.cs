@@ -18,6 +18,13 @@ public enum SessionCloseReason
     NoShow,
 }
 
+public enum ReservationCancelReason
+{
+    SoldOut,
+    CannotPrepareOnTime,
+    CustomerRequest,
+}
+
 // A session is a dine-in visit at a table, or an accepted online order for pickup or delivery.
 // The channel is fixed when the session is created.
 public enum SessionChannel
@@ -45,6 +52,7 @@ public sealed class DiningSession
     public DateTime OpenedAt { get; set; }
     public DateTime? ClosedAt { get; set; }
     public SessionCloseReason? CloseReason { get; set; }
+    public ReservationCancelReason? ReservationCancelReason { get; set; }
     public long? ClosedTotalCents { get; set; }
 
     public Restaurant Restaurant { get; set; } = null!;

@@ -99,6 +99,11 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnName("opened_at")
                         .HasDefaultValueSql("now()");
 
+                    b.Property<string>("ReservationCancelReason")
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("reservation_cancel_reason");
+
                     b.Property<Guid>("RestaurantId")
                         .HasColumnType("uuid")
                         .HasColumnName("restaurant_id");
@@ -159,6 +164,8 @@ namespace TavoloFlow.Api.Data.Migrations
                             t.HasCheckConstraint("ck_session_lifecycle", "(status = 'ACTIVE' AND closed_at IS NULL AND close_reason IS NULL AND closed_total_cents IS NULL) OR (status = 'CLOSED' AND closed_at IS NOT NULL AND close_reason IS NOT NULL AND closed_total_cents IS NOT NULL AND join_code_ciphertext IS NULL)");
 
                             t.HasCheckConstraint("ck_session_online", "channel = 'DINE_IN' OR (table_id IS NULL AND table_label_snapshot IS NULL AND join_code_ciphertext IS NULL)");
+
+                            t.HasCheckConstraint("ck_session_reservation_cancel_reason", "reservation_cancel_reason IS NULL OR (channel = 'PICKUP' AND status = 'CLOSED' AND close_reason = 'VOIDED' AND reservation_cancel_reason IN ('SOLD_OUT', 'CANNOT_PREPARE_ON_TIME', 'CUSTOMER_REQUEST'))");
 
                             t.HasCheckConstraint("ck_session_status", "status IN ('ACTIVE', 'CLOSED')");
                         });

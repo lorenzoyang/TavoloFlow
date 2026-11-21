@@ -26,6 +26,7 @@ public sealed class OnlineOrderStatusService(ApplicationDbContext db, TimeProvid
             await db
                 .OnlineRequests.AsNoTracking()
                 .Include(r => r.Restaurant)
+                .Include(r => r.Session)
                 .SingleOrDefaultAsync(r => r.StatusToken == token, ct)
             ?? throw OnlineErrors.OrderNotFound();
         var now = clock.GetUtcNow().UtcDateTime;
@@ -104,7 +105,10 @@ public sealed class OnlineOrderStatusService(ApplicationDbContext db, TimeProvid
                     + (request.DeliveryFeeCents ?? 0),
             request.RequestedPickupAt,
             bill?.ClosedAt is null && bill?.Online?.KitchenStartsAt > now,
-            request.RequestedPickupAt <= now
+            request.RequestedPickupAt <= now,
+            request.Session?.ReservationCancelReason is { } cancelReason
+                ? ApiEnum.Text(cancelReason)
+                : null
         );
     }
 }

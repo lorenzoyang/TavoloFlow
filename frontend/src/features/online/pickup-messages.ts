@@ -1,4 +1,5 @@
 import type { Language } from "@/lib/language";
+import type { ReservationCancelReason } from "./state";
 
 const zh = {
   title: "预约自取",
@@ -51,6 +52,18 @@ const zh = {
   cancel: "取消预约",
   cancelHint: "预约将被取消，账单将以零元作废。请联系顾客告知结果。",
   cancelled: "预约已取消。",
+  cancelReason: "取消原因（选填）",
+  noCancelReason: "不填写",
+  cancelReasons: {
+    SOLD_OUT: "菜品售罄",
+    CANNOT_PREPARE_ON_TIME: "无法按时备餐",
+    CUSTOMER_REQUEST: "应顾客要求",
+  } satisfies Record<ReservationCancelReason, string>,
+  cancelledByRestaurant: "餐厅已取消预约",
+  originalPickupTime: (time: string) => `原定取餐时间 · ${time}`,
+  cancelReasonDetail: (reason: string) => `取消原因 · ${reason}`,
+  cancelledNotice: (canCall: boolean): string =>
+    canCall ? "此单无需付款。如有疑问，可致电餐厅。" : "此单无需付款。",
   recent: "近期预约",
   view: "查看预约",
   copy: "复制订单链接",
@@ -111,6 +124,20 @@ export const pickupMessages: Record<Language, typeof zh> = {
     cancel: "Annulla il ritiro",
     cancelHint: "Il ritiro e il conto verranno annullati. Avvisa il cliente.",
     cancelled: "Ritiro programmato annullato.",
+    cancelReason: "Motivo (facoltativo)",
+    noCancelReason: "Nessun motivo",
+    cancelReasons: {
+      SOLD_OUT: "Piatti esauriti",
+      CANNOT_PREPARE_ON_TIME: "Impossibile preparare in tempo",
+      CUSTOMER_REQUEST: "Su richiesta del cliente",
+    },
+    cancelledByRestaurant: "Il ristorante ha annullato il ritiro",
+    originalPickupTime: (time) => `Ritiro previsto · ${time}`,
+    cancelReasonDetail: (reason) => `Motivo · ${reason}`,
+    cancelledNotice: (canCall) =>
+      canCall
+        ? "Non devi pagare. Se hai domande, puoi chiamare il ristorante."
+        : "Non devi pagare.",
     recent: "Ritiri recenti",
     view: "Vedi ritiro",
     copy: "Copia il link",
@@ -168,6 +195,20 @@ export const pickupMessages: Record<Language, typeof zh> = {
     cancel: "Cancel reservation",
     cancelHint: "The reservation and its bill will be voided. Please let the customer know.",
     cancelled: "Reservation cancelled.",
+    cancelReason: "Reason (optional)",
+    noCancelReason: "No reason",
+    cancelReasons: {
+      SOLD_OUT: "Dishes sold out",
+      CANNOT_PREPARE_ON_TIME: "Unable to prepare in time",
+      CUSTOMER_REQUEST: "At the customer’s request",
+    },
+    cancelledByRestaurant: "The restaurant cancelled your pickup",
+    originalPickupTime: (time) => `Original pickup time · ${time}`,
+    cancelReasonDetail: (reason) => `Reason · ${reason}`,
+    cancelledNotice: (canCall) =>
+      canCall
+        ? "You don’t need to pay. Call the restaurant if you have any questions."
+        : "You don’t need to pay.",
     recent: "Recent pickups",
     view: "View pickup",
     copy: "Copy order link",

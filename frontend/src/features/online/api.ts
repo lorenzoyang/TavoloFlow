@@ -12,6 +12,7 @@ import type {
   OnlineCoupon,
   OnlineHour,
   RejectReason,
+  ReservationCancelReason,
 } from "./state";
 
 // The server's single "can customers order online now" rule (OnlineAvailability).
@@ -174,7 +175,16 @@ export const acceptOnlineRequest = (
     { estimatedMinutes, deliveryFeeCents, deliveryTierMaxMeters },
     signal,
   );
-export const cancelReservation = (sessionId: string, signal: AbortSignal) =>
-  write<void>(`/api/staff/online/sessions/${sessionId}/cancel-reservation`, "POST", {}, signal);
+export const cancelReservation = (
+  sessionId: string,
+  reason: ReservationCancelReason | null,
+  signal: AbortSignal,
+) =>
+  write<void>(
+    `/api/staff/online/sessions/${sessionId}/cancel-reservation`,
+    "POST",
+    { reason },
+    signal,
+  );
 export const rejectOnlineRequest = (id: string, reason: RejectReason | null, signal: AbortSignal) =>
   write<void>(`/api/staff/online/requests/${id}/reject`, "POST", { reason }, signal);

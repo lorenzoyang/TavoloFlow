@@ -228,7 +228,7 @@
 - **不保存待确认标记**（建议），与传菜屏的“已送达”同理：写入带条件，重复提交只会得到 409，待接单列表本身就能说明
   一次结果未知的写入是否成功。结果未知时刷新列表，请求还在就由员工再点一次。
 - 写入成功后，让待接单、进行中、厨房、传菜和账单的查询失效。
-- **取消预约**：员工确认后，服务器在单据锁内取消菜品并把账单以零元作废。到备餐时间后改走厨房和账单流程。
+- **取消预约。** 员工可选填一个原因。确认后，服务器在单据锁内取消菜品、把账单以零元作废并保存原因。顾客状态页显示餐厅已取消、原定取餐时间和已填写的原因，并说明无需付款。有公开电话时，顾客可用顶部按钮联系餐厅。到备餐时间后改走厨房和账单流程。
   取消结果未知时刷新列表，确认框保留反馈。
 
 ### 4.5 厨房与传菜
@@ -461,7 +461,7 @@
 | `GET /api/staff/online/active` | STAFF、OWNER | 进行中的线上单据，含预约取餐时间和 `kitchenStartsAt`、`awaitingPreparation` |
 | `POST /api/staff/online/requests/{id}/accept` | STAFF、OWNER | `{ estimatedMinutes, deliveryFeeCents?, deliveryTierMaxMeters? }` |
 | `POST /api/staff/online/requests/{id}/reject` | STAFF、OWNER | `{ reason? }` |
-| `POST /api/staff/online/sessions/{id}/cancel-reservation` | STAFF、OWNER | 备餐前取消已确认的预约，成功返回 204 |
+| `POST /api/staff/online/sessions/{id}/cancel-reservation` | STAFF、OWNER | `{ reason? }`，备餐前取消已确认的预约，成功返回 204 |
 | `PUT /api/staff/online/pause`、`DELETE` 同路径 | STAFF、OWNER | 暂停（`until` 为 `SLOT` 或 `TODAY`）、恢复 |
 | `GET /api/staff/sessions/active` | STAFF、OWNER | 账单页的全部 ACTIVE 单据 |
 | `PUT /api/owner/online/hours` | OWNER | 整周营业时间 |

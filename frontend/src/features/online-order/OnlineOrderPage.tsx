@@ -136,6 +136,11 @@ function OrderContent({
   // While the order is prepared, the estimated time is the one thing to remember: it stands alone.
   const pickup = pickupMessages[language];
   const reservationTime = order.requestedPickupAt;
+  const cancelledReservation = reservationTime !== null && order.closeReason === "VOIDED";
+  const appointmentTime = reservationTime && formatPickupDateTime(reservationTime, language);
+  const cancellationReason = order.reservationCancelReason
+    ? pickup.cancelReasons[order.reservationCancelReason]
+    : null;
   const estimate =
     !reservationTime && view === "preparing" && order.estimatedAt
       ? formatTime(order.estimatedAt, language)
@@ -143,7 +148,7 @@ function OrderContent({
   let reservationStatus: string | null = null;
   if (reservationTime && view === "preparing")
     reservationStatus = order.pickupTimeReached ? pickup.delayed : pickup.preparing;
-  if (reservationTime && order.closeReason === "VOIDED") reservationStatus = pickup.cancelled;
+  if (cancelledReservation) reservationStatus = pickup.cancelledByRestaurant;
 
   async function copyOrderLink() {
     try {
@@ -182,7 +187,13 @@ function OrderContent({
           <CardContent className="space-y-4">
             <h2 className="sr-only">{m.orderTitle}</h2>
             <div className="flex items-start justify-between gap-3">
-              <div role="status" className="min-w-0 flex-1 space-y-3">
+              <div
+                role="status"
+                aria-describedby={
+                  cancelledReservation ? "reservation-cancellation-details" : undefined
+                }
+                className="min-w-0 flex-1 space-y-3"
+              >
                 <p className="flex items-start gap-3 text-xl leading-snug font-semibold">
                   <span
                     aria-hidden="true"
@@ -199,9 +210,9 @@ function OrderContent({
                 </p>
                 {/* A short headline, then why, aligned with the headline's text. */}
                 {reason && <p className="pl-12 leading-6 text-muted-foreground">{reason}</p>}
-                {reservationTime && (
+                {appointmentTime && !cancelledReservation && (
                   <p className="font-display text-xl font-semibold tabular-nums">
-                    {pickup.appointment(formatPickupDateTime(reservationTime, language))}
+                    {pickup.appointment(appointmentTime)}
                   </p>
                 )}
                 {estimate && (
@@ -220,6 +231,15 @@ function OrderContent({
                 </p>
               </div>
             </div>
+            {cancelledReservation && appointmentTime && (
+              <div id="reservation-cancellation-details" className="space-y-1 text-sm leading-6">
+                <p className="text-muted-foreground tabular-nums">
+                  {pickup.originalPickupTime(appointmentTime)}
+                </p>
+                {cancellationReason && <p>{pickup.cancelReasonDetail(cancellationReason)}</p>}
+                <p className="text-muted-foreground">{pickup.cancelledNotice(!!phone)}</p>
+              </div>
+            )}
             {/* Outside the status region, so a step change is announced once, by the status text. */}
             {step !== null && <OrderProgress step={step} delivery={delivery} language={language} />}
             {view === "waiting" && (

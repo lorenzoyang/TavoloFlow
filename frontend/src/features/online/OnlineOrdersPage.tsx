@@ -7,6 +7,8 @@ import { Notice } from "@/components/notice";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
@@ -31,8 +33,10 @@ import {
   PICKUP_MINUTES,
   rejectReasons,
   requestTimes,
+  reservationCancelReasons,
   type DeliveryTier,
   type RejectReason,
+  type ReservationCancelReason,
 } from "./state";
 import { useOnlineOrders } from "./useOnlineOrders";
 
@@ -295,7 +299,7 @@ function PendingCard({
         </div>
         <Button
           variant="outline"
-          className="w-full text-destructive"
+          className="w-full text-destructive hover:text-destructive"
           disabled={disabled}
           onClick={() => onReject(request)}
         >
@@ -381,7 +385,7 @@ function ActiveCard({
       {order.awaitingPreparation && (
         <Button
           variant="outline"
-          className="text-destructive"
+          className="w-full text-destructive"
           disabled={disabled}
           onClick={onCancel}
         >
@@ -398,6 +402,7 @@ function OnlineOrdersContent({ account }: { account: CurrentAccount }) {
   const pickup = pickupMessages[language];
   const model = useOnlineOrders(account);
   const [cancelling, setCancelling] = useState<OnlineActiveOrder | null>(null);
+  const [cancelReason, setCancelReason] = useState<ReservationCancelReason | null>(null);
   const [rejecting, setRejecting] = useState<OnlinePendingRequest | null>(null);
   const [reason, setReason] = useState<RejectReason | null>(null);
   const page = model.pending.data;
@@ -485,6 +490,7 @@ function OnlineOrdersContent({ account }: { account: CurrentAccount }) {
               disabled={!model.activeFresh || !!model.busy}
               onCancel={() => {
                 model.clearNotice();
+                setCancelReason(null);
                 setCancelling(order);
               }}
             />
@@ -501,13 +507,36 @@ function OnlineOrdersContent({ account }: { account: CurrentAccount }) {
         busy={!!cancelling && model.busy === cancelling.sessionId}
         confirmDisabled={!model.activeFresh || model.active.isFetching || !!model.busy}
         onConfirm={async () => {
-          if (cancelling && (await model.cancelPickup(cancelling.sessionId))) setCancelling(null);
+          if (cancelling && (await model.cancelPickup(cancelling.sessionId, cancelReason)))
+            setCancelling(null);
         }}
         onCancel={() => {
           if (cancelNotice) model.clearNotice();
           setCancelling(null);
         }}
       >
+        {cancelAvailable && (
+          <div className="space-y-2">
+            <Label htmlFor="reservation-cancel-reason">{pickup.cancelReason}</Label>
+            <NativeSelect
+              id="reservation-cancel-reason"
+              className="w-full"
+              value={cancelReason ?? ""}
+              disabled={model.busy === cancelling?.sessionId}
+              onChange={(event) => {
+                const value = event.target.value as ReservationCancelReason | "";
+                setCancelReason(value || null);
+              }}
+            >
+              <NativeSelectOption value="">{pickup.noCancelReason}</NativeSelectOption>
+              {reservationCancelReasons.map((value) => (
+                <NativeSelectOption key={value} value={value}>
+                  {pickup.cancelReasons[value]}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+        )}
         {cancelNotice && <Notice tone={cancelNotice.tone}>{cancelNotice.text}</Notice>}
         {!cancelAvailable && !cancelNotice && (
           <Notice tone="warning">{pickup.cancelUnavailable}</Notice>

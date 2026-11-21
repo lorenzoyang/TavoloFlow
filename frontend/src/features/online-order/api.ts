@@ -4,7 +4,7 @@ import type { Language, Names } from "@/lib/language";
 import type { OptionSnapshot } from "@/lib/options";
 import type { RestaurantTheme } from "@/lib/theme";
 import type { OnlineStatus } from "@/features/online/api";
-import type { DeliveryTier } from "@/features/online/state";
+import type { DeliveryTier, ReservationCancelReason } from "@/features/online/state";
 import type { PublicMenu } from "@/features/public-menu/api";
 import type { OrderItemStatus } from "@/features/orders/api";
 import { orderEnded, type OnlineIntent } from "./state";
@@ -83,6 +83,7 @@ export type OnlineOrder = {
   expiresAt: string;
   phase: OnlinePhase;
   rejectReason: RejectReason | null;
+  reservationCancelReason: ReservationCancelReason | null;
   estimatedAt: string | null;
   requestedPickupAt: string | null;
   awaitingPreparation: boolean;

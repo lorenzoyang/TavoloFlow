@@ -23,6 +23,9 @@ public sealed record OnlineRejectInput(
     [RegularExpression("^(SOLD_OUT|BUSY|CLOSING|OUT_OF_RANGE)$")] string? Reason
 );
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record OnlineCancelReservationInput(string? Reason);
+
 // One request waiting for staff, with everything needed to decide: contact, address and the submitted lines.
 public sealed record OnlinePendingRequestResponse(
     Guid Id,

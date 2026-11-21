@@ -124,6 +124,7 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
     public Task<BillSummaryResponse> CancelReservationAsync(
         Guid restaurantId,
         Guid id,
+        ReservationCancelReason? reason,
         CancellationToken ct
     ) =>
         CloseAsync(
@@ -133,7 +134,8 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
             null,
             0,
             ct,
-            cancelReservation: true
+            cancelReservation: true,
+            reservationCancelReason: reason
         );
 
     // Online orders only, OWNER only (the controller), like PAID: positive receivable and no NEW dishes.
@@ -244,7 +246,8 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         int? version,
         long? amount,
         CancellationToken ct,
-        bool cancelReservation = false
+        bool cancelReservation = false,
+        ReservationCancelReason? reservationCancelReason = null
     )
     {
         if (
@@ -372,6 +375,7 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
                 u =>
                     u.SetProperty(s => s.Status, DiningSessionStatus.Closed)
                         .SetProperty(s => s.CloseReason, reason)
+                        .SetProperty(s => s.ReservationCancelReason, reservationCancelReason)
                         .SetProperty(s => s.ClosedAt, now)
                         .SetProperty(s => s.ClosedTotalCents, bill.TotalAmountCents)
                         .SetProperty(s => s.JoinCodeCiphertext, (string?)null),

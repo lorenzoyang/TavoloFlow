@@ -117,12 +117,20 @@ are removed. The status link remains valid for 24 hours after the order ends.
 ![Scheduled pickup at checkout and on the confirmed order status page](../images/scheduled-pickup-en.webp)
 
 Before kitchen release, STAFF or OWNER can cancel an accepted reservation through
-`POST /api/staff/online/sessions/{id}/cancel-reservation`. This cancels the lines and closes the bill
-as `VOIDED` at zero under the same session lock and transaction. Success or a repeat of that
-cancellation returns 204. At or after preparation time, a new cancellation returns
+`POST /api/staff/online/sessions/{id}/cancel-reservation` with an optional `{ reason }`. It accepts
+`SOLD_OUT`, `CANNOT_PREPARE_ON_TIME` and `CUSTOMER_REQUEST`. An empty body, `{}` and a null reason
+all mean that no reason was supplied. The write cancels the lines, closes the bill as `VOIDED` at
+zero and stores the reason under the same session lock and transaction. The first successful
+cancellation fixes the reason, and a repeat returns 204. At or after preparation time, a new cancellation returns
 `ONLINE_RESERVATION_CHANGED` (409). If the result is uncertain or refused, the confirmation stays
 open with feedback and the staff list refreshes. Work released to the kitchen follows the standard
 kitchen and bill operations.
+
+A cancelled reservation shows who cancelled it, the original pickup time, the reason if supplied
+and that no payment is due. If the restaurant has a public phone number, the status card says that
+customers can call with questions and the phone button appears in the shared header.
+
+![Staff cancellation confirmation and the cancelled reservation shown to the customer](../images/reservation-cancellation-en.webp)
 
 ## Delivery settings
 
@@ -552,7 +560,8 @@ unknown token). It returns `restaurant { id, name, slug, currencyCode, defaultLa
 `REJECTED` or `ACCEPTED`, from `OnlineRequestState`), `rejectReason`, `estimatedAt`, `sessionStatus` and
 `closeReason` once accepted, `items`, `coupon` (`{ code, percentOff, discountCents }` or null),
 `deliveryFeeCents` (a quoted fee before acceptance, the session's after), `totalAmountCents`,
-`requestedPickupAt`, `awaitingPreparation` and `pickupTimeReached`. Before
+`requestedPickupAt`, `awaitingPreparation`, `pickupTimeReached` and the nullable
+`reservationCancelReason`. Before
 acceptance the items are the submitted snapshot (`status` null) and the total is the submitted item
 total less the coupon's discount (`OnlineCoupons.DiscountCents`, rounded down) plus any quoted fee; after acceptance they are the order items with their status and the
 total is the session's bill amount (`SessionSummaries`, with the fee while any dish counts and the
@@ -780,7 +789,7 @@ transaction-scoped and release on commit or rollback.
 | `GET /api/staff/online/active`                | STAFF/OWNER | `{ items }`: accepted orders whose session is ACTIVE, oldest acceptance first     |
 | `POST /api/staff/online/requests/{id}/accept` | STAFF/OWNER | `{ estimatedMinutes, deliveryFeeCents, deliveryTierMaxMeters }` → the active order (see below) |
 | `POST /api/staff/online/requests/{id}/reject` | STAFF/OWNER | `{ reason }`: null, `SOLD_OUT`, `BUSY`, `CLOSING` (`OUT_OF_RANGE` delivery) → 204 |
-| `POST /api/staff/online/sessions/{id}/cancel-reservation` | STAFF/OWNER | Cancel an accepted reservation before preparation → 204 |
+| `POST /api/staff/online/sessions/{id}/cancel-reservation` | STAFF/OWNER | `{ reason? }` → 204 for cancellation before preparation |
 
 The pending list reads `OnlineRequestState.Waiting` with the time from `TimeProvider`; the cap and the
 ten-minute window keep it small, so it has no paging and no limit, and `now` is the server's clock for
@@ -871,8 +880,9 @@ amount to collect (with the delivery fee it includes, while it counts, and a "co
 phone, delivery address, the same call and map buttons (a plain search)
 and progress (cooking, ready or all cancelled): the only place STAFF see an accepted customer's
 phone and address, and what a rider collects, since the kitchen and pass never show them and STAFF have
-no bills page. Before preparation, a reservation shows its kitchen start time and offers cancellation
-with confirmation. These reservations appear after other active orders, in pickup-time order.
+no bills page. Before preparation, a reservation shows its kitchen start time. The card offers a
+full-width cancel button below the call button and the confirmation asks for an optional reason.
+These reservations appear after other active orders, in pickup-time order.
 
 ### Kitchen, pass, bills and history
 

@@ -178,5 +178,6 @@ public sealed record OnlineOrderStatusResponse(
     long TotalAmountCents,
     DateTime? RequestedPickupAt,
     bool AwaitingPreparation,
-    bool PickupTimeReached
+    bool PickupTimeReached,
+    string? ReservationCancelReason
 );

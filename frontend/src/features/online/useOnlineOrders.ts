@@ -19,7 +19,7 @@ import {
 } from "./api";
 import { pickupMessages } from "./pickup-messages";
 import { onlineOrdersMessages } from "./messages";
-import type { RejectReason } from "./state";
+import type { RejectReason, ReservationCancelReason } from "./state";
 
 type OrdersNotice = { tone: "success" | "warning" | "error"; text: string; requestId?: string };
 
@@ -181,11 +181,11 @@ export function useOnlineOrders(account: CurrentAccount) {
         await rejectOnlineRequest(request.id, reason, signal);
         return m.rejected(request.number);
       }),
-    cancelPickup: (sessionId: string) =>
+    cancelPickup: (sessionId: string, reason: ReservationCancelReason | null) =>
       decide(
         sessionId,
         async (signal) => {
-          await cancelReservation(sessionId, signal);
+          await cancelReservation(sessionId, reason, signal);
           return pickup.cancelled;
         },
         {

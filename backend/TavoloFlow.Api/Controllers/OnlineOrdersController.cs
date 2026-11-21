@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Billing;
+using TavoloFlow.Api.Common;
+using TavoloFlow.Api.Entities;
 using TavoloFlow.Api.Online;
 
 namespace TavoloFlow.Api.Controllers;
@@ -33,9 +36,24 @@ public sealed class OnlineOrdersController(
     ) => Ok(await service.AcceptAsync(RestaurantId, id, input, ct));
 
     [HttpPost("api/staff/online/sessions/{id:guid}/cancel-reservation")]
-    public async Task<IActionResult> CancelReservation(Guid id, CancellationToken ct)
+    public async Task<IActionResult> CancelReservation(
+        Guid id,
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] OnlineCancelReservationInput? input,
+        CancellationToken ct
+    )
     {
-        await billing.CancelReservationAsync(RestaurantId, id, ct);
+        ReservationCancelReason? reason = null;
+        if (input?.Reason is { } text)
+        {
+            if (!ApiEnum.TryParse(text, out ReservationCancelReason parsed))
+                throw ApiException.Validation(
+                    "Choose a listed reason.",
+                    "reason",
+                    "Invalid reason."
+                );
+            reason = parsed;
+        }
+        await billing.CancelReservationAsync(RestaurantId, id, reason, ct);
         return NoContent();
     }
 

@@ -36,6 +36,12 @@ internal sealed class DiningSessionConfiguration : IEntityTypeConfiguration<Dini
                         + "(close_reason = 'NO_SHOW' AND channel <> 'DINE_IN')"
                 );
                 table.HasCheckConstraint(
+                    "ck_session_reservation_cancel_reason",
+                    "reservation_cancel_reason IS NULL OR (channel = 'PICKUP' AND status = 'CLOSED' "
+                        + "AND close_reason = 'VOIDED' AND reservation_cancel_reason IN "
+                        + "('SOLD_OUT', 'CANNOT_PREPARE_ON_TIME', 'CUSTOMER_REQUEST'))"
+                );
+                table.HasCheckConstraint(
                     "ck_session_delivery_fee",
                     "(channel = 'DELIVERY' AND delivery_fee_cents IS NOT NULL AND delivery_fee_cents >= 0) OR "
                         + "(channel <> 'DELIVERY' AND delivery_fee_cents IS NULL)"
@@ -120,6 +126,12 @@ internal sealed class DiningSessionConfiguration : IEntityTypeConfiguration<Dini
             .HasColumnName("close_reason")
             .HasMaxLength(10)
             .HasConversion<UppercaseEnumConverter<SessionCloseReason>>();
+
+        builder
+            .Property(session => session.ReservationCancelReason)
+            .HasColumnName("reservation_cancel_reason")
+            .HasMaxLength(24)
+            .HasConversion<UppercaseEnumConverter<ReservationCancelReason>>();
 
         builder.Property(session => session.ClosedTotalCents).HasColumnName("closed_total_cents");
 
