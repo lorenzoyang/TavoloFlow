@@ -22,6 +22,7 @@ export type OnlineSettings = {
   slug: string | null;
   publicPhone: string | null;
   hours: OnlineHour[];
+  pickupMinNoticeMinutes: number | null;
   // Null once the pause has lapsed.
   pausedUntil: string | null;
   status: OnlineStatus;
@@ -52,6 +53,8 @@ export const resumeOnline = (signal?: AbortSignal) =>
   write<OnlineSettings>("/api/staff/online/pause", "DELETE", undefined, signal);
 export const saveOnlineHours = (slots: OnlineHour[], signal?: AbortSignal) =>
   write<OnlineSettings>("/api/owner/online/hours", "PUT", { slots }, signal);
+export const savePickup = (minNoticeMinutes: number | null, signal?: AbortSignal) =>
+  write<OnlineSettings>("/api/owner/online/pickup", "PUT", { minNoticeMinutes }, signal);
 export const savePublicPhone = (publicPhone: string | null, signal?: AbortSignal) =>
   write<OnlineSettings>("/api/owner/online/phone", "PATCH", { publicPhone }, signal);
 export const saveDelivery = (input: DeliveryInput, signal?: AbortSignal) =>
@@ -84,6 +87,8 @@ export type OnlinePendingRequest = {
   // whoever accepts picks the band.
   deliveryFeeCents: number | null;
   deliveryDistanceMeters: number | null;
+  requestedPickupAt: string | null;
+  availablePreparationMinutes: number[] | null;
 };
 // Set while a delivery request waits: whoever accepts picks one of the restaurant's current fee bands,
 // judging the distance on the route drawn from its coordinates.
@@ -109,6 +114,9 @@ export type OnlineActiveOrder = {
   deliveryAddress: string | null;
   deliveryNotes: string | null;
   acceptedAt: string;
+  requestedPickupAt: string | null;
+  kitchenStartsAt: string | null;
+  awaitingPreparation: boolean;
   estimatedAt: string;
   itemCount: number;
   newItemCount: number;
@@ -156,5 +164,7 @@ export const acceptOnlineRequest = (
     { estimatedMinutes, deliveryFeeCents, deliveryTierMaxMeters },
     signal,
   );
+export const cancelReservation = (sessionId: string, signal: AbortSignal) =>
+  write<void>(`/api/staff/online/sessions/${sessionId}/cancel-reservation`, "POST", {}, signal);
 export const rejectOnlineRequest = (id: string, reason: RejectReason | null, signal: AbortSignal) =>
   write<void>(`/api/staff/online/requests/${id}/reject`, "POST", { reason }, signal);

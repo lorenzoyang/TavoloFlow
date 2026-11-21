@@ -13,7 +13,7 @@ namespace TavoloFlow.Api.Online;
 public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clock)
 {
     // The fixed estimated-time choices: ready to collect, or delivered.
-    public static readonly int[] PickupMinutes = [10, 20, 30, 45];
+    public static readonly int[] PickupMinutes = OnlinePickup.PreparationChoices;
     public static readonly int[] DeliveryMinutes = [30, 45, 60, 90];
 
     // Oldest first. The waiting cap and the ten-minute window keep this small, so it has no paging and no
@@ -42,7 +42,32 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
                 await OnlineDelivery.TiersAsync(db, restaurantId, ct)
             );
         }
-        return new(rows.Select(OnlinePendingRequestResponse.From).ToArray(), now, delivery);
+        OnlineSlot[] hours = [];
+        TimeZoneInfo? zone = null;
+        if (rows.Any(r => r.RequestedPickupAt is not null))
+        {
+            var timeZone = await db
+                .Restaurants.Where(r => r.Id == restaurantId)
+                .Select(r => r.TimeZone)
+                .SingleAsync(ct);
+            zone = TimeZoneInfo.FindSystemTimeZoneById(timeZone);
+            hours = await OnlineAvailability.HoursAsync(db, restaurantId, ct);
+        }
+        var items = rows.Select(r =>
+                OnlinePendingRequestResponse.From(
+                    r,
+                    r.RequestedPickupAt is { } pickup
+                        ? PickupMinutes
+                            .Where(minutes =>
+                                OnlinePickup.PreparationStart(hours, zone!, pickup, minutes, now)
+                                    is not null
+                            )
+                            .ToArray()
+                        : null
+                )
+            )
+            .ToArray();
+        return new(items, now, delivery);
     }
 
     // Accepted online orders until their session closes, oldest acceptance first. Reads only ACTIVE sessions
@@ -84,6 +109,16 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
                 "estimatedMinutes",
                 "Invalid time."
             );
+        DateTime? kitchenStartsAt = null;
+        if (request.RequestedPickupAt is { } pickup)
+        {
+            var hours = await OnlineAvailability.HoursAsync(db, restaurantId, ct);
+            var zone = TimeZoneInfo.FindSystemTimeZoneById(restaurant.TimeZone);
+            kitchenStartsAt =
+                OnlinePickup.PreparationStart(hours, zone, pickup, minutes, now)
+                ?? throw OnlineErrors.PickupPrepTimeUnavailable();
+        }
+        var estimatedAt = request.RequestedPickupAt ?? now.AddMinutes(minutes);
         var fee = await DeliveryFeeAsync(request, input, ct);
 
         var dishIds = request.Lines.Select(line => line.MenuItemId).Distinct().ToArray();
@@ -101,7 +136,7 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
             DeliveryFeeCents = fee,
             OpenedAt = now,
         };
-        // Created now, not at submission: the kitchen sorts, groups and chimes by when work arrives.
+        // Creation records acceptance. The kitchen uses a separate entry time for reservations.
         var order = new Order
         {
             Id = Guid.CreateVersion7(),
@@ -111,6 +146,7 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
             TotalAmountCents = request.ItemsTotalCents,
             DefaultLanguageSnapshot = request.DefaultLanguageSnapshot,
             CreatedAt = now,
+            KitchenStartsAt = kitchenStartsAt,
         };
         foreach (var line in request.Lines)
             order.Items.Add(line.ToOrderItem(restaurantId, existing.Contains(line.MenuItemId)));
@@ -129,7 +165,7 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
             .ExecuteUpdateAsync(
                 u =>
                     u.SetProperty(r => r.AcceptedAt, now)
-                        .SetProperty(r => r.EstimatedAt, now.AddMinutes(minutes))
+                        .SetProperty(r => r.EstimatedAt, estimatedAt)
                         .SetProperty(r => r.SessionId, session.Id)
                         .SetProperty(r => r.BrowserKey, (string?)null)
                         .SetProperty(r => r.IpKey, (string?)null),
@@ -264,6 +300,6 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
                 )
                 .ToArrayAsync(ct)
         )
-            .Select(OnlineActiveOrderResponse.From)
+            .Select(bill => OnlineActiveOrderResponse.From(bill, clock.GetUtcNow().UtcDateTime))
             .ToArray();
 }

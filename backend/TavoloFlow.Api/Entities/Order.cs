@@ -17,6 +17,8 @@ public sealed class Order
     public long TotalAmountCents { get; set; }
     public required string DefaultLanguageSnapshot { get; set; }
     public DateTime CreatedAt { get; set; }
+    public DateTime? KitchenStartsAt { get; set; }
+    public DateTime KitchenQueueAt { get; private set; }
     public DateTime? ProcessedAt { get; set; }
 
     public Restaurant Restaurant { get; set; } = null!;

@@ -46,6 +46,10 @@ internal sealed class RestaurantConfiguration : IEntityTypeConfiguration<Restaur
                     "ck_restaurant_online_slug",
                     "NOT online_enabled OR slug IS NOT NULL"
                 );
+                table.HasCheckConstraint(
+                    "ck_restaurant_pickup_notice",
+                    "pickup_min_notice_minutes IN (30, 45, 60, 90, 120)"
+                );
                 // InputRules.NormalizePhone stores only an optional + and 6-15 digits.
                 table.HasCheckConstraint(
                     "ck_restaurant_public_phone",
@@ -144,6 +148,10 @@ internal sealed class RestaurantConfiguration : IEntityTypeConfiguration<Restaur
             .HasColumnName("online_enabled")
             .HasDefaultValue(false)
             .ValueGeneratedNever();
+
+        builder
+            .Property(restaurant => restaurant.PickupMinNoticeMinutes)
+            .HasColumnName("pickup_min_notice_minutes");
 
         builder
             .Property(restaurant => restaurant.Slug)

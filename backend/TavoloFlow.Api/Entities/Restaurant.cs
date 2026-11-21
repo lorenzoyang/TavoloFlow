@@ -31,6 +31,7 @@ public sealed class Restaurant
     // The platform turns each service on per restaurant; at least one stays on.
     public bool DineInEnabled { get; set; } = true;
     public bool OnlineEnabled { get; set; }
+    public int? PickupMinNoticeMinutes { get; set; }
 
     // The readable online ordering link /r/{slug}; required while online ordering is on.
     public string? Slug { get; set; }

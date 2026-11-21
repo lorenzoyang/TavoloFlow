@@ -9,6 +9,7 @@ import type { OrderStatus } from "./state";
 export type KitchenOrder = Order &
   SessionNaming & {
     processedAt: string | null;
+    queuedAt?: string;
     isStaffPlaced?: boolean;
   };
 export type KitchenPage = {
@@ -16,7 +17,8 @@ export type KitchenPage = {
   nextCursor: string | null;
   totalCount: number;
   pendingCount: number;
-  latestCreatedAt: string | null;
+  latestQueuedAt: string | null;
+  latestCreatedAt?: string | null;
   receivedAt: number;
 };
 export const kitchenKey = (account: AccountScope) => storeKey("kitchen", account);

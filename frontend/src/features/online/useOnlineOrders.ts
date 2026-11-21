@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { isSameAccount } from "@/features/accounts/queries";
 import { ApiError, errorMessage, withTimeout } from "@/lib/api";
-import { formatTime } from "@/lib/format";
+import { formatPickupDateTime, formatTime } from "@/lib/format";
 import { syncIsFresh, syncIsStalled } from "@/lib/live-view";
 import { invalidateStoreViews } from "@/lib/store-views";
 import { onLifecycleChange, useLiveView } from "@/lib/useLiveView";
@@ -11,11 +11,13 @@ import { useOperations } from "@/lib/useOperations";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import {
   acceptOnlineRequest,
+  cancelReservation,
   onlineActiveQuery,
   onlinePendingQuery,
   rejectOnlineRequest,
   type OnlinePendingRequest,
 } from "./api";
+import { pickupMessages } from "./pickup-messages";
 import { onlineOrdersMessages } from "./messages";
 import type { RejectReason } from "./state";
 
@@ -44,6 +46,13 @@ export function useOnlineOrders(account: CurrentAccount) {
     view.resumeAfter,
     view.active,
     pending.isError,
+  );
+  const activeFresh = syncIsFresh(
+    active.dataUpdatedAt,
+    view.now,
+    view.resumeAfter,
+    view.active,
+    active.isError,
   );
   const stalled = syncIsStalled(
     fresh,
@@ -80,14 +89,15 @@ export function useOnlineOrders(account: CurrentAccount) {
   );
 
   async function decide(
-    request: OnlinePendingRequest,
+    id: string,
     send: (signal: AbortSignal) => Promise<string>,
+    canSend = fresh,
   ) {
-    if (!fresh || busy || !isSameAccount(client, account)) return false;
-    const op = ops.start(request.id);
+    if (!canSend || busy || !isSameAccount(client, account)) return false;
+    const op = ops.start(id);
     if (!op) return false;
     const current = () => op.isCurrent() && isSameAccount(client, account);
-    setBusy(request.id);
+    setBusy(id);
     setNotice(null);
     let done = false;
     try {
@@ -99,11 +109,14 @@ export function useOnlineOrders(account: CurrentAccount) {
       if (!current()) return false;
       if (e instanceof ApiError && e.code === "ONLINE_REQUEST_CHANGED")
         setNotice({ tone: "warning", text: m.changed });
-      else if (e instanceof ApiError && e.code === "DELIVERY_FEE_CHANGED")
+      else if (
+        e instanceof ApiError &&
+        (e.code === "DELIVERY_FEE_CHANGED" || e.code === "ONLINE_PICKUP_PREP_TIME_UNAVAILABLE")
+      )
         setNotice({
           tone: "warning",
           text: errorMessage(e, undefined, language),
-          requestId: request.id,
+          requestId: id,
         });
       else if (e instanceof ApiError && e.status < 500)
         setNotice({ tone: "error", text: errorMessage(e, undefined, language) });
@@ -121,6 +134,7 @@ export function useOnlineOrders(account: CurrentAccount) {
     pending,
     active,
     fresh,
+    activeFresh,
     stalled,
     busy,
     notice,
@@ -131,17 +145,28 @@ export function useOnlineOrders(account: CurrentAccount) {
       fee: number | null,
       maxMeters: number | null,
     ) =>
-      decide(request, async (signal) => {
+      decide(request.id, async (signal) => {
         const order = await acceptOnlineRequest(request.id, minutes, fee, maxMeters, signal);
+        if (order.requestedPickupAt)
+          return `#${order.number} · ${pickupMessages[language].awaiting} · ${formatPickupDateTime(order.requestedPickupAt, language)}`;
         const time = formatTime(order.estimatedAt, language);
         return order.channel === "DELIVERY"
           ? m.acceptedDelivery(order.number, time)
           : m.accepted(order.number, time);
       }),
     reject: (request: OnlinePendingRequest, reason: RejectReason | null) =>
-      decide(request, async (signal) => {
+      decide(request.id, async (signal) => {
         await rejectOnlineRequest(request.id, reason, signal);
         return m.rejected(request.number);
       }),
+    cancelPickup: (sessionId: string) =>
+      decide(
+        sessionId,
+        async (signal) => {
+          await cancelReservation(sessionId, signal);
+          return pickupMessages[language].cancelled;
+        },
+        activeFresh,
+      ),
   };
 }

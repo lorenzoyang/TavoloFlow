@@ -23,6 +23,8 @@ import {
   orderTokenKey,
   orderView,
   readOrderToken,
+  readReservations,
+  rememberOnlineOrder,
   restoreOnlineCart,
   saveOrderToken,
   statusCopy,
@@ -304,6 +306,7 @@ test("an understood rejection frees the cart; after an unknown result only one t
     "COUPON_INVALID",
     "DELIVERY_MIN_ORDER",
     "DELIVERY_QUOTE_INVALID",
+    "ONLINE_PICKUP_SLOT_CHANGED",
     "ONLINE_LINK_NOT_FOUND",
     "CSRF_VALIDATION_FAILED",
     "RATE_LIMITED",
@@ -459,6 +462,7 @@ test("only an order going ahead shows its progress", () => {
   const expected: Record<OrderView, number | null> = {
     waiting: 0,
     preparing: 1,
+    scheduled: 1,
     ready: 2,
     collected: 3,
     expired: null,
@@ -711,4 +715,52 @@ test("checkout reprices the matching band after a coupon and freezes the fee act
   const restored = restoreOnlineCart(JSON.stringify({ ...cart, pending }), restaurant);
   assert.equal(onlineCartAmounts(restored, cart, withCoupon, tiers[2]).deliveryFeeCents, 0);
   assert.equal(submissionFailure(409, "DELIVERY_FEE_CHANGED", true), "editable");
+});
+
+test("scheduled pickup travels with the original frozen submission", () => {
+  const cart = filled();
+  const pickupTime = "2026-11-22T11:00:00Z";
+  const pending = createOnlineIntent(cart, { ...form, pickupTime }, requestId);
+  assert.equal(pending.requestedPickupAt, pickupTime);
+  assert.deepEqual(
+    restoreOnlineCart(JSON.stringify({ ...cart, pending }), restaurant).pending,
+    pending,
+  );
+  throwsIssue(() => createOnlineIntent(cart, { ...delivery, pickupTime }, requestId), "limits");
+});
+
+test("a reservation stays findable after an immediate order is placed", () => {
+  const values = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => void values.set(key, value),
+  };
+  const first = {
+    statusToken: "a".repeat(43),
+    number: 1,
+    expiresAt: "2026-11-21T11:10:00Z",
+    requestedPickupAt: "2026-11-22T11:00:00Z",
+  };
+  rememberOnlineOrder(restaurant, first, storage);
+  rememberOnlineOrder(
+    restaurant,
+    { ...first, requestedPickupAt: undefined, statusToken: "b".repeat(43) },
+    storage,
+  );
+  rememberOnlineOrder(restaurant, first, storage);
+  assert.deepEqual(readReservations(restaurant, storage), [first]);
+  assert.equal(readOrderToken(restaurant, storage), "b".repeat(43));
+  assert.deepEqual(readReservations("another restaurant", storage), []);
+});
+
+test("a confirmed reservation shows its appointment until the kitchen release", () => {
+  const booked = { ...order({}), awaitingPreparation: true };
+  assert.equal(orderView(booked), "scheduled");
+  assert.equal(statusCopy(booked), "scheduled");
+  assert.equal(orderEnded(booked), false);
+  assert.equal(orderView({ ...booked, awaitingPreparation: false }), "preparing");
+  assert.equal(
+    orderView({ ...booked, items: [line("READY")], awaitingPreparation: false }),
+    "ready",
+  );
 });

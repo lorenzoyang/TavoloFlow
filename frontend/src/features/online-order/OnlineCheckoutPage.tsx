@@ -4,9 +4,11 @@ import { ArrowLeft, Bike, ShoppingBag } from "lucide-react";
 import { Notice } from "@/components/notice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { pickupMessages } from "@/features/online/pickup-messages";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { formatKm, formatMoney } from "@/lib/format";
+import { formatKm, formatMoney, formatPickupDateTime } from "@/lib/format";
 import type { Language } from "@/lib/language";
 import { cn } from "@/lib/utils";
 import { CartLines } from "@/features/orders/OrderViews";
@@ -58,6 +60,7 @@ function OnlineCheckout({
   leave,
 }: OnlineCheckoutContextValue) {
   const m = onlineOrderMessages[language];
+  const pickupCopy = pickupMessages[language];
   const phone = data.restaurant.publicPhone;
   const callAction = phone ? <PhoneLink phone={phone} language={language} /> : undefined;
   // In the form the footer says a check is running, and the widget shows its tick, so the challenge
@@ -93,6 +96,8 @@ function OnlineCheckout({
   const lines = model.review?.lines ?? model.cart.lines;
   const form = model.form;
   const delivery = form.fulfillment === "DELIVERY";
+  const pickupTimes = data.pickupTimes ?? [];
+  const stalePickup = !!form.pickupTime && !pickupTimes.includes(form.pickupTime);
   // A choice of delivery stays visible if delivery is turned off meanwhile; the server then refuses it.
   const offersDelivery = data.restaurant.deliveryEnabled || delivery;
   const fee: FeeStatus = delivery ? model.feeStatus : "manual";
@@ -110,12 +115,13 @@ function OnlineCheckout({
     settling: model.settling,
     verifying: verification.verifying,
   });
-  const choose = (fulfillment: Fulfillment) => model.setForm({ ...form, fulfillment });
+  const choose = (fulfillment: Fulfillment) => model.editPickupTime(undefined, fulfillment);
 
   // The footer's button takes the next step: a delivery not yet priced asks for its fee (only the
   // address has to be valid for that), then the same button places the order. A field to fix comes
   // to the middle of the screen, clear of the sticky footer, and takes the focus.
   function next() {
+    if (stalePickup) return;
     if (needsLookup) {
       if (problems.includes("address")) {
         setTried((value) => value ?? "lookup");
@@ -306,6 +312,38 @@ function OnlineCheckout({
                 </RadioGroup>
               </div>
             )}
+            {!delivery && (data.pickupTimes != null || form.pickupTime) && (
+              <div className="space-y-2">
+                <Label htmlFor="online-pickup-time">{pickupCopy.pickupTime}</Label>
+                <NativeSelect
+                  id="online-pickup-time"
+                  className="w-full"
+                  value={form.pickupTime ?? ""}
+                  disabled={model.busy}
+                  aria-invalid={stalePickup}
+                  onChange={(event) => model.editPickupTime(event.target.value || undefined)}
+                >
+                  <NativeSelectOption value="">{pickupCopy.asap}</NativeSelectOption>
+                  {stalePickup && form.pickupTime && (
+                    <NativeSelectOption value={form.pickupTime} disabled>
+                      {formatPickupDateTime(form.pickupTime, language)}
+                    </NativeSelectOption>
+                  )}
+                  {pickupTimes.map((time) => (
+                    <NativeSelectOption key={time} value={time}>
+                      {formatPickupDateTime(time, language)}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+                {stalePickup ? (
+                  <Notice tone="error">{pickupCopy.chooseAgain}</Notice>
+                ) : (
+                  pickupTimes.length === 0 && (
+                    <p className="text-sm text-muted-foreground">{pickupCopy.unavailable}</p>
+                  )
+                )}
+              </div>
+            )}
             {delivery && (
               <>
                 <div className="space-y-2">
@@ -482,7 +520,7 @@ function OnlineCheckout({
               </Button>
             )}
             <p className="text-sm leading-6 text-muted-foreground">
-              {delivery ? m.asapDelivery : m.asap}
+              {delivery ? m.asapDelivery : form.pickupTime ? pickupCopy.confirmationHint : m.asap}
             </p>
             <p className="text-xs leading-5 wrap-break-word text-muted-foreground">
               {(delivery ? m.privacyLineDelivery : m.privacyLine)(data.restaurant.name)}{" "}
@@ -512,7 +550,7 @@ function OnlineCheckout({
             <Button
               size="lg"
               className="w-full"
-              disabled={model.busy || !!model.blocked || block !== null}
+              disabled={model.busy || !!model.blocked || block !== null || stalePickup}
               onClick={next}
             >
               {model.busy ? m.working : needsLookup ? m.lookupFee : m.placeOrder}

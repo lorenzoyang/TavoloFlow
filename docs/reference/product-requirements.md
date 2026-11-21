@@ -35,8 +35,9 @@ Their language is a shared device preference; guests choose separately for each 
 The platform creates a suspended restaurant with ordering off and both store accounts atomically,
 choosing its services: QR dine-in, online ordering or both, with a readable online link
 when online ordering is on. Restaurants without dine-in have no floor or tables. Online ordering covers
-pickup and restaurant-run delivery, paid on collection or delivery; staff accept each order first,
-and staff devices can turn on lock-screen notifications of new orders
+immediate or scheduled pickup and restaurant-run delivery, paid on collection or delivery. Staff
+accept each order first. Scheduled pickup enters the kitchen at the preparation time selected by
+staff. Staff devices can turn on lock-screen notifications of new orders
 (see [online ordering](online-ordering.md)).
 Temporary passwords are shown only in the successful response.
 The owner changes the initial password, prepares menu/allergens and creates tables with fixed QR codes.

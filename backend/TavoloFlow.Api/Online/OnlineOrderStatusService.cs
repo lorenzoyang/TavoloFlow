@@ -101,7 +101,10 @@ public sealed class OnlineOrderStatusService(ApplicationDbContext db, TimeProvid
             bill?.TotalAmountCents
                 ?? request.ItemsTotalCents
                     - (coupon?.DiscountCents ?? 0)
-                    + (request.DeliveryFeeCents ?? 0)
+                    + (request.DeliveryFeeCents ?? 0),
+            request.RequestedPickupAt,
+            bill?.ClosedAt is null && bill?.Online?.KitchenStartsAt > now,
+            request.RequestedPickupAt <= now
         );
     }
 }

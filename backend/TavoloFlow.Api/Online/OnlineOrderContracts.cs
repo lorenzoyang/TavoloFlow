@@ -32,7 +32,8 @@ public sealed record OnlineMenuResponse(
     string Status,
     DateTime? NextOpensAt,
     PublicMenuContent Menu,
-    TurnstilePublicConfiguration? Turnstile
+    TurnstilePublicConfiguration? Turnstile,
+    DateTime[]? PickupTimes
 );
 
 public sealed record TurnstilePublicConfiguration(string SiteKey);
@@ -51,7 +52,8 @@ public sealed record OnlineRequestInput(
     OrderLineInput?[]? Items,
     OnlineRequestCouponInput? Coupon,
     OnlineRequestDeliveryQuoteInput? DeliveryQuote,
-    string? TurnstileToken = null
+    string? TurnstileToken = null,
+    DateTimeOffset? RequestedPickupAt = null
 );
 
 // The signed road distance for this address and the final fee shown at checkout, which submission
@@ -101,7 +103,11 @@ public sealed record CouponDiscountResponse(string Code, int PercentOff, long Di
 }
 
 // The first submission and every repeat of it return the same values.
-public sealed record OnlineSubmissionResponse(string StatusToken, int Number, DateTime ExpiresAt);
+public sealed record OnlineSubmissionResponse(string StatusToken, int Number, DateTime ExpiresAt)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTime? RequestedPickupAt { get; init; }
+}
 
 public sealed record OnlineOrderingContextResponse(OnlineSubmissionResponse? Pending);
 
@@ -168,5 +174,8 @@ public sealed record OnlineOrderStatusResponse(
     OnlineOrderLineResponse[] Items,
     CouponDiscountResponse? Coupon,
     long? DeliveryFeeCents,
-    long TotalAmountCents
+    long TotalAmountCents,
+    DateTime? RequestedPickupAt,
+    bool AwaitingPreparation,
+    bool PickupTimeReached
 );

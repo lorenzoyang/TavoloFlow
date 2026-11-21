@@ -36,7 +36,11 @@ export function useKitchenChime({
     const previous = baseline.current && baseline.current.at >= resumedAt ? baseline.current : null;
     // A cached tab's older head, or another loaded page, is not a new poll.
     if (previous && head.receivedAt <= previous.at) return;
-    const result = watermarkAdvanced(previous, head.latestCreatedAt, head.receivedAt);
+    const result = watermarkAdvanced(
+      previous,
+      head.latestQueuedAt ?? head.latestCreatedAt ?? null,
+      head.receivedAt,
+    );
     baseline.current = result.baseline;
 
     const previousLines =

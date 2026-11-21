@@ -15,6 +15,9 @@ public sealed record OnlineHourInput(
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record OnlineHoursInput([Required] OnlineHourInput?[]? Slots);
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record OnlinePickupInput([property: JsonRequired] int? MinNoticeMinutes);
+
 // Blank clears the phone, which stops online orders.
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record PublicPhoneInput(
@@ -102,7 +105,8 @@ public sealed record OnlineSettingsResponse(
     decimal? DeliveryOriginLng,
     DeliveryTierResponse[] DeliveryTiers,
     bool DeliveryAutoQuote,
-    OnlineCouponResponse[] Coupons
+    OnlineCouponResponse[] Coupons,
+    int? PickupMinNoticeMinutes
 );
 
 public static class OnlineErrors
@@ -236,6 +240,23 @@ public static class OnlineErrors
 
     public static ApiException OrderNotFound() =>
         new(404, "ONLINE_ORDER_NOT_FOUND", "This online order doesn't exist or has ended.");
+
+    public static ApiException PickupSlotChanged() =>
+        new(409, "ONLINE_PICKUP_SLOT_CHANGED", "This pickup time is no longer available.");
+
+    public static ApiException PickupPrepTimeUnavailable() =>
+        new(
+            409,
+            "ONLINE_PICKUP_PREP_TIME_UNAVAILABLE",
+            "This preparation time no longer fits the reservation."
+        );
+
+    public static ApiException ReservationChanged() =>
+        new(
+            409,
+            "ONLINE_RESERVATION_CHANGED",
+            "This reservation can no longer be cancelled before preparation."
+        );
 
     // Maps every status but OPEN to the error a submission returns.
     public static ApiException NotOpen(OnlineAvailabilityResult availability) =>

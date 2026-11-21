@@ -38,10 +38,16 @@ export type OnlineMenu = {
   // Only with CLOSED_HOURS, and null when the week has no slots.
   nextOpensAt: string | null;
   menu: PublicMenu["menu"];
+  pickupTimes: string[] | null;
 };
 
 // The first submission and every repeat or recovery return the same values.
-export type OnlineSubmission = { statusToken: string; number: number; expiresAt: string };
+export type OnlineSubmission = {
+  statusToken: string;
+  number: number;
+  expiresAt: string;
+  requestedPickupAt?: string;
+};
 export type OnlineOrderingContext = { pending: OnlineSubmission | null };
 
 // A coupon valid today at checkout, and the one an order used: discountCents is percentOff of the dishes
@@ -72,6 +78,9 @@ export type OnlineOrder = {
   phase: OnlinePhase;
   rejectReason: RejectReason | null;
   estimatedAt: string | null;
+  requestedPickupAt: string | null;
+  awaitingPreparation: boolean;
+  pickupTimeReached: boolean;
   sessionStatus: "ACTIVE" | "CLOSED" | null;
   closeReason: "PAID" | "VOIDED" | "NO_SHOW" | null;
   items: (Names & {

@@ -46,6 +46,10 @@ internal sealed class OnlineRequestConfiguration : IEntityTypeConfiguration<Onli
                     "fulfillment = 'DELIVERY' OR (delivery_address IS NULL AND delivery_notes IS NULL)"
                 );
                 table.HasCheckConstraint("ck_online_request_expiry", "expires_at > submitted_at");
+                table.HasCheckConstraint(
+                    "ck_online_request_pickup_time",
+                    "requested_pickup_at IS NULL OR (fulfillment = 'PICKUP' AND requested_pickup_at > submitted_at AND (estimated_at IS NULL OR estimated_at = requested_pickup_at))"
+                );
                 // An accepted automatic quote: both set or both null, delivery only.
                 table.HasCheckConstraint(
                     "ck_online_request_delivery_quote",
@@ -182,6 +186,10 @@ internal sealed class OnlineRequestConfiguration : IEntityTypeConfiguration<Onli
             .HasColumnName("default_language_snapshot")
             .HasMaxLength(2)
             .IsRequired();
+        builder
+            .Property(request => request.RequestedPickupAt)
+            .HasColumnName("requested_pickup_at")
+            .HasColumnType("timestamptz");
         builder
             .Property(request => request.SubmittedAt)
             .HasColumnName("submitted_at")

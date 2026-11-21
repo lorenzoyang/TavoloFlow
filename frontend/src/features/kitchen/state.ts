@@ -132,7 +132,8 @@ export function dishGroups(orders: KitchenOrder[], shows: LineFilter = () => tru
   const groups = new Map<string, DishGroup>();
   const oldestFirst = [...orders].sort(
     (a, b) =>
-      Date.parse(a.createdAt) - Date.parse(b.createdAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+      Date.parse(a.queuedAt ?? a.createdAt) - Date.parse(b.queuedAt ?? b.createdAt) ||
+      (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
   );
   for (const order of oldestFirst)
     for (const line of order.items) {

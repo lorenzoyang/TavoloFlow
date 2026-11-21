@@ -1,3 +1,4 @@
+import { pickupMessages } from "../online/pickup-messages";
 import type { Language } from "@/lib/language";
 import type { StatusCopy } from "./state";
 
@@ -55,6 +56,7 @@ const zh = {
   nameProblem: "请填写姓名（最多 30 个字符）。",
   phoneProblem: "请填写电话：可选的 + 和 6–15 位数字。",
   fulfillment: "取餐方式",
+  pickupSlotChanged: pickupMessages.zh.chooseAgain,
   pickup: "到店自取",
   delivery: "配送",
   address: "配送地址",
@@ -168,6 +170,7 @@ const zh = {
     rejectedOutOfRange: "餐厅没有接单",
     rejectedNoReason: "餐厅没有接单",
     preparingPickup: "已接单，请按预计时间前来取餐",
+    scheduled: pickupMessages.zh.awaiting,
     preparingDelivery: "已接单，正在准备",
     readyPickup: "可以取餐了",
     readyDelivery: "餐已做好，将尽快送到",
@@ -275,6 +278,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     nameProblem: "Inserisci il nome (al massimo 30 caratteri).",
     phoneProblem: "Inserisci il telefono: un + facoltativo e 6–15 cifre.",
     fulfillment: "Come lo ricevi",
+    pickupSlotChanged: pickupMessages.it.chooseAgain,
     pickup: "Ritiro",
     delivery: "Consegna",
     address: "Indirizzo di consegna",
@@ -399,6 +403,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       rejectedOutOfRange: "Ordine non accettato",
       rejectedNoReason: "Ordine non accettato",
       preparingPickup: "Ordine accettato: passa all’orario previsto",
+      scheduled: pickupMessages.it.awaiting,
       preparingDelivery: "Ordine accettato, in preparazione",
       readyPickup: "Pronto da ritirare",
       readyDelivery: "Pronto, arriverà il prima possibile",
@@ -504,6 +509,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     nameProblem: "Enter your name (up to 30 characters).",
     phoneProblem: "Enter your phone: an optional + and 6–15 digits.",
     fulfillment: "How you get it",
+    pickupSlotChanged: pickupMessages.en.chooseAgain,
     pickup: "Pickup",
     delivery: "Delivery",
     address: "Delivery address",
@@ -627,6 +633,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       rejectedOutOfRange: "Order not accepted",
       rejectedNoReason: "Order not accepted",
       preparingPickup: "Accepted: come at the estimated time",
+      scheduled: pickupMessages.en.awaiting,
       preparingDelivery: "Accepted and being prepared",
       readyPickup: "Ready to collect",
       readyDelivery: "Ready, coming to you as soon as possible",
@@ -697,6 +704,7 @@ export type OnlineOrderMessage =
   | "notOffered"
   | "deliveryOff"
   | "minOrder"
+  | "pickupSlotChanged"
   | "quoteChanged"
   | "feeChanged"
   | "suspended"
@@ -732,6 +740,7 @@ export const onlineOrderError = (code: string): OnlineOrderMessage =>
       ONLINE_NOT_OFFERED: "notOffered",
       DELIVERY_NOT_OFFERED: "deliveryOff",
       DELIVERY_MIN_ORDER: "minOrder",
+      ONLINE_PICKUP_SLOT_CHANGED: "pickupSlotChanged",
       DELIVERY_QUOTE_INVALID: "quoteChanged",
       DELIVERY_FEE_CHANGED: "feeChanged",
       SERVICE_SUSPENDED: "suspended",

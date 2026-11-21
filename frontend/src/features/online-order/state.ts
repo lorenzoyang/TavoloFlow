@@ -38,6 +38,7 @@ export type OnlineIntent = {
   fulfillment: Fulfillment;
   customerName: string;
   customerPhone: string;
+  requestedPickupAt?: string;
   deliveryAddress: string | null;
   deliveryNotes: string | null;
   items: OrderLineInput[];
@@ -74,6 +75,7 @@ export const MAX_DELIVERY_NOTES_LENGTH = 100;
 // address is still the same (currentQuote).
 export type CheckoutForm = {
   fulfillment: Fulfillment;
+  pickupTime?: string;
   name: string;
   phone: string;
   address: string;
@@ -291,7 +293,10 @@ export function createOnlineIntent(
   const deliveryQuote = intentQuote(form, finalDeliveryFeeCents);
   if (!validQuote(deliveryQuote)) throw new CartError("limits");
   const delivery = form.fulfillment === "DELIVERY";
+  if (form.pickupTime !== undefined && (delivery || !validTime(form.pickupTime)))
+    throw new CartError("limits");
   return {
+    ...(form.pickupTime ? { requestedPickupAt: form.pickupTime } : {}),
     clientRequestId: requestId,
     fulfillment: form.fulfillment,
     customerName: form.name.trim(),
@@ -303,6 +308,9 @@ export function createOnlineIntent(
     deliveryQuote,
   };
 }
+
+const validTime = (value: unknown): value is string =>
+  typeof value === "string" && Number.isFinite(Date.parse(value));
 
 // Reads the tab's saved cart. A pending submission must match its frozen lines exactly: damaged data
 // must never become a new submission.
@@ -324,6 +332,7 @@ export function restoreOnlineCart(raw: string | null, restaurantId: string): Onl
         cart,
         {
           fulfillment: p.fulfillment,
+          pickupTime: p.requestedPickupAt,
           name: p.customerName ?? "",
           phone: p.customerPhone ?? "",
           address: p.deliveryAddress ?? "",
@@ -345,6 +354,7 @@ export function restoreOnlineCart(raw: string | null, restaurantId: string): Onl
       if (
         JSON.stringify(expected) !==
         JSON.stringify({
+          ...(p.requestedPickupAt === undefined ? {} : { requestedPickupAt: p.requestedPickupAt }),
           clientRequestId: p.clientRequestId,
           fulfillment: p.fulfillment,
           customerName: p.customerName,
@@ -381,6 +391,7 @@ type FailureDisposition = "editable" | "unknown";
 // may free the cart too.
 const rejectedAfterDuplicateCheck = [
   "MENU_CHANGED",
+  "ONLINE_PICKUP_SLOT_CHANGED",
   "ONLINE_PAUSED",
   "ONLINE_CLOSED",
   "ONLINE_BUSY",
@@ -433,7 +444,12 @@ export function existingSubmission(value: unknown): OnlineSubmission | null {
     v.number > 0 &&
     typeof v.expiresAt === "string" &&
     Number.isFinite(Date.parse(v.expiresAt))
-    ? { statusToken: v.statusToken, number: v.number, expiresAt: v.expiresAt }
+    ? {
+        statusToken: v.statusToken,
+        number: v.number,
+        expiresAt: v.expiresAt,
+        ...(validTime(v.requestedPickupAt) ? { requestedPickupAt: v.requestedPickupAt } : {}),
+      }
     : null;
 }
 
@@ -469,18 +485,60 @@ export function clearOrderToken(restaurantId: string, storage: Pick<Storage, "re
   }
 }
 
+const reservationKey = (restaurantId: string) => `tavoloflow:pickup-reservations:${restaurantId}`;
+
+export function readReservations(
+  restaurantId: string,
+  storage: Pick<Storage, "getItem">,
+): (OnlineSubmission & { requestedPickupAt: string })[] {
+  try {
+    const saved: unknown = JSON.parse(storage.getItem(reservationKey(restaurantId)) ?? "[]");
+    return Array.isArray(saved)
+      ? saved
+          .map(existingSubmission)
+          .filter(
+            (order): order is OnlineSubmission & { requestedPickupAt: string } =>
+              !!order?.requestedPickupAt,
+          )
+          .slice(0, 5)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+export function rememberOnlineOrder(
+  restaurantId: string,
+  order: OnlineSubmission,
+  storage: Pick<Storage, "getItem" | "setItem">,
+) {
+  if (!order.requestedPickupAt) {
+    saveOrderToken(restaurantId, order.statusToken, storage);
+    return;
+  }
+  try {
+    const previous = readReservations(restaurantId, storage);
+    if (previous.some((item) => item.statusToken === order.statusToken)) return;
+    storage.setItem(reservationKey(restaurantId), JSON.stringify([order, ...previous].slice(0, 5)));
+  } catch {
+    // The order page still has its direct URL.
+  }
+}
+
 // What the status page shows, from the server's phase and, once accepted, the session and its dishes.
 export type OrderView =
   | "waiting"
   | "expired"
   | "rejected"
+  | "scheduled"
   | "preparing"
   | "ready"
   | "allCancelled"
   | "collected"
   | "closed";
 
-type ViewInput = Pick<OnlineOrder, "phase" | "sessionStatus" | "closeReason" | "items">;
+type ViewInput = Pick<OnlineOrder, "phase" | "sessionStatus" | "closeReason" | "items"> &
+  Partial<Pick<OnlineOrder, "awaitingPreparation">>;
 
 export function orderView(order: ViewInput): OrderView {
   if (order.phase === "WAITING") return "waiting";
@@ -490,6 +548,7 @@ export function orderView(order: ViewInput): OrderView {
     return order.closeReason === "PAID" ? "collected" : "closed";
   if (order.items.length > 0 && order.items.every((item) => item.status === "CANCELLED"))
     return "allCancelled";
+  if (order.awaitingPreparation) return "scheduled";
   return order.items.some((item) => item.status === "NEW") ? "preparing" : "ready";
 }
 
@@ -505,6 +564,7 @@ export type OrderStep = 0 | 1 | 2 | 3;
 const steps: Partial<Record<OrderView, OrderStep>> = {
   waiting: 0,
   preparing: 1,
+  scheduled: 1,
   ready: 2,
   collected: 3,
 };
@@ -519,6 +579,7 @@ export type StatusCopy =
   | "rejectedClosing"
   | "rejectedOutOfRange"
   | "rejectedNoReason"
+  | "scheduled"
   | "preparingPickup"
   | "preparingDelivery"
   | "readyPickup"
@@ -533,6 +594,8 @@ export function statusCopy(
   const view = orderView(order);
   const delivery = order.fulfillment === "DELIVERY";
   switch (view) {
+    case "scheduled":
+      return "scheduled";
     case "rejected":
       return order.rejectReason === "SOLD_OUT"
         ? "rejectedSoldOut"

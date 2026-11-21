@@ -101,6 +101,35 @@ public sealed class OnlineScheduleTests
     }
 
     [Fact]
+    public void PickupTimes_SpringGap_SkipsMissingTimesAndRequiresPreparationInTheSlot()
+    {
+        OnlineSlot[] hours = [new(7, 120, 240)];
+        var now = new DateTimeOffset(Utc(2026, 3, 28, 22));
+        var slots = OnlinePickup.Times(hours, Rome, now, 60);
+
+        Assert.Equal(
+            new[] { Utc(2026, 3, 29, 1, 15), Utc(2026, 3, 29, 1, 30), Utc(2026, 3, 29, 1, 45) },
+            slots
+        );
+        Assert.Null(OnlinePickup.PreparationStart(hours, Rome, slots[0], 20, now.UtcDateTime));
+    }
+
+    [Fact]
+    public void PickupTimes_RepeatedHour_OffersEachWallTimeOnce()
+    {
+        OnlineSlot[] hours = [new(7, 120, 240)];
+        var now = new DateTimeOffset(Utc(2026, 10, 24, 20));
+        var slots = OnlinePickup.Times(hours, Rome, now, 60);
+
+        Assert.Contains(Utc(2026, 10, 25, 0, 30), slots);
+        Assert.DoesNotContain(Utc(2026, 10, 25, 1, 30), slots);
+        Assert.Equal(
+            slots.Length,
+            slots.Select(t => OnlineSchedule.Local(Rome, t)).Distinct().Count()
+        );
+    }
+
+    [Fact]
     public void EndOfDay_AcrossDst_IsTheNextLocalMidnight()
     {
         Assert.Equal(

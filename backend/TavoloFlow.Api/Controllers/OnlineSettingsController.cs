@@ -31,6 +31,11 @@ public sealed class OnlineSettingsController(OnlineSettingsService service, Curr
     public async Task<IActionResult> Hours(OnlineHoursInput input, CancellationToken ct) =>
         Ok(await service.SetHoursAsync(RestaurantId, input, ct));
 
+    [HttpPut("api/owner/online/pickup")]
+    [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
+    public async Task<IActionResult> Pickup(OnlinePickupInput input, CancellationToken ct) =>
+        Ok(await service.SetPickupAsync(RestaurantId, input, ct));
+
     [HttpPut("api/owner/online/delivery")]
     [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
     public async Task<IActionResult> Delivery(OnlineDeliveryInput input, CancellationToken ct) =>

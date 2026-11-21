@@ -26,12 +26,18 @@ public sealed class OnlineMenuService(
         var restaurant =
             await db.Restaurants.AsNoTracking().SingleOrDefaultAsync(r => r.Slug == slug, ct)
             ?? throw OnlineErrors.LinkNotFound();
-        var (_, availability) = await OnlineAvailability.ReadAsync(
-            db,
-            restaurant,
-            clock.GetUtcNow(),
-            ct
-        );
+        var now = clock.GetUtcNow();
+        var (hours, availability) = await OnlineAvailability.ReadAsync(db, restaurant, now, ct);
+        DateTime[]? pickupTimes = restaurant.PickupMinNoticeMinutes is { } notice
+            ? availability.IsOpen
+                ? OnlinePickup.Times(
+                    hours,
+                    TimeZoneInfo.FindSystemTimeZoneById(restaurant.TimeZone),
+                    now,
+                    notice
+                )
+                : []
+            : null;
         var tiers = await OnlineDelivery.TiersAsync(db, restaurant.Id, ct);
         var menu = await MenuReader.ReadAsync(db, restaurant.Id, restaurant.DefaultLanguage, ct);
         await transaction.CommitAsync(ct);
@@ -54,7 +60,8 @@ public sealed class OnlineMenuService(
             availability.Status,
             availability.NextOpensAt,
             new(menu.AvailableLanguages, menu.Categories, menu.Items, menu.OptionGroups),
-            verification.Value.Public
+            verification.Value.Public,
+            pickupTimes
         );
     }
 

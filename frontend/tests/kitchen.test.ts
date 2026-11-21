@@ -264,3 +264,18 @@ test("a screen chimes only for its own new dishes, after a silent baseline", () 
   assert.equal(screenArrivals(next.baseline, ["b", "c", "d"], drinks, 61_000).added, null);
   assert.equal(screenArrivals(next.baseline, ["b"], drinks, 21_000).added, null);
 });
+
+test("a reservation joins the dish order at kitchen release, not acceptance", () => {
+  const line = dish("00000000-0000-4000-8000-000000000101", rice, "炒饭");
+  const scheduled = {
+    ...ticket("old", "reservation", "2026-10-27T12:00:00Z", [line]),
+    queuedAt: "2026-10-28T12:02:00Z",
+  };
+  const immediate = ticket("new", "1", "2026-10-28T12:00:00Z", [
+    { ...line, id: "00000000-0000-4000-8000-000000000102" },
+  ]);
+  assert.deepEqual(
+    dishGroups([scheduled, immediate])[0].lines.map(({ order }) => order.id),
+    ["new", "old"],
+  );
+});

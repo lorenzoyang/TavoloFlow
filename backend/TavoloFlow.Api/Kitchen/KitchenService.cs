@@ -33,17 +33,20 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
             IsolationLevel.RepeatableRead,
             ct
         );
-        var active = Orders(restaurantId)
-            .Where(o => o.DiningSession.Status == DiningSessionStatus.Active);
+        var now = clock.GetUtcNow().UtcDateTime;
+        var active = KitchenEntries(Orders(restaurantId))
+            .Where(o =>
+                o.DiningSession.Status == DiningSessionStatus.Active
+                && (o.KitchenStartsAt == null || o.KitchenQueueAt <= now)
+            );
         var filtered = active.Where(o => o.Status == state);
         var total = await filtered.LongCountAsync(ct);
         var pending = await active.LongCountAsync(o => o.Status == OrderStatus.New, ct);
-        // Across both statuses and closed visits, so only a new submission raises it: processing and closing
-        // never move it. A count would scan the whole history on every poll; each maximum reads one index end.
-        var latestCreated = new[]
+        // Look at the indexed end of each status without counting order history.
+        var latestQueued = new[]
         {
-            await LatestCreatedAsync(restaurantId, OrderStatus.New, ct),
-            await LatestCreatedAsync(restaurantId, OrderStatus.Processed, ct),
+            await LatestQueuedAsync(restaurantId, OrderStatus.New, now, ct),
+            await LatestQueuedAsync(restaurantId, OrderStatus.Processed, now, ct),
         }.Max();
         if (after is not null)
         {
@@ -51,7 +54,7 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
                 state == OrderStatus.New
                     ? filtered.Where(o =>
                         EF.Functions.GreaterThan(
-                            ValueTuple.Create(o.CreatedAt, o.Id),
+                            ValueTuple.Create(o.KitchenQueueAt, o.Id),
                             ValueTuple.Create(after.At, after.Id)
                         )
                     )
@@ -64,7 +67,7 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
         }
         var sorted =
             state == OrderStatus.New
-                ? filtered.OrderBy(o => o.CreatedAt).ThenBy(o => o.Id)
+                ? filtered.OrderBy(o => o.KitchenQueueAt).ThenBy(o => o.Id)
                 : filtered.OrderByDescending(o => o.ProcessedAt).ThenByDescending(o => o.Id);
         var rows = await sorted.Take(limit + 1).ToArrayAsync(ct);
         var (page, next) = Paging.Page(
@@ -78,7 +81,7 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
             next,
             total,
             pending,
-            latestCreated
+            latestQueued
         );
     }
 
@@ -91,7 +94,9 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
         var sessionId = await SessionIdAsync(restaurantId, id, ct);
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         await LockActiveSessionAsync(restaurantId, sessionId, RowLock.Share, ct);
-        var result = KitchenOrderResponse.From(await FindAsync(restaurantId, id, ct));
+        var order = await FindAsync(restaurantId, id, ct);
+        EnsureReleased(order, clock.GetUtcNow().UtcDateTime);
+        var result = KitchenOrderResponse.From(order);
         await tx.CommitAsync(ct);
         return result;
     }
@@ -142,6 +147,7 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
                 "The bill version has reached the supported limit. Contact the administrator."
             );
         var now = clock.GetUtcNow().UtcDateTime;
+        EnsureReleased(order, now);
         if (now < order.CreatedAt)
             now = order.CreatedAt;
         var target = db.OrderItems.Where(i =>
@@ -287,14 +293,32 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
         return result;
     }
 
-    private Task<DateTime?> LatestCreatedAsync(
+    private Task<DateTime?> LatestQueuedAsync(
         Guid restaurantId,
         OrderStatus status,
+        DateTime now,
         CancellationToken ct
     ) =>
-        db
-            .Orders.Where(o => o.RestaurantId == restaurantId && o.Status == status)
-            .MaxAsync(o => (DateTime?)o.CreatedAt, ct);
+        KitchenEntries(db.Orders.Where(o => o.RestaurantId == restaurantId && o.Status == status))
+            .Where(o => o.KitchenQueueAt <= now)
+            .OrderByDescending(o => o.KitchenQueueAt)
+            .Select(o => (DateTime?)o.KitchenQueueAt)
+            .FirstOrDefaultAsync(ct);
+
+    private static IQueryable<Order> KitchenEntries(IQueryable<Order> orders) =>
+        orders.Where(o =>
+            o.KitchenStartsAt == null || o.ProcessedAt == null || o.ProcessedAt >= o.KitchenQueueAt
+        );
+
+    private static void EnsureReleased(Order order, DateTime now)
+    {
+        if (order.KitchenStartsAt > now)
+            throw new ApiException(
+                409,
+                "KITCHEN_ORDER_NOT_RELEASED",
+                "This reservation is not due for preparation."
+            );
+    }
 
     private IQueryable<Order> Orders(Guid restaurantId) =>
         db
@@ -340,7 +364,7 @@ public sealed class KitchenService(ApplicationDbContext db, TimeProvider clock)
         new(409, "ORDER_ITEM_CHANGED", "The dish status has changed. Reload and check.");
 
     private static DateTime SortTime(Order order, OrderStatus status) =>
-        status == OrderStatus.New ? order.CreatedAt : order.ProcessedAt!.Value;
+        status == OrderStatus.New ? order.KitchenQueueAt : order.ProcessedAt!.Value;
 
     private sealed record Cursor(Guid RestaurantId, string Status, DateTime At, Guid Id);
 

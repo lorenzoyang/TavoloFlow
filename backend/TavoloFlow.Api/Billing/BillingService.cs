@@ -6,6 +6,7 @@ using TavoloFlow.Api.Data;
 using TavoloFlow.Api.Dining;
 using TavoloFlow.Api.Entities;
 using TavoloFlow.Api.Kitchen;
+using TavoloFlow.Api.Online;
 
 namespace TavoloFlow.Api.Billing;
 
@@ -120,6 +121,21 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         CancellationToken ct
     ) => CloseZeroBillAsync(restaurantId, id, SessionCloseReason.Voided, input, ct);
 
+    public Task<BillSummaryResponse> CancelReservationAsync(
+        Guid restaurantId,
+        Guid id,
+        CancellationToken ct
+    ) =>
+        CloseAsync(
+            restaurantId,
+            id,
+            SessionCloseReason.Voided,
+            null,
+            0,
+            ct,
+            cancelReservation: true
+        );
+
     // Online orders only, OWNER only (the controller), like PAID: positive receivable and no NEW dishes.
     public Task<BillSummaryResponse> CloseNoShowAsync(
         Guid restaurantId,
@@ -227,10 +243,14 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         SessionCloseReason reason,
         int? version,
         long? amount,
-        CancellationToken ct
+        CancellationToken ct,
+        bool cancelReservation = false
     )
     {
-        if (version is null or <= 0 || amount is null or < 0 or > InputRules.MaxSafeCents)
+        if (
+            (!cancelReservation && (version is null or <= 0))
+            || amount is null or < 0 or > InputRules.MaxSafeCents
+        )
             throw ApiException.Validation(
                 "Provide a valid bill version and an amount in whole euro cents."
             );
@@ -240,6 +260,36 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
             await RowLocks.SessionAsync(db, restaurantId, id, RowLock.Update, ct)
             ?? throw DiningErrors.SessionNotFound();
         var bill = await SessionSummaries.ReadAsync(db, restaurantId, id, ct);
+        DateTime? reservationCancelledAt = null;
+        if (cancelReservation)
+        {
+            if (bill.Online?.KitchenStartsAt is not { } starts)
+                throw OnlineErrors.ReservationChanged();
+            if (session.Status == DiningSessionStatus.Active)
+            {
+                var cancelledAt = clock.GetUtcNow().UtcDateTime;
+                if (cancelledAt < session.OpenedAt)
+                    cancelledAt = session.OpenedAt;
+                if (
+                    cancelledAt >= starts
+                    || bill.OrderCount != 1
+                    || bill.NewItemCount != bill.ItemCount
+                )
+                    throw OnlineErrors.ReservationChanged();
+                if (session.BillVersion == int.MaxValue)
+                    throw BillingErrors.Conflict(
+                        "BILL_LIMIT_REACHED",
+                        "The bill version has reached the supported limit.",
+                        bill
+                    );
+                reservationCancelledAt = cancelledAt;
+                await CancelUnstartedOrderAsync(restaurantId, id, cancelledAt, ct);
+                bill = await SessionSummaries.ReadAsync(db, restaurantId, id, ct);
+            }
+            else if (session.ClosedAt >= starts)
+                throw OnlineErrors.ReservationChanged();
+            version = bill.BillVersion;
+        }
         if (session.Status == DiningSessionStatus.Closed)
         {
             // Repeating the identical closure returns the stored result; nothing can rewrite it.
@@ -305,7 +355,7 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         var latestServedAt = await db
             .OrderItems.Where(i => i.RestaurantId == restaurantId && i.Order.DiningSessionId == id)
             .MaxAsync(i => i.ServedAt, ct);
-        var now = clock.GetUtcNow().UtcDateTime;
+        var now = reservationCancelledAt ?? clock.GetUtcNow().UtcDateTime;
         if (now < session.OpenedAt)
             now = session.OpenedAt;
         if (latest is not null && now < latest)
@@ -346,6 +396,38 @@ public sealed class BillingService(ApplicationDbContext db, TimeProvider clock)
         var result = await SessionSummaries.ReadAsync(db, restaurantId, id, ct);
         await tx.CommitAsync(ct);
         return result;
+    }
+
+    private async Task CancelUnstartedOrderAsync(
+        Guid restaurantId,
+        Guid id,
+        DateTime now,
+        CancellationToken ct
+    )
+    {
+        await db
+            .OrderItems.Where(i =>
+                i.RestaurantId == restaurantId
+                && i.Order.DiningSessionId == id
+                && i.Status == OrderItemStatus.New
+            )
+            .ExecuteUpdateAsync(
+                u =>
+                    u.SetProperty(i => i.Status, OrderItemStatus.Cancelled)
+                        .SetProperty(i => i.CancelledAt, now),
+                ct
+            );
+        await db
+            .Orders.Where(o => o.RestaurantId == restaurantId && o.DiningSessionId == id)
+            .ExecuteUpdateAsync(
+                u =>
+                    u.SetProperty(o => o.Status, OrderStatus.Processed)
+                        .SetProperty(o => o.ProcessedAt, now),
+                ct
+            );
+        await db
+            .DiningSessions.Where(s => s.RestaurantId == restaurantId && s.Id == id)
+            .ExecuteUpdateAsync(u => u.SetProperty(s => s.BillVersion, s => s.BillVersion + 1), ct);
     }
 
     public async Task<HistoryPage> HistoryAsync(

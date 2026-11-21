@@ -5,7 +5,12 @@ import { staffMessages } from "./staff-messages.ts";
 // How store pages name a session in every channel: a dine-in visit by its table, an accepted online
 // order by its daily number, customer name and estimated time. Kitchen, pass, bill and history share it.
 export type SessionChannel = "DINE_IN" | "PICKUP" | "DELIVERY";
-export type OnlineTicket = { number: number; customerName: string | null; estimatedAt: string };
+export type OnlineTicket = {
+  number: number;
+  customerName: string | null;
+  estimatedAt: string;
+  requestedPickupAt?: string | null;
+};
 export type SessionNaming = {
   channel: SessionChannel;
   tableLabel: string | null;

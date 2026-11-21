@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
 import { PRODUCT_NAME } from "@/lib/brand";
-import { formatMoney, formatTime } from "@/lib/format";
+import { pickupMessages } from "@/features/online/pickup-messages";
+import { formatMoney, formatPickupDateTime, formatTime } from "@/lib/format";
 import { displayName, type Language } from "@/lib/language";
 import { optionSummary } from "@/lib/options";
 import { useDocumentTheme } from "@/lib/useDocumentTheme";
@@ -34,6 +35,7 @@ const failed = { Icon: X, className: "bg-destructive/10 text-destructive" };
 const done = { Icon: Check, className: "bg-success text-success-foreground" };
 const viewIcons: Record<OrderView, { Icon: LucideIcon; className: string }> = {
   waiting: { Icon: Clock, className: "bg-warning text-warning-foreground" },
+  scheduled: { Icon: Clock, className: "bg-accent text-accent-foreground" },
   preparing: { Icon: ChefHat, className: "bg-accent text-accent-foreground" },
   ready: done,
   collected: done,
@@ -118,6 +120,7 @@ function OrderContent({
     order.restaurant.defaultLanguage,
   );
   useDocumentTheme(order.restaurant.theme);
+  const [copied, setCopied] = useState<boolean | null>(null);
   const m = onlineOrderMessages[language];
   const view = orderView(order);
   const step = orderProgress(view);
@@ -131,8 +134,25 @@ function OrderContent({
   const copy = statusCopy(order);
   const reason = m.statusReason[copy];
   // While the order is prepared, the estimated time is the one thing to remember: it stands alone.
+  const pickup = pickupMessages[language];
+  const reservationTime = order.requestedPickupAt;
   const estimate =
-    view === "preparing" && order.estimatedAt ? formatTime(order.estimatedAt, language) : null;
+    !reservationTime && view === "preparing" && order.estimatedAt
+      ? formatTime(order.estimatedAt, language)
+      : null;
+  let reservationStatus: string | null = null;
+  if (reservationTime && view === "preparing")
+    reservationStatus = order.pickupTimeReached ? pickup.delayed : pickup.preparing;
+  if (reservationTime && order.closeReason === "VOIDED") reservationStatus = pickup.cancelled;
+
+  async function copyOrderLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  }
   // A delivery without an automatic quote has no fee until the restaurant confirms it on acceptance.
   const itemsOnly = delivery && order.deliveryFeeCents === null;
   const feePending = itemsOnly && order.phase === "WAITING";
@@ -174,11 +194,16 @@ function OrderContent({
                     <Icon className="size-5" />
                   </span>
                   <span className={cn("min-w-0 pt-1 wrap-break-word", success && "text-success")}>
-                    {estimate ? m.accepted : m.status[copy]}
+                    {reservationStatus ?? (estimate ? m.accepted : m.status[copy])}
                   </span>
                 </p>
                 {/* A short headline, then why, aligned with the headline's text. */}
                 {reason && <p className="pl-12 leading-6 text-muted-foreground">{reason}</p>}
+                {reservationTime && (
+                  <p className="font-display text-xl font-semibold tabular-nums">
+                    {pickup.appointment(formatPickupDateTime(reservationTime, language))}
+                  </p>
+                )}
                 {estimate && (
                   <div>
                     <p className="font-display text-5xl font-semibold tabular-nums">{estimate}</p>
@@ -208,6 +233,18 @@ function OrderContent({
             {/* When the order did not go ahead, calling is the next step: the phone moves here. */}
             {callFirst && phone && (
               <PhoneLink phone={phone} language={language} className="w-full" />
+            )}
+            {reservationTime && (
+              <>
+                <Button variant="outline" onClick={() => void copyOrderLink()}>
+                  {pickup.copy}
+                </Button>
+                {copied !== null && (
+                  <Notice tone={copied ? "success" : "warning"}>
+                    {copied ? pickup.copied : pickup.copyFailed}
+                  </Notice>
+                )}
+              </>
             )}
             <p className="border-t pt-3 text-sm text-muted-foreground wrap-break-word">
               {order.customerName &&

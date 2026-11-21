@@ -65,6 +65,32 @@ public sealed class OnlineSettingsService(
         return response;
     }
 
+    public async Task<OnlineSettingsResponse> SetPickupAsync(
+        Guid restaurantId,
+        OnlinePickupInput input,
+        CancellationToken ct
+    )
+    {
+        if (input.MinNoticeMinutes is { } minutes && !OnlinePickup.NoticeChoices.Contains(minutes))
+            throw ApiException.Validation(
+                "Choose a listed notice period.",
+                "minNoticeMinutes",
+                "Invalid period."
+            );
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var restaurant = await LockOfferedAsync(restaurantId, ct);
+        await db
+            .Restaurants.Where(r => r.Id == restaurantId)
+            .ExecuteUpdateAsync(
+                u => u.SetProperty(r => r.PickupMinNoticeMinutes, input.MinNoticeMinutes),
+                ct
+            );
+        restaurant.PickupMinNoticeMinutes = input.MinNoticeMinutes;
+        var result = await ResponseAsync(restaurant, ct);
+        await transaction.CommitAsync(ct);
+        return result;
+    }
+
     public async Task<OnlineSettingsResponse> SetPhoneAsync(
         Guid restaurantId,
         string? phone,
@@ -357,7 +383,8 @@ public sealed class OnlineSettingsService(
                     c.ValidUntil,
                     !OnlineCoupons.IsValid(c, today)
                 ))
-                .ToArray()
+                .ToArray(),
+            restaurant.PickupMinNoticeMinutes
         );
     }
 

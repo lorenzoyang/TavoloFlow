@@ -42,10 +42,12 @@ public sealed record OnlinePendingRequestResponse(
     // Both set when the customer accepted an automatic quote, which acceptance keeps; both null when
     // whoever accepts picks the band.
     long? DeliveryFeeCents,
-    int? DeliveryDistanceMeters
+    int? DeliveryDistanceMeters,
+    DateTime? RequestedPickupAt,
+    int[]? AvailablePreparationMinutes
 )
 {
-    public static OnlinePendingRequestResponse From(OnlineRequest request) =>
+    public static OnlinePendingRequestResponse From(OnlineRequest request, int[]? minutes) =>
         new(
             request.Id,
             request.Number,
@@ -65,7 +67,9 @@ public sealed record OnlinePendingRequestResponse(
                 request.ItemsTotalCents
             ),
             request.DeliveryFeeCents,
-            request.DeliveryDistanceMeters
+            request.DeliveryDistanceMeters,
+            request.RequestedPickupAt,
+            minutes
         );
 }
 
@@ -103,10 +107,13 @@ public sealed record OnlineActiveOrderResponse(
     int ReadyItemCount,
     CouponDiscountResponse? Coupon,
     long? DeliveryFeeCents,
-    long TotalAmountCents
+    long TotalAmountCents,
+    DateTime? RequestedPickupAt,
+    DateTime? KitchenStartsAt,
+    bool AwaitingPreparation
 )
 {
-    public static OnlineActiveOrderResponse From(BillSummaryResponse bill)
+    public static OnlineActiveOrderResponse From(BillSummaryResponse bill, DateTime now)
     {
         var online =
             bill.Online
@@ -126,7 +133,10 @@ public sealed record OnlineActiveOrderResponse(
             bill.ItemCount - bill.NewItemCount - bill.CancelledItemCount,
             online.Coupon,
             bill.DeliveryFeeCents,
-            bill.TotalAmountCents
+            bill.TotalAmountCents,
+            online.RequestedPickupAt,
+            online.KitchenStartsAt,
+            online.KitchenStartsAt > now
         );
     }
 }
@@ -134,11 +144,21 @@ public sealed record OnlineActiveOrderResponse(
 public sealed record OnlineActivePage(OnlineActiveOrderResponse[] Items);
 
 // How kitchen and pass screens name an online order: never the phone or the address.
-public sealed record OnlineTicketResponse(int Number, string? CustomerName, DateTime EstimatedAt)
+public sealed record OnlineTicketResponse(
+    int Number,
+    string? CustomerName,
+    DateTime EstimatedAt,
+    DateTime? RequestedPickupAt = null
+)
 {
     public static OnlineTicketResponse? For(DiningSession session) =>
         session.OnlineRequest is { } request
-            ? new(request.Number, request.CustomerName, request.EstimatedAt!.Value)
+            ? new(
+                request.Number,
+                request.CustomerName,
+                request.EstimatedAt!.Value,
+                request.RequestedPickupAt
+            )
             : null;
 }
 
@@ -152,5 +172,7 @@ public sealed record OnlineBillResponse(
     DateTime EstimatedAt,
     string? DeliveryAddress,
     string? DeliveryNotes,
-    CouponDiscountResponse? Coupon
+    CouponDiscountResponse? Coupon,
+    DateTime? RequestedPickupAt = null,
+    DateTime? KitchenStartsAt = null
 );

@@ -12,7 +12,7 @@ import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { ServiceNotOffered } from "@/features/accounts/ServiceNotOffered";
 import { closeOrderNotifications } from "@/features/push/device";
-import { formatKm, formatMoney, formatTime } from "@/lib/format";
+import { formatKm, formatMoney, formatPickupDateTime, formatTime } from "@/lib/format";
 import { displayName, type Language } from "@/lib/language";
 import { optionSummary } from "@/lib/options";
 import { formatPhone } from "@/lib/phone";
@@ -21,6 +21,7 @@ import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import type { OnlineActiveOrder, OnlinePendingPage, OnlinePendingRequest } from "./api";
 import { ContactActions, DeliveryAddress } from "./DeliveryAddress";
+import { pickupMessages } from "./pickup-messages";
 import { onlineOrdersMessages } from "./messages";
 import {
   activeProgress,
@@ -63,6 +64,13 @@ function PendingCard({
   const times = requestTimes(request, page.now, page.receivedAt, model.view.now);
   const disabled = !model.fresh || !!model.busy || times.remainingSeconds === 0;
   const delivery = request.fulfillment === "DELIVERY";
+  const pickup = pickupMessages[language];
+  const reservation = request.requestedPickupAt;
+  const serverNow = Date.parse(page.now) + Math.max(0, model.view.now - page.receivedAt);
+  const minutesFit = (minutes: number) =>
+    !reservation ||
+    (request.availablePreparationMinutes?.includes(minutes) &&
+      Date.parse(reservation) - minutes * 60_000 >= serverNow);
   // Delivery is accepted with one of the restaurant's current fee bands, picked by the road distance
   // on the route from the restaurant. A band edited or removed meanwhile is no longer picked, so a
   // new fee is never sent without being chosen again.
@@ -113,6 +121,11 @@ function PendingCard({
           </p>
         </div>
       </header>
+      {reservation && (
+        <p className="text-base font-semibold tabular-nums">
+          {pickup.appointment(formatPickupDateTime(reservation, language))}
+        </p>
+      )}
       {delivery && request.deliveryAddress && (
         <DeliveryAddress address={request.deliveryAddress} notes={request.deliveryNotes} />
       )}
@@ -242,21 +255,28 @@ function PendingCard({
         {/* The times stay disabled until a band is picked: say so where they are. */}
         <p className="text-sm font-medium">
           {!delivery
-            ? m.acceptWith
+            ? reservation
+              ? pickup.prepChoice
+              : m.acceptWith
             : quoted === null && tiers.length > 0 && fee === null
               ? m.acceptAfterBand
               : m.acceptWithDelivery}
         </p>
+        {reservation && !PICKUP_MINUTES.some(minutesFit) && (
+          <Notice tone="warning">{pickup.noPrepOptions}</Notice>
+        )}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {(delivery ? DELIVERY_MINUTES : PICKUP_MINUTES).map((minutes) => (
             <Button
               key={minutes}
               size="lg"
-              disabled={disabled || (delivery && fee === null)}
+              disabled={disabled || !minutesFit(minutes) || (delivery && fee === null)}
               aria-label={
                 delivery
                   ? m.acceptDeliveryLabel(request.number, minutes)
-                  : m.acceptLabel(request.number, minutes)
+                  : reservation
+                    ? pickup.prepLabel(minutes)
+                    : m.acceptLabel(request.number, minutes)
               }
               onClick={async () => {
                 const manual = delivery && quoted === null;
@@ -288,10 +308,19 @@ function PendingCard({
 
 // Read only: the one place STAFF find an accepted customer's phone, since the kitchen and pass never
 // show it and STAFF have no bills page.
-function ActiveCard({ order }: { order: OnlineActiveOrder }) {
+function ActiveCard({
+  order,
+  disabled,
+  onCancel,
+}: {
+  order: OnlineActiveOrder;
+  disabled: boolean;
+  onCancel: () => void;
+}) {
   const language = useStaffLanguage();
   const m = onlineOrdersMessages[language];
   const progress = activeProgress(order);
+  const pickup = pickupMessages[language];
   return (
     <article className="min-w-0 space-y-2 rounded-2xl border bg-card p-4 shadow-xs">
       <header className="flex items-start justify-between gap-3">
@@ -309,9 +338,19 @@ function ActiveCard({ order }: { order: OnlineActiveOrder }) {
             </p>
           )}
         </div>
-        <Badge variant={progressBadges[progress]}>{m.progress[progress]}</Badge>
+        {order.awaitingPreparation ? (
+          <Badge variant="secondary">{pickup.title}</Badge>
+        ) : (
+          <Badge variant={progressBadges[progress]}>{m.progress[progress]}</Badge>
+        )}
       </header>
-      <p className="text-sm">{m.estimated(formatTime(order.estimatedAt, language))}</p>
+      {order.requestedPickupAt ? (
+        <p className="font-semibold tabular-nums">
+          {pickup.appointment(formatPickupDateTime(order.requestedPickupAt, language))}
+        </p>
+      ) : (
+        <p className="text-sm">{m.estimated(formatTime(order.estimatedAt, language))}</p>
+      )}
       <p className="flex flex-wrap items-baseline justify-between gap-x-3">
         <span className="font-semibold tabular-nums">
           {m.toCollect(formatMoney(order.totalAmountCents, language))}
@@ -334,6 +373,16 @@ function ActiveCard({ order }: { order: OnlineActiveOrder }) {
         phone={order.customerPhone}
         address={order.channel === "DELIVERY" ? order.deliveryAddress : null}
       />
+      {order.awaitingPreparation && (
+        <Button
+          variant="outline"
+          className="text-destructive"
+          disabled={disabled}
+          onClick={onCancel}
+        >
+          {pickup.cancel}
+        </Button>
+      )}
     </article>
   );
 }
@@ -341,11 +390,17 @@ function ActiveCard({ order }: { order: OnlineActiveOrder }) {
 function OnlineOrdersContent({ account }: { account: CurrentAccount }) {
   const language = useStaffLanguage();
   const m = onlineOrdersMessages[language];
+  const pickup = pickupMessages[language];
   const model = useOnlineOrders(account);
+  const [cancelling, setCancelling] = useState<OnlineActiveOrder | null>(null);
   const [rejecting, setRejecting] = useState<OnlinePendingRequest | null>(null);
   const [reason, setReason] = useState<RejectReason | null>(null);
   const page = model.pending.data;
-  const active = model.active.data?.items ?? [];
+  const active = [...(model.active.data?.items ?? [])].sort((a, b) => {
+    if (!a.awaitingPreparation || !b.awaitingPreparation)
+      return Number(!!a.awaitingPreparation) - Number(!!b.awaitingPreparation);
+    return Date.parse(a.estimatedAt) - Date.parse(b.estimatedAt);
+  });
   const fetching = model.pending.isFetching || model.active.isFetching;
   // Opening the page, or returning to it, answers the lock-screen notifications on this device.
   useEffect(() => {
@@ -414,10 +469,29 @@ function OnlineOrdersContent({ account }: { account: CurrentAccount }) {
         )}
         <div className="grid gap-3 sm:grid-cols-2">
           {active.map((order) => (
-            <ActiveCard key={order.sessionId} order={order} />
+            <ActiveCard
+              key={order.sessionId}
+              order={order}
+              disabled={!model.activeFresh || !!model.busy}
+              onCancel={() => setCancelling(order)}
+            />
           ))}
         </div>
       </section>
+      <ConfirmDialog
+        open={!!cancelling}
+        tone="destructive"
+        title={cancelling ? `${pickup.cancel} #${cancelling.number}` : pickup.cancel}
+        description={pickup.cancelHint}
+        confirmLabel={pickup.cancel}
+        busy={!!cancelling && model.busy === cancelling.sessionId}
+        confirmDisabled={!model.activeFresh || !!model.busy}
+        onConfirm={() => {
+          if (cancelling)
+            void model.cancelPickup(cancelling.sessionId).then(() => setCancelling(null));
+        }}
+        onCancel={() => setCancelling(null)}
+      />
       <ConfirmDialog
         open={!!rejecting}
         tone="destructive"

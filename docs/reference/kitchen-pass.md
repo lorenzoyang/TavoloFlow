@@ -17,8 +17,8 @@ CANCELLED lines. Actual cancellation increments the visit's bill version once; R
 
 | Kitchen view    | Content                                            | Ordering                             |
 | --------------- | -------------------------------------------------- | ------------------------------------ |
-| Dishes, default | NEW lines grouped from loaded NEW orders           | Oldest order `(createdAt, id)` first |
-| Orders          | NEW orders, including their terminal lines         | `(createdAt, id)` ascending          |
+| Dishes, default | NEW lines grouped from loaded NEW orders           | Oldest entry `(queuedAt, id)` first |
+| Orders          | NEW orders, including their terminal lines         | `(queuedAt, id)` ascending          |
 | Processed       | PROCESSED orders, including fully cancelled orders | `(processedAt, id)` descending       |
 
 Each device opens the kitchen on the view it last chose between Dishes and Orders:
@@ -56,27 +56,31 @@ remain unfiltered.
 
 | Method and path                                     | Input                                                                      | Success                                                            |
 | --------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `GET /api/staff/orders`                             | `status=NEW` or `status=PROCESSED` (default NEW), cursor, limit 50/max 100 | `{ items, nextCursor, totalCount, pendingCount, latestCreatedAt }` |
+| `GET /api/staff/orders`                             | `status=NEW` or `status=PROCESSED` (default NEW), cursor, limit 50/max 100 | `{ items, nextCursor, totalCount, pendingCount, latestQueuedAt }` |
 | `GET /api/staff/orders/{id}`                        | Original order ID                                                          | Complete current kitchen order                                     |
 | `POST /api/staff/orders/{id}/items/{itemId}/ready`  | No business fields                                                         | Complete order after NEW → READY                                   |
 | `POST /api/staff/orders/{id}/items/{itemId}/cancel` | No business fields                                                         | Complete order after NEW → CANCELLED                               |
 
-Kitchen order fields: `id`, `sessionId`, `channel`, `tableLabel`, `online`, `status`, `createdAt`,
+Kitchen order fields: `id`, `sessionId`, `channel`, `tableLabel`, `online`, `status`, `createdAt`, `queuedAt`,
 `processedAt`, `defaultLanguage`, `totalAmountCents`, `payableAmountCents` and the shared
 [order line DTO](dining-ordering.md#order-apis-and-snapshots). `channel` is `DINE_IN`, `PICKUP` or
 `DELIVERY`; dine-in orders have a `tableLabel` and a null `online`, accepted online orders a null
-`tableLabel` and `online: { number, customerName, estimatedAt }`, never the phone or address. Screens
+`tableLabel` and `online: { number, customerName, estimatedAt, requestedPickupAt }`, never the phone or address. Screens
 name both through `lib/session-label.ts` ("Table 5", "Pickup #12" with the name and the estimated
 time, labelled "Expected 18:25" so it never reads as the time the order came in);
 the dish view keeps a short session title and shows the estimated time beside the existing wait on
 one line, without a customer-name row. Estimated time stays whole and wait text may truncate at
 360px. Order tickets and pass cards retain the name and estimated time through `SessionName`;
-an online order is created when staff accept it, so it sorts, groups and chimes like any new order. Responses contain no cancellation reason,
+an online order is created when staff accept it. Immediate orders enter then. Scheduled pickup
+orders show their agreed time and enter on the first kitchen poll at or after their stored
+preparation time. Counts, wait time, grouping, pagination and the arrival watermark use the kitchen
+entry time. A reservation cancelled before release is absent from both kitchen views and does not
+advance the watermark. Responses contain no cancellation reason,
 client request ID, code or credentials. All responses are `no-store`.
 
 Lists contain only ACTIVE visits. Rows/counts come from one Repeatable Read snapshot. `totalCount`
-counts orders in the chosen status; `pendingCount` counts all active NEW orders. Cursors bind tenant,
-status and position. `latestCreatedAt` is the maximum creation timestamp across both statuses and
+counts released orders in the chosen status; `pendingCount` counts active NEW orders released to the kitchen. Cursors bind tenant,
+status and position. `latestQueuedAt` is the maximum kitchen entry timestamp across both statuses and
 closed visits, read through an index maximum for each status, not a count of historical orders.
 Processing and closure do not move that maximum. It is a timestamp, not a cumulative order counter.
 

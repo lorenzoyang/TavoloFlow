@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { pickupMessages } from "@/features/online/pickup-messages";
 import type { OrderLine } from "@/features/orders/api";
 import { formatDateTime, formatMoney, formatTime, shortId } from "@/lib/format";
 import { displayName } from "@/lib/language";
@@ -37,7 +38,7 @@ const waitStyles = {
 };
 
 const waitedMinutes = (now: number, order: KitchenOrder) =>
-  Math.max(0, Math.floor((now - Date.parse(order.createdAt)) / 60_000));
+  Math.max(0, Math.floor((now - Date.parse(order.queuedAt ?? order.createdAt)) / 60_000));
 
 function WaitBadge({ minutes }: { minutes: number }) {
   const m = kitchenMessages[useStaffLanguage()];
@@ -144,12 +145,19 @@ export function DishCard({ group, controls }: { group: DishGroup; controls: Line
                   <span className={cn(order.online && "min-w-0 truncate")}>
                     {m.waited(waitedMinutes(controls.now, order), !!order.online)}
                   </span>
-                  {order.online && (
+                  {order.online && !order.online.requestedPickupAt && (
                     <span className="shrink-0 tabular-nums">
                       · {m.estimated(formatTime(order.online.estimatedAt, language))}
                     </span>
                   )}
                 </p>
+                {order.online?.requestedPickupAt && (
+                  <p className="text-sm font-semibold tabular-nums">
+                    {pickupMessages[language].appointment(
+                      formatTime(order.online.requestedPickupAt, language),
+                    )}
+                  </p>
+                )}
                 {line.options.length > 0 && (
                   <p className="font-medium wrap-break-word">
                     {optionSummary(line.options, order.defaultLanguage, language)}
@@ -194,8 +202,22 @@ export function OrderTicket({ order, controls }: { order: KitchenOrder; controls
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-2xl font-bold">
-            <SessionName session={order} />
+            {order.online?.requestedPickupAt ? (
+              sessionTitle(order, language)
+            ) : (
+              <SessionName session={order} />
+            )}
           </h2>
+          {order.online?.requestedPickupAt && (
+            <p className="text-base font-semibold tabular-nums">
+              {pickupMessages[language].appointment(
+                formatTime(order.online.requestedPickupAt, language),
+              )}
+            </p>
+          )}
+          {order.online?.requestedPickupAt && order.online.customerName && (
+            <p className="text-sm truncate">{order.online.customerName}</p>
+          )}
           <p className="text-sm text-muted-foreground">
             {m.orderedAt(formatTime(order.createdAt, language))} · #{shortId(order.id)}
           </p>

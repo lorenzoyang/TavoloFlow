@@ -57,6 +57,7 @@ public sealed class OnlineRequest
     public string? CouponCode { get; set; }
     public int? CouponPercentOff { get; set; }
     public required string DefaultLanguageSnapshot { get; set; }
+    public DateTime? RequestedPickupAt { get; set; }
     public DateTime SubmittedAt { get; set; }
     public DateTime ExpiresAt { get; set; }
 

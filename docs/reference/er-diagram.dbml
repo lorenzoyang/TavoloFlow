@@ -44,6 +44,7 @@ Table restaurants {
   join_code_required boolean [not null, default: true, note: 'Platform-only switch; false lets guests join an open table without its join code']
   theme varchar(16) [not null, default: 'TERRACOTTA', note: 'Platform-chosen colour preset for guest and staff pages; colours only']
   dine_in_enabled boolean [not null, default: true, note: 'Platform switch for QR dine-in; without it the floor and tables are gone and QR pages only browse']
+  pickup_min_notice_minutes int [note: 'Null disables new scheduled pickups; otherwise minimum minutes between submission and pickup']
   online_enabled boolean [not null, default: false, note: 'Platform switch for online ordering through /r/{slug}']
   slug varchar(40) [note: 'Readable online ordering link /r/{slug}; required while online ordering is on, never cleared']
   public_phone varchar(16) [note: 'OWNER-set phone shown to online customers; online ordering stays closed without it']
@@ -74,6 +75,7 @@ Table restaurants {
     `google_maps_url IS NULL OR google_maps_url LIKE 'https://%'` [name: 'ck_restaurant_google_maps_url']
     `theme IN ('TERRACOTTA', 'LACQUER', 'INDIGO', 'INK', 'TARO')` [name: 'ck_restaurant_theme']
     `dine_in_enabled OR online_enabled` [name: 'ck_restaurant_services']
+    `pickup_min_notice_minutes IN (30, 45, 60, 90, 120)` [name: 'ck_restaurant_pickup_notice']
     `NOT online_enabled OR slug IS NOT NULL` [name: 'ck_restaurant_online_slug']
     `slug IS NULL OR slug ~ '^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$'` [name: 'ck_restaurant_slug']
     `public_phone IS NULL OR public_phone ~ '^\+?[0-9]{6,15}$'` [name: 'ck_restaurant_public_phone']
@@ -174,6 +176,7 @@ Table online_requests {
   expires_at timestamptz [not null, note: 'submitted_at + 10 minutes']
   accepted_at timestamptz
   estimated_at timestamptz
+  requested_pickup_at timestamptz [note: 'Customer-selected time for a scheduled pickup; acceptance keeps it as estimated_at']
   session_id uuid
   rejected_at timestamptz
   reject_reason varchar(12) [note: 'SOLD_OUT, BUSY, CLOSING or OUT_OF_RANGE (delivery only)']
@@ -196,6 +199,7 @@ Table online_requests {
     `customer_phone IS NULL OR customer_phone ~ '^\+?[0-9]{6,15}$'` [name: 'ck_online_request_phone']
     `fulfillment = 'DELIVERY' OR (delivery_address IS NULL AND delivery_notes IS NULL)` [name: 'ck_online_request_pickup_address']
     `expires_at > submitted_at` [name: 'ck_online_request_expiry']
+    `requested_pickup_at IS NULL OR (fulfillment = 'PICKUP' AND requested_pickup_at > submitted_at AND (estimated_at IS NULL OR estimated_at = requested_pickup_at))` [name: 'ck_online_request_pickup_time']
     `(delivery_fee_cents IS NULL AND delivery_distance_meters IS NULL) OR (delivery_fee_cents IS NOT NULL AND delivery_distance_meters IS NOT NULL AND fulfillment = 'DELIVERY' AND delivery_fee_cents BETWEEN 0 AND 9007199254740991 AND delivery_distance_meters BETWEEN 1 AND 30000)` [name: 'ck_online_request_delivery_quote']
     `(coupon_code IS NULL AND coupon_percent_off IS NULL) OR (coupon_code IS NOT NULL AND coupon_percent_off IS NOT NULL AND coupon_percent_off BETWEEN 1 AND 50)` [name: 'ck_online_request_coupon']
     `(accepted_at IS NULL OR rejected_at IS NULL) AND (accepted_at IS NULL OR accepted_at < expires_at) AND (rejected_at IS NULL OR rejected_at < expires_at)` [name: 'ck_online_request_decision']
@@ -524,12 +528,15 @@ Table orders {
   default_language_snapshot varchar(2) [not null]
   created_at timestamptz [not null, default: `now()`]
   processed_at timestamptz
+  kitchen_starts_at timestamptz [note: 'Scheduled pickup only: chosen pickup time minus the preparation time selected by staff']
+  kitchen_queue_at timestamptz [not null, note: 'Generated as COALESCE(kitchen_starts_at, created_at)']
 
   Indexes {
     (id, restaurant_id) [unique, name: 'uq_orders_id_tenant']
     (dining_session_id, client_request_id) [unique, name: 'uq_order_one_per_request']
     (restaurant_id, status, created_at, id)
     (restaurant_id, status, processed_at, id)
+    (restaurant_id, status, kitchen_queue_at, id) [note: 'Excludes reservations cancelled before release']
   }
 
   Checks {
@@ -537,6 +544,7 @@ Table orders {
     `total_amount_cents >= 0` [name: 'ck_order_amount']
     `default_language_snapshot IN ('zh', 'it', 'en')` [name: 'ck_order_language']
     `(status = 'NEW' AND processed_at IS NULL) OR (status = 'PROCESSED' AND processed_at IS NOT NULL)` [name: 'ck_order_lifecycle']
+    `kitchen_starts_at >= created_at` [name: 'ck_order_kitchen_start']
     `processed_at IS NULL OR processed_at >= created_at` [name: 'ck_order_transition_times']
   }
 

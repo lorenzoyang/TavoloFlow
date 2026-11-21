@@ -676,6 +676,10 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("timestamptz")
                         .HasColumnName("rejected_at");
 
+                    b.Property<DateTime?>("RequestedPickupAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("requested_pickup_at");
+
                     b.Property<Guid>("RestaurantId")
                         .HasColumnType("uuid")
                         .HasColumnName("restaurant_id");
@@ -812,6 +816,8 @@ namespace TavoloFlow.Api.Data.Migrations
 
                             t.HasCheckConstraint("ck_online_request_pickup_address", "fulfillment = 'DELIVERY' OR (delivery_address IS NULL AND delivery_notes IS NULL)");
 
+                            t.HasCheckConstraint("ck_online_request_pickup_time", "requested_pickup_at IS NULL OR (fulfillment = 'PICKUP' AND requested_pickup_at > submitted_at AND (estimated_at IS NULL OR estimated_at = requested_pickup_at))");
+
                             t.HasCheckConstraint("ck_online_request_reject_reason", "reject_reason IS NULL OR (rejected_at IS NOT NULL AND (reject_reason IN ('SOLD_OUT', 'BUSY', 'CLOSING') OR (reject_reason = 'OUT_OF_RANGE' AND fulfillment = 'DELIVERY')))");
 
                             t.HasCheckConstraint("ck_online_request_source", "(browser_key IS NULL AND ip_key IS NULL) OR (browser_key IS NOT NULL AND ip_key IS NOT NULL AND browser_key ~ '^[0-9a-f]{64}$' AND ip_key ~ '^[0-9a-f]{64}$')");
@@ -853,6 +859,16 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("is_staff_placed");
 
+                    b.Property<DateTime>("KitchenQueueAt")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("kitchen_queue_at")
+                        .HasComputedColumnSql("COALESCE(kitchen_starts_at, created_at)", true);
+
+                    b.Property<DateTime?>("KitchenStartsAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("kitchen_starts_at");
+
                     b.Property<DateTime?>("ProcessedAt")
                         .HasColumnType("timestamptz")
                         .HasColumnName("processed_at");
@@ -885,11 +901,16 @@ namespace TavoloFlow.Api.Data.Migrations
 
                     b.HasIndex("RestaurantId", "Status", "CreatedAt", "Id");
 
+                    b.HasIndex("RestaurantId", "Status", "KitchenQueueAt", "Id")
+                        .HasFilter("kitchen_starts_at IS NULL OR processed_at IS NULL OR processed_at >= kitchen_queue_at");
+
                     b.HasIndex("RestaurantId", "Status", "ProcessedAt", "Id");
 
                     b.ToTable("orders", null, t =>
                         {
                             t.HasCheckConstraint("ck_order_amount", "total_amount_cents >= 0");
+
+                            t.HasCheckConstraint("ck_order_kitchen_start", "kitchen_starts_at >= created_at");
 
                             t.HasCheckConstraint("ck_order_language", "default_language_snapshot IN ('zh', 'it', 'en')");
 
@@ -1259,6 +1280,10 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("owner_contact");
 
+                    b.Property<int?>("PickupMinNoticeMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("pickup_min_notice_minutes");
+
                     b.Property<string>("PublicPhone")
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)")
@@ -1318,6 +1343,8 @@ namespace TavoloFlow.Api.Data.Migrations
                             t.HasCheckConstraint("ck_restaurant_google_maps_url", "google_maps_url IS NULL OR google_maps_url LIKE 'https://%'");
 
                             t.HasCheckConstraint("ck_restaurant_online_slug", "NOT online_enabled OR slug IS NOT NULL");
+
+                            t.HasCheckConstraint("ck_restaurant_pickup_notice", "pickup_min_notice_minutes IN (30, 45, 60, 90, 120)");
 
                             t.HasCheckConstraint("ck_restaurant_public_phone", "public_phone IS NULL OR public_phone ~ '^\\+?[0-9]{6,15}$'");
 

@@ -42,7 +42,7 @@ import {
   onlineCartKey,
   quotedDeliveryTier,
   restoreOnlineCart,
-  saveOrderToken,
+  rememberOnlineOrder,
   submissionFailure,
   type CheckoutForm,
   type OnlineCart,
@@ -116,11 +116,11 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
   // What checkout says about the delivery fee for the address now typed.
   const addressFee = feeStatus(form, data.restaurant.deliveryAutoQuote);
   const fee = addressFee === "QUOTED" && !tier ? "OUT_OF_RANGE" : addressFee;
-  const waitingToken = context.data?.pending?.statusToken;
+  const waitingOrder = context.data?.pending;
   useEffect(() => {
     const storage = deviceStorage();
-    if (waitingToken && storage) saveOrderToken(restaurantId, waitingToken, storage);
-  }, [restaurantId, waitingToken]);
+    if (waitingOrder && storage) rememberOnlineOrder(restaurantId, waitingOrder, storage);
+  }, [restaurantId, waitingOrder]);
 
   const remember = useCallback(
     (next: OnlineCart, required = false) => {
@@ -189,7 +189,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
       remember(emptyOnlineCart(restaurantId));
       setReview(null);
       const storage = deviceStorage();
-      if (storage) saveOrderToken(restaurantId, result.statusToken, storage);
+      if (storage) rememberOnlineOrder(restaurantId, result, storage);
       void navigate({ to: "/o/$token", params: { token: result.statusToken } });
     },
     [remember, restaurantId, navigate],
@@ -392,7 +392,9 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
       // An understood rejection frees the cart for changes (see submissionFailure); anything else keeps it.
       if (sending && disposition === "editable") {
         remember({ ...current.current, pending: null });
-        setReview(null);
+        if (e instanceof ApiError && e.code === "ONLINE_PICKUP_SLOT_CHANGED")
+          setRequestId(randomUuid());
+        else setReview(null);
       }
       if (e instanceof ApiError && e.code === "ONLINE_BROWSER_PENDING") {
         const existing = existingSubmission(e.body.existingSubmission);
@@ -422,6 +424,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
         e instanceof ApiError &&
         [
           "MENU_CHANGED",
+          "ONLINE_PICKUP_SLOT_CHANGED",
           "DELIVERY_NOT_OFFERED",
           "DELIVERY_MIN_ORDER",
           "DELIVERY_QUOTE_INVALID",
@@ -465,6 +468,14 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     blocked,
     form,
     setForm,
+    editPickupTime: (pickupTime?: string, fulfillment?: CheckoutForm["fulfillment"]) => {
+      setForm((current) => ({
+        ...current,
+        pickupTime,
+        fulfillment: fulfillment ?? current.fulfillment,
+      }));
+      setMessage((current) => (current === "pickupSlotChanged" ? null : current));
+    },
     // A dish with option groups comes from the option picker with the customer's choice.
     add: (item: MenuItem, optionIds: string[] = []) =>
       edit((c) => addItem(c, item, live.current.menu.optionGroups, optionIds)),

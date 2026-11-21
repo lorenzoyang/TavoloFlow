@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Bike, Phone, ShoppingBag, type LucideIcon } from "lucide-react";
 import { Notice, type NoticeTone } from "@/components/notice";
@@ -13,7 +13,9 @@ import { RestaurantHeader } from "@/features/public-menu/PublicMenuViews";
 import { CartLines, EmptyCart } from "@/features/orders/OrderViews";
 import { onlineOrderQuery, type OnlineMenu } from "./api";
 import { onlineOrderMessages, type OnlineOrderMessage } from "./messages";
-import { clearOrderToken, orderEnded, readOrderToken } from "./state";
+import { pickupMessages } from "@/features/online/pickup-messages";
+import { formatPickupDateTime } from "@/lib/format";
+import { clearOrderToken, orderEnded, readOrderToken, readReservations } from "./state";
 import type { useOnlineCart } from "./useOnlineCart";
 import { deviceStorage } from "./useRestaurantLanguage";
 import { useVerification } from "./useVerification";
@@ -165,6 +167,53 @@ export function ActiveOrder({
     >
       {m.activeOrder}
     </Notice>
+  );
+}
+
+export function RecentReservations({
+  restaurantId,
+  language,
+  waitingToken,
+}: {
+  restaurantId: string;
+  language: Language;
+  waitingToken?: string;
+}) {
+  const [saved] = useState(() => {
+    const storage = deviceStorage();
+    return storage ? readReservations(restaurantId, storage) : [];
+  });
+  const results = useQueries({
+    queries: saved.map((reservation) => ({
+      ...onlineOrderQuery(reservation.statusToken),
+      refetchInterval: false as const,
+    })),
+  });
+  const shown = saved.filter(
+    (reservation, i) => results[i].data !== null && reservation.statusToken !== waitingToken,
+  );
+  if (shown.length === 0) return null;
+  const m = pickupMessages[language];
+  return (
+    <section aria-label={m.recent} className="space-y-2">
+      <h2 className="text-sm font-semibold">{m.recent}</h2>
+      {shown.map((reservation) => (
+        <Notice
+          key={reservation.statusToken}
+          action={
+            <Link
+              to="/o/$token"
+              params={{ token: reservation.statusToken }}
+              className={buttonVariants({ variant: "outline" })}
+            >
+              {m.view}
+            </Link>
+          }
+        >
+          #{reservation.number} · {formatPickupDateTime(reservation.requestedPickupAt, language)}
+        </Notice>
+      ))}
+    </section>
   );
 }
 

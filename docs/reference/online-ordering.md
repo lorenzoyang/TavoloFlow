@@ -71,6 +71,47 @@ to UTC. A start that falls in the hour skipped by a spring DST change moves to t
 occurs twice in autumn takes its first occurrence. Calendar rules live in `Online/OnlineSchedule.cs`
 and are unit-tested with Europe/Rome DST dates.
 
+## Scheduled pickup
+
+An OWNER can enable scheduled pickup under online ordering settings. `PUT /api/owner/online/pickup`
+takes `{ minNoticeMinutes }` and returns the settings, including `pickupMinNoticeMinutes`. Send
+null to switch off new reservations. The editor starts at 60 minutes when first enabled. The
+available values are 30, 45, 60, 90 and 120 minutes.
+
+Bootstrap adds `pickupTimes`, a list of available UTC instants, or null when scheduling is off.
+The list is generated only while online ordering is open. It covers today and tomorrow in the
+restaurant's time zone, on the local quarter hour, up to each existing online slot's exclusive end.
+It omits times that violate minimum notice or leave less than 10 minutes for preparation in the
+same slot. It skips nonexistent wall times and offers the first occurrence of a repeated time.
+
+A pickup submission can set `requestedPickupAt` to one of these times. The server validates it
+against current hours and notice after checking for a duplicate. A stale or disabled option returns
+`ONLINE_PICKUP_SLOT_CHANGED` and leaves the cart editable. The original time is included in an
+appointment's receipt, recovery and ordering-context response. The ordinary ten-minute decision
+window, notification, order number and idempotency rules apply.
+
+Staff see the customer's requested time and the feasible choices from 10, 20, 30 and 45 minutes.
+The acceptance endpoint still takes `estimatedMinutes`. For reservations this is how far ahead of
+pickup preparation begins. Acceptance verifies that the selected start has not passed and fits in
+the same online time slot as pickup; otherwise it returns `ONLINE_PICKUP_PREP_TIME_UNAVAILABLE`.
+It creates the session and order with `estimatedAt` equal to the customer's selected time and records
+the computed kitchen start. Confirmed times are stored independently of later settings changes.
+
+An accepted reservation appears in the staff list and customer status page while it awaits
+preparation. The kitchen polls it into the queue at its stored start. The status page displays the
+agreed time, shows when preparation is still underway after that time, and shows ready once the
+remaining dishes are ready. Customers can copy the status link. The menu retains up to five recent
+reservation links on that device, including rejected and expired results while the existing status
+endpoint still answers. The status link remains valid for 24 hours after the order ends.
+
+![Scheduled pickup at checkout and on the confirmed order status page](../images/scheduled-pickup-en.webp)
+
+Before kitchen release, STAFF or OWNER can cancel an accepted reservation through
+`POST /api/staff/online/sessions/{id}/cancel-reservation`. This confirms cancellation, cancels the
+lines and closes the bill as `VOIDED` at zero under the same session lock and transaction. Repeating a
+successful cancellation is safe. Work already released to the kitchen follows the standard kitchen
+and bill operations.
+
 ## Delivery settings
 
 Restaurant-run delivery is an OWNER setting on `restaurants`: `delivery_enabled` (default false) and an
@@ -749,9 +790,10 @@ which dishes still exist (menu writers and dish deletion hold restaurant UPDATE,
 interleave), creates the ACTIVE `PICKUP` or `DELIVERY` session (the request's
 fulfillment, opened now, bill version 1, with the delivery fee on delivery), its single order (`created_at` now, the request's client request ID, total and
 default language) and the items through `OrderLineSnapshot.ToOrderItem` (a deleted dish leaves
-`menu_item_id` null with the snapshot kept), then sets `accepted_at`, `estimated_at` (now plus the
-minutes) and `session_id` and clears the source digests. The order is created at acceptance, so the kitchen sorts it by then and the
-order watermark rises: the kitchen chimes as for any new order.
+`menu_item_id` null with the snapshot kept), then sets `accepted_at`, `estimated_at` and `session_id`
+and clears the source digests. Immediate orders use acceptance plus the chosen minutes as their
+estimate and enter the kitchen at acceptance. Scheduled pickup keeps the requested time as its
+estimate and enters the kitchen at its stored preparation time.
 
 Rejection owns a transaction and locks only the request row UPDATE. It then reads time from
 `TimeProvider`, checks `OnlineRequestState.Phase` and conditionally updates the still-waiting row with

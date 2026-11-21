@@ -114,9 +114,17 @@ public sealed class OnlineRequestService(
         )
             throw OnlineErrors.IpWaitingLimit();
 
-        var (_, availability) = await OnlineAvailability.ReadAsync(db, restaurant, now, ct);
+        var (hours, availability) = await OnlineAvailability.ReadAsync(db, restaurant, now, ct);
         if (!availability.IsOpen)
             throw OnlineErrors.NotOpen(availability);
+        if (
+            form.RequestedPickupAt is { } pickup
+            && (
+                restaurant.PickupMinNoticeMinutes is not { } notice
+                || !OnlinePickup.Times(hours, zone, now, notice).Contains(pickup)
+            )
+        )
+            throw OnlineErrors.PickupSlotChanged();
         // Delivery is the OWNER's switch; it never closes pickup.
         if (form.Fulfillment == OnlineFulfillment.Delivery && !restaurant.DeliveryEnabled)
             throw OnlineErrors.DeliveryNotOffered();
@@ -199,6 +207,7 @@ public sealed class OnlineRequestService(
             CouponCode = form.Coupon?.Code,
             CouponPercentOff = form.Coupon?.PercentOff,
             DefaultLanguageSnapshot = restaurant.DefaultLanguage,
+            RequestedPickupAt = form.RequestedPickupAt,
             SubmittedAt = submittedAt,
             ExpiresAt = submittedAt + WaitingTime,
         };
@@ -265,7 +274,10 @@ public sealed class OnlineRequestService(
             .Where(r => r.BrowserKey == browserKey)
             .OrderBy(r => r.SubmittedAt)
             .ThenBy(r => r.Id)
-            .Select(r => new OnlineSubmissionResponse(r.StatusToken, r.Number, r.ExpiresAt))
+            .Select(r => new OnlineSubmissionResponse(r.StatusToken, r.Number, r.ExpiresAt)
+            {
+                RequestedPickupAt = r.RequestedPickupAt,
+            })
             .FirstOrDefaultAsync(ct);
 
     // Recovery after an unknown result: the random request ID, known only to the submitting device, is the
@@ -297,7 +309,10 @@ public sealed class OnlineRequestService(
             .OnlineRequests.AsNoTracking()
             .Where(r => r.RestaurantId == restaurantId)
             .Where(match)
-            .Select(r => new OnlineSubmissionResponse(r.StatusToken, r.Number, r.ExpiresAt))
+            .Select(r => new OnlineSubmissionResponse(r.StatusToken, r.Number, r.ExpiresAt)
+            {
+                RequestedPickupAt = r.RequestedPickupAt,
+            })
             .SingleOrDefaultAsync(ct);
 
     private static Form Validate(string slug, OnlineRequestInput input)
@@ -315,6 +330,12 @@ public sealed class OnlineRequestService(
                 "Choose PICKUP or DELIVERY.",
                 "fulfillment",
                 "Invalid fulfillment."
+            );
+        if (input.RequestedPickupAt is not null && fulfillment != OnlineFulfillment.Pickup)
+            throw ApiException.Validation(
+                "Schedule a pickup order only.",
+                "requestedPickupAt",
+                "Pickup only."
             );
         var name = InputRules.TrimToNull(input.CustomerName);
         if (name is null || name.Length > OnlineRequestConfiguration.MaxCustomerNameLength)
@@ -388,7 +409,8 @@ public sealed class OnlineRequestService(
             notes,
             OrderLines.Validate(input.Items),
             coupon,
-            quote
+            quote,
+            input.RequestedPickupAt?.UtcDateTime
         );
     }
 
@@ -405,7 +427,8 @@ public sealed class OnlineRequestService(
         string? Notes,
         OrderLineInput[] Lines,
         Coupon? Coupon,
-        Quote? Quote
+        Quote? Quote,
+        DateTime? RequestedPickupAt
     );
 
     private sealed record StoredResponse(

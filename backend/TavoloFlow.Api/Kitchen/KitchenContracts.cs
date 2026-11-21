@@ -19,7 +19,8 @@ public sealed record KitchenOrderResponse(
     long TotalAmountCents,
     long PayableAmountCents,
     OrderLineResponse[] Items,
-    bool IsStaffPlaced
+    bool IsStaffPlaced,
+    DateTime QueuedAt
 )
 {
     // Requires Items, DiningSession and its OnlineRequest to be loaded.
@@ -37,18 +38,23 @@ public sealed record KitchenOrderResponse(
             order.TotalAmountCents,
             OrderResponse.Payable(order),
             OrderLineResponse.ForOrder(order),
-            order.IsStaffPlaced
+            order.IsStaffPlaced,
+            order.KitchenQueueAt
         );
 }
 
-// LatestCreatedAt is the newest order's creation time, restaurant-wide: it advances only when an order is submitted.
+// The watermark spans statuses and closed sessions. Only work reaching the kitchen advances it.
 public sealed record KitchenPage(
     KitchenOrderResponse[] Items,
     string? NextCursor,
     long TotalCount,
     long PendingCount,
-    DateTime? LatestCreatedAt
-);
+    DateTime? LatestQueuedAt
+)
+{
+    // Older staff tabs use this property until the next app reload.
+    public DateTime? LatestCreatedAt => LatestQueuedAt;
+}
 
 public sealed record PassItemResponse(
     Guid Id,

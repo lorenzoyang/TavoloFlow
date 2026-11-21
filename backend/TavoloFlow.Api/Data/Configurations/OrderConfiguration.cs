@@ -15,6 +15,10 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
                 table.HasCheckConstraint("ck_order_status", "status IN ('NEW', 'PROCESSED')");
                 table.HasCheckConstraint("ck_order_amount", "total_amount_cents >= 0");
                 table.HasCheckConstraint(
+                    "ck_order_kitchen_start",
+                    "kitchen_starts_at >= created_at"
+                );
+                table.HasCheckConstraint(
                     "ck_order_language",
                     "default_language_snapshot IN ('zh', 'it', 'en')"
                 );
@@ -71,6 +75,16 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
             .HasDefaultValueSql("now()");
 
         builder
+            .Property(order => order.KitchenStartsAt)
+            .HasColumnName("kitchen_starts_at")
+            .HasColumnType("timestamptz");
+        builder
+            .Property(order => order.KitchenQueueAt)
+            .HasColumnName("kitchen_queue_at")
+            .HasColumnType("timestamptz")
+            .HasComputedColumnSql("COALESCE(kitchen_starts_at, created_at)", stored: true);
+
+        builder
             .Property(order => order.ProcessedAt)
             .HasColumnName("processed_at")
             .HasColumnType("timestamptz");
@@ -94,6 +108,18 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
             order.ProcessedAt,
             order.Id,
         });
+
+        builder
+            .HasIndex(order => new
+            {
+                order.RestaurantId,
+                order.Status,
+                order.KitchenQueueAt,
+                order.Id,
+            })
+            .HasFilter(
+                "kitchen_starts_at IS NULL OR processed_at IS NULL OR processed_at >= kitchen_queue_at"
+            );
 
         builder
             .HasOne(order => order.Restaurant)

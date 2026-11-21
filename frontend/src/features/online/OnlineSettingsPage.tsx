@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -47,8 +48,10 @@ import {
   saveDelivery,
   saveOnlineHours,
   savePublicPhone,
+  savePickup,
   type OnlineSettings,
 } from "./api";
+import { pickupMessages } from "./pickup-messages";
 import { onlineMessages } from "./messages";
 import { FreeDeliverySettings, type FreeDeliveryEdit } from "./FreeDeliverySettings";
 import {
@@ -83,7 +86,7 @@ type SendSettings = (request: SettingsWrite, done?: () => void, settled?: () => 
 // The card a write came from: its saved or failed result shows there, beside the button that sent it.
 // A saved result disappears once the card is edited again, so it never stands beside unsaved changes;
 // a failure stays until the next attempt.
-type SettingsCard = "status" | "phone" | "hours" | "delivery" | "coupons";
+type SettingsCard = "status" | "phone" | "hours" | "pickup" | "delivery" | "coupons";
 
 function StatusCard({
   settings,
@@ -633,6 +636,88 @@ function CopyDayDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+const pickupNoticeChoices = [30, 45, 60, 90, 120];
+
+function PickupCard({
+  settings,
+  busy,
+  send,
+  feedback,
+  edited,
+}: {
+  settings: OnlineSettings;
+  busy: boolean;
+  send: SendSettings;
+  feedback: ReactNode;
+  edited: () => void;
+}) {
+  const language = useStaffLanguage();
+  const m = pickupMessages[language];
+  const settingsCopy = onlineMessages[language];
+  const saved = settings.pickupMinNoticeMinutes ?? null;
+  const [draft, setDraft] = useState<{ enabled: boolean; minutes: number } | null>(null);
+  const value = draft ?? { enabled: saved != null, minutes: saved ?? 60 };
+  const next = value.enabled ? value.minutes : null;
+  const edit = (value: NonNullable<typeof draft>) => {
+    edited();
+    setDraft(value);
+  };
+  return (
+    <Card>
+      <CardContent>
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!busy && next !== saved)
+              send(
+                (signal) => savePickup(next, signal),
+                () => setDraft(null),
+              );
+          }}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold">{m.title}</h2>
+            <Badge variant={saved == null ? "outline" : "success"}>
+              {saved == null ? m.off : m.on}
+            </Badge>
+          </div>
+          <Label className="min-h-11 justify-between gap-3">
+            {m.enabled}
+            <Switch
+              checked={value.enabled}
+              disabled={busy}
+              onCheckedChange={(enabled) => edit({ ...value, enabled })}
+            />
+          </Label>
+          {value.enabled && (
+            <div className="space-y-2">
+              <Label htmlFor="pickup-min-notice">{m.notice}</Label>
+              <NativeSelect
+                id="pickup-min-notice"
+                value={value.minutes}
+                disabled={busy}
+                onChange={(event) => edit({ ...value, minutes: Number(event.target.value) })}
+              >
+                {pickupNoticeChoices.map((minutes) => (
+                  <NativeSelectOption key={minutes} value={minutes}>
+                    {m.minutes(minutes)}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+              <p className="text-sm text-muted-foreground">{m.noticeHint}</p>
+            </div>
+          )}
+          {feedback}
+          <Button type="submit" disabled={busy || next === saved}>
+            {settingsCopy.savePickup}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1206,6 +1291,7 @@ function OnlineSettingsContent({ account }: { account: CurrentAccount }) {
           <LinkCard slug={settings.slug} />
           {owner && <PhoneCard settings={settings} {...cardProps("phone")} />}
           {owner && <HoursCard settings={settings} {...cardProps("hours")} />}
+          {owner && <PickupCard settings={settings} {...cardProps("pickup")} />}
           {owner && <DeliveryCard settings={settings} {...cardProps("delivery")} />}
           {owner && <CouponsCard settings={settings} {...cardProps("coupons")} />}
         </div>

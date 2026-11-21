@@ -53,6 +53,10 @@ const zhErrors = {
   PUSH_DEVICE_LIMIT: "本餐厅开启锁屏通知的设备已达 20 台，请先在不用的设备上关闭。",
   COUPON_CODE_TAKEN: "已经有这个券码了，请换一个。",
   COUPON_LIMIT: "每家餐厅最多保留 50 张优惠券，请先删除不用的。",
+  ONLINE_PICKUP_SLOT_CHANGED: "该取餐时间已不可用，请重新选择。",
+  ONLINE_PICKUP_PREP_TIME_UNAVAILABLE: "所选备餐时间已来不及，请选择其他时间或拒绝预约。",
+  ONLINE_RESERVATION_CHANGED: "这笔预约已无法在备餐前取消，请查看订单。",
+  KITCHEN_ORDER_NOT_RELEASED: "这笔预约还未到备餐时间。",
   ONLINE_REQUEST_CHANGED: "这个线上订单已被处理或已超时，请刷新列表。",
   DELIVERY_FEE_CHANGED: "配送设置有变化，请刷新后重新选择档位。",
   ONLINE_REQUEST_NOT_FOUND: "线上订单不存在。",
@@ -129,6 +133,12 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
     COUPON_CODE_TAKEN: "Esiste già un codice uguale: scegline un altro.",
     COUPON_LIMIT:
       "Un ristorante può tenere al massimo 50 codici sconto: eliminane uno che non usi.",
+    ONLINE_PICKUP_SLOT_CHANGED: "Questo orario non è più disponibile. Scegline un altro.",
+    ONLINE_PICKUP_PREP_TIME_UNAVAILABLE:
+      "Non c’è più tempo per la preparazione scelta. Scegli un altro tempo o rifiuta la richiesta.",
+    ONLINE_RESERVATION_CHANGED:
+      "Non puoi più annullare il ritiro prima della preparazione. Controlla l’ordine.",
+    KITCHEN_ORDER_NOT_RELEASED: "La preparazione di questo ritiro non è ancora prevista.",
     ONLINE_REQUEST_CHANGED: "L’ordine online è già stato gestito o è scaduto: aggiorna l’elenco.",
     DELIVERY_FEE_CHANGED: "La consegna è cambiata. Aggiorna l’elenco e scegli di nuovo la fascia.",
     ONLINE_REQUEST_NOT_FOUND: "Ordine online non trovato.",
@@ -210,6 +220,12 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
       "The restaurant already has 20 devices with notifications on: turn them off on one you no longer use.",
     COUPON_CODE_TAKEN: "There is already a coupon with this code: choose another.",
     COUPON_LIMIT: "A restaurant keeps at most 50 coupons: delete one you no longer use.",
+    ONLINE_PICKUP_SLOT_CHANGED: "This pickup time is no longer available. Choose another time.",
+    ONLINE_PICKUP_PREP_TIME_UNAVAILABLE:
+      "There is no longer enough time for the selected preparation time. Choose another time or decline.",
+    ONLINE_RESERVATION_CHANGED:
+      "This reservation can no longer be cancelled before preparation. Check the order.",
+    KITCHEN_ORDER_NOT_RELEASED: "This reservation is not due for preparation yet.",
     ONLINE_REQUEST_CHANGED:
       "This online order was already handled or has expired: refresh the list.",
     DELIVERY_FEE_CHANGED: "Delivery settings changed. Refresh the list and choose the band again.",

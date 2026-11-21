@@ -3,6 +3,7 @@ import type { WeekProblem } from "./state";
 
 const zh = {
   title: "线上点单设置",
+  savePickup: "保存预约设置",
   refresh: "重新读取设置",
   readError: "无法读取线上点单设置，请检查网络后重试。",
   unknownResult: "操作结果待确认，请重新读取设置并核对，再决定是否操作。",
@@ -174,6 +175,7 @@ export const onlineMessages: Record<Language, typeof zh> = {
   zh,
   it: {
     title: "Impostazioni ordini online",
+    savePickup: "Salva impostazioni",
     refresh: "Ricarica le impostazioni",
     readError: "Impossibile leggere le impostazioni degli ordini online. Controlla la connessione.",
     unknownResult: "Esito da verificare: ricarica le impostazioni e controlla prima di riprovare.",
@@ -348,6 +350,7 @@ export const onlineMessages: Record<Language, typeof zh> = {
   },
   en: {
     title: "Online ordering settings",
+    savePickup: "Save pickup settings",
     refresh: "Reload settings",
     readError: "Can’t read the online ordering settings. Check the connection and retry.",
     unknownResult: "Result unknown: reload the settings and check before trying again.",

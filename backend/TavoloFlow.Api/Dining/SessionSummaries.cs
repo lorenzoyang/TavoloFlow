@@ -67,7 +67,9 @@ public static class SessionSummaries
                                 x.Session.OnlineRequest.CouponCode!,
                                 x.Percent.Value,
                                 x.Charged * x.Percent.Value / 100
-                            )
+                            ),
+                        x.Session.OnlineRequest.RequestedPickupAt,
+                        x.Session.Orders.Max(o => o.KitchenStartsAt)
                     ),
                 ApiEnum.Text(x.Session.Status),
                 x.Session.OpenedAt,

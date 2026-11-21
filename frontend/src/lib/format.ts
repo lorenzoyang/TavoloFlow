@@ -43,6 +43,18 @@ export function formatDateTime(
   return new Date(value).toLocaleString(locales[language], { timeZone });
 }
 
+export function formatPickupDateTime(value: string, language: Language) {
+  return new Date(value).toLocaleString(locales[language], {
+    timeZone: RESTAURANT_TIME_ZONE,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+}
+
 // "19:05" in the restaurant's time zone, for compact rows where the date is implied.
 export function formatTime(
   value: string | number,

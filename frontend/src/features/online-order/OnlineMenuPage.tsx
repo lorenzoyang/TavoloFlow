@@ -24,7 +24,13 @@ import {
 import { onlineMenuQuery, type OnlineMenu } from "./api";
 import { OnlineCheckoutContext } from "./checkout-context";
 import { onlineOrderMessages } from "./messages";
-import { ActiveOrder, OnlineCartPanel, OnlineHeader, OrderingContextNotice } from "./OnlineViews";
+import {
+  ActiveOrder,
+  OnlineCartPanel,
+  OnlineHeader,
+  OrderingContextNotice,
+  RecentReservations,
+} from "./OnlineViews";
 import { useRestaurantLanguage } from "./useRestaurantLanguage";
 import { useOnlineCart } from "./useOnlineCart";
 
@@ -186,6 +192,12 @@ function MenuContent({
             {!cart.waitingOrder && (
               <ActiveOrder restaurantId={data.restaurant.id} language={language} />
             )}
+            <RecentReservations
+              key={data.restaurant.id}
+              restaurantId={data.restaurant.id}
+              language={language}
+              waitingToken={cart.waitingOrder?.statusToken}
+            />
             {closed ? (
               // Text only: the header keeps the restaurant's phone right above it.
               <Notice tone="warning">{closed}</Notice>
