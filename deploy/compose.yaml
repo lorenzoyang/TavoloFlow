@@ -35,7 +35,7 @@ services:
       ConnectionStrings__Default: Host=db;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
       DataProtection__KeyRingPath: /var/tavoloflow/keys
       ReverseProxy__KnownProxies__0: ${CADDY_IP:-172.30.80.2}
-      # Lock-screen push for new online orders: the VAPID private key and the contact push services see.
+      # Lock-screen push for online orders and subscription reminders: the VAPID private key and the contact push services see.
       WebPush__PrivateKey: ${VAPID_PRIVATE_KEY:?Set VAPID_PRIVATE_KEY to 64 hex characters (openssl rand -hex 32)}
       WebPush__Subject: https://${DOMAIN}
       Turnstile__Enabled: ${TURNSTILE_ENABLED:-true}

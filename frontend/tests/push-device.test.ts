@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { createPushController, type DeviceSubscription } from "../src/features/push/controller.ts";
-import { currentSubscription } from "../src/features/push/device.ts";
+import { activeRegistration, currentSubscription } from "../src/features/push/device.ts";
 
 function mockNavigator(t: TestContext, value: object) {
   const original = Object.getOwnPropertyDescriptor(globalThis, "navigator");
@@ -107,3 +107,16 @@ for (const source of ["registration", "subscription"] as const) {
     assert.deepEqual(view.logouts, []);
   });
 }
+
+test("push activation uses the requested app worker after moving between apps", async (t) => {
+  const staff = { active: {} };
+  const platform = { active: {} };
+  mockNavigator(t, {
+    serviceWorker: {
+      ready: Promise.resolve(staff),
+      getRegistration: async (scope: string) => (scope === "/platform" ? platform : staff),
+    },
+  });
+  assert.equal(await activeRegistration("/platform"), platform);
+  assert.equal(await activeRegistration(), staff);
+});

@@ -71,7 +71,7 @@ Il ristorante **Demo Ramen**: tema LACQUER, euro e fuso orario di Roma, menu pre
 - 8 tavoli, da T01 a T08, tutti liberi; i token dei QR vengono generati a caso durante l'inizializzazione;
 - 4 categorie e 12 piatti, con prezzi, descrizioni, allergeni di esempio e una foto ciascuno; i Gyoza alla piastra sono in offerta (5,00 € invece di 6,00 €);
 - 2 gruppi di opzioni: **Piccantezza** (obbligatoria, su tutti i ramen) e **Aggiunte** (fino a tre, con supplemento, sui ramen tranne quello vegano);
-- un periodo di abbonamento di un anno da 199 €, già pagato (si vede nell'area amministratore e nella pagina Abbonamento del titolare);
+- Tariffa e rinnovo sono da impostare. Dall’area amministratore puoi registrare il primo periodo e verificare l’avviso nella Home del titolare.
 - nessuna visita, nessun ordine, nessun conto: si comincia aprendo un tavolo.
 
 Il ristorante e i piatti sono inventati, allergeni compresi, e le foto sono generate con l'AI (i dettagli sono in [`demo/images/README.md`](../../demo/images/README.md)).

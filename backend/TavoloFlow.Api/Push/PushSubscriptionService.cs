@@ -28,17 +28,7 @@ public sealed class PushSubscriptionService(
         CancellationToken ct
     )
     {
-        var errors = new Dictionary<string, string[]>();
-        if (!PushEndpoints.IsAllowed(input.Endpoint))
-            errors["endpoint"] = ["Not a supported browser push service."];
-        if (!PushEndpoints.IsDeviceKey(input.P256dh))
-            errors["p256dh"] = ["Not a P-256 public key."];
-        if (!PushEndpoints.IsAuthSecret(input.Auth))
-            errors["auth"] = ["Not a 16-byte secret."];
-        if (!InputRules.IsLanguage(input.Language))
-            errors["language"] = ["Use zh, it or en."];
-        if (errors.Count > 0)
-            throw ApiException.Validation("The push subscription is invalid.", errors);
+        input.Validate();
         if (!keys.Enabled)
             throw PushErrors.NotConfigured();
         if (!user.Restaurant.OnlineEnabled)

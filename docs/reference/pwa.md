@@ -1,9 +1,7 @@
-# Staff PWA
+# Staff and administrator PWAs
 
 The store area `/staff` can be installed on a phone, tablet or desktop. The business entry is
-`/staff` on the deployment's public origin, for example `https://app.example.com/staff`. Guest `/q/*`
-and Platform `/platform` do not link the staff manifest. The only push notifications are lock-screen
-reminders of new online orders; there are no offline business operations.
+`/staff` on the deployment's public origin, for example `https://app.example.com/staff`. Guest and customer routes do not link a manifest. The staff app sends lock-screen reminders for new online orders. The administrator app sends subscription reminders. Business operations require a network connection.
 
 ## Files and installation scope
 
@@ -20,7 +18,7 @@ reminders of new online orders; there are no offline business operations.
 
 StaffLayout inserts the manifest link when mounted and removes it on unmount. The shared `index.html`
 must not link a manifest: that would also advertise the staff app from a guest page. Staff sign-in is
-inside StaffLayout, so installation is available before login. Platform has its own website layout.
+inside StaffLayout, so installation is available before login. Platform has its own installable layout and manifest.
 
 Manifest `id`, `start_url` and `scope` are `/staff`, without a trailing slash. The router removes trailing
 slashes; `/staff/` would exclude the actual Home URL `/staff` from prefix scope. The worker registration
@@ -174,3 +172,25 @@ run the API with the `http` profile and `npm run build && npm run preview`, open
 and turn notifications on from Home. Lock the phone or background the browser, submit an online order
 from another device, and check the notification, its sound and that a tap opens the online orders page.
 Test iPhone and iPad on an HTTPS deployment, from the app added to the Home Screen.
+
+
+## Administrator PWA
+
+The administrator layout links `/platform.webmanifest` and registers `/platform-sw.js` in
+production builds. The manifest ID, start URL and scope are `/platform`. The worker serves no
+cached content and handles push and notification taps. Opening from the app icon or tapping a
+notification reaches the restaurant list through the same administrator sign-in and unread
+summary.
+
+The administrator opts in per device. Both apps share the VAPID key and transport. Endpoints for
+the administrator are `GET /api/platform/push/key` and `PUT|DELETE /api/platform/push/subscription`.
+A registration belongs to a platform account and expires with its fixed 30-day login. Logout
+revokes that device with its endpoint. A changed credential version, deactivation, expiry or a
+push service returning 404/410 invalidates the registration. A new sign-in reconciles an existing
+browser subscription in the foreground.
+
+Each push contains the number of restaurants and the device language. It shows one summary
+notification and focuses the restaurant list in an open administrator window, or opens one.
+The app reads its current notices from the server. The push carries no acknowledgments or
+subscription details. The same [subscription workflow](restaurant-subscriptions.md#notices-and-follow-up)
+works with the browser’s notification permission blocked.

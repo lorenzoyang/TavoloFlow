@@ -50,6 +50,7 @@ const zhErrors = {
   ONLINE_CLOSED: "现在不在线上点单的营业时间内。",
   ONLINE_NOT_OFFERED: "本餐厅未开通线上点单。",
   PUSH_NOT_CONFIGURED: "这台服务器没有开启锁屏通知。",
+  PLATFORM_PUSH_DEVICE_LIMIT: "本账号的通知设备已达 20 台。请先在不用的设备上关闭通知。",
   PUSH_DEVICE_LIMIT: "本餐厅开启锁屏通知的设备已达 20 台，请先在不用的设备上关闭。",
   COUPON_CODE_TAKEN: "已经有这个券码了，请换一个。",
   COUPON_LIMIT: "每家餐厅最多保留 50 张优惠券，请先删除不用的。",
@@ -87,11 +88,12 @@ const zhErrors = {
   SESSION_NOT_PAYABLE: "零账单应按空桌或全部取消关闭，不记录为收款或未取。",
   SESSION_NOT_VOIDABLE: "只有本轮已有订单且所有菜品均已取消时，才能按零账单关闭。",
   SLUG_CONFLICT: "这个线上链接已被其他餐厅使用，请换一个。",
-  SUBSCRIPTION_CHANGED: "年费资料已变化（可能是本次或其他操作已生效），请核对最新资料后再确认。",
+  SUBSCRIPTION_CHANGED: "收费资料已变化（可能是本次或其他操作已生效），请核对最新资料后再确认。",
   SUBSCRIPTION_PERIOD_EXISTS: "此收费周期编号已使用，请核对原记录。",
   SUBSCRIPTION_PERIOD_NOT_FOUND: "收费周期不存在或不属于此餐厅。",
   SUBSCRIPTION_PERIOD_OVERLAP: "收费周期不能重叠，请核对开始和截止日期。",
-  SUBSCRIPTION_PERIOD_PAID: "此周期已登记收款：约定金额和收款信息已冻结，只能调整截止日期。",
+  SUBSCRIPTION_PERIOD_PAID: "本期已确认收款，记录已锁定。",
+  SUBSCRIPTION_REASON_REQUIRED: "请填写修改原因。",
   TABLE_DISABLED: "此桌已停用。",
   TABLE_HAS_ACTIVE_SESSION: "此桌仍有进行中的用餐，结束用餐后才能删除。",
   TABLE_LABEL_CONFLICT: "本店已有相同桌号。",
@@ -128,6 +130,8 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
     ONLINE_CLOSED: "Ora gli ordini online sono fuori orario.",
     ONLINE_NOT_OFFERED: "Questo ristorante non offre ordini online.",
     PUSH_NOT_CONFIGURED: "Questo server non invia notifiche a schermo bloccato.",
+    PLATFORM_PUSH_DEVICE_LIMIT:
+      "Hai già attivato le notifiche su 20 dispositivi. Disattivale su un dispositivo che non usi.",
     PUSH_DEVICE_LIMIT:
       "Il ristorante ha già 20 dispositivi con le notifiche attive: disattivale su uno che non usate più.",
     COUPON_CODE_TAKEN: "Esiste già un codice uguale: scegline un altro.",
@@ -182,8 +186,8 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
     SUBSCRIPTION_PERIOD_NOT_FOUND: "Il periodo non esiste o non appartiene a questo ristorante.",
     SUBSCRIPTION_PERIOD_OVERLAP:
       "I periodi non possono sovrapporsi: controlla le date di inizio e di fine.",
-    SUBSCRIPTION_PERIOD_PAID:
-      "Il periodo risulta già pagato: importo e pagamento non si modificano più, solo la scadenza.",
+    SUBSCRIPTION_PERIOD_PAID: "Il periodo è stato pagato e non è modificabile.",
+    SUBSCRIPTION_REASON_REQUIRED: "Inserisci il motivo della modifica.",
     TABLE_DISABLED: "Questo tavolo è disattivato.",
     TABLE_HAS_ACTIVE_SESSION: "Il tavolo ha una visita in corso: chiudila prima di eliminarlo.",
     TABLE_LABEL_CONFLICT: "Esiste già un tavolo con questo nome.",
@@ -216,6 +220,8 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
     ONLINE_CLOSED: "Online ordering is outside its hours right now.",
     ONLINE_NOT_OFFERED: "This restaurant doesn’t offer online ordering.",
     PUSH_NOT_CONFIGURED: "This server doesn’t send lock-screen notifications.",
+    PLATFORM_PUSH_DEVICE_LIMIT:
+      "Notifications are already on for 20 devices. Turn them off on a device you don’t use.",
     PUSH_DEVICE_LIMIT:
       "The restaurant already has 20 devices with notifications on: turn them off on one you no longer use.",
     COUPON_CODE_TAKEN: "There is already a coupon with this code: choose another.",
@@ -268,8 +274,8 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
     SUBSCRIPTION_PERIOD_EXISTS: "This period ID is already used: check the original period.",
     SUBSCRIPTION_PERIOD_NOT_FOUND: "The period doesn’t exist or doesn’t belong to this restaurant.",
     SUBSCRIPTION_PERIOD_OVERLAP: "Periods can’t overlap: check the start and end dates.",
-    SUBSCRIPTION_PERIOD_PAID:
-      "This period is already paid: its amount and payment are frozen, only its end date can change.",
+    SUBSCRIPTION_PERIOD_PAID: "This paid period is locked.",
+    SUBSCRIPTION_REASON_REQUIRED: "Enter a reason for the change.",
     TABLE_DISABLED: "This table is disabled.",
     TABLE_HAS_ACTIVE_SESSION: "The table has an open visit: close it before deleting the table.",
     TABLE_LABEL_CONFLICT: "A table with this name already exists.",

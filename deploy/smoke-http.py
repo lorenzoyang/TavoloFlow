@@ -103,12 +103,13 @@ for path in ["/assets/not-found.js", "/missing.png", "/staff/not-found.js", "/he
 for path in ["/api", "/api/not-found"]:
     headers, body = browser.request("GET", path, status=401)
     assert "application/json" in headers["content-type"] and "no-store" in headers["cache-control"]
-headers, body = browser.request("GET", "/staff.webmanifest")
-assert "application/manifest+json" in headers["content-type"] and "no-cache" in headers["cache-control"]
-manifest = json.loads(body)
-assert all(manifest[key] == "/staff" for key in ["id", "scope", "start_url"])
-headers, _ = browser.request("GET", "/sw.js")
-assert "javascript" in headers["content-type"] and "no-cache" in headers["cache-control"]
+for scope, worker in [("/staff", "/sw.js"), ("/platform", "/platform-sw.js")]:
+    headers, body = browser.request("GET", scope + ".webmanifest")
+    assert "application/manifest+json" in headers["content-type"] and "no-cache" in headers["cache-control"]
+    manifest = json.loads(body)
+    assert all(manifest[key] == scope for key in ["id", "scope", "start_url"])
+    headers, _ = browser.request("GET", worker)
+    assert "javascript" in headers["content-type"] and "no-cache" in headers["cache-control"]
 headers, _ = browser.request("GET", "/assets/retained-smoke.js")
 assert "immutable" in headers["cache-control"]
 # A valid business connection above rules out a generic TLS outage. Other hostnames

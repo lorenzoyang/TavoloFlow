@@ -15,8 +15,12 @@ internal sealed class RestaurantSubscriptionPeriodConfiguration
             {
                 table.HasCheckConstraint("ck_subscription_period_dates", "ends_on > starts_on");
                 table.HasCheckConstraint(
-                    "ck_subscription_period_years",
-                    "years BETWEEN 1 AND 9998"
+                    "ck_subscription_period_months",
+                    "months BETWEEN 1 AND 119987"
+                );
+                table.HasCheckConstraint(
+                    "ck_subscription_period_monthly_fee",
+                    "monthly_fee_cents BETWEEN 1 AND 9007199254740991"
                 );
                 table.HasCheckConstraint(
                     "ck_subscription_period_amount",
@@ -29,7 +33,8 @@ internal sealed class RestaurantSubscriptionPeriodConfiguration
         builder.Property(p => p.RestaurantId).HasColumnName("restaurant_id");
         builder.Property(p => p.StartsOn).HasColumnName("starts_on").HasColumnType("date");
         builder.Property(p => p.EndsOn).HasColumnName("ends_on").HasColumnType("date");
-        builder.Property(p => p.Years).HasColumnName("years");
+        builder.Property(p => p.Months).HasColumnName("months");
+        builder.Property(p => p.MonthlyFeeCents).HasColumnName("monthly_fee_cents");
         builder.Property(p => p.AmountCents).HasColumnName("amount_cents");
         builder.Property(p => p.PaidOn).HasColumnName("paid_on").HasColumnType("date");
         builder.Property(p => p.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz");

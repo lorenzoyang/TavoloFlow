@@ -12,8 +12,13 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea";
 import { PeriodFields } from "@/features/subscriptions/PeriodFields";
 import { platformSubscriptionMessages } from "@/features/subscriptions/messages";
-import { periodFromForm, type PeriodInput } from "@/features/subscriptions/state";
-import { formatMoney, parsePrice, RESTAURANT_TIME_ZONE } from "@/lib/format";
+import {
+  addCalendarMonths,
+  periodTotal,
+  periodFromForm,
+  type PeriodInput,
+} from "@/features/subscriptions/state";
+import { formatCalendarDate, formatMoney, parsePrice, RESTAURANT_TIME_ZONE } from "@/lib/format";
 import { randomUuid } from "@/lib/ids";
 import { LANGUAGE_NAMES, LANGUAGES } from "@/lib/language";
 import { DEFAULT_THEME, isTheme } from "@/lib/theme";
@@ -49,7 +54,7 @@ function NewRestaurant({
   const language = useStaffLanguage();
   const m = platformMessages[language];
   const s = platformSubscriptionMessages[language];
-  const [annualInput, setAnnualInput] = useState("");
+  const [monthlyInput, setMonthlyInput] = useState("");
   const [includePeriod, setIncludePeriod] = useState(false);
   const [requireCode, setRequireCode] = useState(true);
   const [services, setServices] = useState<RestaurantServices>({ dineIn: true, online: false });
@@ -82,9 +87,9 @@ function NewRestaurant({
     const data = new FormData(event.currentTarget);
     // A lost create is retried with its original ID, so the server can recognise it.
     const id = actions.pending?.kind === "create" ? actions.pending.restaurantId : randomUuid();
-    const defaultAnnualFeeCents = annualInput.trim() ? parsePrice(annualInput, true) : null;
-    if (annualInput.trim() && defaultAnnualFeeCents === null) {
-      setCreateError(s.annualInvalid);
+    const defaultMonthlyFeeCents = monthlyInput.trim() ? parsePrice(monthlyInput) : null;
+    if (monthlyInput.trim() && defaultMonthlyFeeCents === null) {
+      setCreateError(s.monthlyInvalid);
       return;
     }
     let initialPeriod: PeriodInput | null = null;
@@ -113,7 +118,7 @@ function NewRestaurant({
       staffUsername: String(data.get("staff")),
       ownerContact: String(data.get("ownerContact") ?? "").trim() || null,
       googleMapsUrl: String(data.get("googleMapsUrl") ?? "").trim() || null,
-      defaultAnnualFeeCents,
+      defaultMonthlyFeeCents,
       initialPeriod,
       joinCodeRequired: services.dineIn ? requireCode : true,
       theme: isTheme(theme) ? theme : DEFAULT_THEME,
@@ -301,12 +306,12 @@ function NewRestaurant({
               />
             </div>
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="create-annual">{m.annualFee}</Label>
+              <Label htmlFor="create-monthly">{m.monthlyFee}</Label>
               <Input
-                id="create-annual"
+                id="create-monthly"
                 inputMode="decimal"
-                value={annualInput}
-                onChange={(event) => setAnnualInput(event.target.value)}
+                value={monthlyInput}
+                onChange={(event) => setMonthlyInput(event.target.value)}
               />
             </div>
             <label className="flex min-h-11 items-center gap-3 sm:col-span-2">
@@ -319,7 +324,7 @@ function NewRestaurant({
             {includePeriod && (
               <PeriodFields
                 prefix="create-period"
-                annualFee={parsePrice(annualInput, true)}
+                monthlyFee={parsePrice(monthlyInput)}
                 startsOn={today}
                 today={today}
               />
@@ -339,12 +344,13 @@ function NewRestaurant({
         title={m.initialPeriodTitle}
         description={
           period &&
-          m.confirmInitialPeriod(
-            period.startsOn,
-            period.endsOn,
-            period.years,
-            formatMoney(period.amountCents, language),
-            period.paidOn,
+          s.periodConfirm(
+            true,
+            formatCalendarDate(period.startsOn, language),
+            formatCalendarDate(addCalendarMonths(period.startsOn, period.months)!, language),
+            period.months,
+            formatMoney(periodTotal(period.monthlyFeeCents, period.months)!, language),
+            period.paidOn ? formatCalendarDate(period.paidOn, language) : null,
           )
         }
         confirmLabel={m.create}

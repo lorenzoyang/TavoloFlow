@@ -2,7 +2,7 @@
 
 # Self-hosting TavoloFlow
 
-This guide is for anyone who wants to install TavoloFlow on their own server: a Linux VPS, a domain and Docker. At the end you will have the app reachable over HTTPS on a subdomain of yours, for example `https://app.example.com`, with the administrator area, the staff area installable as a PWA, table QR codes pointing to your domain and an automatic backup every night.
+This guide is for anyone who wants to install TavoloFlow on their own server: a Linux VPS, a domain and Docker. At the end you will have the app reachable over HTTPS on a subdomain of yours, for example `https://app.example.com`, with the staff and administrator areas installable as PWAs, table QR codes pointing to your domain and an automatic backup every night.
 
 It is also the story of how I put it online myself. To build the packages I use a Windows PC with WSL2 (Ubuntu) and Docker Desktop; the server is a netcup VPS; the domain is registered with OVHcloud and its DNS is handled by Cloudflare. Where a choice depends on my case I say so, so you can adapt it to yours.
 
@@ -691,6 +691,8 @@ For everyday releases follow [Releasing with the scripts](releasing.md): two com
 - the [manual procedure](#manual-procedure), for when the scripts are not available or to understand what they do.
 
 Whichever way you choose, keep the existing settings: do not recreate the administrator or `.env`. If the new version needs new variables, add them before installing it, with the steps below. Optional ones, like `GEOAPIFY_API_KEY`, can also be added later. This matters especially for servers that have been running for some time and are only now adding Turnstile: the new version enables verification by default in production, so the installer rejects an upgrade if the old `.env` has no keys.
+
+In the administrator area at `/platform`, install the PWA and opt in to renewal alerts on each device. Tapping an alert opens the restaurant list and the unread summary. Administrator sign-in lasts 30 days.
 
 #### First release with push notifications
 

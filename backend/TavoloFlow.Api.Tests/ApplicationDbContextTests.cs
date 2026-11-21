@@ -42,12 +42,15 @@ public sealed class ApplicationDbContextTests(PostgreSqlFixture database)
                 "online_requests",
                 "order_items",
                 "orders",
+                "platform_push_subscriptions",
+                "platform_subscription_receipts",
                 "platform_users",
                 "push_subscriptions",
                 "restaurant_subscription_periods",
                 "restaurant_tables",
                 "restaurant_users",
                 "restaurants",
+                "subscription_notices",
             },
             tables.Order()
         );

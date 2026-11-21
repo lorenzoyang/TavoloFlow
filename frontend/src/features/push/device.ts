@@ -1,7 +1,8 @@
+import type { AppScope } from "../accounts/useInstallApp";
 import { pushSupport, isOrderNotification, type PushSupport } from "./state.ts";
 
 // This device's push state, read from the browser. Only production builds register the service
-// worker (useInstallableStaffApp), so development reports push as unsupported.
+// worker (useInstallableApp), so development reports push as unsupported.
 export function devicePushSupport(): PushSupport {
   const navigatorWithStandalone = navigator as Navigator & { standalone?: boolean };
   return pushSupport({
@@ -21,19 +22,34 @@ export function devicePushSupport(): PushSupport {
 export const notificationPermission = (): NotificationPermission | null =>
   "Notification" in window ? Notification.permission : null;
 
-async function registration() {
+async function registration(scope: AppScope = "/staff") {
   if (!("serviceWorker" in navigator)) return null;
-  return (await navigator.serviceWorker.getRegistration("/staff")) ?? null;
+  return (await navigator.serviceWorker.getRegistration(scope)) ?? null;
 }
 
-// Waits for the staff worker to be active, which subscribing needs.
-export async function activeRegistration() {
-  if (!(await registration())) throw new Error("The staff service worker is not registered.");
-  return navigator.serviceWorker.ready;
+// Use this scope's worker even when the SPA has already been controlled by the other app.
+export async function activeRegistration(scope: AppScope = "/staff") {
+  const current = await registration(scope);
+  if (!current) throw new Error("The app service worker is not registered.");
+  if (current.active) return current;
+
+  const pending = current.installing ?? current.waiting;
+  if (!pending) throw new Error("The app service worker is unavailable.");
+  await new Promise<void>((resolve, reject) => {
+    const settled = () => {
+      if (pending.state !== "activated" && pending.state !== "redundant") return;
+      pending.removeEventListener("statechange", settled);
+      if (pending.state === "activated") resolve();
+      else reject(new Error("The app service worker could not activate."));
+    };
+    pending.addEventListener("statechange", settled);
+    settled();
+  });
+  return current;
 }
 
-export async function currentSubscription() {
-  const current = await registration();
+export async function currentSubscription(scope: AppScope = "/staff") {
+  const current = await registration(scope);
   // Some browsers support service workers without the Push API.
   if (!current?.pushManager) return null;
   return (await current.pushManager.getSubscription()) ?? null;

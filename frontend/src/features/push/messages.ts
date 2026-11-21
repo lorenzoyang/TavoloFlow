@@ -63,3 +63,23 @@ export const pushMessages: Record<Language, typeof zh> = {
     note: "Only the order number, never customer details. Enable each device separately. Signing out stops sending; notifications already sent may still arrive. They resume at the next sign-in. Retry a failed sync, or return to the app or reconnect to check again.",
   },
 };
+
+export const platformPwaMessages = {
+  zh: {
+    installDescription: "把管理员后台添加到本设备，从主屏幕或应用列表打开。",
+    description: "在本设备接收餐厅的收费到期提醒。",
+    note: "登录有效时接收锁屏通知。打开后台也可以查看收费待办。",
+  },
+  it: {
+    installDescription:
+      "Aggiungi l’area amministratore alla schermata Home o all’elenco delle app.",
+    description: "Ricevi su questo dispositivo gli avvisi sulle scadenze degli abbonamenti.",
+    note: "Le notifiche arrivano durante il periodo di accesso. Gli avvisi sono disponibili anche nell’area amministratore.",
+  },
+  en: {
+    installDescription:
+      "Add the admin area to this device and open it from your home screen or app list.",
+    description: "Receive subscription renewal reminders on this device.",
+    note: "Lock-screen notifications arrive while signed in. You can also see reminders in the admin area.",
+  },
+};

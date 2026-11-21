@@ -6,7 +6,8 @@ public sealed class RestaurantSubscriptionPeriod
     public Guid RestaurantId { get; set; }
     public DateOnly StartsOn { get; set; }
     public DateOnly EndsOn { get; set; }
-    public int Years { get; set; }
+    public int Months { get; set; }
+    public long MonthlyFeeCents { get; set; }
     public long AmountCents { get; set; }
     public DateOnly? PaidOn { get; set; }
     public DateTime CreatedAt { get; set; }

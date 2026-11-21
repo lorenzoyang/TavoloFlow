@@ -4,7 +4,6 @@ import { BrandMark } from "@/components/brand";
 import { Card, CardContent } from "@/components/ui/card";
 import { OnlinePendingBanner } from "@/features/online/OnlinePendingBanner";
 import { PushProvider } from "@/features/push/PushProvider";
-import { OwnerSubscriptionReminder } from "@/features/subscriptions/SubscriptionReminders";
 import { useDocumentTheme } from "@/lib/useDocumentTheme";
 import { htmlLang } from "@/lib/staff-language";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
@@ -12,7 +11,7 @@ import { accountQuery } from "./queries";
 import { accountMessages } from "./messages";
 import { LanguageSwitch } from "./LanguageSwitch";
 import { StaffNav } from "./StaffNav";
-import { useInstallableStaffApp } from "./useInstallApp";
+import { useInstallableApp } from "./useInstallApp";
 
 // Observes the same identity query as AuthBoundary (no extra request). Signed-out, loading and
 // first-password states show only the brand, because navigation would lead nowhere yet.
@@ -26,7 +25,7 @@ export function StaffLayout({ children }: { children: ReactNode }) {
   const account = useQuery(accountQuery).data;
   const signedIn = !!account && !account.mustChangePassword;
   const language = useStaffLanguage();
-  useInstallableStaffApp();
+  useInstallableApp();
   useDocumentTheme(signedIn ? account.restaurantTheme : null);
   useEffect(() => {
     const root = document.documentElement;
@@ -57,10 +56,7 @@ export function StaffLayout({ children }: { children: ReactNode }) {
               account={account}
             />
           )}
-          <div className="mx-auto w-full max-w-6xl">
-            <OwnerSubscriptionReminder />
-            {children}
-          </div>
+          <div className="mx-auto w-full max-w-6xl">{children}</div>
         </main>
       </div>
     </PushProvider>

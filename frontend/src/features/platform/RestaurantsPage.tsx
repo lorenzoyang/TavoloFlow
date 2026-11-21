@@ -1,3 +1,5 @@
+import { InstallSection } from "@/features/accounts/InstallSection";
+import { PushSection } from "@/features/push/PushSection";
 import { useEffect } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight, Plus, RefreshCw, Search, Store } from "lucide-react";
@@ -202,6 +204,10 @@ function Restaurants({ account, search, navigate }: ListProps & { account: Platf
         >
           {m.next}
         </Button>
+      </div>
+      <div className="mt-6 grid gap-4 md:grid-cols-2">
+        <PushSection platform />
+        <InstallSection scope="/platform" />
       </div>
     </>
   );

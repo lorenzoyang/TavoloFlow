@@ -62,7 +62,6 @@ public sealed class DemoSeeder(
             ServiceStatus = RestaurantServiceStatus.Active,
             OrderingEnabled = true,
             JoinCodeRequired = restaurantData.JoinCodeRequired,
-            DefaultAnnualFeeCents = restaurantData.AnnualFeeCents,
         };
 
         // Table lists sort rows by ID, so IDs that grow in file order keep the fixtures' order on screen.
@@ -255,28 +254,6 @@ public sealed class DemoSeeder(
         };
         admin.PasswordHash = platformHasher.HashPassword(admin, accounts.Admin.Password);
         db.PlatformUsers.Add(admin);
-
-        var today = DateOnly.FromDateTime(
-            TimeZoneInfo
-                .ConvertTime(
-                    clock.GetUtcNow(),
-                    TimeZoneInfo.FindSystemTimeZoneById(restaurant.TimeZone)
-                )
-                .DateTime
-        );
-
-        db.RestaurantSubscriptionPeriods.Add(
-            new RestaurantSubscriptionPeriod
-            {
-                Id = Guid.NewGuid(),
-                RestaurantId = restaurant.Id,
-                StartsOn = today,
-                EndsOn = today.AddYears(1),
-                Years = 1,
-                AmountCents = restaurantData.AnnualFeeCents,
-                PaidOn = today,
-            }
-        );
 
         db.MenuItemImages.AddRange(images);
         foreach (var (group, dishes) in groups)

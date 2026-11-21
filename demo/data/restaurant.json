@@ -4,6 +4,5 @@
   "timeZone": "Europe/Rome",
   "currencyCode": "EUR",
   "theme": "LACQUER",
-  "joinCodeRequired": true,
-  "annualFeeCents": 19900
+  "joinCodeRequired": true
 }

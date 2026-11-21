@@ -7,12 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage } from "@/lib/api";
-import { formatCents, formatMoney, parsePrice } from "@/lib/format";
+import { formatCalendarDate, formatCents, formatMoney, parsePrice } from "@/lib/format";
 import { randomUuid } from "@/lib/ids";
 import { onLifecycleChange } from "@/lib/useLiveView";
 import { Section } from "@/features/platform/ManagementViews";
 import {
-  adjustExpiry,
   confirmPayment,
   createPeriod,
   editPeriod,
@@ -23,6 +22,8 @@ import {
 import { PeriodFields } from "./PeriodFields";
 import { useSubscriptionQuery } from "./queries";
 import {
+  addCalendarMonths,
+  periodTotal,
   periodFromForm,
   renewalStart,
   type SubscriptionPeriod,
@@ -34,7 +35,7 @@ import { platformSubscriptionMessages } from "./messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 
 type Editor = {
-  kind: "metadata" | "create" | "edit" | "expiry" | "payment";
+  kind: "metadata" | "create" | "edit" | "payment";
   summary: SubscriptionSummary;
   period?: SubscriptionPeriod;
 };
@@ -54,13 +55,17 @@ export function PlatformSubscription({
   const language = useStaffLanguage();
   const m = platformSubscriptionMessages[language];
   const money = (cents: number) => formatMoney(cents, language);
+  const date = (value: string) => formatCalendarDate(value, language);
   const detail = useSubscriptionQuery(platformSubscriptionKey(userId, restaurantId), (signal) =>
     getSubscription(restaurantId, signal),
   );
   const summary = detail.data?.summary;
   const periods = detail.data?.periods;
+  const createTitle = periods?.length ? m.renew : m.startBilling;
   const actions = useSubscriptionActions(userId);
   const [editor, setEditor] = useState<Editor | null>(null);
+  const editorTitle =
+    editor?.kind === "create" ? createTitle : editor ? m.editor[editor.kind] : m.confirmTitle;
   // The confirmation outlives its dialog, so the closing dialog keeps its text.
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -85,17 +90,17 @@ export function PlatformSubscription({
     try {
       let next: Confirmation;
       if (editor.kind === "metadata") {
-        const raw = String(data.get("annualFee") ?? "").trim();
-        const annualFee = raw ? parsePrice(raw, true) : null;
-        if (raw && annualFee === null) throw new Error(m.annualInvalid);
+        const raw = String(data.get("monthlyFee") ?? "").trim();
+        const monthlyFee = raw ? parsePrice(raw) : null;
+        if (raw && monthlyFee === null) throw new Error(m.monthlyInvalid);
         const ownerContact = String(data.get("ownerContact") ?? "").trim() || null;
         next = {
           version: expectedVersion,
-          description: m.metadataConfirm(annualFee === null ? m.notSet : money(annualFee)),
+          description: m.metadataConfirm(monthlyFee === null ? m.notSet : money(monthlyFee)),
           send: (signal) =>
             saveSubscription(
               restaurantId,
-              { expectedVersion, ownerContact, defaultAnnualFeeCents: annualFee },
+              { expectedVersion, ownerContact, defaultMonthlyFeeCents: monthlyFee },
               signal,
             ),
         };
@@ -110,11 +115,11 @@ export function PlatformSubscription({
           version: expectedVersion,
           description: m.periodConfirm(
             editor.kind === "create",
-            period.startsOn,
-            period.endsOn,
-            period.years,
-            money(period.amountCents),
-            period.paidOn,
+            date(period.startsOn),
+            date(addCalendarMonths(period.startsOn, period.months)!),
+            period.months,
+            money(periodTotal(period.monthlyFeeCents, period.months)!),
+            period.paidOn ? date(period.paidOn) : null,
           ),
           send: (signal) =>
             editor.kind === "create"
@@ -124,36 +129,33 @@ export function PlatformSubscription({
                   period.id,
                   {
                     startsOn: period.startsOn,
-                    endsOn: period.endsOn,
-                    years: period.years,
-                    amountCents: period.amountCents,
+                    months: period.months,
+                    monthlyFeeCents: period.monthlyFeeCents,
+                    reason: period.reason,
                     expectedVersion,
                   },
                   signal,
                 ),
         };
-      } else if (editor.kind === "expiry") {
-        const endsOn = String(data.get("endsOn"));
-        if (!endsOn || endsOn <= editor.period!.startsOn) throw new Error(m.endAfterStart);
-        next = {
-          version: expectedVersion,
-          description: m.expiryConfirm(editor.period!.endsOn, endsOn),
-          send: (signal) =>
-            adjustExpiry(restaurantId, editor.period!.id, { expectedVersion, endsOn }, signal),
-        };
       } else {
         const paidOn = String(data.get("paidOn"));
         if (!paidOn || paidOn > editor.summary.localToday) throw new Error(m.paidOnInvalid);
+        const reason = String(data.get("payment-reason") ?? "").trim() || null;
         next = {
           version: expectedVersion,
           description: m.paymentConfirm(
-            editor.period!.startsOn,
-            editor.period!.endsOn,
+            date(editor.period!.startsOn),
+            date(editor.period!.endsOn),
             money(editor.period!.amountCents),
-            paidOn,
+            date(paidOn),
           ),
           send: (signal) =>
-            confirmPayment(restaurantId, editor.period!.id, { expectedVersion, paidOn }, signal),
+            confirmPayment(
+              restaurantId,
+              editor.period!.id,
+              { expectedVersion, paidOn, reason },
+              signal,
+            ),
         };
       }
       setValidation("");
@@ -183,7 +185,7 @@ export function PlatformSubscription({
           inside ? "space-y-4 border-t pt-4" : "space-y-4 rounded-xl border bg-background p-4"
         }
       >
-        <h3 className="font-semibold">{m.editor[editor.kind]}</h3>
+        <h3 className="font-semibold">{editorTitle}</h3>
         <fieldset disabled={actions.busy || confirming} className="grid gap-4 sm:grid-cols-2">
           {editor.kind === "metadata" ? (
             <>
@@ -198,15 +200,15 @@ export function PlatformSubscription({
                 />
               </div>
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="subscription-annual">{m.annualField}</Label>
+                <Label htmlFor="subscription-monthly">{m.monthlyField}</Label>
                 <Input
-                  id="subscription-annual"
-                  name="annualFee"
+                  id="subscription-monthly"
+                  name="monthlyFee"
                   inputMode="decimal"
                   defaultValue={
-                    editor.summary.defaultAnnualFeeCents === null
+                    editor.summary.defaultMonthlyFeeCents === null
                       ? ""
-                      : formatCents(editor.summary.defaultAnnualFeeCents)
+                      : formatCents(editor.summary.defaultMonthlyFeeCents)
                   }
                 />
               </div>
@@ -215,36 +217,31 @@ export function PlatformSubscription({
             <PeriodFields
               key={`${editor.kind}:${editor.period?.id ?? "new"}`}
               prefix="period"
-              annualFee={editor.summary.defaultAnnualFeeCents}
+              monthlyFee={editor.summary.defaultMonthlyFeeCents}
               today={editor.summary.localToday}
               startsOn={renewalStart(periods?.[0], editor.summary)}
               initial={editor.period}
               allowPaid={editor.kind === "create"}
+              requireReason={!!editor.period && editor.period.startsOn <= editor.summary.localToday}
             />
-          ) : editor.kind === "expiry" ? (
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="subscription-end">{m.newEnd}</Label>
-              <Input
-                id="subscription-end"
-                name="endsOn"
-                type="date"
-                required
-                defaultValue={editor.period!.endsOn}
-                min={editor.period!.startsOn}
-              />
-            </div>
           ) : (
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="subscription-paid">{m.paidOn}</Label>
-              <Input
-                id="subscription-paid"
-                name="paidOn"
-                type="date"
-                required
-                defaultValue={editor.summary.localToday}
-                max={editor.summary.localToday}
-              />
-            </div>
+            <>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="subscription-paid">{m.paidOn}</Label>
+                <Input
+                  id="subscription-paid"
+                  name="paidOn"
+                  type="date"
+                  required
+                  defaultValue={editor.summary.localToday}
+                  max={editor.summary.localToday}
+                />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="payment-reason">{m.reasonOptional}</Label>
+                <Textarea id="payment-reason" name="payment-reason" maxLength={500} rows={2} />
+              </div>
+            </>
           )}
           <Button type="submit" disabled={locked}>
             {m.checkContinue}
@@ -287,16 +284,16 @@ export function PlatformSubscription({
                 </dd>
                 <dt className="text-muted-foreground">{m.defaultFee}</dt>
                 <dd className="font-medium">
-                  {summary.defaultAnnualFeeCents === null
+                  {summary.defaultMonthlyFeeCents === null
                     ? m.feeNotSet
-                    : money(summary.defaultAnnualFeeCents)}
+                    : money(summary.defaultMonthlyFeeCents)}
                 </dd>
               </dl>
             )}
             {feedback("metadata")}
             <div className="flex flex-wrap gap-2">
               <Button disabled={locked || editor?.kind === "create"} onClick={() => open("create")}>
-                {m.newPeriod}
+                {createTitle}
               </Button>
               <Button
                 variant="outline"
@@ -322,34 +319,23 @@ export function PlatformSubscription({
             <PeriodDetails period={period} />
             {editor?.period?.id === period.id ? (
               renderEditor(true)
-            ) : (
+            ) : !period.paidOn ? (
               <div className="flex flex-wrap gap-2">
-                {!period.paidOn && (
-                  <>
-                    <Button disabled={locked} onClick={() => open("payment", period)}>
-                      {m.confirmPaid}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      disabled={locked}
-                      onClick={() => open("edit", period)}
-                    >
-                      {m.editAgreement}
-                    </Button>
-                  </>
-                )}
-                <Button variant="outline" disabled={locked} onClick={() => open("expiry", period)}>
-                  {m.adjustExpiry}
+                <Button disabled={locked} onClick={() => open("payment", period)}>
+                  {m.confirmPaid}
+                </Button>
+                <Button variant="outline" disabled={locked} onClick={() => open("edit", period)}>
+                  {m.editAgreement}
                 </Button>
               </div>
-            )}
+            ) : null}
             {feedback(period.id)}
           </article>
         ))}
       </div>
       <ConfirmDialog
         open={confirming && !!confirmation}
-        title={editor ? m.editor[editor.kind] : m.confirmTitle}
+        title={editorTitle}
         description={confirmation?.description}
         confirmLabel={m.confirm}
         cancelLabel={m.backToEdit}

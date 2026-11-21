@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using TavoloFlow.Api.Common;
@@ -26,37 +27,72 @@ public sealed class SubscriptionService(
     public void Initialize(
         Restaurant restaurant,
         string? contact,
-        long? annualFee,
+        long? monthlyFee,
         InitialSubscriptionPeriod? initial
     )
     {
-        ValidateMetadata(contact, annualFee);
+        ValidateMetadata(contact, monthlyFee);
         restaurant.OwnerContact = InputRules.TrimToNull(contact);
-        restaurant.DefaultAnnualFeeCents = annualFee;
+        restaurant.DefaultMonthlyFeeCents = monthlyFee;
         if (initial is null)
             return;
-        ValidatePeriod(
+        var period = BuildPeriod(
+            restaurant,
             initial.Id,
             initial.StartsOn,
-            initial.EndsOn,
-            initial.Years,
-            initial.AmountCents
+            initial.Months,
+            initial.MonthlyFeeCents,
+            initial.PaidOn
         );
-        ValidatePaidOn(initial.PaidOn, Today(restaurant));
-        db.RestaurantSubscriptionPeriods.Add(
-            new RestaurantSubscriptionPeriod
+        db.RestaurantSubscriptionPeriods.Add(period);
+        RecordNotice(period, SubscriptionNoticeKind.Registered, initial.Reason);
+    }
+
+    private RestaurantSubscriptionPeriod BuildPeriod(
+        Restaurant restaurant,
+        Guid id,
+        DateOnly startsOn,
+        int months,
+        long monthlyFee,
+        DateOnly? paidOn
+    )
+    {
+        var (endsOn, amount) = CalculatePeriod(id, startsOn, months, monthlyFee);
+        ValidatePaidOn(paidOn, Today(restaurant));
+        return new()
+        {
+            Id = id,
+            RestaurantId = restaurant.Id,
+            StartsOn = startsOn,
+            EndsOn = endsOn,
+            Months = months,
+            MonthlyFeeCents = monthlyFee,
+            AmountCents = amount,
+            PaidOn = paidOn,
+            CreatedAt = Now,
+        };
+    }
+
+    private void RecordNotice(
+        RestaurantSubscriptionPeriod period,
+        SubscriptionNoticeKind kind,
+        string? reason,
+        SubscriptionPeriodResponse? before = null
+    ) =>
+        db.SubscriptionNotices.Add(
+            new()
             {
-                Id = initial.Id,
-                RestaurantId = restaurant.Id,
-                StartsOn = initial.StartsOn,
-                EndsOn = initial.EndsOn,
-                Years = initial.Years,
-                AmountCents = initial.AmountCents,
-                PaidOn = initial.PaidOn,
+                Id = Guid.NewGuid(),
+                RestaurantId = period.RestaurantId,
+                PeriodId = period.Id,
+                Kind = kind,
                 CreatedAt = Now,
+                Reason = InputRules.TrimToNull(reason),
+                Change = JsonSerializer.Serialize(
+                    new SubscriptionChange(before, SubscriptionPeriodResponse.From(period))
+                ),
             }
         );
-    }
 
     public static SubscriptionSummary Summarize(
         Restaurant restaurant,
@@ -92,20 +128,50 @@ public sealed class SubscriptionService(
             : "PAID";
         // Payment is independent of service: every started period stays due until paid, even after expiry.
         var unpaid = ordered.Count(p => p.PaidOn is null && p.StartsOn <= today);
-        var remaining = expiry?.DayNumber - today.DayNumber;
-        var dueSoon = remaining is > 0 and <= 7;
         return new(
             restaurant.OwnerContact,
-            restaurant.DefaultAnnualFeeCents,
+            restaurant.DefaultMonthlyFeeCents,
             restaurant.SubscriptionVersion,
             state,
             chosen?.StartsOn,
             expiry,
             paymentState,
             unpaid,
-            dueSoon,
+            Renewal(ordered, today),
             today
         );
+    }
+
+    // A registered but unpaid successor leaves the original renewal deadline outstanding.
+    private static SubscriptionRenewal? Renewal(
+        RestaurantSubscriptionPeriod[] ordered,
+        DateOnly today
+    )
+    {
+        var latestPaidStart = ordered
+            .LastOrDefault(p => p.StartsOn <= today && p.PaidOn is not null)
+            ?.StartsOn;
+        for (var index = ordered.Length - 1; index >= 0; index--)
+        {
+            var period = ordered[index];
+            var remaining = period.EndsOn.DayNumber - today.DayNumber;
+            if (period.StartsOn > today || remaining > 7 || period.EndsOn <= latestPaidStart)
+                continue;
+
+            var next = index + 1 < ordered.Length ? ordered[index + 1] : null;
+            var touching = next?.StartsOn == period.EndsOn;
+            if (touching && next!.PaidOn is not null)
+                continue;
+
+            return new(
+                period.Id,
+                period.EndsOn,
+                remaining > 0 ? SubscriptionNoticeKind.DueSoon : SubscriptionNoticeKind.Expired,
+                touching,
+                period.PaidOn is not null
+            );
+        }
+        return null;
     }
 
     // The caller owns a repeatable-read snapshot when combining summaries with other data.
@@ -114,6 +180,8 @@ public sealed class SubscriptionService(
         CancellationToken ct
     )
     {
+        if (restaurants.Length == 0)
+            return [];
         var ids = restaurants.Select(r => r.Id).ToArray();
         var periods = await db
             .RestaurantSubscriptionPeriods.AsNoTracking()
@@ -151,8 +219,8 @@ public sealed class SubscriptionService(
         var summaries = (await SummariesAsync(restaurants, ct)).Values;
         var result = new SubscriptionReminders(
             summaries.Count(s => s.DueSoon),
-            summaries.Count(s => s.ServiceState == "EXPIRED"),
-            summaries.Count(s => s.UnpaidPeriodCount > 0)
+            summaries.Count(s => s.RenewalExpired),
+            summaries.Count(s => s.HasUnpaid)
         );
         await transaction.CommitAsync(ct);
         return result;
@@ -171,13 +239,13 @@ public sealed class SubscriptionService(
             actor,
             r =>
             {
-                ValidateMetadata(input.OwnerContact, input.DefaultAnnualFeeCents);
+                ValidateMetadata(input.OwnerContact, input.DefaultMonthlyFeeCents);
                 var contact = InputRules.TrimToNull(input.OwnerContact);
                 var changed =
                     r.OwnerContact != contact
-                    || r.DefaultAnnualFeeCents != input.DefaultAnnualFeeCents;
+                    || r.DefaultMonthlyFeeCents != input.DefaultMonthlyFeeCents;
                 r.OwnerContact = contact;
-                r.DefaultAnnualFeeCents = input.DefaultAnnualFeeCents;
+                r.DefaultMonthlyFeeCents = input.DefaultMonthlyFeeCents;
                 return Task.FromResult(changed);
             },
             ct
@@ -196,30 +264,19 @@ public sealed class SubscriptionService(
             actor,
             async r =>
             {
-                ValidatePeriod(
+                var period = BuildPeriod(
+                    r,
                     input.Id,
                     input.StartsOn,
-                    input.EndsOn,
-                    input.Years,
-                    input.AmountCents
+                    input.Months,
+                    input.MonthlyFeeCents,
+                    input.PaidOn
                 );
-                ValidatePaidOn(input.PaidOn, Today(r));
                 if (await db.RestaurantSubscriptionPeriods.AnyAsync(p => p.Id == input.Id, ct))
                     throw PeriodExists();
-                await EnsureNoOverlapAsync(restaurantId, input.StartsOn, input.EndsOn, null, ct);
-                db.RestaurantSubscriptionPeriods.Add(
-                    new RestaurantSubscriptionPeriod
-                    {
-                        Id = input.Id,
-                        RestaurantId = restaurantId,
-                        StartsOn = input.StartsOn,
-                        EndsOn = input.EndsOn,
-                        Years = input.Years,
-                        AmountCents = input.AmountCents,
-                        PaidOn = input.PaidOn,
-                        CreatedAt = Now,
-                    }
-                );
+                await EnsureNoOverlapAsync(restaurantId, period.StartsOn, period.EndsOn, null, ct);
+                db.RestaurantSubscriptionPeriods.Add(period);
+                RecordNotice(period, SubscriptionNoticeKind.Registered, input.Reason);
                 return true;
             },
             ct
@@ -237,52 +294,43 @@ public sealed class SubscriptionService(
             input.ExpectedVersion,
             "EDIT_PERIOD",
             actor,
-            async _ =>
+            async r =>
             {
                 var p = await PeriodAsync(restaurantId, periodId, ct);
                 if (p.PaidOn is not null)
                     throw new ApiException(
                         409,
                         "SUBSCRIPTION_PERIOD_PAID",
-                        "A paid period's agreed amount and payment are frozen; change only its end date to extend it."
+                        "A paid period is a permanent record."
                     );
-                ValidatePeriod(p.Id, input.StartsOn, input.EndsOn, input.Years, input.AmountCents);
-                await EnsureNoOverlapAsync(restaurantId, input.StartsOn, input.EndsOn, p.Id, ct);
-                var changed =
-                    p.StartsOn != input.StartsOn
-                    || p.EndsOn != input.EndsOn
-                    || p.Years != input.Years
-                    || p.AmountCents != input.AmountCents;
-                p.StartsOn = input.StartsOn;
-                p.EndsOn = input.EndsOn;
-                p.Years = input.Years;
-                p.AmountCents = input.AmountCents;
-                return changed;
-            },
-            ct
-        );
+                var (endsOn, amount) = CalculatePeriod(
+                    p.Id,
+                    input.StartsOn,
+                    input.Months,
+                    input.MonthlyFeeCents
+                );
+                if (
+                    p.StartsOn == input.StartsOn
+                    && p.Months == input.Months
+                    && p.MonthlyFeeCents == input.MonthlyFeeCents
+                )
+                    return false;
+                if (p.StartsOn <= Today(r) && string.IsNullOrWhiteSpace(input.Reason))
+                    throw new ApiException(
+                        400,
+                        "SUBSCRIPTION_REASON_REQUIRED",
+                        "Explain changes to a period that has started."
+                    );
+                await EnsureNoOverlapAsync(restaurantId, input.StartsOn, endsOn, p.Id, ct);
 
-    // The only change a paid period accepts: its frozen amount and payment date stay as collected.
-    public Task<SubscriptionDetail> ChangeExpiryAsync(
-        Guid restaurantId,
-        Guid periodId,
-        SubscriptionExpiryInput input,
-        Guid actor,
-        CancellationToken ct
-    ) =>
-        RunAsync(
-            restaurantId,
-            input.ExpectedVersion,
-            "EXPIRY",
-            actor,
-            async _ =>
-            {
-                var p = await PeriodAsync(restaurantId, periodId, ct);
-                ValidatePeriod(p.Id, p.StartsOn, input.EndsOn, p.Years, p.AmountCents);
-                await EnsureNoOverlapAsync(restaurantId, p.StartsOn, input.EndsOn, p.Id, ct);
-                var changed = p.EndsOn != input.EndsOn;
-                p.EndsOn = input.EndsOn;
-                return changed;
+                var before = SubscriptionPeriodResponse.From(p);
+                p.StartsOn = input.StartsOn;
+                p.EndsOn = endsOn;
+                p.Months = input.Months;
+                p.MonthlyFeeCents = input.MonthlyFeeCents;
+                p.AmountCents = amount;
+                RecordNotice(p, SubscriptionNoticeKind.Changed, input.Reason, before);
+                return true;
             },
             ct
         );
@@ -310,6 +358,7 @@ public sealed class SubscriptionService(
                         "This period is already fully paid. Check the original record."
                     );
                 p.PaidOn = input.PaidOn;
+                RecordNotice(p, SubscriptionNoticeKind.Paid, input.Reason);
                 return true;
             },
             ct
@@ -347,8 +396,8 @@ public sealed class SubscriptionService(
                     u =>
                         u.SetProperty(r => r.OwnerContact, restaurant.OwnerContact)
                             .SetProperty(
-                                r => r.DefaultAnnualFeeCents,
-                                restaurant.DefaultAnnualFeeCents
+                                r => r.DefaultMonthlyFeeCents,
+                                restaurant.DefaultMonthlyFeeCents
                             )
                             .SetProperty(
                                 r => r.SubscriptionVersion,
@@ -442,33 +491,34 @@ public sealed class SubscriptionService(
             );
     }
 
-    private static void ValidateMetadata(string? contact, long? annualFee)
+    private static void ValidateMetadata(string? contact, long? monthlyFee)
     {
-        if (contact?.Length > 500 || annualFee is < 0 or > InputRules.MaxSafeCents)
+        if (contact?.Length > 500 || monthlyFee is < 1 or > InputRules.MaxSafeCents)
             throw ApiException.Validation(
-                "The owner contact can be at most 500 characters and the annual fee must be a valid non-negative amount."
+                "The owner contact can be at most 500 characters and the monthly fee must be a positive amount when set."
             );
     }
 
-    private static void ValidatePeriod(
+    private static (DateOnly End, long Amount) CalculatePeriod(
         Guid id,
         DateOnly starts,
-        DateOnly ends,
-        int years,
-        long amount
+        int months,
+        long monthlyFee
     )
     {
+        var availableMonths = (9999 - starts.Year) * 12 + 12 - starts.Month;
         if (
             id == Guid.Empty
             || starts == DateOnly.MinValue
-            || ends <= starts
-            || years is < 1 or > 9998
-            || starts.Year + years > 9999
-            || amount is < 1 or > InputRules.MaxSafeCents
+            || months < 1
+            || months > availableMonths
+            || monthlyFee < 1
+            || monthlyFee > InputRules.MaxSafeCents / months
         )
             throw ApiException.Validation(
-                "Enter a valid period, a positive whole number of years and a positive total amount."
+                "Enter a valid start date, a positive number of calendar months and a positive monthly fee with a valid total."
             );
+        return (starts.AddMonths(months), monthlyFee * months);
     }
 
     private static void ValidatePaidOn(DateOnly? paidOn, DateOnly today)

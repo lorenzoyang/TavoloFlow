@@ -17,12 +17,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiError, errorMessage } from "@/lib/api";
-import { changePlatformPassword, platformLogin, platformLogout } from "./api";
+import { changePlatformPassword, platformLogin } from "./api";
 import { platformQuery, replacePlatform, type PlatformIdentity } from "./identity";
 import { LanguageSwitch } from "@/features/accounts/LanguageSwitch";
 import { listSearch } from "./list-search";
 import { htmlLang } from "@/lib/staff-language";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
+import { PlatformSubscriptionNotices } from "@/features/subscriptions/SubscriptionNotices";
+import { PushProvider } from "@/features/push/PushProvider";
+import { usePushSubscription } from "@/features/push/usePushSubscription";
+import { useInstallableApp } from "@/features/accounts/useInstallApp";
 import { platformMessages } from "./messages";
 
 // Platform pages share the store pages' device language; the switch stays in the header, next to
@@ -30,6 +34,7 @@ import { platformMessages } from "./messages";
 export function PlatformLayout({ children }: { children: ReactNode }) {
   const language = useStaffLanguage();
   const identity = useQuery(platformQuery).data;
+  useInstallableApp("/platform");
   useEffect(() => {
     const root = document.documentElement;
     root.lang = htmlLang(language);
@@ -38,20 +43,23 @@ export function PlatformLayout({ children }: { children: ReactNode }) {
     };
   }, [language]);
   return (
-    <div className="min-h-dvh">
-      <header className="border-b bg-card pt-safe">
-        {/* Phones: the brand on its own row, then the language switch and the account menu at the
+    <PushProvider key={identity?.userId ?? "anonymous"} account={identity} scope="/platform">
+      <div className="min-h-dvh">
+        <header className="border-b bg-card pt-safe">
+          {/* Phones: the brand on its own row, then the language switch and the account menu at the
             right; one row from sm. */}
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-3">
-          <BrandMark caption={platformMessages[language].brandCaption} className="mr-auto" />
-          <LanguageSwitch />
-          {identity && <AccountMenu key={identity.userId} account={identity} />}
-        </div>
-      </header>
-      <main className="mx-auto max-w-5xl px-4 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-        {children}
-      </main>
-    </div>
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-3">
+            <BrandMark caption={platformMessages[language].brandCaption} className="mr-auto" />
+            <LanguageSwitch />
+            {identity && <AccountMenu key={identity.userId} account={identity} />}
+          </div>
+        </header>
+        <main className="mx-auto max-w-5xl px-4 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+          {identity && <PlatformSubscriptionNotices userId={identity.userId} />}
+          {children}
+        </main>
+      </div>
+    </PushProvider>
   );
 }
 
@@ -94,6 +102,7 @@ function AccountMenu({ account }: { account: PlatformIdentity }) {
   const language = useStaffLanguage();
   const m = platformMessages[language];
   const navigate = useNavigate();
+  const push = usePushSubscription();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const logout = async () => {
@@ -101,7 +110,7 @@ function AccountMenu({ account }: { account: PlatformIdentity }) {
     setError("");
     try {
       try {
-        await platformLogout();
+        await push.logout();
       } catch (e) {
         if (!(e instanceof ApiError && e.status === 401)) throw e;
       }

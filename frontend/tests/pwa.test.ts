@@ -206,11 +206,11 @@ type WindowClient = {
   focused: number;
   navigated: string[];
   focus: () => Promise<void>;
-  navigate: (url: string) => Promise<void>;
+  navigate: (url: string) => Promise<WindowClient>;
 };
 
 // Runs the real sw.js with only its push and click handlers' browser APIs stubbed.
-function pushWorker(windows: { url: string }[] = []) {
+function pushWorker(windows: { url: string }[] = [], script = "public/sw.js") {
   const listeners = new Map<string, (event: unknown) => void>();
   const shown: Shown[] = [];
   const opened: string[] = [];
@@ -223,9 +223,10 @@ function pushWorker(windows: { url: string }[] = []) {
     },
     async navigate(target: string) {
       this.navigated.push(target);
+      return this;
     },
   }));
-  runInNewContext(read("public/sw.js").toString(), {
+  runInNewContext(read(script).toString(), {
     self: {
       addEventListener: (name: string, handler: (event: unknown) => void) =>
         listeners.set(name, handler),
@@ -325,4 +326,31 @@ test("tapping a notification opens the online orders page in a staff window or a
   assert.equal(already.clients[0].focused, 1);
   assert.deepEqual(already.clients[0].navigated, []);
   assert.equal(closed, 3);
+});
+
+test("the platform install and consolidated push both land on the platform restaurant list", async () => {
+  const admin = JSON.parse(read("public/platform.webmanifest").toString());
+  for (const key of ["id", "start_url", "scope"]) assert.equal(admin[key], "/platform");
+
+  const worker = pushWorker(
+    [
+      { url: "https://app.example.com/staff" },
+      { url: "https://app.example.com/platform/restaurants/123" },
+    ],
+    "public/platform-sw.js",
+  );
+  await worker.push(payload({ count: 3, language: "zh" }));
+  assert.equal(worker.shown.length, 1);
+  assert.equal(worker.shown[0].options.body, "3 家餐厅有收费提醒");
+  assert.equal(worker.shown[0].options.tag, "subscription-reminders");
+  await worker.click({ close() {} });
+  assert.equal(worker.clients[0].focused, 0);
+  assert.equal(worker.clients[1].focused, 1);
+  assert.deepEqual(worker.clients[1].navigated, ["https://app.example.com/platform/restaurants"]);
+
+  const cold = pushWorker([], "public/platform-sw.js");
+  await cold.push(payload(null));
+  assert.equal(cold.shown[0].title, "Subscription reminders");
+  await cold.click({ close() {} });
+  assert.deepEqual(cold.opened, ["https://app.example.com/platform/restaurants"]);
 });

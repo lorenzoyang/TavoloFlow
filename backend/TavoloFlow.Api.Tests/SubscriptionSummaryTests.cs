@@ -12,7 +12,7 @@ public sealed class SubscriptionSummaryTests
             Name = "Calendar test",
             DefaultLanguage = "it",
             OwnerContact = "Owner",
-            DefaultAnnualFeeCents = 50_000,
+            DefaultMonthlyFeeCents = 50_000,
             SubscriptionVersion = 4,
         };
 
@@ -26,7 +26,7 @@ public sealed class SubscriptionSummaryTests
             Id = Guid.NewGuid(),
             StartsOn = starts,
             EndsOn = ends,
-            Years = 1,
+            Months = 12,
             AmountCents = 50_000,
             PaidOn = paid ? starts : null,
         };
@@ -69,7 +69,7 @@ public sealed class SubscriptionSummaryTests
     }
 
     [Fact]
-    public void Summarize_ContiguousRenewals_UsesFinalExpiryWhilePaymentDebtRemainsIndependent()
+    public void Summarize_UnpaidSuccessor_ExtendsServiceWithoutMovingRenewalDeadline()
     {
         var current = Period(new(2026, 11, 1), new(2027, 11, 1));
         var next = Period(new(2027, 11, 1), new(2028, 11, 1));
@@ -80,7 +80,9 @@ public sealed class SubscriptionSummaryTests
             new(2027, 10, 27)
         );
         Assert.Equal("ACTIVE", result.ServiceState);
-        Assert.False(result.DueSoon);
+        Assert.True(result.DueSoon);
+        Assert.True(result.Renewal?.AwaitingPayment);
+        Assert.Equal(current.EndsOn, result.Renewal?.Deadline);
         Assert.Equal(new DateOnly(2029, 11, 1), result.ExpiresOn);
         Assert.Equal("UNPAID", result.PaymentState);
         Assert.Equal(1, result.UnpaidPeriodCount);

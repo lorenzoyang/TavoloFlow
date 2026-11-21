@@ -1,103 +1,81 @@
 # Restaurant subscriptions
 
-Platform administrators manage owner contact information, the default annual fee and agreed service
-periods. OWNER reads only their own restaurant at `/staff/subscription`. STAFF and Guest receive no
-contact/subscription data; this information is absent from `/api/auth/me` and public bootstrap.
-The system records offline fee collection, not payment processing. There is no change-history table,
-owner inbox or persistent notification workflow.
+Platform administrators set a restaurant's default monthly fee, record service agreements for any
+positive number of calendar months, and confirm offline collection. OWNER can read the restaurant’s
+own subscription and acknowledge notices at the staff home. STAFF and guests receive no subscription
+or owner-contact data. Collection is recorded in the app and takes place outside it.
 
-## APIs and response shape
+## API
 
-Platform subscription paths are relative to `/api/platform/restaurants/{id}/subscription`:
+Platform subscription paths are relative to `/api/platform/restaurants/{id}/subscription`.
 
-| Method | Relative path                 | Input / purpose                                                          |
-| ------ | ----------------------------- | ------------------------------------------------------------------------ |
-| GET    | Empty                         | `{ summary, periods }`                                                   |
-| PATCH  | Empty                         | `{ expectedVersion, ownerContact, defaultAnnualFeeCents }`               |
-| POST   | `/periods`                    | `{ expectedVersion, id, startsOn, endsOn, years, amountCents, paidOn? }` |
-| PATCH  | `/periods/{periodId}`         | `{ expectedVersion, startsOn, endsOn, years, amountCents }`, unpaid only |
-| PATCH  | `/periods/{periodId}/expiry`  | `{ expectedVersion, endsOn }`                                            |
-| POST   | `/periods/{periodId}/payment` | `{ expectedVersion, paidOn }`, confirm full collection                   |
+| Method | Relative path          | Input or purpose                                                              |
+| ------ | ---------------------- | ----------------------------------------------------------------------------- |
+| GET    | Empty                  | `{ summary, periods }`                                                       |
+| PATCH  | Empty                  | `{ expectedVersion, ownerContact, defaultMonthlyFeeCents }`                  |
+| POST   | `/periods`             | `{ expectedVersion, id, startsOn, months, monthlyFeeCents, paidOn?, reason? }` |
+| PATCH  | `/periods/{periodId}`  | `{ expectedVersion, startsOn, months, monthlyFeeCents, reason? }`             |
+| POST   | `/periods/{periodId}/payment` | `{ expectedVersion, paidOn, reason? }`                                 |
 
-OWNER uses `GET /api/owner/subscription`, with restaurant derived from `CurrentAccount`.
-`GET /api/platform/subscription-reminders` returns `dueSoonCount`, `expiredCount` and `unpaidCount`.
-Restaurant listing accepts `subscriptionStatus=UNPAID|DUE_SOON|EXPIRED|UNCONFIGURED` and `sort=EXPIRY`.
-Writes require Platform CSRF; management DTOs reject unknown fields. Responses are `no-store`.
+OWNER reads `GET /api/owner/subscription`, scoped to the authenticated restaurant.
+`GET /api/platform/subscription-reminders` returns counts for due-soon, expired and unpaid follow-up.
+The platform list accepts `subscriptionStatus=UNPAID|DUE_SOON|EXPIRED|UNCONFIGURED` and `sort=EXPIRY`.
+The summary includes the current agreement’s service dates, payment state and a separate renewal
+deadline when one needs attention. Every period includes its monthly fee, months, computed end and
+total, and its recorded payment date when paid.
 
-Summary fields: `ownerContact`, `defaultAnnualFeeCents`, `version`, `serviceState`, `startsOn`,
-`expiresOn`, `paymentState`, `unpaidPeriodCount`, `dueSoon` and `localToday`. Each period has `id`,
-`startsOn`, `endsOn`, `years`, `amountCents`, nullable `paidOn` and derived `isPaid`.
-Reads return summary and all periods in one Repeatable Read snapshot, newest start/ID first, without
-paging. The version belongs to the same agreements and amounts the operator sees.
+Both `/api/owner/subscription/notices` and `/api/platform/subscription-notices` return the
+account’s unread notices. `POST .../acknowledge { ids }` marks the displayed IDs as read. It is
+idempotent. Acknowledging a notice neither changes an agreement nor records a payment.
+Writes use their own account’s CSRF token. Responses are `no-store`.
 
-## Dates, agreements and collection
+## Dates, amounts and collection
 
-- Dates use the restaurant's local calendar and TimeProvider, not UTC date truncation. Start is
-  inclusive and end exclusive: a one-year period starting 2026-11-01 normally ends 2027-11-01.
-- The frontend pre-fills calendar years, clamping February 29 to the last February day when needed.
-  Administrators can confirm an adjusted end date. Years must be positive and fit the supported
-  calendar range; end must be after start. The server does not force an exact anniversary.
-- Prices use EUR integer cents within JavaScript's safe-integer range. Default annual fee may be null
-  or zero; a period amount must be positive. Contact is optional free text up to 500 characters.
-- A new agreement pre-fills annual fee × years, but accepts a negotiated whole-period total. Changing
-  the default fee does not rewrite earlier agreements.
-- Periods may touch but must not overlap. Renewal adds a period. An unpaid agreement can be edited;
-  after collection, amount and payment date are frozen and only the dedicated expiry change is allowed.
-- Nullable `paidOn` is the payment-state source. Collection is one full payment per period, optionally
-  registered on creation; there is no partial payment, undo or payment-date correction endpoint.
-- Payment may be early or late, but not in the restaurant's future. Recording late payment preserves
-  original start/end dates. Receipt of money never moves the agreed service period.
-- Restaurant creation can include contact, default fee, initial period and payment in the same
-  restaurant/account transaction. Existing restaurants without periods remain unconfigured; migration
-  does not invent historical agreements or collections. Unpaid restaurants can be created.
+- An unconfigured restaurant has no recorded period. Its first period defaults to the restaurant’s
+  local today. A renewal defaults to the latest agreed end. Start is inclusive and end exclusive.
+- The API calculates the end using calendar months and clamps to the last day of a shorter month.
+  January 31 plus one month ends on February 28 in a common year. No anchor carries across manual
+  renewals. The total is the agreed monthly fee in integer EUR cents multiplied by the month count,
+  within JavaScript’s safe-integer range. The default monthly fee is optional.
+- Changing the default affects future registrations. An unpaid period can be edited. A change to a
+  started agreement requires a reason visible to the owner. After full collection the entire
+  agreement is immutable. The actual payment date can be earlier or later than the start and must
+  be no later than the restaurant’s local today.
+- Periods can touch and cannot overlap. The same model covers one month or multiple months.
+  For example, 24 months at €20 totals €480. A restaurant and its first agreement can be created
+  together. Changes are written under the restaurant UPDATE lock and the expected subscription
+  version. A stale version returns `409 SUBSCRIPTION_CHANGED`. After an unknown result, reread and
+  confirm again. No-op saves keep the version and create no notice.
 
-## Summaries and reminders
+## Notices and follow-up
 
-Service states are UNCONFIGURED, UPCOMING, ACTIVE and EXPIRED. Payment state is a separate PAID/UNPAID
-dimension for the selected period; unpaid-period count includes every started unpaid period, even one
-that already expired.
+Registration, changes and payment writes record owner notices in the same transaction as the change.
+A paid registration creates one notice. Changes show the prior and saved agreement plus the operator’s
+optional note. The owner sees these at staff Home and confirms them once per account.
 
-The summary chooses today's period; otherwise the latest started period, otherwise the first upcoming
-one. Subsequent periods starting exactly at its exclusive end extend displayed expiry until the first
-gap. A future period across a gap does not hide an expired-service warning before service resumes.
-Due-soon applies 1–7 local days before that final exclusive cutoff; on the cutoff date it is expired.
+Agreeing the next service dates and receiving payment remain independent. Unpaid periods still count
+after they end. A contiguous paid renewal covers the prior deadline. A contiguous unpaid renewal leaves
+that deadline outstanding and shows that renewal is awaiting payment. A gap remains visible until
+service resumes. No date or payment automatically suspends the restaurant or changes ordering.
 
-Platform lists/reminder summaries, OWNER subscription pages and owner reminders in store pages refresh
-every 60 seconds while visible and online, and on resume/reconnect. Closing the browser sends no
-external notification. Expiry or nonpayment only warns: service status, ordering and bill closure
-continue to follow the explicit business switches. There is no automatic suspension.
+The background task checks at startup and every five minutes. It records the first matching phase
+from one to seven days before the deadline, and the expired phase on or after the deadline. A unique
+key on period, deadline and phase prevents another reminder for the same phase after restarts. Reads
+show only the current renewal reminder, so a missed or superseded reminder does not appear beside the
+current one. The platform list retains its follow-up counts after notices are read.
 
-## Concurrency and unknown results
+Each check that creates reminders attempts one consolidated [admin push](pwa.md#administrator-pwa)
+per receiving device. The unread list and follow-up counts remain available if the device has no
+permission or push delivery fails.
 
-Each subscription write owns a transaction, takes restaurant UPDATE and checks `expectedVersion`.
-It increments the version only for an actual change, saves the agreement and returns fresh detail.
-An unchanged metadata/agreement/expiry save can succeed without incrementing the version. Therefore,
-**at most one state-changing write can consume a version**, not at most one successful HTTP response.
-An outdated version returns `409 SUBSCRIPTION_CHANGED`, a target conflict rather than identity failure.
+## Upgrade from annual billing
 
-The version is the duplicate guard. A repeated applied write cannot consume its old version again.
-Unlike account/restaurant management markers, the browser persists no pending subscription operation.
-After timeout, disconnection or leaving the foreground, reread and have the administrator reconcile
-current detail before another confirmation. No automatic POST retry or lookup-by-operation-ID exists.
-Platform confirmations use the shared confirmation dialog. Applied writes log actor, restaurant and action type,
-not amounts or contact details.
+The monthly migration clears old annual settings and periods under the pre-launch assumption that
+these are demo or test records. Verify that assumption and back up the database before upgrading.
+Restoring old subscription data requires restoring the corresponding backup. Fresh Demo Ramen starts
+without a registered period.
 
-The UI supports Chinese, Italian and English using the shared device preference. Amount formatting
-follows interface language, while dates retain restaurant-local semantics. Shared status/period
-components read the preference themselves. See [account presentation conventions](accounts-platform.md).
-
-## Verification entry points
-
-Sources: [SubscriptionService](../../backend/TavoloFlow.Api/Platform/SubscriptionService.cs),
-[contracts](../../backend/TavoloFlow.Api/Platform/SubscriptionContracts.cs),
-[platform controller](../../backend/TavoloFlow.Api/Controllers/PlatformSubscriptionsController.cs),
-[owner controller](../../backend/TavoloFlow.Api/Controllers/OwnerSubscriptionController.cs),
-[frontend actions](../../frontend/src/features/subscriptions/useSubscriptionActions.ts).
-
-Tests: [subscription integration](../../backend/TavoloFlow.Api.Tests/SubscriptionTests.cs),
+Tests cover [subscription writes](../../backend/TavoloFlow.Api.Tests/SubscriptionTests.cs),
+[notices and pushes](../../backend/TavoloFlow.Api.Tests/SubscriptionNoticeTests.cs),
 [summary calculations](../../backend/TavoloFlow.Api.Tests/SubscriptionSummaryTests.cs) and
-[frontend date/money logic](../../frontend/tests/subscription.test.ts).
-Manual scenarios: unpaid onboarding, negotiated two-year total, early/late collection, touching renewal,
-gaps, changed defaults, paid-period expiry adjustment, concurrent version conflicts, unchanged saves
-and lost responses followed by reread/reconfirmation. Use explicit migrations as documented in the
-[self-hosting guide](../en/self-hosting.md#migrations).
+[date and money previews](../../frontend/tests/subscription.test.ts).

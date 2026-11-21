@@ -36,14 +36,16 @@
 		file_server
 	}
 
-	handle /sw.js {
+	@workers path /sw.js /platform-sw.js
+	handle @workers {
 		root * /srv/current
 		header Cache-Control "no-cache"
 		header Content-Type "text/javascript; charset=utf-8"
 		file_server
 	}
 
-	handle /staff.webmanifest {
+	@manifests path /staff.webmanifest /platform.webmanifest
+	handle @manifests {
 		root * /srv/current
 		header Cache-Control "no-cache"
 		header Content-Type "application/manifest+json"

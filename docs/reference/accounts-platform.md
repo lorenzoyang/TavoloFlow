@@ -64,7 +64,7 @@ the original cookie logout behavior and should reload to use the coordinated dev
 | `POST /api/platform/auth/login`           | `{ username, password }`               | Platform identity and cookie     |
 | `GET /api/platform/auth/me`               | Platform cookie                        | Platform identity                |
 | `POST /api/platform/auth/change-password` | `{ currentPassword, newPassword }`     | Platform identity and new cookie |
-| `POST /api/platform/auth/logout`          | No business body                       | 204                              |
+| `POST /api/platform/auth/logout`          | Optional `{ pushEndpoint }`            | 204                              |
 
 Store identity contains `userId`, `username`, `role`, `restaurantId`, `restaurantName`,
 `restaurantTheme`, `services: { dineIn, online }` and `mustChangePassword`. `services` decides the store
@@ -166,7 +166,7 @@ are created on their own page, `/platform/restaurants/new`.
 Creation atomically saves the client-selected UUID, SUSPENDED restaurant, EUR/Europe/Rome defaults,
 ordering off and both accounts. It requires `services: { dineIn, online }` (at least one on) and takes
 `slug`, required when online ordering is on. Optional settings include `googleMapsUrl`, `joinCodeRequired` (true),
-`theme` (TERRACOTTA), `ownerContact`, `defaultAnnualFeeCents` and `initialPeriod`. Initial period/payment
+`theme` (TERRACOTTA), `ownerContact`, `defaultMonthlyFeeCents` and `initialPeriod`. Initial period/payment
 creation shares the transaction. Existing UUIDs return `RESTAURANT_EXISTS`; unique-key races can return
 `CREATE_CONFLICT`, with no partial restaurant; a taken online link returns `SLUG_CONFLICT`.
 

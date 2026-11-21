@@ -1,8 +1,8 @@
+import { OwnerSubscriptionNotices } from "@/features/subscriptions/SubscriptionNotices";
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, Download, KeyRound } from "lucide-react";
+import { ChevronRight, KeyRound } from "lucide-react";
 import { Notice } from "@/components/notice";
 import { PageHeader } from "@/components/page-header";
-import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent } from "@/components/ui/card";
 import { ServiceSuspendedNotice } from "@/features/dining/ServiceNotice";
@@ -14,7 +14,7 @@ import { staffManagementItems, type StaffDestination } from "./navigation";
 import { AuthBoundary } from "./AuthBoundary";
 import { LanguageSwitch } from "./LanguageSwitch";
 import { LogoutButton } from "./LogoutButton";
-import { useInstallOffer } from "./useInstallApp";
+import { InstallSection } from "./InstallSection";
 
 const linkFocus = "outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 
@@ -35,42 +35,6 @@ function ManagementRow({ item }: { item: StaffDestination }) {
   );
 }
 
-// Hidden inside the installed app. Chromium offers a one-tap installation once the site has seen
-// some use (a tap and about 30 seconds); until then, and in other browsers, the steps per device
-// are listed.
-function InstallSection() {
-  const m = accountMessages[useStaffLanguage()];
-  const { standalone, installed, canInstall, install } = useInstallOffer();
-  if (standalone) return null;
-  return (
-    <section aria-labelledby="home-install" className="space-y-3">
-      <h2 id="home-install" className="text-sm font-medium text-muted-foreground">
-        {m.installSection}
-      </h2>
-      <Card>
-        <CardContent className="space-y-4">
-          <p className="text-sm leading-6">{m.installDescription}</p>
-          {installed ? (
-            <Notice tone="success">{m.installed}</Notice>
-          ) : canInstall ? (
-            <Button className="w-full sm:w-auto" onClick={install}>
-              <Download aria-hidden="true" />
-              {m.install}
-            </Button>
-          ) : (
-            <ul className="space-y-2 text-sm leading-6">
-              {[m.installIos, m.installAndroid, m.installDesktop].map((step) => (
-                <li key={step}>{step}</li>
-              ))}
-            </ul>
-          )}
-          <p className="text-xs leading-5 text-muted-foreground">{m.installKitchenSound}</p>
-        </CardContent>
-      </Card>
-    </section>
-  );
-}
-
 function Home({ account, passwordChanged }: { account: CurrentAccount; passwordChanged: boolean }) {
   const language = useStaffLanguage();
   const m = accountMessages[language];
@@ -82,6 +46,9 @@ function Home({ account, passwordChanged }: { account: CurrentAccount; passwordC
         title={`${m.greeting}${account.username}`}
         description={`${account.restaurantName} · ${role}`}
       />
+      {account.role === "OWNER" && (
+        <OwnerSubscriptionNotices key={account.userId} account={account} />
+      )}
       {passwordChanged && <Notice tone="success">{m.changeSuccess}</Notice>}
       <ServiceSuspendedNotice account={account} />
       {/* The daily pages are the tabs; home lists only what the tabs leave out. */}

@@ -28,6 +28,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<DeliveryTier> DeliveryTiers => Set<DeliveryTier>();
     public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
 
+    public DbSet<SubscriptionNotice> SubscriptionNotices => Set<SubscriptionNotice>();
+    public DbSet<PlatformSubscriptionReceipt> PlatformSubscriptionReceipts =>
+        Set<PlatformSubscriptionReceipt>();
+    public DbSet<PlatformPushSubscription> PlatformPushSubscriptions =>
+        Set<PlatformPushSubscription>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);

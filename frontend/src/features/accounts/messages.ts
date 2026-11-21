@@ -79,7 +79,7 @@ const zh = {
     online: { label: "线上点单设置", description: "线上链接和二维码、营业时间、暂停接单" },
     history: { label: "历史账单", description: "按日期查看已关闭的账单" },
     settings: { label: "员工账号", description: "重置员工的登录密码" },
-    subscription: { label: "年费与收费周期", description: "查看服务期限和付款记录" },
+    subscription: { label: "收费与续费", description: "查看服务期限和付款记录" },
   },
 };
 

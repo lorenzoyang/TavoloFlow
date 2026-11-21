@@ -20,7 +20,7 @@ export type CreateRestaurantInput = {
   ownerUsername: string;
   staffUsername: string;
   ownerContact?: string | null;
-  defaultAnnualFeeCents?: number | null;
+  defaultMonthlyFeeCents?: number | null;
   initialPeriod?: PeriodInput | null;
   googleMapsUrl?: string | null;
   joinCodeRequired: boolean;
@@ -47,7 +47,8 @@ export const changePlatformPassword = (
     { currentPassword, newPassword },
     signal,
   );
-export const platformLogout = () => platformWrite<void>("/api/platform/auth/logout", "POST", {});
+export const platformLogout = (pushEndpoint: string | null, signal: AbortSignal) =>
+  platformWrite<void>("/api/platform/auth/logout", "POST", { pushEndpoint }, signal);
 
 export function listRestaurants(filter: RestaurantsSearch, signal: AbortSignal) {
   const search = new URLSearchParams({

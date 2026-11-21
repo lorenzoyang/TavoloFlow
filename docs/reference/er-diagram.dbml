@@ -1,7 +1,7 @@
 Project TavoloFlow_MVP_V1 {
   database_type: 'PostgreSQL'
   Note: '''
-    TavoloFlow has 20 tables, one menu per restaurant and offline service subscriptions.
+    TavoloFlow has 23 tables, one menu per restaurant and offline service subscriptions.
     Credential versions revoke account tickets; subscription_version guards
     service administration and bill_version guards session bill confirmation.
     No join-code/QR reset in V1; closing a session invalidates guest cookies.
@@ -58,7 +58,7 @@ Table restaurants {
   delivery_origin_lat numeric(8,6) [note: 'OWNER-pasted restaurant coordinates for delivery routes; both or neither, required while delivery is on']
   delivery_origin_lng numeric(9,6)
   owner_contact varchar(500)
-  default_annual_fee_cents bigint
+  default_monthly_fee_cents bigint
   subscription_version int [not null, default: 1]
   created_at timestamptz [not null, default: `now()`]
   google_maps_url varchar(2048) [note: 'Platform-only HTTPS Google Maps link, reserved for a public restaurant list']
@@ -72,7 +72,7 @@ Table restaurants {
     `currency_code = 'EUR'` [name: 'ck_restaurant_currency']
     `service_status IN ('ACTIVE', 'SUSPENDED')` [name: 'ck_restaurant_service_status']
     `subscription_version > 0` [name: 'ck_restaurant_subscription_version']
-    `default_annual_fee_cents IS NULL OR default_annual_fee_cents BETWEEN 0 AND 9007199254740991` [name: 'ck_restaurant_annual_fee']
+    `default_monthly_fee_cents IS NULL OR default_monthly_fee_cents BETWEEN 1 AND 9007199254740991` [name: 'ck_restaurant_monthly_fee']
     `google_maps_url IS NULL OR google_maps_url LIKE 'https://%'` [name: 'ck_restaurant_google_maps_url']
     `theme IN ('TERRACOTTA', 'LACQUER', 'INDIGO', 'INK', 'TARO')` [name: 'ck_restaurant_theme']
     `dine_in_enabled OR online_enabled` [name: 'ck_restaurant_services']
@@ -280,7 +280,8 @@ Table restaurant_subscription_periods {
   restaurant_id uuid [not null]
   starts_on date [not null]
   ends_on date [not null, note: 'Exclusive: this date is the next renewal date']
-  years int [not null]
+  months int [not null]
+  monthly_fee_cents bigint [not null]
   amount_cents bigint [not null, note: 'Agreed total for this whole period']
   paid_on date [note: 'NULL means unpaid; one full payment per period']
   created_at timestamptz [not null]
@@ -290,10 +291,49 @@ Table restaurant_subscription_periods {
   }
   Checks {
     `ends_on > starts_on` [name: 'ck_subscription_period_dates']
-    `years BETWEEN 1 AND 9998` [name: 'ck_subscription_period_years']
+    `months BETWEEN 1 AND 119987` [name: 'ck_subscription_period_months']
+    `monthly_fee_cents BETWEEN 1 AND 9007199254740991` [name: 'ck_subscription_period_monthly_fee']
     `amount_cents BETWEEN 1 AND 9007199254740991` [name: 'ck_subscription_period_amount']
   }
-  Note: 'Non-overlap is enforced while holding the restaurant UPDATE lock. Collection never shifts the agreed dates. Paid amount and date are frozen; only the expiry endpoint changes a paid period. Every write requires the restaurant subscription_version.'
+  Note: 'Non-overlap is enforced while holding the restaurant UPDATE lock. Collection never shifts the agreed dates. Paid agreements are immutable. Every write requires the restaurant subscription_version.'
+}
+
+Table subscription_notices {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  period_id uuid [not null]
+  kind text [not null]
+  created_at timestamptz [not null]
+  reason varchar(500)
+  change jsonb
+  deadline date
+  owner_acknowledged_at timestamptz
+
+  Indexes {
+    (period_id, deadline, kind) [unique, note: 'Partial index for non-null renewal deadlines']
+    restaurant_id
+  }
+}
+
+Table platform_subscription_receipts {
+  platform_user_id uuid [not null]
+  notice_id uuid [not null]
+
+  Indexes {
+    (platform_user_id, notice_id) [pk]
+    notice_id
+  }
+}
+
+Table platform_push_subscriptions {
+  id uuid [pk]
+  platform_user_id uuid [not null]
+  endpoint varchar(2048) [not null, unique]
+  p256dh varchar(128) [not null]
+  auth varchar(128) [not null]
+  language varchar(2) [not null]
+  credential_version int [not null]
+  expires_at timestamptz [not null]
 }
 
 // 02 - Restaurant tables and one menu hierarchy
@@ -608,6 +648,11 @@ Table order_items {
 // Restaurant ownership: a permanent restaurant DELETE removes the entire tenant.
 Ref: restaurant_users.restaurant_id > restaurants.id [delete: cascade]
 Ref: restaurant_subscription_periods.restaurant_id > restaurants.id [delete: cascade]
+Ref: subscription_notices.restaurant_id > restaurants.id [delete: cascade]
+Ref: subscription_notices.period_id > restaurant_subscription_periods.id [delete: cascade]
+Ref: platform_subscription_receipts.notice_id > subscription_notices.id [delete: cascade]
+Ref: platform_subscription_receipts.platform_user_id > platform_users.id [delete: cascade]
+Ref: platform_push_subscriptions.platform_user_id > platform_users.id [delete: cascade]
 Ref: online_hours.restaurant_id > restaurants.id [delete: cascade]
 Ref: online_counters.restaurant_id > restaurants.id [delete: cascade]
 Ref: online_requests.restaurant_id > restaurants.id [delete: cascade]
@@ -641,6 +686,9 @@ TableGroup platform_and_accounts {
   restaurants
   restaurant_users
   restaurant_subscription_periods
+  subscription_notices
+  platform_subscription_receipts
+  platform_push_subscriptions
   online_hours
   delivery_tiers
 }

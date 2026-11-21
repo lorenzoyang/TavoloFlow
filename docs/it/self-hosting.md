@@ -2,7 +2,7 @@
 
 # Self-hosting di TavoloFlow
 
-Questa guida è per chi vuole installare TavoloFlow su un proprio server: una VPS Linux, un dominio e Docker. Alla fine avrai l'app raggiungibile in HTTPS su un tuo sottodominio, per esempio `https://app.esempio.it`, con l'area amministratore, l'area staff installabile come PWA, i QR dei tavoli che puntano al tuo dominio e un backup automatico ogni notte.
+Questa guida è per chi vuole installare TavoloFlow su un proprio server: una VPS Linux, un dominio e Docker. Alla fine avrai l'app raggiungibile in HTTPS su un tuo sottodominio, per esempio `https://app.esempio.it`, con lo staff e l’area amministratore installabili come PWA, i QR dei tavoli che puntano al tuo dominio e un backup automatico ogni notte.
 
 È anche il racconto di come l'ho messa online io. Per costruire i pacchetti uso un PC Windows con WSL2 (Ubuntu) e Docker Desktop; il server è una VPS di netcup; il dominio è registrato su OVHcloud e il DNS lo gestisce Cloudflare. Dove una scelta dipende dal mio caso lo scrivo, così puoi adattarla al tuo.
 
@@ -691,6 +691,8 @@ Per i rilasci di tutti i giorni segui la guida [Rilasciare con gli script](relea
 - la [procedura manuale](#procedura-manuale), per quando gli script non sono disponibili o per capire che cosa fanno.
 
 Qualunque strada scegli, conserva la configurazione esistente: non ricreare l’amministratore o `.env`. Se la nuova versione richiede variabili nuove, aggiungile prima di installarla, con i passaggi qui sotto. Quelle facoltative, come `GEOAPIFY_API_KEY`, si possono aggiungere anche dopo. Vale soprattutto per un server in uso da tempo a cui aggiungi Turnstile solo ora: la nuova versione attiva la verifica per impostazione predefinita in produzione, quindi l’installer rifiuta l’aggiornamento se nel vecchio `.env` mancano le chiavi.
+
+Nell’area amministratore `/platform` puoi installare la PWA e attivare gli avvisi di rinnovo su ogni dispositivo. Toccare un avviso apre l’elenco ristoranti con il riepilogo da confermare. L’accesso dura 30 giorni.
 
 #### Prima versione con le notifiche push
 

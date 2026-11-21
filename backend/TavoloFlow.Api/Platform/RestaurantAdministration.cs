@@ -66,7 +66,11 @@ public sealed class RestaurantAdministration(
             filtered = filtered.Where(r => summaries[r.Id].Matches(subscriptionStatus));
         if (sort == "EXPIRY")
             filtered = filtered
-                .OrderBy(r => summaries[r.Id].ExpiresOn ?? DateOnly.MaxValue)
+                .OrderBy(r =>
+                    summaries[r.Id].Renewal?.Deadline
+                    ?? summaries[r.Id].ExpiresOn
+                    ?? DateOnly.MaxValue
+                )
                 .ThenBy(r => r.Id);
         var selected = filtered.ToArray();
         var rows = selected
@@ -175,7 +179,7 @@ public sealed class RestaurantAdministration(
         subscriptions.Initialize(
             restaurant,
             input.OwnerContact,
-            input.DefaultAnnualFeeCents,
+            input.DefaultMonthlyFeeCents,
             input.InitialPeriod
         );
         try

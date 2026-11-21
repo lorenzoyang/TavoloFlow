@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using TavoloFlow.Api.Accounts;
 using TavoloFlow.Api.Common;
 using TavoloFlow.Api.Platform;
+using TavoloFlow.Api.Push;
 
 namespace TavoloFlow.Api.Controllers;
 
@@ -16,7 +17,8 @@ public sealed class PlatformAuthController(
     CurrentPlatformAccount current,
     IAntiforgery antiforgery,
     [FromKeyedServices(PlatformAuthentication.Scheme)] AccountRateLimiter limiter,
-    TimeProvider clock
+    TimeProvider clock,
+    PlatformPushDevices devices
 ) : ControllerBase
 {
     [AllowAnonymous, HttpGet("csrf")]
@@ -45,8 +47,16 @@ public sealed class PlatformAuthController(
     public IActionResult Me() => Ok(PlatformIdentityResponse.From(current.RequireUser()));
 
     [HttpPost("logout")]
-    public async Task<IActionResult> Logout()
+    public async Task<IActionResult> Logout(
+        [FromBody(
+            EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow
+        )]
+            LogoutRequest? input,
+        CancellationToken ct
+    )
     {
+        if (input?.PushEndpoint is { } endpoint)
+            await devices.RemoveAsync(current.RequireUser().Id, endpoint, ct);
         await HttpContext.SignOutAsync(PlatformAuthentication.Scheme);
         return NoContent();
     }

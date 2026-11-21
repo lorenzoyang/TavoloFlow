@@ -109,6 +109,8 @@ public sealed class CurrentPlatformAccount
 {
     public PlatformUser? User { get; internal set; }
 
+    public DateTime? TicketExpiresAt { get; internal set; }
+
     public PlatformUser RequireUser() =>
         User ?? throw new InvalidOperationException("A platform identity is required.");
 }
@@ -155,7 +157,10 @@ public sealed class PlatformCookieEvents(ApplicationDbContext db, CurrentPlatfor
             await context.HttpContext.SignOutAsync(PlatformAuthentication.Scheme);
         }
         else
+        {
             current.User = user;
+            current.TicketExpiresAt = context.Properties.ExpiresUtc?.UtcDateTime;
+        }
     }
 
     public override Task RedirectToLogin(RedirectContext<CookieAuthenticationOptions> context) =>

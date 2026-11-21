@@ -61,7 +61,7 @@ TavoloFlow is a QR-code table ordering system that also takes online orders. Eve
 - creates a restaurant together with its two accounts (owner and staff), with temporary passwords; later can deactivate these accounts or reset their password;
 - suspends or reactivates a restaurant, chooses its color theme, decides whether the table code is required, permanently deletes a suspended restaurant;
 - for each restaurant turns on QR dine-in, online ordering or both, and sets the online link (`/r/…`);
-- manages the owner's contact, the annual fee and the subscription periods, and records the payment of each period, received outside the app;
+- manages the owner's contact, the monthly fee and the subscription periods, and records the payment of each period, received outside the app;
 - their interface is also in Chinese, Italian or English, with the same per-device choice as the staff.
 
 ## What it doesn't do (and why)
@@ -193,7 +193,7 @@ The backend is a single project, `backend/TavoloFlow.Api/`, organized by topic r
 | `Billing/`           | the bill, the four closures (`PAID`, `VOIDED`, `EMPTY` and, online only, `NO_SHOW`), delivery fee correction, Bill history                                                                                                                                               |
 | `Platform/`          | administrator area: restaurants, services and online link, accounts, subscriptions                                                                                                                                                                                       |
 | `Online/`            | online ordering: settings, menu, submission and recovery, acceptance and rejection; `OnlineAvailability` decides whether ordering is allowed and `OnlineRequestState` handles waiting and expiry; browser/IP source limits and Turnstile verification through `OnlineVerification`; delivery fee: bands, minimum order and automatic quotes with Geoapify (`OnlineDelivery`, `DeliveryQuotes`) |
-| `Push/`              | lock-screen notifications: the VAPID key, device subscriptions, the in-memory queue and sending (`PushSender`, the only `BackgroundService`)                                                                                                                             |
+| `Push/`              | lock-screen notifications: the VAPID key, device subscriptions, the in-memory queue and sending (`PushSender`)                                                                                                                             |
 | `Data/`, `Entities/` | `ApplicationDbContext`, the EF Core mappings and migrations, the row locks (`RowLocks`), the deletion service; the 18 entities                                                                                                                                           |
 
 Each module has an `XxxContracts.cs` file with the DTOs (what goes into and comes out of the API) and the error factories, for example `DiningErrors.SessionClosed()`, plus one or more services with the rules and the transactions.
@@ -742,6 +742,8 @@ The check is done by `CsrfValidationFilter`, registered globally because `AddCon
 - **Logs without secrets.** The notifications' HTTP client disables the default loggers: they would also write the address's path, which contains the device token. Only the response code or the error type remain.
 - **Only known services.** The browser chooses the address to send to, so the server accepts only those of the known notification services (Apple, Google, Mozilla, Microsoft) and doesn't follow redirects: otherwise an account could make the server call internal addresses.
 - **iPhone.** On iOS notifications exist only in the app added to the Home Screen (iOS 16.4 or later), not in Safari. With the screen locked one notification arrives with one sound, not continuous ringing.
+
+In the administrator area at `/platform`, install the PWA and opt in to renewal alerts on each device. Tapping an alert opens the restaurant list and the unread summary. Administrator sign-in lasts 30 days.
 
 ### Other trade-offs
 

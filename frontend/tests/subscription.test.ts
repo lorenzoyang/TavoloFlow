@@ -1,26 +1,28 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  addCalendarYears,
+  addCalendarMonths,
   periodTotal,
   periodFromForm,
   renewalStart,
 } from "../src/features/subscriptions/state.ts";
 import { randomUuid } from "../src/lib/ids.ts";
 
-test("agreed term uses start date and years, independent of payment date", () => {
-  assert.equal(addCalendarYears("2026-11-01", 1), "2027-11-01");
-  assert.equal(addCalendarYears("2026-11-01", 2), "2028-11-01");
-  assert.equal(addCalendarYears("2024-02-29", 1), "2025-02-28");
-  assert.equal(addCalendarYears("2024-02-29", 4), "2028-02-29");
-  for (const [date, years] of [
+test("agreed term uses start date and calendar months, independent of payment date", () => {
+  assert.equal(addCalendarMonths("2026-11-01", 12), "2027-11-01");
+  assert.equal(addCalendarMonths("2026-11-01", 24), "2028-11-01");
+  assert.equal(addCalendarMonths("2024-02-29", 12), "2025-02-28");
+  assert.equal(addCalendarMonths("2024-02-29", 48), "2028-02-29");
+  assert.equal(addCalendarMonths("2028-01-31", 1), "2028-02-29");
+  assert.equal(addCalendarMonths("2027-01-31", 1), "2027-02-28");
+  for (const [date, months] of [
     ["2026-02-29", 1],
     ["2026-11-01", 0],
     ["2026-11-01", 1.5],
-    ["9999-11-01", 1],
+    ["9999-12-01", 1],
     ["bad", 1],
   ] as const)
-    assert.equal(addCalendarYears(date, years), null);
+    assert.equal(addCalendarMonths(date, months), null);
 });
 test("period totals preserve integer cents and reject unsafe arithmetic", () => {
   assert.equal(periodTotal(50050, 2), 100100);
@@ -31,9 +33,8 @@ test("period totals preserve integer cents and reject unsafe arithmetic", () => 
 test("a paid cycle requires its actual payment date, while unpaid cycles keep it empty", () => {
   const form = new FormData();
   form.set("term-startsOn", "2026-11-01");
-  form.set("term-endsOn", "2028-11-01");
-  form.set("term-years", "2");
-  form.set("term-amount", "1000");
+  form.set("term-months", "24");
+  form.set("term-monthly-fee", "20");
   const id = randomUuid();
   assert.equal(periodFromForm(form, "term", id).paidOn, null);
   form.set("term-paid", "on");
@@ -42,8 +43,9 @@ test("a paid cycle requires its actual payment date, while unpaid cycles keep it
   const paid = periodFromForm(form, "term", id);
   assert.equal(paid.paidOn, "2026-11-03");
   assert.equal(paid.startsOn, "2026-11-01");
-  assert.equal(paid.endsOn, "2028-11-01");
-  assert.equal(paid.amountCents, 100000);
+  assert.equal(paid.months, 24);
+  assert.equal(paid.monthlyFeeCents, 2_000);
+  assert.equal(periodTotal(paid.monthlyFeeCents, paid.months), 48_000);
 });
 
 test("a renewal starts at the latest agreed end, then the service expiry, then today", () => {
@@ -51,7 +53,8 @@ test("a renewal starts at the latest agreed end, then the service expiry, then t
     id: randomUuid(),
     startsOn: "2027-11-01",
     endsOn: "2029-11-01",
-    years: 2,
+    months: 24,
+    monthlyFeeCents: 3_750,
     amountCents: 90000,
     paidOn: null,
     isPaid: false,

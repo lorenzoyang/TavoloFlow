@@ -5,14 +5,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { errorMessage } from "@/lib/api";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
-import { pushMessages } from "./messages";
+import { platformPwaMessages, pushMessages } from "./messages";
 import { usePushSubscription } from "./usePushSubscription";
 
-// 首页: lock-screen notifications of new online orders for this device. Shown only with online
-// ordering and when the server has push configured.
-export function PushSection() {
+export function PushSection({ platform = false }: { platform?: boolean }) {
   const language = useStaffLanguage();
   const m = pushMessages[language];
+  const copy = platform ? platformPwaMessages[language] : m;
   const push = usePushSubscription();
   if (!push.configured) return null;
   const { status, busy } = push;
@@ -36,7 +35,7 @@ export function PushSection() {
       </h2>
       <Card>
         <CardContent className="space-y-4">
-          <p className="text-sm leading-6">{m.description}</p>
+          <p className="text-sm leading-6">{copy.description}</p>
           {status === "on" && <Notice tone="success">{m.on}</Notice>}
           {status === "syncing" && <Notice>{m.syncing}</Notice>}
           {status === "denied" && <Notice tone="warning">{m.denied}</Notice>}
@@ -80,7 +79,7 @@ export function PushSection() {
               {m.disable}
             </Button>
           )}
-          <p className="text-xs leading-5 text-muted-foreground">{m.note}</p>
+          <p className="text-xs leading-5 text-muted-foreground">{copy.note}</p>
         </CardContent>
       </Card>
     </section>

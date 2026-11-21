@@ -4,7 +4,7 @@ import type { Language } from "./language.ts";
 export const RESTAURANT_TIME_ZONE = "Europe/Rome";
 
 // Parse base-10 digits as integers: never round a binary floating-point euro amount.
-// Prices must be positive; allowZero admits amounts such as a waived annual fee.
+// Prices must be positive; allowZero admits amounts such as a waived charge.
 export function parsePrice(value: string, allowZero = false): number | null {
   const match = /^(\d{1,14})(?:[.,](\d{1,2}))?$/.exec(value.trim());
   if (!match) return null;
@@ -34,6 +34,13 @@ export function formatKm(meters: number, language: Language = "zh"): string {
 
 // Locales for dates and times. English uses the British day/month order of the restaurant's region.
 const locales: Record<Language, string> = { zh: "zh-CN", it: "it-IT", en: "en-GB" };
+
+export function formatCalendarDate(value: string, language: Language) {
+  return new Date(`${value}T00:00:00Z`).toLocaleDateString(locales[language], {
+    timeZone: "UTC",
+    dateStyle: "medium",
+  });
+}
 
 export function formatDateTime(
   value: string | number,

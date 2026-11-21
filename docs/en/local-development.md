@@ -71,7 +71,7 @@ The **Demo Ramen** restaurant: LACQUER theme, euro and the Rome time zone, Engli
 - 8 tables, T01 to T08, all free; the QR tokens are generated at random during initialization;
 - 4 categories and 12 dishes, with prices, descriptions, sample allergens and one photo each; the Pan-fried gyoza are on sale (€5.00 instead of €6.00);
 - 2 option groups: **Spice level** (required, on every ramen) and **Extras** (up to three, with extra prices, on every ramen except the vegan one);
-- a one-year subscription period of €199, already paid (visible in the administrator area and on the owner's Subscription page);
+- Billing starts unconfigured. Register the first period in the administrator area and check the notice on the owner’s Home.
 - no visits, no orders, no bills: you start by opening a table.
 
 The restaurant and the dishes are made up, allergens included, and the photos are AI-generated (details in [`demo/images/README.md`](../../demo/images/README.md)).

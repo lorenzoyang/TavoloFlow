@@ -1,6 +1,6 @@
 import type { AccountScope } from "@/features/accounts/api";
-import { platformRequest, platformWrite, request, withTimeout } from "@/lib/api";
-import type { PeriodInput, SubscriptionDetail } from "./state";
+import { platformRequest, platformWrite, request, withTimeout, write } from "@/lib/api";
+import type { PeriodInput, SubscriptionDetail, SubscriptionNotice } from "./state";
 
 export const ownerSubscriptionKey = (account: AccountScope) =>
   ["subscription", account.restaurantId, account.userId] as const;
@@ -20,7 +20,7 @@ export const saveSubscription = (
   input: {
     expectedVersion: number;
     ownerContact: string | null;
-    defaultAnnualFeeCents: number | null;
+    defaultMonthlyFeeCents: number | null;
   },
   signal: AbortSignal,
 ) => platformWrite<SubscriptionDetail>(subscriptionBase(id), "PATCH", input, withTimeout(signal));
@@ -47,22 +47,10 @@ export const editPeriod = (
     input,
     withTimeout(signal),
   );
-export const adjustExpiry = (
-  id: string,
-  periodId: string,
-  input: { expectedVersion: number; endsOn: string },
-  signal: AbortSignal,
-) =>
-  platformWrite<SubscriptionDetail>(
-    `${subscriptionBase(id)}/periods/${periodId}/expiry`,
-    "PATCH",
-    input,
-    withTimeout(signal),
-  );
 export const confirmPayment = (
   id: string,
   periodId: string,
-  input: { expectedVersion: number; paidOn: string },
+  input: { expectedVersion: number; paidOn: string; reason: string | null },
   signal: AbortSignal,
 ) =>
   platformWrite<SubscriptionDetail>(
@@ -77,3 +65,18 @@ export const getReminders = (signal: AbortSignal) =>
     expiredCount: number;
     unpaidCount: number;
   }>("/api/platform/subscription-reminders", { signal });
+
+const ownerNoticesPath = "/api/owner/subscription/notices";
+const platformNoticesPath = "/api/platform/subscription-notices";
+
+export const readOwnerNotices = (signal: AbortSignal) =>
+  request<SubscriptionNotice[]>(ownerNoticesPath, { signal });
+
+export const readPlatformNotices = (signal: AbortSignal) =>
+  platformRequest<SubscriptionNotice[]>(platformNoticesPath, { signal });
+
+export const acknowledgeOwnerNotices = (ids: string[], signal: AbortSignal) =>
+  write<void>(`${ownerNoticesPath}/acknowledge`, "POST", { ids }, withTimeout(signal));
+
+export const acknowledgePlatformNotices = (ids: string[], signal: AbortSignal) =>
+  platformWrite<void>(`${platformNoticesPath}/acknowledge`, "POST", { ids }, withTimeout(signal));

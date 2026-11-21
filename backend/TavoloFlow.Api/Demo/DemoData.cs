@@ -9,8 +9,7 @@ public sealed record DemoRestaurant(
     string TimeZone,
     string CurrencyCode,
     string Theme,
-    bool JoinCodeRequired,
-    long AnnualFeeCents
+    bool JoinCodeRequired
 );
 
 public sealed record DemoAccounts(

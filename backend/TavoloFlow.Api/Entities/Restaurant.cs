@@ -59,7 +59,7 @@ public sealed class Restaurant
     public DateTime CreatedAt { get; set; }
     public string? GoogleMapsUrl { get; set; }
     public string? OwnerContact { get; set; }
-    public long? DefaultAnnualFeeCents { get; set; }
+    public long? DefaultMonthlyFeeCents { get; set; }
     public int SubscriptionVersion { get; set; } = 1;
 
     public ICollection<RestaurantUser> Users { get; } = new List<RestaurantUser>();

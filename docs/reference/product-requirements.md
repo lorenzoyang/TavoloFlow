@@ -181,9 +181,9 @@ Catalog deletion preserves closed history and order snapshots.
 ## Platform service and fees
 
 Restaurant service status, ordering state and subscription status are separate concepts.
-The platform records non-overlapping service periods and one full offline collection per period.
+The platform records non-overlapping service periods in calendar months and one full offline collection per period.
 Payment never shifts agreed dates; renewals add periods.
-Paid amounts/dates are frozen; expiry changes use a dedicated operation.
+Paid agreements are immutable. The owner acknowledges billing notices in the app. Administrators can receive consolidated renewal reminders through the administrator PWA.
 Expiry and unpaid reminders warn without automatically suspending service or disabling ordering.
 Owners read only their own subscription; STAFF and guests receive no contact or fee information.
 Permanent deletion requires a suspended restaurant and removes all its tenant data after confirmation.
@@ -209,7 +209,7 @@ reservations,
 membership and loyalty schemes, fixed-amount, per-customer or dine-in coupons, scheduled sales,
 all-you-can-eat rules, split bills and sales reports are outside this MVP.
 There is no shared cart, WebSocket delivery or offline business operation queue; push notifications
-exist only as best-effort reminders of new online orders.
+are best-effort reminders of new online orders for staff devices and subscription renewals for administrator devices.
 There is no QR/code rotation, device-specific grant revocation, menu publishing workflow,
 staff entry of phone takeaway orders or complete audit-event history.
 The staff area is installable; guest and platform pages remain websites.

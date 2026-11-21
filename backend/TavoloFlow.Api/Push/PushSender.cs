@@ -1,11 +1,5 @@
-using System.Collections.Concurrent;
-using System.Net;
-using System.Text.Json;
-using Lib.Net.Http.WebPush;
-using Lib.Net.Http.WebPush.Authentication;
 using Microsoft.EntityFrameworkCore;
 using TavoloFlow.Api.Data;
-using WebPushSubscription = Lib.Net.Http.WebPush.PushSubscription;
 
 namespace TavoloFlow.Api.Push;
 
@@ -19,14 +13,13 @@ public sealed record PushPayload(int Number, string Language);
 // dropped the subscription, so the row is deleted.
 public sealed class PushSender(
     PushQueue queue,
-    PushKeys keys,
     IServiceScopeFactory scopes,
-    IHttpClientFactory httpClients,
+    WebPushDelivery delivery,
     TimeProvider clock,
     ILogger<PushSender> logger
 ) : BackgroundService
 {
-    public const string HttpClientName = "push";
+    public const string HttpClientName = WebPushDelivery.HttpClientName;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -64,75 +57,17 @@ public sealed class PushSender(
         var devices = await db
             .PushSubscriptions.AsNoTracking()
             .Where(s => s.RestaurantId == item.RestaurantId)
-            .Select(s => new
-            {
-                s.Id,
-                s.Endpoint,
-                s.P256dh,
-                s.Auth,
-                s.Language,
-            })
-            .ToListAsync(ct);
-        var gone = new ConcurrentBag<Guid>();
-        await Task.WhenAll(
-            devices.Select(async device =>
-            {
-                var subscription = new WebPushSubscription { Endpoint = device.Endpoint };
-                subscription.SetKey(PushEncryptionKeyName.P256DH, device.P256dh);
-                subscription.SetKey(PushEncryptionKeyName.Auth, device.Auth);
-                var message = new PushMessage(
-                    JsonSerializer.Serialize(
-                        new PushPayload(item.Number, device.Language),
-                        JsonSerializerOptions.Web
-                    )
-                )
-                {
-                    TimeToLive = ttl,
-                    Urgency = PushMessageUrgency.High,
-                };
-                // One signer per request: the signing key is not shared between threads.
-                using var vapid = new VapidAuthentication(keys.PublicKey!, keys.PrivateKey!)
-                {
-                    Subject = keys.Subject,
-                };
-                var client = new PushServiceClient(httpClients.CreateClient(HttpClientName))
-                {
-                    DefaultAuthentication = vapid,
-                    DefaultAuthenticationScheme = VapidAuthenticationScheme.Vapid,
-                    AutoRetryAfter = false,
-                };
-                try
-                {
-                    await client.RequestPushMessageDeliveryAsync(subscription, message, ct);
-                }
-                catch (PushServiceClientException error)
-                    when (error.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone)
-                {
-                    gone.Add(device.Id);
-                }
-                // Endpoints are capability URLs: log the status only.
-                catch (PushServiceClientException error)
-                {
-                    logger.LogWarning(
-                        "Push service answered {Status} for restaurant {RestaurantId}.",
-                        (int)error.StatusCode,
-                        item.RestaurantId
-                    );
-                }
-                catch (Exception error) when (!ct.IsCancellationRequested)
-                {
-                    logger.LogWarning(
-                        "Push for restaurant {RestaurantId} failed: {Error}.",
-                        item.RestaurantId,
-                        error.GetType().Name
-                    );
-                }
-            })
+            .Select(s => new PushDevice(s.Id, s.Endpoint, s.P256dh, s.Auth, s.Language))
+            .ToArrayAsync(ct);
+        var gone = await delivery.SendAsync(
+            devices,
+            d => new PushPayload(item.Number, d.Language),
+            ttl,
+            ct
         );
-        if (!gone.IsEmpty)
+        if (gone.Length > 0)
         {
-            var ids = gone.ToArray();
-            await db.PushSubscriptions.Where(s => ids.Contains(s.Id)).ExecuteDeleteAsync(ct);
+            await db.PushSubscriptions.Where(s => gone.Contains(s.Id)).ExecuteDeleteAsync(ct);
         }
     }
 }

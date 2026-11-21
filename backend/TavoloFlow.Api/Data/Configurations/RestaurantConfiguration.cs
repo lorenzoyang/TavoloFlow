@@ -18,8 +18,8 @@ internal sealed class RestaurantConfiguration : IEntityTypeConfiguration<Restaur
                     "subscription_version > 0"
                 );
                 table.HasCheckConstraint(
-                    "ck_restaurant_annual_fee",
-                    "default_annual_fee_cents IS NULL OR default_annual_fee_cents BETWEEN 0 AND 9007199254740991"
+                    "ck_restaurant_monthly_fee",
+                    "default_monthly_fee_cents IS NULL OR default_monthly_fee_cents BETWEEN 1 AND 9007199254740991"
                 );
                 table.HasCheckConstraint(
                     "ck_restaurant_default_language",
@@ -215,8 +215,8 @@ internal sealed class RestaurantConfiguration : IEntityTypeConfiguration<Restaur
             .HasColumnName("owner_contact")
             .HasMaxLength(500);
         builder
-            .Property(restaurant => restaurant.DefaultAnnualFeeCents)
-            .HasColumnName("default_annual_fee_cents");
+            .Property(restaurant => restaurant.DefaultMonthlyFeeCents)
+            .HasColumnName("default_monthly_fee_cents");
         builder
             .Property(restaurant => restaurant.SubscriptionVersion)
             .HasColumnName("subscription_version")

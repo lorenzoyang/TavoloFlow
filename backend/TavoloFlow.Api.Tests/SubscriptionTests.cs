@@ -22,7 +22,7 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
         return browser;
     }
 
-    private static async Task<CreatedRestaurant> Create(
+    internal static async Task<CreatedRestaurant> Create(
         HttpClient admin,
         object? initialPeriod = null
     )
@@ -39,7 +39,7 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
                 staffUsername = $"staff.{Guid.NewGuid():N}",
                 services = new { dineIn = true, online = false },
                 ownerContact = "  老板 WhatsApp +39 0000000000  ",
-                defaultAnnualFeeCents = 50_000,
+                defaultMonthlyFeeCents = 50_000,
                 initialPeriod,
             }
         );
@@ -76,21 +76,19 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
     private static void SetTime(AccountTestHost host, DateTimeOffset at) =>
         host.Clock.Advance(at - host.Clock.GetUtcNow());
 
-    private static object Period(
+    internal static object Period(
         Guid id,
         DateOnly startsOn,
-        DateOnly endsOn,
-        int years = 1,
-        long amountCents = 50_000,
+        int months = 12,
+        long monthlyFeeCents = 5_000,
         DateOnly? paidOn = null
     ) =>
         new
         {
             id,
             startsOn,
-            endsOn,
-            years,
-            amountCents,
+            months,
+            monthlyFeeCents,
             paidOn,
         };
 
@@ -100,9 +98,8 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
         Guid id,
         int version,
         DateOnly startsOn,
-        DateOnly endsOn,
-        int years = 1,
-        long amountCents = 50_000,
+        int months = 12,
+        long monthlyFeeCents = 5_000,
         DateOnly? paidOn = null
     )
     {
@@ -114,9 +111,8 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
                 expectedVersion = version,
                 id,
                 startsOn,
-                endsOn,
-                years,
-                amountCents,
+                months,
+                monthlyFeeCents,
                 paidOn,
             }
         );
@@ -129,10 +125,7 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
         SetTime(host, new DateTimeOffset(2026, 11, 3, 12, 0, 0, TimeSpan.Zero));
         using var admin = await Admin(host);
         var periodId = Guid.NewGuid();
-        var created = await Create(
-            admin,
-            Period(periodId, new(2026, 11, 1), new(2028, 11, 1), 2, 90_000)
-        );
+        var created = await Create(admin, Period(periodId, new(2026, 11, 1), 24, 2_000));
         var path = Path(created.Restaurant.Id);
         var before = (await Read(admin, path)).GetProperty("summary");
         Assert.Equal(
@@ -159,8 +152,8 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
         );
         Assert.Equal("2026-11-01", period.GetProperty("startsOn").GetString());
         Assert.Equal("2028-11-01", period.GetProperty("endsOn").GetString());
-        Assert.Equal(2, period.GetProperty("years").GetInt32());
-        Assert.Equal(90_000, period.GetProperty("amountCents").GetInt64());
+        Assert.Equal(24, period.GetProperty("months").GetInt32());
+        Assert.Equal(48_000, period.GetProperty("amountCents").GetInt64());
         Assert.Equal("2026-11-03", period.GetProperty("paidOn").GetString());
         Assert.True(period.GetProperty("isPaid").GetBoolean());
     }
@@ -180,7 +173,7 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
             id,
             Version(await Read(admin, path)),
             today,
-            today.AddYears(1)
+            12
         );
         var body = new { expectedVersion = Version(await Read(admin, path)), paidOn = today };
         var target = path + $"/periods/{id}/payment";
@@ -207,10 +200,7 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
         using var admin = await Admin(host);
         var today = Today(host);
         var periodId = Guid.NewGuid();
-        var created = await Create(
-            admin,
-            Period(periodId, today, today.AddYears(1), paidOn: today)
-        );
+        var created = await Create(admin, Period(periodId, today, paidOn: today));
         var path = Path(created.Restaurant.Id);
         var version = Version(await Read(admin, path));
         object Input(long fee) =>
@@ -218,7 +208,7 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
             {
                 expectedVersion = version,
                 ownerContact = "老板",
-                defaultAnnualFeeCents = fee,
+                defaultMonthlyFeeCents = fee,
             };
         var results = await Task.WhenAll(
             WriteAsync(admin, path, Input(60_000), HttpMethod.Patch),
@@ -233,7 +223,7 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
         var period = Assert.Single(
             (await Read(admin, path)).GetProperty("periods").EnumerateArray()
         );
-        Assert.Equal(50_000, period.GetProperty("amountCents").GetInt64());
+        Assert.Equal(60_000, period.GetProperty("amountCents").GetInt64());
         Assert.Equal(
             today.AddYears(1).ToString("yyyy-MM-dd"),
             period.GetProperty("endsOn").GetString()
@@ -247,15 +237,28 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
         using var admin = await Admin(host);
         var today = Today(host);
         var id = Guid.NewGuid();
-        var created = await Create(
-            admin,
-            Period(id, today, today.AddYears(1), amountCents: 10_000)
-        );
+        var created = await Create(admin, Period(id, today, 1, monthlyFeeCents: 10_000));
         var path = Path(created.Restaurant.Id);
         var observed = await Read(admin, path);
         Assert.Equal(
             10_000,
             observed.GetProperty("periods")[0].GetProperty("amountCents").GetInt64()
+        );
+        await AssertErrorAsync(
+            await WriteAsync(
+                admin,
+                path + $"/periods/{id}",
+                new
+                {
+                    expectedVersion = Version(observed),
+                    startsOn = today,
+                    months = 2,
+                    monthlyFeeCents = 10_000,
+                },
+                HttpMethod.Patch
+            ),
+            HttpStatusCode.BadRequest,
+            "SUBSCRIPTION_REASON_REQUIRED"
         );
         var edited = await Write(
             admin,
@@ -264,9 +267,9 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
             {
                 expectedVersion = Version(observed),
                 startsOn = today,
-                endsOn = today.AddYears(1),
-                years = 1,
-                amountCents = 20_000,
+                months = 2,
+                monthlyFeeCents = 10_000,
+                reason = "Agreed extension",
             },
             HttpMethod.Patch
         );
@@ -287,13 +290,13 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
     }
 
     [Fact]
-    public async Task Period_OverlapAndPaidEdits_AreRejectedWhileExpiryAdjustmentRemainsPossible()
+    public async Task Period_OverlapAndPaidEdits_AreRejected()
     {
         using var host = new AccountTestHost(database);
         using var admin = await Admin(host);
         var today = Today(host);
         var id = Guid.NewGuid();
-        var created = await Create(admin, Period(id, today, today.AddYears(1), paidOn: today));
+        var created = await Create(admin, Period(id, today, paidOn: today));
         var path = Path(created.Restaurant.Id);
         var version = Version(await Read(admin, path));
         var overlap = await WriteAsync(
@@ -304,9 +307,8 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
                 expectedVersion = version,
                 id = Guid.NewGuid(),
                 startsOn = today.AddMonths(1),
-                endsOn = today.AddYears(2),
-                years = 2,
-                amountCents = 100_000,
+                months = 24,
+                monthlyFeeCents = 5_000,
                 paidOn = (DateOnly?)null,
             }
         );
@@ -318,28 +320,21 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
             {
                 expectedVersion = version,
                 startsOn = today,
-                endsOn = today.AddYears(1),
-                years = 1,
-                amountCents = 1,
+                months = 1,
+                monthlyFeeCents = 1,
             },
             HttpMethod.Patch
         );
         await AssertErrorAsync(edit, HttpStatusCode.Conflict, "SUBSCRIPTION_PERIOD_PAID");
-        await Write(
-            admin,
-            path + $"/periods/{id}/expiry",
-            new { expectedVersion = version, endsOn = today.AddYears(1).AddDays(5) },
-            HttpMethod.Patch
-        );
         var period = Assert.Single(
             (await Read(admin, path)).GetProperty("periods").EnumerateArray()
         );
         Assert.Equal(
-            today.AddYears(1).AddDays(5).ToString("yyyy-MM-dd"),
+            today.AddYears(1).ToString("yyyy-MM-dd"),
             period.GetProperty("endsOn").GetString()
         );
         Assert.Equal(today.ToString("yyyy-MM-dd"), period.GetProperty("paidOn").GetString());
-        Assert.Equal(50_000, period.GetProperty("amountCents").GetInt64());
+        Assert.Equal(60_000, period.GetProperty("amountCents").GetInt64());
     }
 
     [Fact]
@@ -349,10 +344,7 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
         using var admin = await Admin(host);
         var today = Today(host);
         var end = today.AddDays(5);
-        var created = await Create(
-            admin,
-            Period(Guid.NewGuid(), end.AddYears(-1), end, paidOn: today)
-        );
+        var created = await Create(admin, Period(Guid.NewGuid(), end.AddYears(-1), paidOn: today));
         var path = Path(created.Restaurant.Id);
         var before = await Read(admin, path);
         Assert.True(before.GetProperty("summary").GetProperty("dueSoon").GetBoolean());
@@ -362,9 +354,8 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
             Guid.NewGuid(),
             Version(before),
             end,
-            end.AddYears(2),
-            2,
-            90_000,
+            24,
+            5_000,
             today
         );
         var summary = (await Read(admin, path)).GetProperty("summary");
@@ -382,10 +373,7 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
         using var host = new AccountTestHost(database);
         SetTime(host, new DateTimeOffset(2028, 2, 28, 23, 30, 0, TimeSpan.Zero));
         using var admin = await Admin(host);
-        var created = await Create(
-            admin,
-            Period(Guid.NewGuid(), new(2028, 2, 29), new(2029, 2, 28))
-        );
+        var created = await Create(admin, Period(Guid.NewGuid(), new(2028, 2, 29)));
         var summary = (await Read(admin, Path(created.Restaurant.Id))).GetProperty("summary");
         Assert.Equal("2028-02-29", summary.GetProperty("localToday").GetString());
         Assert.Equal("ACTIVE", summary.GetProperty("serviceState").GetString());
@@ -402,8 +390,8 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
         using var admin = await Admin(host);
         var today = Today(host);
         var periodA = Guid.NewGuid();
-        var a = await Create(admin, Period(periodA, today, today.AddYears(1)));
-        var b = await Create(admin, Period(Guid.NewGuid(), today, today.AddYears(1)));
+        var a = await Create(admin, Period(periodA, today));
+        var b = await Create(admin, Period(Guid.NewGuid(), today));
         using var owner = host.Browser();
         using var staff = host.Browser();
         foreach (var (browser, role) in new[] { (owner, "OWNER"), (staff, "STAFF") })
@@ -442,6 +430,29 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
             "老板 WhatsApp +39 0000000000",
             detail.GetProperty("summary").GetProperty("ownerContact").GetString()
         );
+        const string noticesPath = "/api/owner/subscription/notices";
+        const string acknowledgePath = noticesPath + "/acknowledge";
+        var ownerNotice = Assert.Single((await Read(owner, noticesPath)).EnumerateArray());
+        Assert.Equal("REGISTERED", ownerNotice.GetProperty("kind").GetString());
+        var readId = ownerNotice.GetProperty("id").GetGuid();
+        Assert.Equal(
+            HttpStatusCode.NoContent,
+            (await PostAsync(owner, acknowledgePath, new { ids = new[] { readId } })).StatusCode
+        );
+        Assert.Equal(
+            HttpStatusCode.NoContent,
+            (await PostAsync(owner, acknowledgePath, new { ids = new[] { readId } })).StatusCode
+        );
+        Assert.Empty((await Read(owner, noticesPath)).EnumerateArray());
+        Assert.Equal(HttpStatusCode.Forbidden, (await staff.GetAsync(noticesPath)).StatusCode);
+        await using (var context = database.CreateContext())
+        {
+            Assert.True(
+                await context.SubscriptionNotices.AnyAsync(n =>
+                    n.RestaurantId == b.Restaurant.Id && n.OwnerAcknowledgedAt == null
+                )
+            );
+        }
         await AssertErrorAsync(
             await staff.GetAsync("/api/owner/subscription"),
             HttpStatusCode.Forbidden,
@@ -479,7 +490,7 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
                 ownerUsername,
                 staffUsername = $"staff.{Guid.NewGuid():N}",
                 services = new { dineIn = true, online = false },
-                initialPeriod = Period(Guid.NewGuid(), new(2026, 11, 1), new(2026, 11, 1)),
+                initialPeriod = Period(Guid.NewGuid(), new(2026, 11, 1), 0),
             }
         );
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -503,7 +514,7 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
             {
                 expectedVersion = version,
                 ownerContact = "新联系方式",
-                defaultAnnualFeeCents = 50_000,
+                defaultMonthlyFeeCents = 50_000,
             },
             HttpMethod.Patch
         );
@@ -520,7 +531,7 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
             {
                 expectedVersion = version + 1,
                 ownerContact = " 新联系方式 ",
-                defaultAnnualFeeCents = 50_000,
+                defaultMonthlyFeeCents = 50_000,
             },
             HttpMethod.Patch
         );
@@ -534,11 +545,8 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
         using var host = new AccountTestHost(database);
         using var admin = await Admin(host);
         var today = Today(host);
-        var soon = await Create(
-            admin,
-            Period(Guid.NewGuid(), today.AddYears(-1), today.AddDays(7))
-        );
-        var expired = await Create(admin, Period(Guid.NewGuid(), today.AddYears(-1), today));
+        var soon = await Create(admin, Period(Guid.NewGuid(), today.AddDays(7).AddYears(-1)));
+        var expired = await Create(admin, Period(Guid.NewGuid(), today.AddYears(-1)));
         var unconfigured = await Create(admin);
         var due = await Read(
             admin,
@@ -594,11 +602,8 @@ public sealed class SubscriptionTests(PostgreSqlFixture database) : IClassFixtur
         using var host = new AccountTestHost(database);
         using var admin = await Admin(host);
         var today = Today(host);
-        var a = await Create(
-            admin,
-            Period(Guid.NewGuid(), today, today.AddYears(1), paidOn: today)
-        );
-        var b = await Create(admin, Period(Guid.NewGuid(), today, today.AddYears(1)));
+        var a = await Create(admin, Period(Guid.NewGuid(), today, paidOn: today));
+        var b = await Create(admin, Period(Guid.NewGuid(), today));
         await using var db = database.CreateContext();
         Assert.Equal(
             1,

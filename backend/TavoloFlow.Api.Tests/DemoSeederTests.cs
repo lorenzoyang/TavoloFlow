@@ -165,19 +165,9 @@ public sealed class DemoSeederTests(PostgreSqlFixture database) : IClassFixture<
                 .ToHashSet()
                 .SetEquals(links.Where(x => x.GroupId == groups[1].Id).Select(x => x.MenuItemId))
         );
-        var period = await db.RestaurantSubscriptionPeriods.SingleAsync();
-        var today = DateOnly.FromDateTime(
-            TimeZoneInfo
-                .ConvertTime(
-                    DateTimeOffset.UtcNow,
-                    TimeZoneInfo.FindSystemTimeZoneById(restaurant.TimeZone)
-                )
-                .DateTime
-        );
-        Assert.Equal(today, period.StartsOn);
-        Assert.Equal(today.AddYears(1), period.EndsOn);
-        Assert.Equal(today, period.PaidOn);
-        Assert.Equal(19900, period.AmountCents);
+        Assert.Null(restaurant.DefaultMonthlyFeeCents);
+        Assert.False(await db.RestaurantSubscriptionPeriods.AnyAsync());
+        Assert.False(await db.SubscriptionNotices.AnyAsync());
         Assert.False(await db.DiningSessions.AnyAsync());
         Assert.False(await db.Orders.AnyAsync());
         Assert.False(await db.OrderItems.AnyAsync());

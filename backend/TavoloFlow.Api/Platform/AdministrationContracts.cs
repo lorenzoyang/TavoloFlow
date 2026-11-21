@@ -18,7 +18,7 @@ public sealed record CreateRestaurantInput(
     // Required while online ordering is on; checked against InputRules.IsSlug.
     [StringLength(InputRules.MaxSlugLength)] string? Slug = null,
     [StringLength(500)] string? OwnerContact = null,
-    long? DefaultAnnualFeeCents = null,
+    long? DefaultMonthlyFeeCents = null,
     InitialSubscriptionPeriod? InitialPeriod = null,
     [StringLength(2048)] string? GoogleMapsUrl = null,
     bool JoinCodeRequired = true,

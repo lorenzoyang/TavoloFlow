@@ -40,14 +40,6 @@ public sealed class PlatformSubscriptionsController(
         CancellationToken ct
     ) => Ok(await service.EditPeriodAsync(id, periodId, input, Actor, ct));
 
-    [HttpPatch("periods/{periodId:guid}/expiry")]
-    public async Task<IActionResult> Expiry(
-        Guid id,
-        Guid periodId,
-        SubscriptionExpiryInput input,
-        CancellationToken ct
-    ) => Ok(await service.ChangeExpiryAsync(id, periodId, input, Actor, ct));
-
     [HttpPost("periods/{periodId:guid}/payment")]
     public async Task<IActionResult> Payment(
         Guid id,

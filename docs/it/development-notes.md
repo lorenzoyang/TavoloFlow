@@ -61,7 +61,7 @@ TavoloFlow è un sistema di ordinazione al tavolo tramite codice QR, che accetta
 - crea un ristorante insieme ai suoi due account (titolare e staff), con password temporanee; in seguito può disattivare questi account o reimpostarne la password;
 - sospende o riattiva un ristorante, ne sceglie il tema di colori, decide se serve il codice del tavolo, elimina definitivamente un ristorante sospeso;
 - per ogni ristorante attiva il QR al tavolo, gli ordini online o tutti e due, e imposta il link online (`/r/…`);
-- gestisce il contatto del titolare, la tariffa annuale e i periodi di abbonamento, e registra il pagamento di ogni periodo, ricevuto fuori dall'app;
+- gestisce il contatto del titolare, il canone mensile e i periodi di abbonamento, e registra il pagamento di ogni periodo, ricevuto fuori dall'app;
 - anche la sua interfaccia è in cinese, italiano o inglese, con la stessa scelta per dispositivo dello staff.
 
 ## Cosa non fa (e perché)
@@ -193,7 +193,7 @@ Il backend è un solo progetto, `backend/TavoloFlow.Api/`, organizzato per argom
 | `Billing/`           | conto, le quattro chiusure (`PAID`, `VOIDED`, `EMPTY` e, solo online, `NO_SHOW`), correzione del costo di consegna, Storico conti                                                                                                                               |
 | `Platform/`          | area amministratore: ristoranti, servizi attivi e link online, account, abbonamenti                                                                                                                                                                             |
 | `Online/`            | ordini online: impostazioni, menu, invio e recupero, accettazione e rifiuto; `OnlineAvailability` decide se si può ordinare e `OnlineRequestState` gestisce attesa e scadenza; limiti per browser/IP e verifica Turnstile con `OnlineVerification`; costo di consegna: fasce, ordine minimo e preventivo automatico con Geoapify (`OnlineDelivery`, `DeliveryQuotes`) |
-| `Push/`              | notifiche a schermo bloccato: la chiave VAPID, le iscrizioni dei dispositivi, la coda in memoria e l'invio (`PushSender`, l'unico `BackgroundService`)                                                                                                          |     |
+| `Push/`              | notifiche a schermo bloccato: la chiave VAPID, le iscrizioni dei dispositivi, la coda in memoria e l'invio (`PushSender`)                                                                                                          |     |
 | `Data/`, `Entities/` | `ApplicationDbContext`, le mappature e le migrazioni di EF Core, i lock di riga (`RowLocks`), il servizio di eliminazione; le 18 entità                                                                                                                         |
 
 Ogni modulo ha un file `XxxContracts.cs` con i DTO (cosa entra e cosa esce dall'API) e le fabbriche degli errori, per esempio `DiningErrors.SessionClosed()`, più uno o più service con le regole e le transazioni.
@@ -742,6 +742,8 @@ Il controllo lo fa `CsrfValidationFilter`, registrato in modo globale perché `A
 - **Log senza segreti.** Il client HTTP delle notifiche disabilita i logger predefiniti: scriverebbero anche il percorso dell'indirizzo, che contiene il token del dispositivo. Restano solo codice di risposta o tipo di errore.
 - **Solo servizi conosciuti.** L'indirizzo a cui inviare lo sceglie il browser, quindi il server accetta solo quelli dei servizi di notifica conosciuti (Apple, Google, Mozilla, Microsoft) e non segue i redirect: altrimenti un account potrebbe far chiamare al server indirizzi interni.
 - **iPhone.** Su iOS le notifiche esistono solo nell'app aggiunta alla schermata Home (iOS 16.4 o successivo), non in Safari. A schermo bloccato arriva una notifica con un suono, non una suoneria continua.
+
+Nell’area amministratore `/platform` puoi installare la PWA e attivare gli avvisi di rinnovo su ogni dispositivo. Toccare un avviso apre l’elenco ristoranti con il riepilogo da confermare. L’accesso dura 30 giorni.
 
 ### Altri compromessi
 

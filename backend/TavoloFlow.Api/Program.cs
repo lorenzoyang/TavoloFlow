@@ -79,6 +79,7 @@ builder.Services.AddScoped<KitchenService>();
 builder.Services.AddScoped<BillingService>();
 builder.Services.AddScoped<RestaurantAdministration>();
 builder.Services.AddScoped<SubscriptionService>();
+builder.Services.AddScoped<SubscriptionNotices>();
 builder.Services.AddScoped<OnlineSettingsService>();
 builder.Services.AddScoped<OnlineMenuService>();
 builder.Services.AddScoped<OnlineRequestService>();
@@ -127,6 +128,8 @@ builder
 builder.Services.AddSingleton<IValidateOptions<PushOptions>, PushOptionsValidator>();
 builder.Services.AddSingleton<PushKeys>();
 builder.Services.AddScoped<PushSubscriptionService>();
+builder.Services.AddScoped<PlatformPushDevices>();
+builder.Services.AddSingleton<WebPushDelivery>();
 builder.Services.AddSingleton<PushQueue>();
 
 // Push services are external: never follow a redirect away from the registered endpoint.
@@ -139,6 +142,7 @@ builder
     .RemoveAllLoggers()
     .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
 builder.Services.AddHostedService<PushSender>();
+builder.Services.AddHostedService<SubscriptionReminderWorker>();
 builder.Services.AddScoped<DemoSeeder>();
 
 var app = builder.Build();
