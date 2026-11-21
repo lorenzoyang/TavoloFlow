@@ -19,6 +19,8 @@ Start with the [project README](../README.md) to run the local demo. The documen
 | Learning notes    | The maintainer's own notes on the technologies, tied to this code     | [Italiano](it/learning-notes.md) (in progress)                                                                |
 
 The [frontend README](../frontend/README.md) gives English frontend commands and configuration notes.
+The [online ordering design notes](online-ordering.md) describe the design and its implementation
+history in Chinese.
 Use the self-hosting guide for production operations; the demo and development Compose projects are
 separate from production.
 
@@ -29,7 +31,7 @@ separate from production.
 - [Product requirements](reference/product-requirements.md): users, scope, visit lifecycle and
   acceptance criteria.
 - [Database schema](reference/er-diagram.dbml) and [ER diagram](reference/er-diagram.png): the
-  eighteen-table persistence model. Deployed schema changes are defined by
+  twenty-table persistence model. Deployed schema changes are defined by
   [EF migrations](../backend/TavoloFlow.Api/Data/Migrations/).
 
 ### Implementation contracts
@@ -38,12 +40,12 @@ separate from production.
 | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | [Accounts and platform](reference/accounts-platform.md)           | Three identities, cookies/CSRF, account initialization, restaurant administration and account recovery |
 | [Menu, tables and public entrance](reference/menu-tables.md)      | Menu editing, photos, allergens, language fallback, fixed QR codes and anonymous bootstrap             |
-| [Dining and ordering](reference/dining-ordering.md)               | Opening visits, guest access, code-free joining, carts, idempotent ordering and unknown results        |
+| [Dining and ordering](reference/dining-ordering.md)               | Opening visits, guest access, carts, guest and staff ordering, and unknown results                    |
 | [Kitchen and pass](reference/kitchen-pass.md)                     | Item processing, category screens, delivery, polling and audio                                         |
 | [Billing and history](reference/billing-history.md)               | Bill confirmation, PAID/EMPTY/VOIDED/NO_SHOW closure and historical queries                            |
 | [Restaurant subscriptions](reference/restaurant-subscriptions.md) | Service periods, offline fee collection, concurrency and reminders                                     |
 | [Staff PWA](reference/pwa.md)                                     | Installation, worker with offline page and push notifications, tablet setup                            |
-| [Online ordering](reference/online-ordering.md)                   | Link and hours, customer pages, accepting orders, pickup, delivery and lock-screen push                |
+| [Online ordering](reference/online-ordering.md)                   | Link and hours, customer pages, scheduled pickup, delivery fees and lock-screen push                   |
 
 These describe the current interfaces and their important invariants. Read controllers and DTOs for
 exact wire types, services for transaction behavior, and tests for executable examples. Shared coding

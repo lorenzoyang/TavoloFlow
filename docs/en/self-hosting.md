@@ -767,6 +767,14 @@ For upgrades from a version where whoever accepted a delivery order typed the fe
 - **Install after closing**, as always: a delivery request still waiting can only be accepted by picking one of the current bands, and while there are none the card says to call the customer or reject.
 - **Going back.** Before using `--schema-compatible`, pause online ordering and decide all waiting requests. The old version ignores the fee already quoted on a waiting request and the delivery minimum, and returns to entering the fee by hand. Open bills keep their recorded fee. Rollback leaves the migrations applied and delivery off wherever the migration turned it off. Without coordinates, `ck_restaurant_delivery_ready` prevents the old version from turning delivery on. After rollback, reload devices before resuming service.
 
+#### First upgrade with scheduled pickup and free delivery
+
+The `upgrade.sh` summary shows the `DeliveryFreeMinimum` and `ScheduledPickup` migrations. Existing bands retain their base fee and start without a free-delivery threshold. Scheduled pickup starts disabled. The migrations use the existing configuration and leave the current services enabled.
+
+After upgrading, reload staff pages before changing delivery settings. The owner can then set thresholds for individual bands and enable scheduled pickup under **Online ordering settings**. Verify using a fresh customer page and the scenarios in the [local development guide](local-development.md#trying-scheduled-pickup-and-free-delivery).
+
+Before rolling back with `--schema-compatible`, pause new online orders and decide all waiting requests. Rollback preserves orders and applied migrations. If the target version predates scheduled pickup, complete or cancel any accepted reservations whose preparation is still in the future. The old code would show those orders in Kitchen immediately. If you cannot handle them before rolling back, release a fix that supports reservations. A version without free-delivery thresholds uses base fees for new quotes and can clear thresholds when it saves the bands. Fees already recorded on open bills remain stored.
+
 #### Manual procedure
 
 These are the same steps that the two scripts of [Releasing with the scripts](releasing.md) run for you.
@@ -888,6 +896,8 @@ sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api
 Then repeat the real order test above. This procedure is for installations already running a version with Turnstile; it does not replace the first upgrade installation.
 
 #### Rolling back to the previous version
+
+For a rollback across these migrations, follow the checks for [scheduled pickup and free delivery](#first-upgrade-with-scheduled-pickup-and-free-delivery).
 
 ```bash
 sudo cat /opt/tavoloflow/state/current

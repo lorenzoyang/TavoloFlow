@@ -43,9 +43,12 @@ table. Active and historical bill details show this in the order header alongsid
 `tableId`, `closedAt` and `closeReason` may be null as appropriate. `channel` is `DINE_IN`, `PICKUP` or
 `DELIVERY`. Dine-in visits have `tableLabel` and a null `online`; accepted online orders have no table
 and `online: { number, customerName, customerPhone, estimatedAt, deliveryAddress, deliveryNotes,
-coupon }` (contact and address become null once contact data is cleared; `coupon` is
-`{ code, percentOff, discountCents }` when the customer used one, else null). `deliveryFeeCents` is set on delivery
-sessions only: the fee whoever accepted the order entered. The active list reads only open sessions through the partial index
+coupon, requestedPickupAt, kitchenStartsAt }`. For scheduled pickup the final two fields give the
+agreed pickup time and kitchen start. Contact and address become null once contact data is cleared.
+The `coupon` is `{ code, percentOff, discountCents }` when the customer used one, else null.
+`deliveryFeeCents` is set
+on delivery sessions only. It is the fee from the quote or the band confirmed on acceptance, with any
+later owner correction. The active list reads only open sessions through the partial index
 `ix_dining_sessions_active`, in one statement, ordered by opening time (for online orders, acceptance). Item counts count lines, not
 portions. Active totals sum uncancelled unit-price × quantity across the entire visit, less an online
 coupon's percentage of that sum (rounded down to the cent, `OnlineCoupons.DiscountCents`; the
@@ -122,10 +125,14 @@ rejects later writes. Any intermediate failure rolls back the entire closure and
 Service suspension, disabled tables and paused ordering do not block closure. Closed visits never
 reopen, and guest access is rejected through the existing live visit checks.
 
+Before preparation, staff can [cancel a scheduled pickup](online-ordering.md#scheduled-pickup).
+That operation cancels the lines and voids the bill at zero under the same session lock. It increments
+the bill version for the cancellation and records the closure in the same transaction.
+
 ## Delivery fee correction
 
-OWNER corrects an ACTIVE delivery's fee before closing it, for example a fee typed wrongly at
-acceptance. The write takes only the session UPDATE lock, like closures and cancellations. It returns
+OWNER can correct an ACTIVE delivery's fee before closing it, for example after agreeing a new fee
+by phone. The write takes only the session UPDATE lock, like closures and cancellations. It returns
 `SESSION_NOT_FOUND`, `SESSION_CLOSED`, `BILL_CHANGED` (with `currentBill`) for a version other than the
 current one, and `SESSION_NOT_DELIVERY` (409, with `currentBill`) for pickup and dine-in sessions. The
 fee is whole cents, 0 for free, and every ordered item plus the fee stays a safe integer

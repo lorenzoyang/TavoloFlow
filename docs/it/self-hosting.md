@@ -767,6 +767,14 @@ Riguarda chi aggiorna da una versione in cui chi accettava un ordine a domicilio
 - **Installa a ristorante chiuso**, come sempre: una richiesta a domicilio ancora in attesa si accetta solo scegliendo una delle fasce attuali, e finché non ce ne sono la scheda dice di chiamare il cliente o di rifiutare.
 - **Tornare indietro.** Prima di usare `--schema-compatible`, metti in pausa gli ordini online e decidi tutte le richieste in attesa. La versione vecchia ignora il preventivo già mostrato su una richiesta in attesa e l’ordine minimo, e torna al costo inserito a mano. I conti già aperti conservano il costo registrato. Il rollback lascia le migrazioni applicate e la consegna spenta dove l’ha spenta la migrazione. Senza coordinate, il vincolo `ck_restaurant_delivery_ready` impedisce di riattivarla dalla versione vecchia. Dopo il rollback ricarica i dispositivi prima di riprendere il servizio.
 
+#### Primo aggiornamento con ritiro programmato e consegna gratuita
+
+Il riepilogo di `upgrade.sh` mostra le migrazioni `DeliveryFreeMinimum` e `ScheduledPickup`. Le fasce esistenti mantengono il costo base e partono senza soglia di gratuità. Il ritiro programmato parte disattivato. Le migrazioni usano la configurazione già installata e lasciano attivi i servizi esistenti.
+
+Dopo l'aggiornamento ricarica le pagine dello staff prima di cambiare la consegna. Il titolare può poi impostare le soglie per fascia e attivare il ritiro programmato in **Impostazioni ordini online**. Per la verifica usa una nuova pagina cliente e segui le prove della [guida allo sviluppo locale](local-development.md#provare-il-ritiro-programmato-e-la-consegna-gratuita).
+
+Prima di tornare a una versione precedente con `--schema-compatible`, sospendi i nuovi ordini online e gestisci tutte le richieste in attesa. Il rollback conserva ordini e migrazioni. Se la versione precedente non supporta il ritiro programmato, completa o annulla prima tutti i ritiri già accettati la cui preparazione deve ancora iniziare. Il vecchio codice li mostrerebbe subito in Cucina. Se non puoi gestirli prima del rollback, correggi e rilascia una versione che supporti le prenotazioni. Una versione senza soglie di gratuità usa le tariffe base per i nuovi preventivi e può cancellare le soglie quando risalva le fasce. I costi già registrati nei conti aperti restano salvati.
+
 #### Procedura manuale
 
 Sono gli stessi passaggi che i due script della guida [Rilasciare con gli script](releasing.md) eseguono per te.
@@ -888,6 +896,8 @@ sudo bash /opt/tavoloflow/tf.sh logs --tail 100 api
 Poi ripeti la prova d’ordine reale descritta sopra. Questa procedura vale quando è già installata una versione con Turnstile: non sostituisce l’installazione del primo aggiornamento.
 
 #### Tornare alla versione precedente
+
+Per un ripristino che attraversa queste migrazioni, segui le verifiche per [ritiro programmato e consegna gratuita](#primo-aggiornamento-con-ritiro-programmato-e-consegna-gratuita).
 
 ```bash
 sudo cat /opt/tavoloflow/state/current

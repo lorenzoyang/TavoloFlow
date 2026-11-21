@@ -1,7 +1,7 @@
 Project TavoloFlow_MVP_V1 {
   database_type: 'PostgreSQL'
   Note: '''
-    TavoloFlow: 15 tables, one menu per restaurant, offline service subscriptions.
+    TavoloFlow has 20 tables, one menu per restaurant and offline service subscriptions.
     Credential versions revoke account tickets; subscription_version guards
     service administration and bill_version guards session bill confirmation.
     No join-code/QR reset in V1; closing a session invalidates guest cookies.
@@ -659,6 +659,7 @@ TableGroup dining_and_orders {
 
 TableGroup online_ordering {
   online_counters
+  online_coupons
   online_requests
   push_subscriptions
 }

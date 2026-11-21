@@ -103,6 +103,11 @@ If more than 10 minutes pass before acceptance, the order expires: the status pa
 
 To try abuse protection, reopen the menu in the same browser while an order awaits acceptance: you can edit the cart, but must wait or open the existing order before checking out. Acceptance, rejection or expiry releases the slot. The site requires its own browser cookie, valid for 30 days. Each IP allows 3 submission attempts per minute and 10 per ten minutes, with at most 5 waiting orders at the same restaurant; reads have separate budgets. Use separate browser profiles to simulate different customers; they still share an IP on the same Wi-Fi. Notifications are unchanged. Settings and verification are in the [technical contract](../reference/online-ordering.md#submission-and-query-abuse-protection). [Example of the notice on a phone](../images/online-waiting-en.webp).
 
+#### Trying scheduled pickup and free delivery
+
+- **Scheduled pickup.** As owner, keep today's slot open, add a slot for tomorrow and enable **Scheduled pickup** with 30 minutes' notice. In a fresh customer page, choose a time tomorrow and submit. As staff, accept and choose how far ahead to start preparing. Check that the status page shows the confirmed time and **Online orders** shows when the order enters the kitchen. To see the order reach **Kitchen** without waiting until tomorrow, repeat with a time today and check the queue before and after the preparation time. Cancel the first order from **Online orders** before preparation begins. The bill is voided at zero and the order stays out of Kitchen.
+- **Free delivery.** With the sample band (within 3 km, €2), set a €25 threshold under **Free delivery** and save the delivery settings. In the demo without a Geoapify key, submit a delivery of five portions of Pan-fried gyoza at the €5 sale price. The band in the acceptance card shows €0 on the €25 subtotal. Accept the first order to free the waiting slot. Create the 10% `ESTATE10` coupon if needed, then repeat with it. The discounted food subtotal is €22.50 and the same band costs €2 again. Leave the delivery minimum blank or set it at €22.50 or less for both trials.
+
 ### How it is built
 
 The demo is a separate Compose project, [`demo/compose.yaml`](../../demo/compose.yaml), with four containers:

@@ -192,7 +192,7 @@ Installando il pacchetto, l'installer copia anche `upgrade.sh` in `/opt/tavolofl
    Lo script comunque si rifiuta di partire con modifiche non committate, compresi i file nuovi non ancora aggiunti a Git.
 
 2. Docker è in esecuzione sul tuo computer (nel mio caso, Docker Desktop aperto). Anche questo lo controlla lo script.
-3. Guarda se [Rilasciare una nuova versione](self-hosting.md#rilasciare-una-nuova-versione) ha una sezione «Primo aggiornamento…» per questa versione. Seguila per preparare eventuali modifiche a `.env` e pianificare gli effetti delle migrazioni, come la consegna che va riattivata dopo l’aggiornamento. Se un controllo preliminare fallisce, l’installer si ferma mentre l’API in servizio è ancora in esecuzione.
+3. Guarda se [Rilasciare una nuova versione](self-hosting.md#rilasciare-una-nuova-versione) ha una sezione «Primo aggiornamento…» per questa versione. Seguila per preparare eventuali modifiche a `.env` e pianificare gli effetti delle migrazioni, come la consegna che va riattivata dopo l’aggiornamento. Se un controllo preliminare fallisce, l’installer si ferma mentre l’API in servizio è ancora in esecuzione. Per queste funzionalità vedi [Ritiro programmato e consegna gratuita](self-hosting.md#primo-aggiornamento-con-ritiro-programmato-e-consegna-gratuita).
 4. Per l'installazione scegli un orario di chiusura. Il caricamento può avvenire prima, anche ore prima.
 
 ### 1. Sul tuo computer: costruire e caricare

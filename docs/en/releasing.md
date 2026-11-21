@@ -192,7 +192,7 @@ When it installs the package, the installer also copies `upgrade.sh` to `/opt/ta
    Even if you forget, the script refuses to start with uncommitted changes, including new files not yet added to Git.
 
 2. Docker is running on your computer (in my case, Docker Desktop is open). The script checks this too.
-3. Check [Releasing a new version](self-hosting.md#releasing-a-new-version) for a "First upgrade…" section for this release. Follow it to prepare any `.env` changes and plan for migration effects, such as delivery needing to be re-enabled after the upgrade. If a preflight check fails, the installer exits while the existing API is still running.
+3. Check [Releasing a new version](self-hosting.md#releasing-a-new-version) for a "First upgrade…" section for this release. Follow it to prepare any `.env` changes and plan for migration effects, such as delivery needing to be re-enabled after the upgrade. If a preflight check fails, the installer exits while the existing API is still running. For these features, see [Scheduled pickup and free delivery](self-hosting.md#first-upgrade-with-scheduled-pickup-and-free-delivery).
 4. Install when the restaurant is closed. The upload can happen earlier, even hours earlier.
 
 ### 1. On your computer: build and upload

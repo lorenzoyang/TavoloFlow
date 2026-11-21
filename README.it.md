@@ -26,8 +26,9 @@ registratore di cassa.
 - **I clienti** scansionano il QR fisso del tavolo, consultano il menu con foto e allergeni, entrano
   nella visita del tavolo con un codice di quattro caratteri e ordinano tutte le volte che vogliono
   durante il pasto.
-- **I clienti online** ordinano dal link del ristorante per il ritiro o, dove disponibile, la
-  consegna. Se il calcolo per l'indirizzo riesce, vedono il costo prima di ordinare. Altrimenti vedono
+- **I clienti online** ordinano dal link del ristorante per il ritiro il prima possibile, il ritiro
+  programmato se attivo o la consegna dove disponibile. Se il calcolo per l'indirizzo riesce, vedono
+  il costo prima di ordinare. Altrimenti vedono
   il listino per distanza e il ristorante conferma il costo quando accetta. Se il calcolo trova
   l'indirizzo fuori zona, la cassa blocca la consegna. I clienti possono usare un codice per uno
   sconto percentuale sui piatti, pagare al ritiro o alla consegna e seguire l'ordine dalla pagina di
@@ -35,22 +36,24 @@ registratore di cassa.
 - **Lo staff** apre i tavoli e prende le ordinazioni in Sala anche quando gli ordini via QR sono in pausa.
   Segue gli ordini in Cucina (raggruppati per piatto o per ordine,
   con un avviso sonoro e le categorie filtrate per schermo) e segna i piatti serviti dal Pass. Accetta
-  o rifiuta gli ordini online, scegliendo il tempo previsto e, per una consegna senza costo calcolato
-  alla cassa, la fascia; finché ci sono ordini da accettare un banner suona in ogni pagina dello staff,
+  o rifiuta gli ordini online. Per gli ordini da preparare subito sceglie il tempo previsto e per un
+  ritiro programmato quando iniziare a prepararlo. Per le consegne senza preventivo sceglie anche
+  la fascia. Finché ci sono ordini da accettare un banner suona in ogni pagina dello staff,
   e i dispositivi che le attivano ricevono anche le notifiche a schermo bloccato.
 - **Il titolare** gestisce il menu, con opzioni condivise come formato, zucchero, topping o
   piccantezza che possono avere un supplemento, e i prezzi scontati che ogni menu mostra accanto al
   prezzo pieno barrato, e i tavoli, scarica i QR e i segnatavolo da stampare, chiude il conto dopo
-  l'incasso e consulta lo storico dei conti. Per gli ordini online imposta telefono, orari e consegna
-  (posizione del ristorante, fasce di costo per distanza su strada, ordine minimo facoltativo e note),
-  crea i codici sconto (una percentuale, con un ultimo giorno facoltativo), corregge il costo di
+  l'incasso e consulta lo storico dei conti. Per gli ordini online imposta telefono, orari, preavviso
+  per il ritiro programmato e regole di consegna. Ogni fascia di distanza può avere una soglia per la
+  consegna gratuita, calcolata sui piatti dopo lo sconto. L'ordine minimo facoltativo vale per tutte
+  le consegne. Il titolare crea i codici sconto, corregge il costo di
   consegna e chiude gli ordini ritirati o consegnati.
 - **L'amministratore della piattaforma** crea i ristoranti e i loro account, sceglie il tema di colori
   di ogni ristorante, attiva per ognuno l'ordinazione al tavolo con QR e gli ordini online con il loro
   link, e registra i periodi di abbonamento e le tariffe pagate fuori dall'app.
 
 Non ci sono stampa delle comande, pagamenti online, divisione del conto, gestione del magazzino,
-programmi fedeltà né piattaforme di consegna esterne, e il cliente non può prenotare un orario di ritiro o di consegna. I
+programmi fedeltà né piattaforme di consegna esterne. Le consegne partono appena possibile. I
 [requisiti del prodotto](docs/reference/product-requirements.md), in inglese, descrivono tutto il
 perimetro.
 

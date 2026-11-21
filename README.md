@@ -24,7 +24,8 @@ online orders. The app does not process online payments and does not replace a f
 
 - **Guests** scan the table's fixed QR code, browse the menu with photos and allergens, join the
   table's visit with a four-character code, and order as many times as they like during the meal.
-- **Online customers** order from the restaurant's link for pickup or, where offered, delivery.
+- **Online customers** order from the restaurant's link for immediate pickup, scheduled pickup when
+  enabled, or delivery where offered.
   When checkout can calculate the fee for their address, they see it before ordering. Otherwise
   they see the price list by distance and the restaurant confirms the fee on acceptance. If the
   calculation finds the address is out of range, checkout blocks delivery. Customers can use a
@@ -33,22 +34,24 @@ online orders. The app does not process online payments and does not replace a f
 - **Staff** open tables and take orders for guests on the Floor, even while guest QR ordering is paused.
   They follow orders in the Kitchen (grouped by dish or by order, with
   an alert sound and per-screen category filters), and mark dishes served on the Pass screen. They
-  accept or reject online orders, choosing the estimated time and, for a delivery not priced at
-  checkout, the fee band; a banner rings on every staff page while orders wait, and devices that turn
+  accept or reject online orders, choosing the estimated time for immediate orders or when the
+  kitchen should start preparing a scheduled pickup. For deliveries without a quote they also choose
+  the fee band. A banner rings on every staff page while orders wait, and devices that turn
   them on also get lock-screen notifications.
 - **Owners** manage the menu, with shared options such as drink sizes, sugar, toppings or spice
   levels that can add to the price, and sale prices that every menu shows beside the struck-through
   regular price, and the tables, download QR codes and printable table cards, close the bill after
-  payment and browse the bill history. For online ordering they set the public phone, the weekly hours
-  and delivery (the restaurant's location, fee bands by road distance, an optional minimum order and
-  notes), create coupon codes (a percentage off, with an optional last day), correct a delivery fee and
+  payment and browse the bill history. For online ordering they set the public phone, weekly hours,
+  advance notice for scheduled pickup and delivery rules. Each distance band can waive its fee once
+  the food subtotal after coupons reaches its threshold. A separate optional minimum applies to all
+  deliveries. Owners create coupon codes, correct delivery fees and
   close collected or delivered orders.
 - **Platform administrators** create restaurants and their accounts, choose each restaurant's color
   theme, turn QR dine-in and online ordering on for each restaurant with its online link, and record
   service periods and annual fees paid offline.
 
 There are no order printers, online payments, split bills, stock management, loyalty programmes or
-third-party delivery platforms, and customers cannot book a pickup or delivery time. The
+third-party delivery platforms. Deliveries are prepared as soon as possible. The
 [product requirements](docs/reference/product-requirements.md) describe the full scope.
 
 ## Screenshots

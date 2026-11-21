@@ -29,14 +29,15 @@ render a "service not offered" state.
 | `DELETE /api/staff/online/pause` | STAFF, OWNER | → settings (resumes)                                             |
 | `PUT /api/owner/online/hours`    | OWNER        | `{ slots: [{ weekday, opensMinute, closesMinute }] }` → settings |
 | `PATCH /api/owner/online/phone`  | OWNER        | `{ publicPhone }`, blank clears → settings                       |
-| `PUT /api/owner/online/delivery` | OWNER        | `{ enabled, noteZh, noteIt, noteEn, minOrderCents, originLat, originLng, tiers: [{ maxMeters, feeCents }] }` → settings |
+| `PUT /api/owner/online/pickup`   | OWNER        | `{ minNoticeMinutes }` → settings |
+| `PUT /api/owner/online/delivery` | OWNER        | `{ enabled, noteZh, noteIt, noteEn, minOrderCents, originLat, originLng, tiers: [{ maxMeters, feeCents, freeDeliveryMinCents? }] }` → settings |
 | `POST /api/owner/online/coupons` | OWNER        | `{ code, percentOff, validUntil }` → settings                    |
 | `DELETE /api/owner/online/coupons/{id}` | OWNER | → settings (also when already gone)                              |
 
 Settings are `{ slug, publicPhone, hours, pausedUntil, status, nextOpensAt, currentSlotEndsAt,
 deliveryEnabled, deliveryNoteZh, deliveryNoteIt, deliveryNoteEn, deliveryMinOrderCents,
-deliveryOriginLat, deliveryOriginLng, deliveryTiers, deliveryAutoQuote, coupons }`; each band is
-`{ maxMeters, feeCents }`, nearest first, and each coupon is
+deliveryOriginLat, deliveryOriginLng, deliveryTiers, deliveryAutoQuote, coupons, pickupMinNoticeMinutes }`.
+Each band is `{ maxMeters, feeCents, freeDeliveryMinCents }`, nearest first, and each coupon is
 `{ id, code, percentOff, validUntil, expired }`, ordered by code.
 `hours` are ordered by weekday and opening time. `pausedUntil` is null once the pause has lapsed.
 `nextOpensAt` accompanies `CLOSED_HOURS` and is null when the week has no slots. `currentSlotEndsAt`
@@ -78,9 +79,9 @@ takes `{ minNoticeMinutes }` and returns the settings, including `pickupMinNotic
 null to switch off new reservations. The editor starts at 60 minutes when first enabled. The
 available values are 30, 45, 60, 90 and 120 minutes.
 
-Bootstrap adds `pickupTimes`, a list of available UTC instants, or null when scheduling is off.
-The list is generated only while online ordering is open. It covers today and tomorrow in the
-restaurant's time zone, on the local quarter hour, up to each existing online slot's exclusive end.
+Bootstrap returns `pickupTimes`, a list of available UTC instants. It is null when scheduling is off
+and empty when scheduling is on but ordering is closed or no time qualifies. It covers today and
+tomorrow in the restaurant's time zone, on the local quarter hour, up to each online slot's exclusive end.
 It omits times that violate minimum notice or leave less than 10 minutes for preparation in the
 same slot. It skips nonexistent wall times and offers the first occurrence of a repeated time.
 
@@ -109,10 +110,12 @@ are removed. The status link remains valid for 24 hours after the order ends.
 ![Scheduled pickup at checkout and on the confirmed order status page](../images/scheduled-pickup-en.webp)
 
 Before kitchen release, STAFF or OWNER can cancel an accepted reservation through
-`POST /api/staff/online/sessions/{id}/cancel-reservation`. This confirms cancellation, cancels the
-lines and closes the bill as `VOIDED` at zero under the same session lock and transaction. If the
-result is uncertain or refused, the confirmation stays open with feedback and the staff list is
-refreshed. Work already released to the kitchen follows the standard kitchen and bill operations.
+`POST /api/staff/online/sessions/{id}/cancel-reservation`. This cancels the lines and closes the bill
+as `VOIDED` at zero under the same session lock and transaction. Success or a repeat of that
+cancellation returns 204. At or after preparation time, a new cancellation returns
+`ONLINE_RESERVATION_CHANGED` (409). If the result is uncertain or refused, the confirmation stays
+open with feedback and the staff list refreshes. Work released to the kitchen follows the standard
+kitchen and bill operations.
 
 ## Delivery settings
 
@@ -204,7 +207,7 @@ priced as out of range), `bias=proximity:lng,lat`, `lang=it` (towns as customers
 rather than "Florence": every restaurant is in Italy; `OnlineDelivery.PlaceNamesLanguage`) and `limit=1`;
 then, for a precise match, `/v1/routing` with
 `waypoints=lat,lng|lat,lng` and `mode=drive`, taking the route's `distance` in metres with Geoapify's
-default free-flow traffic, so an address keeps its price. Only a `building` or `amenity` match whose
+default free-flow traffic to keep the calculated distance stable. Only a `building` or `amenity` match whose
 `rank.confidence_street_level` is at least 0.9 is priced (`OnlineDelivery.QuotableMatches`,
 `MinStreetConfidence`): a street without its number can lie kilometres from the house on a long road,
 and a typo can match another street. A malformed answer (a match without coordinates, a route without
@@ -328,7 +331,7 @@ CSRF issuance also initializes the independent browser marker described below.
 
 | Method and path                                                    | Result                                        |
 | ------------------------------------------------------------------ | --------------------------------------------- |
-| `GET /api/public/r/{slug}/bootstrap`                               | Restaurant, status, `nextOpensAt`, menu       |
+| `GET /api/public/r/{slug}/bootstrap`                               | Restaurant, status, `nextOpensAt`, menu, `turnstile`, `pickupTimes` |
 | `GET /api/public/r/{slug}/ordering-context` | This browser’s waiting submission, or null |
 | `GET /api/public/r/{slug}/coupons/{code}`                          | `{ code, percentOff }`, or 404 `COUPON_INVALID` |
 | `POST /api/public/r/{slug}/delivery-quote`                         | `{ result, town, distanceMeters, feeCents, quote }` (see [automatic delivery quotes](#automatic-delivery-quotes)) |
@@ -370,7 +373,7 @@ Submission requires a valid marker (`ONLINE_BROWSER_REQUIRED`, 400, otherwise), 
 one during the POST. Clearing cookies can replace a marker; IP protections still apply.
 
 The new anonymous `GET /api/public/r/{slug}/ordering-context` uses same-origin credentials and returns
-`{ pending: { statusToken, number, expiresAt } | null }` for this browser and restaurant only. No phone
+`{ pending: { statusToken, number, expiresAt, requestedPickupAt? } | null }` for this browser and restaurant only. No phone
 lookup or other customers' orders are exposed. Ordinary public menu, recovery and status reads still
 omit cookies. A restaurant's legacy requests without source metadata retain their original recovery
 links and count toward the restaurant's 20-request cap, but have no inferred browser/IP owner.
@@ -387,7 +390,7 @@ no extra queue counters or cleanup jobs.
 After the existing request-ID duplicate check, inside the same restaurant submission transaction:
 
 - An existing waiting request for this browser rejects a new ID with `ONLINE_BROWSER_PENDING` (409)
-  and `existingSubmission: { statusToken, number, expiresAt }`.
+  and `existingSubmission: { statusToken, number, expiresAt, requestedPickupAt? }`.
 - Five waiting requests from this IP reject a new ID with `ONLINE_IP_WAITING_LIMIT` (409), without
   disclosing any of those orders.
 - Accepted, rejected and expired requests release their slots through `OnlineRequestState.Waiting`.
@@ -410,7 +413,7 @@ Missing values, placeholders, unpaired test keys and production dummy keys fail 
 The menu bootstrap includes `turnstile: { siteKey } | null`. It never exposes the secret key.
 `POST .../requests` accepts the optional transport-only `turnstileToken` (at most 2048 characters when
 verification is enabled); it is not part of `OnlineIntent`, the saved cart or any order snapshot.
-The cart remains version 2. The service first validates business input, resolves the restaurant and
+The cart uses version 3. The service first validates business input, resolves the restaurant and
 looks for a committed original request. A found original returns without a provider call. Otherwise
 `OnlineVerification` calls the fixed HTTPS Siteverify endpoint outside every database transaction,
 with a five-second timeout, no redirects and no automatic retry. Only the secret and proof are sent;
@@ -467,8 +470,8 @@ and [testing](https://developers.cloudflare.com/turnstile/troubleshooting/testin
 The bootstrap reads restaurant, hours, waiting count and `MenuReader` in one Repeatable Read
 transaction. It returns `restaurant { id, name, currencyCode, defaultLanguage, theme, publicPhone,
 deliveryEnabled, deliveryNoteZh, deliveryNoteIt, deliveryNoteEn, deliveryMinOrderCents, deliveryTiers,
-deliveryAutoQuote }` (the bands nearest first, never the coordinates), `status`, `nextOpensAt` and the
-same `menu` as the QR bootstrap; the menu is shown in every status.
+deliveryAutoQuote }` (the bands nearest first, never the coordinates), `status`, `nextOpensAt`,
+`turnstile`, `pickupTimes` and the same `menu` as the QR bootstrap. The menu is shown in every status.
 An invalid or unknown slug is `ONLINE_LINK_NOT_FOUND` (404).
 
 The coupon check trims and uppercases the typed code and answers `{ code, percentOff }` when the
@@ -478,11 +481,12 @@ restaurant has it and its `valid_until` has not passed in the restaurant's local
 `RATE_LIMITED`), so codes cannot be guessed by trying them all.
 
 The submission body is `{ clientRequestId, fulfillment, customerName, customerPhone, deliveryAddress?,
-deliveryNotes?, items, coupon?, deliveryQuote?, turnstileToken? }`, unknown fields rejected; `items` uses the QR order line format and the shared
+deliveryNotes?, items, coupon?, deliveryQuote?, turnstileToken?, requestedPickupAt? }`.
+Unknown fields are rejected. `items` uses the QR order line format and the shared
 `OrderLines` checks (1–30 lines, 1–20 portions each, 100 in all, 200-character remarks, `optionIds`
 required). The name is trimmed to 1–30 characters and the phone follows `InputRules.NormalizePhone`.
-Pickup takes no address; delivery needs a trimmed address of 1–200 characters and takes optional
-notes (doorbell, floor) of up to 100. `coupon` is null or `{ code, percentOff }`: the code the coupon
+Pickup can carry a requested pickup instant. Delivery takes a trimmed address of 1–200 characters and
+optional notes (doorbell, floor) of up to 100. `coupon` is null or `{ code, percentOff }`: the code the coupon
 check confirmed and the percentage the customer saw, both required (a malformed one is
 `VALIDATION_FAILED`). `deliveryQuote` is null or `{ quote, feeCents }`, delivery only: the signed quote
 for this address and the final fee the customer saw, including any waiver. The server then:
@@ -499,7 +503,8 @@ for this address and the final fee the customer saw, including any waiver. The s
 4. Returns the stored result of an existing `(restaurant, clientRequestId)` and rolls back, so a repeat
    skips every later gate and uses no number.
 5. Requires `OPEN`: `SERVICE_SUSPENDED`, `ONLINE_NOT_OFFERED`, `ONLINE_PAUSED`, `ONLINE_CLOSED` (with
-   `nextOpensAt` when the week has a slot) or `ONLINE_BUSY` (all 409). A delivery request also needs
+   `nextOpensAt` when the week has a slot) or `ONLINE_BUSY` (all 409). A requested pickup time must
+   still be offered, otherwise `ONLINE_PICKUP_SLOT_CHANGED` (409). A delivery request also needs
    the restaurant's delivery switch, otherwise `DELIVERY_NOT_OFFERED` (409); pickup never depends on it.
    A delivery quote must unprotect for this restaurant, be for the same normalized address and the
    restaurant's current coordinates, not have expired at the time read in step 3, and still be covered
@@ -518,7 +523,8 @@ for this address and the final fee the customer saw, including any waiver. The s
 7. Inserts the request with a random 32-byte Base64URL status token, `expires_at` ten minutes after
    submission, the coupon's code and percentage and a quote's fee and distance (`delivery_fee_cents`,
    `delivery_distance_meters`, both or neither, delivery only: `ck_online_request_delivery_quote`), and
-   returns `{ statusToken, number, expiresAt }`. Acceptance never checks the coupon or the quote again:
+   returns `{ statusToken, number, expiresAt, requestedPickupAt? }`, omitting the time for immediate
+   orders. Acceptance never checks the coupon or the quote again:
    the customer was promised that total.
 8. In the same transaction, clears the name, phone, address, notes and source digests of the restaurant's requests
    submitted more than 30 days before this one (`OnlineRequestService.ContactRetention`), reading only
@@ -530,15 +536,16 @@ per-IP budgets above (`RATE_LIMITED` with `Retry-After`).
 Repeats and rejected submissions roll back, cleanup included.
 
 Recovery takes the random `clientRequestId` as its credential: only the submitting device knows it. It
-returns the same `{ statusToken, number, expiresAt }`; `ONLINE_REQUEST_NOT_FOUND` (404) only means the
+returns the same receipt as submission. `ONLINE_REQUEST_NOT_FOUND` (404) only means the
 request has not been found yet, and a slug that no longer exists is `ONLINE_LINK_NOT_FOUND`.
 
 The status page reads one Repeatable Read snapshot by token (`ONLINE_ORDER_NOT_FOUND`, 404, for an
-unknown token). It returns `restaurant { name, slug, currencyCode, defaultLanguage, theme, publicPhone
+unknown token). It returns `restaurant { id, name, slug, currencyCode, defaultLanguage, theme, publicPhone
 }`, `number`, `customerName`, `fulfillment`, `submittedAt`, `expiresAt`, `phase` (`WAITING`, `EXPIRED`,
 `REJECTED` or `ACCEPTED`, from `OnlineRequestState`), `rejectReason`, `estimatedAt`, `sessionStatus` and
 `closeReason` once accepted, `items`, `coupon` (`{ code, percentOff, discountCents }` or null),
-`deliveryFeeCents` (a quoted fee before acceptance, the session's after) and `totalAmountCents`. Before
+`deliveryFeeCents` (a quoted fee before acceptance, the session's after), `totalAmountCents`,
+`requestedPickupAt`, `awaitingPreparation` and `pickupTimeReached`. Before
 acceptance the items are the submitted snapshot (`status` null) and the total is the submitted item
 total less the coupon's discount (`OnlineCoupons.DiscountCents`, rounded down) plus any quoted fee; after acceptance they are the order items with their status and the
 total is the session's bill amount (`SessionSummaries`, with the fee while any dish counts and the
@@ -592,9 +599,10 @@ releases checkout after the next read. A submission-time browser conflict keeps 
 shows the old order separately; it never clears the new cart as if it had succeeded. All new notices
 are available in Chinese, Italian and English.
 
-The cart lives in `sessionStorage` under `tavoloflow:cart:{restaurantId}:online` (version 3: lines
-carry the dish's sale price and the pending intent its coupon and delivery quote; separate from every QR cart, other
-versions discarded as damaged), with the QR cart's limits. The cart is a bottom sheet on phones and a
+The version 3 cart lives in `sessionStorage` under `tavoloflow:cart:{restaurantId}:online`, separate
+from QR carts but subject to the same limits. Lines carry the dish's sale price. The pending intent
+holds the coupon, delivery quote and any requested pickup time. Other versions are discarded as
+damaged. The cart is a bottom sheet on phones and a
 side column from `lg`; checkout is a page of its own, `/r/{slug}/checkout`, at every width.
 "Checkout" rereads the bootstrap, requires `OPEN`, refreshes the lines' prices and choices and opens
 the page. The route nests under the menu: `OnlineMenuPage` keeps `useOnlineCart`, passes it through
@@ -602,18 +610,21 @@ the page. The route nests under the menu: `OnlineMenuPage` keeps `useOnlineCart`
 cart, the checkout form and the menu's images survive, and the system back gesture returns to the
 menu where it was scrolled (the router scrolls every navigation to the top, so the menu restores its
 position on `onRendered`). The page exists only for a reviewed cart: a reload, a saved link or a
-return from the status page replaces it with the menu, and a refusal that frees the cart returns to
-the cart, where its notice shows. The header's back arrow and the system back return to the menu with
+return from the status page replaces it with the menu. Most refusals that free the cart return to it
+with a notice. A refused pickup time keeps checkout open so the customer can choose another time.
+The header's back arrow and the system back return to the menu with
 the cart open again; "Add dishes" (below) returns with it closed. Leaving keeps the cart and the form,
 cancels in-flight checkout preparation and keeps any submission or recovery in progress. The header
 also has the language switch. The page scrolls as an ordinary document with a sticky footer, so a
 phone keyboard opens and closes over it without moving a fixed sheet.
 
 The page shows the read-only lines, then the form in dependency order (`checkoutFields`): with
-delivery on, a pickup/delivery choice whose delivery option states the minimum; for delivery the
+delivery on, a pickup/delivery choice whose delivery option states the minimum; for scheduled pickup,
+a time selector defaulting to immediate pickup; for delivery the
 address (placeholder "street, number, town"), the optional doorbell/floor notes and the delivery
 details; below a separator, name and phone (validated like the server, with one hint line); a "Have a
-coupon code?" link that opens the coupon field; the as-soon-as-possible line; and a one-line privacy
+coupon code?" link that opens the coupon field; an immediate preparation or reservation confirmation
+hint; and a one-line privacy
 notice linking to the privacy page. Enter never places the order: it moves to the next field
 (`nextCheckoutField`), the last field only closes the keyboard, the address asks for the fee while
 automatic quotes still need it (closing the keyboard, so the answer above the button shows), the
@@ -696,7 +707,8 @@ cannot order twice) and the phone, in plain words: it cannot confirm yet whether
 and the cart cannot change until then. After an unknown result, a retry frees the intent only when it is rejected with a code
 the server returns after its duplicate check (`SERVICE_SUSPENDED`, `ONLINE_NOT_OFFERED`,
 `ONLINE_PAUSED`, `ONLINE_CLOSED`, `ONLINE_BUSY`, `DELIVERY_NOT_OFFERED`, `COUPON_INVALID`,
-`DELIVERY_MIN_ORDER`, `ONLINE_BROWSER_PENDING`, `ONLINE_IP_WAITING_LIMIT`,
+`DELIVERY_MIN_ORDER`, `DELIVERY_QUOTE_INVALID`, `DELIVERY_FEE_CHANGED`, `ONLINE_PICKUP_SLOT_CHANGED`,
+`ONLINE_BROWSER_PENDING`, `ONLINE_IP_WAITING_LIMIT`,
 `MENU_CHANGED`): that check
 runs inside the transaction holding the restaurant's cross-day submission lock and the day's counter
 row, so such a rejection proves no request with
@@ -760,6 +772,7 @@ transaction-scoped and release on commit or rollback.
 | `GET /api/staff/online/active`                | STAFF/OWNER | `{ items }`: accepted orders whose session is ACTIVE, oldest acceptance first     |
 | `POST /api/staff/online/requests/{id}/accept` | STAFF/OWNER | `{ estimatedMinutes, deliveryFeeCents, deliveryTierMaxMeters }` → the active order (see below) |
 | `POST /api/staff/online/requests/{id}/reject` | STAFF/OWNER | `{ reason }`: null, `SOLD_OUT`, `BUSY`, `CLOSING` (`OUT_OF_RANGE` delivery) → 204 |
+| `POST /api/staff/online/sessions/{id}/cancel-reservation` | STAFF/OWNER | Cancel an accepted reservation before preparation → 204 |
 
 The pending list reads `OnlineRequestState.Waiting` with the time from `TimeProvider`; the cap and the
 ten-minute window keep it small, so it has no paging and no limit, and `now` is the server's clock for
@@ -767,15 +780,16 @@ the page's countdown. Each pending item carries the number, fulfillment, name, p
 and notes, submission and expiry times, the default language, the submitted lines (the status page's
 line shape), the item total, `coupon` (`{ code, percentOff, discountCents }` on that total, or
 null) and, for an accepted automatic quote, `deliveryFeeCents` and `deliveryDistanceMeters` (both null
-otherwise). `delivery` is null unless a delivery request waits; then it is
+otherwise). Reservations carry `requestedPickupAt` and `availablePreparationMinutes`. The choices
+are empty when none still fit. Both fields are null for immediate orders. `delivery` is null unless a delivery request waits; then it is
 `{ originLat, originLng, tiers }`, the restaurant's current coordinates and bands (read only then,
 because the banner polls this list on every staff page). Active orders come from `dining_sessions` through the partial index
 `ix_dining_sessions_active` (`restaurant_id, opened_at` where ACTIVE), never a history scan. They are
 built from the sessions' bill summaries (`SessionSummaries.Project`), so their amount is the bill's
 own, and carry the number, channel, contact and address, acceptance (the session's opening) and
 estimated times, line counts (`itemCount`, `newItemCount`, `readyItemCount`), `coupon` (the bill's,
-discount on the dishes still charged), `deliveryFeeCents` (delivery only) and `totalAmountCents`, the
-amount to collect.
+discount on the dishes still charged), `deliveryFeeCents` (delivery only), `totalAmountCents` (the
+amount to collect), `requestedPickupAt`, `kitchenStartsAt` and `awaitingPreparation`.
 
 Acceptance locks restaurant SHARE, then the request row UPDATE (`RowLocks.OnlineRequestAsync`; global
 order restaurant → online request), and requires the request to be still waiting at the current time,
@@ -786,8 +800,8 @@ delivery. A quoted delivery keeps its stored fee. It and pickup take neither del
 manual delivery, the staff member sends the chosen current band's `deliveryTierMaxMeters` and the
 final `deliveryFeeCents` shown in the card. The server recomputes the fee under the same restaurant
 lock from the current band and the request's submitted subtotal and coupon. A changed fee or missing
-band returns `DELIVERY_FEE_CHANGED` (409) so staff can review the refreshed choices. Legacy requests
-with only a fee remain accepted for restaurants without thresholds. The fee is a non-negative
+band returns `DELIVERY_FEE_CHANGED` (409) so staff can review the refreshed choices. Older clients may
+omit the selected band only for restaurants without thresholds. The fee is a non-negative
 whole-cent amount within the safe range for items plus fee. Inside the same transaction it checks
 which dishes still exist (menu writers and dish deletion hold restaurant UPDATE, so this cannot
 interleave), creates the ACTIVE `PICKUP` or `DELIVERY` session (the request's
@@ -831,7 +845,8 @@ without coordinates, "Open in Maps", a plain search (`mapsUrl`); then waited and
 server's clock
 (`requestTimes`, red under three minutes), the lines with options and remarks, and the subtotal; with a
 coupon, its line and discount, and for pickup the amount to collect. One tap on 10, 20, 30 or 45
-minutes accepts a pickup. A quoted delivery shows "delivery fee X · about Y km · quoted to the
+minutes accepts an immediate pickup. A reservation shows the requested date and time and offers only
+the preparation times that still fit. A quoted delivery shows "delivery fee X · about Y km · quoted to the
 customer", with no band to pick and its times enabled at once. Any other delivery first takes a band,
 picked from the restaurant's current ones (compact cells, three to a row on phones, "within 3 km"
 over the calculated fee or "Free", under "Delivery band (by route distance)"; without bands the card
@@ -843,26 +858,26 @@ says to pick the band first. Reject opens `ConfirmDialog` with an optional reaso
 offered for delivery only (`rejectReasons`). Writes are blocked while
 the list is failed, stale or not refreshed since resume (`syncIsFresh`); every outcome rereads the
 pending, active, kitchen, pass and bills views, and an unknown result says to check the refreshed list.
-Below, the read-only In progress list shows each accepted order's number, name, estimated time, the
+Below, the In progress list shows each accepted order's number, name, estimated or agreed time, the
 amount to collect (with the delivery fee it includes, while it counts, and a "coupon taken off" line),
 phone, delivery address, the same call and map buttons (a plain search)
 and progress (cooking, ready or all cancelled): the only place STAFF see an accepted customer's
 phone and address, and what a rider collects, since the kitchen and pass never show them and STAFF have
-no bills page.
+no bills page. Before preparation, a reservation shows its kitchen start time and offers cancellation
+with confirmation. These reservations appear after other active orders, in pickup-time order.
 
 ### Kitchen, pass, bills and history
 
 Kitchen orders, pass items and bill summaries carry `channel` (`DINE_IN`, `PICKUP`, `DELIVERY`) and a
-nullable `tableLabel`. Kitchen and pass add `online: { number, customerName, estimatedAt }` (never the
+nullable `tableLabel`. Kitchen and pass add `online: { number, customerName, estimatedAt, requestedPickupAt }` (never the
 phone or address); bill summaries add `online: { number, customerName, customerPhone, estimatedAt,
-deliveryAddress, deliveryNotes, coupon }` and `deliveryFeeCents`; the bill total already takes the
+deliveryAddress, deliveryNotes, coupon, requestedPickupAt, kitchenStartsAt }` and `deliveryFeeCents`; the bill total already takes the
 coupon off (see the billing reference).
 `lib/session-label.ts` names every session in one place: "Table 5", or "Pickup #12" with the customer
 name and estimated time (`SessionName` puts them on a second, truncated line, and the cards holding it
 take `min-w-0` so a long name never widens a 360px grid). The kitchen
-dish view keeps only the short title and adds the estimated time beside the existing wait, without
-a customer-name row. That second line stays on one line, keeping the estimated time whole and
-allowing the wait to truncate at 360px. The bills page lists every ACTIVE session in
+dish view puts the estimated time beside the wait for immediate orders. A scheduled pickup displays
+the agreed date and time on its own line. The bills page lists every ACTIVE session in
 all channels from `GET /api/staff/sessions/active` (see [billing](billing-history.md)). A delivery bill
 shows the dishes and the fee apart (the fee struck through once every dish is cancelled), the address
 link and doorbell notes, and lets OWNER correct the fee before closure
@@ -974,7 +989,7 @@ with a foreign SIM can call the restaurant.
 `/staff/online-settings` (from 首页, with a back link) shows the status, the full online link with copy
 and open actions, and its QR PNG, generated in the browser with the table QR options and the same
 `VITE_PUBLIC_BASE_URL` origin rule (`publicMenuUrl` accepts `/r/{slug}`). STAFF and OWNER pause or
-resume; OWNER also edits the phone, the week, delivery (the switch, coordinates, bands, minimum,
+resume; OWNER also edits the phone, the week, scheduled pickup, delivery (the switch, coordinates, bands, minimum,
 free-delivery thresholds and three note fields) and coupons (a list with the percentage, last day or
 an expired badge, a delete button behind `ConfirmDialog`, and a create form with code, percentage and
 an optional date input). A partial date is refused with a translated field message; only a genuinely
@@ -1001,7 +1016,9 @@ discarded.
   the snapshot field correspondence and the `lines` JSON round trip; `ApiEnumTests`: multi-word enum
   text such as `DINE_IN`.
 - `OnlineScheduleTests`: slot boundaries, adjacent slots, `nextOpensAt`, DST gap and repeated hour,
-  end of day and the availability order, including `BUSY` last.
+  end of day, pickup candidates and the availability order, including `BUSY` last.
+- `OnlinePickupTests`: accepted reservations hold outside the kitchen until preparation, the request
+  keeps its selected pickup time, and cancellation before preparation voids the bill at zero.
 - `OnlineOrderingTests`: bootstrap statuses and unknown links; numbers per local business date without
   gaps; repeats (also concurrent) returning the stored result; hour boundaries, summer time, a lapsing
   pause and every gate code; delivery only while its switch is on (address and notes stored, a repeat

@@ -56,13 +56,13 @@ remain unfiltered.
 
 | Method and path                                     | Input                                                                      | Success                                                            |
 | --------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `GET /api/staff/orders`                             | `status=NEW` or `status=PROCESSED` (default NEW), cursor, limit 50/max 100 | `{ items, nextCursor, totalCount, pendingCount, latestQueuedAt }` |
+| `GET /api/staff/orders`                             | `status=NEW` or `status=PROCESSED` (default NEW), cursor, limit 50/max 100 | `{ items, nextCursor, totalCount, pendingCount, latestQueuedAt, latestCreatedAt }` |
 | `GET /api/staff/orders/{id}`                        | Original order ID                                                          | Complete current kitchen order                                     |
 | `POST /api/staff/orders/{id}/items/{itemId}/ready`  | No business fields                                                         | Complete order after NEW → READY                                   |
 | `POST /api/staff/orders/{id}/items/{itemId}/cancel` | No business fields                                                         | Complete order after NEW → CANCELLED                               |
 
 Kitchen order fields: `id`, `sessionId`, `channel`, `tableLabel`, `online`, `status`, `createdAt`, `queuedAt`,
-`processedAt`, `defaultLanguage`, `totalAmountCents`, `payableAmountCents` and the shared
+`processedAt`, `defaultLanguage`, `totalAmountCents`, `payableAmountCents`, `isStaffPlaced` and the shared
 [order line DTO](dining-ordering.md#order-apis-and-snapshots). `channel` is `DINE_IN`, `PICKUP` or
 `DELIVERY`; dine-in orders have a `tableLabel` and a null `online`, accepted online orders a null
 `tableLabel` and `online: { number, customerName, estimatedAt, requestedPickupAt }`, never the phone or address. Screens
@@ -72,7 +72,7 @@ For scheduled pickup, kitchen, pass and bill cards show the agreed date and time
 puts this on its own line below the controls. Orders are created when staff accept them, and
 immediate orders enter the kitchen then. Scheduled orders enter on the first kitchen poll at or after their stored
 preparation time. Counts, wait time, grouping, pagination and the arrival watermark use the kitchen
-entry time. A reservation cancelled before release is absent from both kitchen views and does not
+entry time (`queuedAt`), which is the creation time for immediate orders. A reservation cancelled before release is absent from both kitchen views and does not
 advance the watermark. Responses contain no cancellation reason,
 client request ID, code or credentials. All responses are `no-store`.
 
@@ -80,9 +80,11 @@ Lists contain only ACTIVE visits. Rows/counts come from one Repeatable Read snap
 counts released orders in the chosen status; `pendingCount` counts active NEW orders released to the kitchen. Cursors bind tenant,
 status and position. `latestQueuedAt` is the maximum kitchen entry timestamp across both statuses and
 closed visits, read through an index maximum for each status, not a count of historical orders.
-Processing and closure do not move that maximum. It is a timestamp, not a cumulative order counter.
+Processing and closure do not move that maximum. `latestCreatedAt` is an alias for the same value
+for older staff tabs.
 
-Single-order reads hold session SHARE and reject a closed visit. Writes first resolve restaurant/
+Single-order reads hold session SHARE and reject a closed visit. Until release, the reservation's
+single-order read and item writes return `409 KITCHEN_ORDER_NOT_RELEASED`. Writes first resolve restaurant/
 order/item binding, then take only session UPDATE. They never subsequently lock restaurant or table.
 Reread state, conditionally update `status = 'NEW'`, increment bill version for cancellation, and
 maintain order status/processed time in the same transaction. Line event time is clamped to order
