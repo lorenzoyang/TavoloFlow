@@ -8,7 +8,6 @@ import {
   deliveryDraft,
   deliveryInput,
   deliveryTierRanges,
-  freeDeliveryChanges,
   emptyTierDraft,
   formatCountdown,
   formatMinute,
@@ -24,6 +23,7 @@ import {
   PICKUP_MINUTES,
   rejectReasons,
   requestTimes,
+  restoresBaseDeliveryFee,
   parseTime,
   sameDelivery,
   copyDay,
@@ -32,7 +32,6 @@ import {
   typedDeliveryFee,
   weekDraft,
   weekHours,
-  type TierDraft,
   type WeekDraft,
 } from "../src/features/online/state.ts";
 import {
@@ -398,7 +397,7 @@ test("free delivery applies one threshold to selected bands, and editing can mov
   assert.deepEqual(amounts(applyFreeDeliveryMinimum(replaced, 2800, [], null)), [null, null, null]);
 });
 
-test("free delivery marks changed groups and reports clearing a threshold on a retained band", () => {
+test("the base fee returns only when a retained band loses its free delivery threshold", () => {
   const saved = [
     { maxMeters: 2000, feeCents: 200, freeDeliveryMinCents: 2500 },
     { maxMeters: 4000, feeCents: 300, freeDeliveryMinCents: 2500 },
@@ -409,24 +408,20 @@ test("free delivery marks changed groups and reports clearing a threshold on a r
     { km: "2,0", fee: "2.00", freeDeliveryMinCents: 2500 },
     { km: "4", fee: "3.00", freeDeliveryMinCents: 2500 },
   ];
-  const changes = (tiers: TierDraft[]) => freeDeliveryChanges(tiers, saved);
-  assert.deepEqual(changes(draft), { amounts: new Set(), restoresBaseFee: false });
-  assert.deepEqual(changes(applyFreeDeliveryMinimum(draft, 2500, [1, 2], 2800)), {
-    amounts: new Set([2500, 2800]),
-    restoresBaseFee: false,
-  });
-  assert.deepEqual(changes(applyFreeDeliveryMinimum(draft, 2500, [1], 2500)), {
-    amounts: new Set([2500]),
-    restoresBaseFee: true,
-  });
-  assert.deepEqual(changes(applyFreeDeliveryMinimum(draft, 2500, [], null)), {
-    amounts: new Set([2500]),
-    restoresBaseFee: true,
-  });
-  assert.deepEqual(changes(draft.slice(0, 1)), {
-    amounts: new Set([2500]),
-    restoresBaseFee: false,
-  });
+  assert.equal(restoresBaseDeliveryFee(draft, saved), false);
+  assert.equal(
+    restoresBaseDeliveryFee(applyFreeDeliveryMinimum(draft, 2500, [1, 2], 2800), saved),
+    false,
+  );
+  assert.equal(
+    restoresBaseDeliveryFee(applyFreeDeliveryMinimum(draft, 2500, [1], 2500), saved),
+    true,
+  );
+  assert.equal(
+    restoresBaseDeliveryFee(applyFreeDeliveryMinimum(draft, 2500, [], null), saved),
+    true,
+  );
+  assert.equal(restoresBaseDeliveryFee(draft.slice(0, 1), saved), false);
 });
 
 test("delivery turns on only with the coordinates and a band, and off keeps both", () => {

@@ -48,7 +48,7 @@ export function StaffLayout({ children }: { children: ReactNode }) {
     );
   return (
     <PushProvider key={pushScope} account={account}>
-      <div className="min-h-dvh md:flex">
+      <div className="min-h-dvh [--staff-bottom-bar-height:calc(--spacing(15)+1px+env(safe-area-inset-bottom))] md:flex md:[--staff-bottom-bar-height:0px]">
         <StaffNav account={account} />
         <main className="min-w-0 flex-1 px-4 pt-[max(1.25rem,env(safe-area-inset-top))] pb-28 sm:px-6 md:pt-8 md:pb-12 lg:px-8">
           {account.services.online && (

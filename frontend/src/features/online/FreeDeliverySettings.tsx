@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import { Notice } from "@/components/notice";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -13,7 +12,7 @@ import { onlineMessages } from "./messages";
 import {
   applyFreeDeliveryMinimum,
   deliveryTierRanges,
-  freeDeliveryChanges,
+  restoresBaseDeliveryFee,
   type DeliveryTier,
   type TierDraft,
 } from "./state";
@@ -38,7 +37,6 @@ export function FreeDeliverySettings({
   const language = useStaffLanguage();
   const m = onlineMessages[language].freeDelivery;
   const ranges = deliveryTierRanges(tiers);
-  const changes = savedTiers && freeDeliveryChanges(tiers, savedTiers);
   const groups = new Map<number, string[]>();
   for (const band of ranges ?? []) {
     const minimum = tiers[band.index].freeDeliveryMinCents;
@@ -59,13 +57,10 @@ export function FreeDeliverySettings({
                 <p className="text-sm font-medium wrap-break-word">
                   {m.summary(formatMoney(amount, language))}
                 </p>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <p className="min-w-0 text-sm wrap-break-word text-muted-foreground">
-                    {bands.join(m.bandSeparator)}
-                    {m.bandSuffix}
-                  </p>
-                  {changes?.amounts.has(amount) && <Badge variant="outline">{m.unsaved}</Badge>}
-                </div>
+                <p className="text-sm wrap-break-word text-muted-foreground">
+                  {bands.join(m.bandSeparator)}
+                  {m.bandSuffix}
+                </p>
               </div>
               <Button
                 type="button"
@@ -80,8 +75,8 @@ export function FreeDeliverySettings({
           ))}
         </ul>
       )}
-      {changes && changes.amounts.size > 0 && (
-        <Notice>{changes.restoresBaseFee ? m.removalPending : m.saveHint}</Notice>
+      {ranges && savedTiers && restoresBaseDeliveryFee(tiers, savedTiers) && (
+        <Notice>{m.removalPending}</Notice>
       )}
       {editing !== null && ranges ? (
         <ThresholdEditor

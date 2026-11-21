@@ -156,11 +156,12 @@ restaurant-wide delivery minimum. The owner can apply a threshold to several ban
 set different thresholds for different bands. Matching thresholds appear together with an Edit
 action. Done closes the editor and keeps changes in the card. Unchecking a band clears its threshold
 once saved. Remove threshold clears the whole group, as does choosing Done with every band unchecked.
-The card marks edited groups as unsaved and states when removed thresholds will restore the base
-fee. Save delivery applies the changes together with the rest of the delivery settings. New bands
-start with an empty threshold. The intro describes automatic fees when
-`deliveryAutoQuote` is true, otherwise bands picked on acceptance. Turning the switch on without the
-coordinates or a band fails the save check, which scrolls to the missing field.
+The card states when removed thresholds will restore the base fee. Save delivery applies the
+changes together with the rest of the delivery settings. While the card has changes, its save and
+discard buttons stay in view within the card, above the staff tabs on phones. The same action area
+shows the save result. New bands start with an empty threshold. The intro describes automatic fees
+when `deliveryAutoQuote` is true, otherwise bands picked on acceptance. Turning the switch on without
+the coordinates or a band fails the save check, which scrolls to the missing field.
 
 Owner editor screenshots are available in [English](../images/free-delivery-settings-en.webp),
 [Italian](../images/free-delivery-settings-it.webp) and [Chinese](../images/free-delivery-settings-zh.webp).

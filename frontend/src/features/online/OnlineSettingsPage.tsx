@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Download, ExternalLink, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -727,12 +734,14 @@ function DeliveryCard({
   send,
   feedback,
   edited,
+  saved,
 }: {
   settings: OnlineSettings;
   busy: boolean;
   send: SendSettings;
   feedback: ReactNode;
   edited: () => void;
+  saved: boolean;
 }) {
   const m = onlineMessages[useStaffLanguage()];
   // The local edit survives background refreshes until it is saved or discarded.
@@ -741,16 +750,34 @@ function DeliveryCard({
     selection: NonNullable<FreeDeliveryEdit>;
     snapshot: DeliveryDraft;
   } | null>(null);
-  const [error, setError] = useState("");
+  const [validation, setValidation] = useState<{ message: string; field: string } | null>(null);
+  const actionsRef = useRef<HTMLDivElement>(null);
   const value = draft ?? freeDeliveryEdit?.snapshot ?? deliveryDraft(settings);
   const parsed = deliveryInput(value);
   const unchanged = draft === null || (parsed.ok && sameDelivery(parsed.input, settings));
+  // Keep the success message at the save button after the draft is cleared.
+  const keepActionsInView = !unchanged || saved;
   // Fields are marked only after a failed save, beside its message.
-  const problem = error && !parsed.ok ? parsed.problem : null;
+  const problem = validation && !parsed.ok ? parsed.problem : null;
   const origin = parseOrigin(value.origin);
+  useLayoutEffect(() => {
+    if (!validation) return;
+    const actions = actionsRef.current;
+    const field = document.getElementById(validation.field);
+    if (!actions || !field) return;
+    // Center the field in the space above the footer, including the newly rendered error.
+    field.style.setProperty(
+      "scroll-margin-bottom",
+      `calc(var(--staff-bottom-bar-height) + ${actions.offsetHeight}px)`,
+    );
+    reveal(field);
+    return () => {
+      field.style.removeProperty("scroll-margin-bottom");
+    };
+  }, [validation]);
   const edit = (next: DeliveryDraft) => {
     edited();
-    setError("");
+    setValidation(null);
     setDraft(next);
   };
   const editTier = (index: number, patch: Partial<TierDraft>) =>
@@ -785,18 +812,18 @@ function DeliveryCard({
                     `delivery-note-${problem.language}`,
                   ]
                 : [m.setupIncomplete, origin ? "delivery-add-tier" : "delivery-origin"];
-      setError(message);
-      reveal(document.getElementById(field));
+      setValidation({ message, field });
       return;
     }
-    setError("");
+    setValidation(null);
     send(
       (signal) => saveDelivery(parsed.input, signal),
       () => setDraft(null),
     );
   }
   return (
-    <Card>
+    // Clip the card corners without making the card the sticky footer's scroll container.
+    <Card className="overflow-clip">
       <CardContent>
         <form className="space-y-5" onSubmit={save} noValidate>
           <div className="space-y-1">
@@ -989,26 +1016,38 @@ function DeliveryCard({
               />
             </div>
           ))}
-          {error && <Notice tone="error">{error}</Notice>}
-          {feedback}
-          <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={busy || unchanged || freeDeliveryEdit !== null}>
-              {m.saveDelivery}
-            </Button>
-            {draft !== null && (
-              <Button
-                type="button"
-                variant="outline"
-                disabled={busy}
-                onClick={() => {
-                  setDraft(null);
-                  setError("");
-                  setFreeDeliveryEdit(null);
-                }}
-              >
-                {m.discardChanges}
-              </Button>
+          <div
+            ref={actionsRef}
+            className={cn(
+              "space-y-3 bg-card",
+              keepActionsInView && "sticky bottom-(--staff-bottom-bar-height) z-10 border-t py-3",
             )}
+          >
+            {validation ? <Notice tone="error">{validation.message}</Notice> : feedback}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="submit"
+                className="px-3 md:px-4"
+                disabled={busy || unchanged || freeDeliveryEdit !== null}
+              >
+                {m.saveDelivery}
+              </Button>
+              {draft !== null && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="px-3 md:px-4"
+                  disabled={busy}
+                  onClick={() => {
+                    setDraft(null);
+                    setValidation(null);
+                    setFreeDeliveryEdit(null);
+                  }}
+                >
+                  {m.discardChanges}
+                </Button>
+              )}
+            </div>
           </div>
         </form>
       </CardContent>
@@ -1292,7 +1331,13 @@ function OnlineSettingsContent({ account }: { account: CurrentAccount }) {
           {owner && <PhoneCard settings={settings} {...cardProps("phone")} />}
           {owner && <HoursCard settings={settings} {...cardProps("hours")} />}
           {owner && <PickupCard settings={settings} {...cardProps("pickup")} />}
-          {owner && <DeliveryCard settings={settings} {...cardProps("delivery")} />}
+          {owner && (
+            <DeliveryCard
+              settings={settings}
+              {...cardProps("delivery")}
+              saved={outcome?.card === "delivery" && outcome.error === null}
+            />
+          )}
           {owner && <CouponsCard settings={settings} {...cardProps("coupons")} />}
         </div>
       )}
