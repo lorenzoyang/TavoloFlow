@@ -5,10 +5,9 @@ import { Notice } from "@/components/notice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { pickupMessages } from "@/features/online/pickup-messages";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { formatKm, formatMoney, formatPickupDateTime } from "@/lib/format";
+import { formatKm, formatMoney } from "@/lib/format";
 import type { Language } from "@/lib/language";
 import { cn } from "@/lib/utils";
 import { CartLines } from "@/features/orders/OrderViews";
@@ -17,6 +16,7 @@ import { LanguageToggle } from "@/features/public-menu/PublicMenuViews";
 import type { OnlineMenu } from "./api";
 import { useOnlineCheckout, type OnlineCheckoutContextValue } from "./checkout-context";
 import { onlineOrderMessages } from "./messages";
+import { PickupTimeField } from "./PickupTimeField";
 import {
   AmountLines,
   MessageNotices,
@@ -91,15 +91,13 @@ function OnlineCheckout({
   const nameRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
   const couponRef = useRef<HTMLInputElement>(null);
-  const pickupTimeRef = useRef<HTMLSelectElement>(null);
+  const pickupTimeRef = useRef<HTMLFieldSetElement>(null);
   const fields = { address: addressRef, notes: notesRef, name: nameRef, phone: phoneRef };
   const pending = model.cart.pending;
   const lines = model.review?.lines ?? model.cart.lines;
   const form = model.form;
   const delivery = form.fulfillment === "DELIVERY";
-  const pickupTimes = data.pickupTimes ?? [];
-  const stalePickup =
-    !!form.pickupTime && (model.pickupTimeRefused || !pickupTimes.includes(form.pickupTime));
+  const stalePickup = model.pickupIssue === "unavailable";
   // A choice of delivery stays visible if delivery is turned off meanwhile; the server then refuses it.
   const offersDelivery = data.restaurant.deliveryEnabled || delivery;
   const fee: FeeStatus = delivery ? model.feeStatus : "manual";
@@ -117,7 +115,7 @@ function OnlineCheckout({
     settling: model.settling,
     verifying: verification.verifying,
   });
-  const choose = (fulfillment: Fulfillment) => model.editPickupTime(undefined, fulfillment);
+  const choose = (fulfillment: Fulfillment) => model.editPickup({ fulfillment });
 
   // The footer's button takes the next step: a delivery not yet priced asks for its fee (only the
   // address has to be valid for that), then the same button places the order. A field to fix comes
@@ -134,6 +132,10 @@ function OnlineCheckout({
       return;
     }
     setTried("order");
+    if (model.pickupIssue === "missing") {
+      reveal(pickupTimeRef.current);
+      return;
+    }
     if (problems.length) {
       reveal(fields[problems[0]].current);
       return;
@@ -314,37 +316,18 @@ function OnlineCheckout({
                 </RadioGroup>
               </div>
             )}
-            {!delivery && (data.pickupTimes != null || form.pickupTime) && (
-              <div className="space-y-2">
-                <Label htmlFor="online-pickup-time">{pickupCopy.pickupTime}</Label>
-                <NativeSelect
-                  id="online-pickup-time"
-                  ref={pickupTimeRef}
-                  className="w-full"
-                  value={form.pickupTime ?? ""}
-                  disabled={model.busy}
-                  aria-invalid={stalePickup}
-                  aria-describedby={stalePickup ? "online-pickup-problem" : undefined}
-                  onChange={(event) => model.editPickupTime(event.target.value || undefined)}
-                >
-                  <NativeSelectOption value="">{pickupCopy.asap}</NativeSelectOption>
-                  {stalePickup && form.pickupTime && (
-                    <NativeSelectOption value={form.pickupTime} disabled>
-                      {formatPickupDateTime(form.pickupTime, language)}
-                    </NativeSelectOption>
-                  )}
-                  {pickupTimes
-                    .filter((time) => !stalePickup || time !== form.pickupTime)
-                    .map((time) => (
-                      <NativeSelectOption key={time} value={time}>
-                        {formatPickupDateTime(time, language)}
-                      </NativeSelectOption>
-                    ))}
-                </NativeSelect>
-                {!stalePickup && pickupTimes.length === 0 && (
-                  <p className="text-sm text-muted-foreground">{pickupCopy.unavailable}</p>
-                )}
-              </div>
+            {!delivery && (model.pickupCalendar || form.pickupDate || form.pickupTime) && (
+              <PickupTimeField
+                calendar={model.pickupCalendar}
+                date={form.pickupDate}
+                time={form.pickupTime}
+                stale={stalePickup}
+                showMissing={tried === "order" && model.pickupIssue === "missing"}
+                busy={model.busy}
+                language={language}
+                fieldRef={pickupTimeRef}
+                onChange={model.editPickup}
+              />
             )}
             {delivery && (
               <>
@@ -521,9 +504,11 @@ function OnlineCheckout({
                 {m.couponToggle}
               </Button>
             )}
-            <p className="text-sm leading-6 text-muted-foreground">
-              {delivery ? m.asapDelivery : form.pickupTime ? pickupCopy.confirmationHint : m.asap}
-            </p>
+            {(delivery || (!form.pickupDate && !form.pickupTime)) && (
+              <p className="text-sm leading-6 text-muted-foreground">
+                {delivery ? m.asapDelivery : m.asap}
+              </p>
+            )}
             <p className="text-xs leading-5 wrap-break-word text-muted-foreground">
               {(delivery ? m.privacyLineDelivery : m.privacyLine)(data.restaurant.name)}{" "}
               <Link to="/r/$slug/privacy" params={{ slug }} className="underline">

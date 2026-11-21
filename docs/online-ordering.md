@@ -304,9 +304,9 @@
 
 ### 6.4 预约自取
 
-- OWNER 可设提前量 30、45、60、90 或 120 分钟，关闭预约时设为 `null`。改设置只影响新预约，已确认的取餐和备餐时间保持原值。
-- 仅在当前接单状态为 `OPEN` 时提供可预约时间。按餐厅时区，在今天和明天以 15 分钟为间隔提供时间。所选时间必须早于所在营业时段结束，并能在同一时段内至少提前 10 分钟开始备餐。系统也检查最小提前量。夏令时跳过的时间不提供，重复的时间取第一次出现。
-- `pickupTimes` 为 UTC 时间列表，预约关闭时为 `null`。开启但暂时没有可选时间时返回空列表。顾客仍可选择尽快自取。
+- OWNER 可设提前量 30、45、60、90 或 120 分钟，并选择最远约到明天（默认）或 7 天后。关闭预约时将提前量设为 `null`，保留已保存的范围。改设置只影响新预约，已确认的取餐和备餐时间保持原值。
+- 仅在当前接单状态为 `OPEN` 时提供可预约时间。按餐厅自然日计算，今天为第 0 天，截止当天也可预约。所选时间以 15 分钟为间隔，必须满足最小提前量，并能在同一接单时段内至少提前 10 分钟开始备餐。夏令时跳过的时间不提供，重复的时间取第一次出现。
+- `pickupCalendar` 含餐厅当地日期 `today` 和按日期、接单时段分组的 UTC 时间列表，省略无有效时间的日期。旧客户端仍可从 `pickupTimes` 读取同一批时间。预约关闭时两个字段均为 `null`。当预约开启但暂无时段时，结账页显示提示，保留尽快自取。顾客选预约后先选日期，再选当天的具体时间。
 
 ## 7. 数据模型
 
@@ -332,6 +332,7 @@
 | `public_phone` | OWNER | 可为空；没填时线上不能下单 |
 | `online_paused_until` | STAFF、OWNER | 可为空，见 6.2 |
 | `pickup_min_notice_minutes` | OWNER | 可为空。非空时开启预约自取并设定最短提前量 |
+| `pickup_max_days_ahead` | OWNER | 1 或 7，默认 1 |
 | `delivery_enabled` | OWNER | 默认 false |
 | `delivery_note_zh`、`delivery_note_it`、`delivery_note_en` | OWNER | 可为空，建议每种最多 500 个字符；显示时按菜品描述的语言回退规则 |
 
@@ -451,7 +452,7 @@
 
 | 方法与路径 | 身份 | 用途 |
 |---|---|---|
-| `GET /api/public/r/{slug}/bootstrap` | 匿名 | 线上菜单、下单状态、`pickupTimes` |
+| `GET /api/public/r/{slug}/bootstrap` | 匿名 | 线上菜单、下单状态、`pickupCalendar`、`pickupTimes` |
 | `POST /api/public/r/{slug}/requests` | 匿名 + CSRF | 提交 |
 | `GET /api/public/r/{slug}/requests/by-client-id/{clientRequestId}` | 匿名 | 结果未知时恢复 |
 | `GET /api/public/online-orders/{token}` | 匿名 | 状态页 |
@@ -465,7 +466,7 @@
 | `GET /api/staff/sessions/active` | STAFF、OWNER | 账单页的全部 ACTIVE 单据 |
 | `PUT /api/owner/online/hours` | OWNER | 整周营业时间 |
 | `PATCH /api/owner/online/phone` | OWNER | 餐厅公开电话 |
-| `PUT /api/owner/online/pickup` | OWNER | `{ minNoticeMinutes }`，传 `null` 关闭预约 |
+| `PUT /api/owner/online/pickup` | OWNER | `{ minNoticeMinutes, maxDaysAhead? }`，提前量传 `null` 关闭预约，省略范围时沿用已保存的值 |
 | `PUT /api/owner/online/delivery` | OWNER | 整体保存配送开关、坐标、说明、起送金额和档位。各档可含 `freeDeliveryMinCents` |
 | `POST /api/owner/sessions/{id}/close-no-show` | OWNER | `{ expectedBillVersion, confirmedTotalCents, noShowConfirmed }` |
 | `PATCH /api/owner/sessions/{id}/delivery-fee` | OWNER | `{ expectedBillVersion, deliveryFeeCents }` |

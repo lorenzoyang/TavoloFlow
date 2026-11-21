@@ -32,6 +32,7 @@ public sealed class Restaurant
     public bool DineInEnabled { get; set; } = true;
     public bool OnlineEnabled { get; set; }
     public int? PickupMinNoticeMinutes { get; set; }
+    public int PickupMaxDaysAhead { get; set; } = 1;
 
     // The readable online ordering link /r/{slug}; required while online ordering is on.
     public string? Slug { get; set; }

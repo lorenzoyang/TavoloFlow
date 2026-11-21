@@ -28,15 +28,14 @@ public sealed class OnlineMenuService(
             ?? throw OnlineErrors.LinkNotFound();
         var now = clock.GetUtcNow();
         var (hours, availability) = await OnlineAvailability.ReadAsync(db, restaurant, now, ct);
-        DateTime[]? pickupTimes = restaurant.PickupMinNoticeMinutes is { } notice
-            ? availability.IsOpen
-                ? OnlinePickup.Times(
-                    hours,
-                    TimeZoneInfo.FindSystemTimeZoneById(restaurant.TimeZone),
-                    now,
-                    notice
-                )
-                : []
+        var pickupCalendar = restaurant.PickupMinNoticeMinutes is { } notice
+            ? OnlinePickup.Calendar(
+                availability.IsOpen ? hours : [],
+                TimeZoneInfo.FindSystemTimeZoneById(restaurant.TimeZone),
+                now,
+                notice,
+                restaurant.PickupMaxDaysAhead
+            )
             : null;
         var tiers = await OnlineDelivery.TiersAsync(db, restaurant.Id, ct);
         var menu = await MenuReader.ReadAsync(db, restaurant.Id, restaurant.DefaultLanguage, ct);
@@ -61,7 +60,8 @@ public sealed class OnlineMenuService(
             availability.NextOpensAt,
             new(menu.AvailableLanguages, menu.Categories, menu.Items, menu.OptionGroups),
             verification.Value.Public,
-            pickupTimes
+            pickupCalendar?.Times().ToArray(),
+            pickupCalendar
         );
     }
 

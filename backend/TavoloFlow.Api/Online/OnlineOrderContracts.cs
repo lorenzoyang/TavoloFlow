@@ -33,7 +33,8 @@ public sealed record OnlineMenuResponse(
     DateTime? NextOpensAt,
     PublicMenuContent Menu,
     TurnstilePublicConfiguration? Turnstile,
-    DateTime[]? PickupTimes
+    DateTime[]? PickupTimes,
+    OnlinePickupCalendar? PickupCalendar
 );
 
 public sealed record TurnstilePublicConfiguration(string SiteKey);

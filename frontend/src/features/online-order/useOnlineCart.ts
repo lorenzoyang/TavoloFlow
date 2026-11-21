@@ -38,8 +38,10 @@ import {
   emptyCheckoutForm,
   emptyOnlineCart,
   existingSubmission,
+  omitRefusedPickupTime,
   onlineCartAmounts,
   onlineCartKey,
+  pickupTimeIssue,
   quotedDeliveryTier,
   restoreOnlineCart,
   rememberOnlineOrder,
@@ -189,6 +191,8 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     (result: OnlineSubmission) => {
       remember(emptyOnlineCart(restaurantId));
       setReview(null);
+      setForm((value) => ({ ...value, pickupDate: undefined, pickupTime: undefined }));
+      setRefusedPickupTime(undefined);
       const storage = deviceStorage();
       if (storage) rememberOnlineOrder(restaurantId, result, storage);
       void navigate({ to: "/o/$token", params: { token: result.statusToken } });
@@ -338,6 +342,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
   async function send(retry: boolean, turnstileToken: string | null) {
     if (blocked || !isLive()) return;
     if (!retry && (checkoutBlocked || minOrderShortfall > 0)) return;
+    if (!retry && pickupTimeIssue(form, live.current.pickupTimes, refusedPickupTime)) return;
     // A delivery is placed only once its fee is known for this address, and never out of range.
     if (!retry && form.fulfillment === "DELIVERY" && (fee === "lookup" || fee === "OUT_OF_RANGE"))
       return;
@@ -469,15 +474,25 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     review,
     blocked,
     form,
-    pickupTimeRefused: !!form.pickupTime && form.pickupTime === refusedPickupTime,
+    pickupIssue: pickupTimeIssue(form, data.pickupTimes, refusedPickupTime),
+    pickupCalendar: omitRefusedPickupTime(data.pickupCalendar, refusedPickupTime),
     setForm,
-    editPickupTime: (pickupTime?: string, fulfillment?: CheckoutForm["fulfillment"]) => {
+    editPickup: ({
+      date,
+      time,
+      fulfillment,
+    }: {
+      date?: string;
+      time?: string;
+      fulfillment?: CheckoutForm["fulfillment"];
+    }) => {
       setForm((current) => ({
         ...current,
-        pickupTime,
+        pickupDate: date,
+        pickupTime: time,
         fulfillment: fulfillment ?? current.fulfillment,
       }));
-      if (pickupTime !== refusedPickupTime) setRefusedPickupTime(undefined);
+      if (time && time !== refusedPickupTime) setRefusedPickupTime(undefined);
       setMessage((current) => (current === "pickupSlotChanged" ? null : current));
     },
     // A dish with option groups comes from the option picker with the customer's choice.

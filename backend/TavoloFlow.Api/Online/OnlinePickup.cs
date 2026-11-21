@@ -1,5 +1,13 @@
 namespace TavoloFlow.Api.Online;
 
+public sealed record OnlinePickupDay(DateOnly Date, DateTime[][] Periods);
+
+public sealed record OnlinePickupCalendar(DateOnly Today, OnlinePickupDay[] Days)
+{
+    public IEnumerable<DateTime> Times() =>
+        Days.SelectMany(day => day.Periods).SelectMany(period => period);
+}
+
 // Pickup slots and kitchen start times use the same restaurant calendar and server clock.
 public static class OnlinePickup
 {
@@ -7,21 +15,26 @@ public static class OnlinePickup
     public static readonly int[] PreparationChoices = [10, 20, 30, 45];
     private const int Interval = 15;
 
-    public static DateTime[] Times(
+    public static OnlinePickupCalendar Calendar(
         OnlineSlot[] hours,
         TimeZoneInfo zone,
         DateTimeOffset now,
-        int noticeMinutes
+        int noticeMinutes,
+        int maxDaysAhead
     )
     {
         var today = OnlineSchedule.Local(zone, now).Date;
         var earliest = now.UtcDateTime.AddMinutes(noticeMinutes);
-        var times = new List<DateTime>();
-        for (var day = 0; day <= 1; day++)
+        var days = new List<OnlinePickupDay>();
+        var orderedHours = hours.OrderBy(slot => slot.OpensMinute).ToArray();
+        for (var day = 0; day <= maxDaysAhead; day++)
         {
             var date = today.AddDays(day);
-            foreach (var slot in hours.Where(s => s.Weekday == OnlineSchedule.Weekday(date)))
+            var weekday = OnlineSchedule.Weekday(date);
+            var periods = new List<DateTime[]>();
+            foreach (var slot in orderedHours.Where(slot => slot.Weekday == weekday))
             {
+                var times = new List<DateTime>();
                 var first = ((slot.OpensMinute + Interval - 1) / Interval) * Interval;
                 for (var minute = first; minute < slot.ClosesMinute; minute += Interval)
                 {
@@ -42,9 +55,13 @@ public static class OnlinePickup
                     )
                         times.Add(pickup);
                 }
+                if (times.Count > 0)
+                    periods.Add(times.ToArray());
             }
+            if (periods.Count > 0)
+                days.Add(new(DateOnly.FromDateTime(date), periods.ToArray()));
         }
-        return times.Order().ToArray();
+        return new(DateOnly.FromDateTime(today), days.ToArray());
     }
 
     public static DateTime? PreparationStart(

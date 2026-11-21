@@ -16,6 +16,73 @@ public sealed class OnlinePickupTests(PostgreSqlFixture database) : IClassFixtur
     private static readonly DateTime SundayPickup = Saturday.UtcDateTime.AddDays(1);
 
     [Fact]
+    public async Task ReservationRange_ChangesNewChoicesAndKeepsConfirmedPickup()
+    {
+        using var host = new AccountTestHost(database);
+        host.Clock.Set(Saturday);
+        var shop = await OnlineTestData.SeedShopAsync(database);
+        using var owner = await OnlineTestData.LoginAsync(host, shop.Owner);
+        using var staff = await OnlineTestData.LoginAsync(host, shop.Staff);
+        using var customer = host.Browser();
+        var path = $"/api/public/r/{shop.Slug}/bootstrap";
+        var daySeven = Saturday.UtcDateTime.AddDays(7);
+
+        using var initial = await ConfigureAsync(owner, 60);
+        Assert.Equal(
+            1,
+            (await initial.Content.ReadFromJsonAsync<OnlineSettingsResponse>())!.PickupMaxDaysAhead
+        );
+        Assert.Equal(HttpStatusCode.BadRequest, (await ConfigureAsync(owner, 60, 3)).StatusCode);
+        var original = (await customer.GetFromJsonAsync<OnlineMenuResponse>(path))!;
+        Assert.DoesNotContain(daySeven, original.PickupTimes!);
+
+        Assert.Equal(HttpStatusCode.OK, (await ConfigureAsync(owner, 60, 7)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await ConfigureAsync(owner, null)).StatusCode);
+        Assert.Null((await customer.GetFromJsonAsync<OnlineMenuResponse>(path))!.PickupCalendar);
+        using var legacy = await ConfigureAsync(owner, 45);
+        Assert.Equal(
+            7,
+            (await legacy.Content.ReadFromJsonAsync<OnlineSettingsResponse>())!.PickupMaxDaysAhead
+        );
+
+        var extended = (await customer.GetFromJsonAsync<OnlineMenuResponse>(path))!;
+        Assert.Contains(daySeven, extended.PickupTimes!);
+        Assert.DoesNotContain(daySeven.AddDays(1), extended.PickupTimes!);
+        Assert.Equal(extended.PickupCalendar!.Times(), extended.PickupTimes!);
+        Assert.Equal(
+            HttpStatusCode.Conflict,
+            (await SubmitAsync(customer, shop, daySeven.AddDays(1), Guid.NewGuid())).StatusCode
+        );
+        var requestId = Guid.NewGuid();
+        using var submitted = await SubmitAsync(customer, shop, daySeven, requestId);
+        Assert.Equal(HttpStatusCode.Created, submitted.StatusCode);
+        var originalResponse =
+            await submitted.Content.ReadFromJsonAsync<OnlineSubmissionResponse>();
+        Assert.Equal(daySeven, originalResponse!.RequestedPickupAt);
+        var pending = (
+            await staff.GetFromJsonAsync<OnlinePendingPage>("/api/staff/online/pending")
+        )!;
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await AcceptAsync(staff, Assert.Single(pending.Items).Id, 20)).StatusCode
+        );
+
+        Assert.Equal(HttpStatusCode.OK, (await ConfigureAsync(owner, 60, 1)).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.Conflict,
+            (await SubmitAsync(customer, shop, daySeven, Guid.NewGuid())).StatusCode
+        );
+        using var retry = await SubmitAsync(customer, shop, daySeven, requestId);
+        Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+        Assert.Equal(
+            originalResponse,
+            await retry.Content.ReadFromJsonAsync<OnlineSubmissionResponse>()
+        );
+        var active = (await staff.GetFromJsonAsync<OnlineActivePage>("/api/staff/online/active"))!;
+        Assert.Equal(daySeven, Assert.Single(active.Items).EstimatedAt);
+    }
+
+    [Fact]
     public async Task Reservation_ConfirmedForTomorrow_EntersKitchenAtSelectedPreparationTime()
     {
         using var host = new AccountTestHost(database);
@@ -218,11 +285,17 @@ public sealed class OnlinePickupTests(PostgreSqlFixture database) : IClassFixtur
         );
     }
 
-    private static async Task<HttpResponseMessage> ConfigureAsync(HttpClient client, int? minutes)
+    private static async Task<HttpResponseMessage> ConfigureAsync(
+        HttpClient client,
+        int? minutes,
+        int? maxDaysAhead = null
+    )
     {
         using var request = new HttpRequestMessage(HttpMethod.Put, "/api/owner/online/pickup")
         {
-            Content = JsonContent.Create(new { minNoticeMinutes = minutes }),
+            Content = maxDaysAhead is { } days
+                ? JsonContent.Create(new { minNoticeMinutes = minutes, maxDaysAhead = days })
+                : JsonContent.Create(new { minNoticeMinutes = minutes }),
         };
         request.Headers.Add("X-CSRF-TOKEN", await CsrfAsync(client));
         return await client.SendAsync(request);

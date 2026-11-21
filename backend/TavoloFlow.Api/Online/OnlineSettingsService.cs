@@ -77,15 +77,27 @@ public sealed class OnlineSettingsService(
                 "minNoticeMinutes",
                 "Invalid period."
             );
+        if (input.MaxDaysAhead is { } days && days is not (1 or 7))
+            throw ApiException.Validation(
+                "Choose a listed last reservation day.",
+                "maxDaysAhead",
+                "Invalid day."
+            );
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var restaurant = await LockOfferedAsync(restaurantId, ct);
+        var maxDaysAhead = input.MinNoticeMinutes is null
+            ? restaurant.PickupMaxDaysAhead
+            : input.MaxDaysAhead ?? restaurant.PickupMaxDaysAhead;
         await db
             .Restaurants.Where(r => r.Id == restaurantId)
             .ExecuteUpdateAsync(
-                u => u.SetProperty(r => r.PickupMinNoticeMinutes, input.MinNoticeMinutes),
+                u =>
+                    u.SetProperty(r => r.PickupMinNoticeMinutes, input.MinNoticeMinutes)
+                        .SetProperty(r => r.PickupMaxDaysAhead, maxDaysAhead),
                 ct
             );
         restaurant.PickupMinNoticeMinutes = input.MinNoticeMinutes;
+        restaurant.PickupMaxDaysAhead = maxDaysAhead;
         var result = await ResponseAsync(restaurant, ct);
         await transaction.CommitAsync(ct);
         return result;
@@ -384,7 +396,8 @@ public sealed class OnlineSettingsService(
                     !OnlineCoupons.IsValid(c, today)
                 ))
                 .ToArray(),
-            restaurant.PickupMinNoticeMinutes
+            restaurant.PickupMinNoticeMinutes,
+            restaurant.PickupMaxDaysAhead
         );
     }
 

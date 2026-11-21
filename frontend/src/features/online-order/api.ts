@@ -39,6 +39,12 @@ export type OnlineMenu = {
   nextOpensAt: string | null;
   menu: PublicMenu["menu"];
   pickupTimes: string[] | null;
+  pickupCalendar: PickupCalendar | null;
+};
+
+export type PickupCalendar = {
+  today: string;
+  days: { date: string; periods: string[][] }[];
 };
 
 // The first submission and every repeat or recovery return the same values.

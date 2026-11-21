@@ -50,6 +50,10 @@ internal sealed class RestaurantConfiguration : IEntityTypeConfiguration<Restaur
                     "ck_restaurant_pickup_notice",
                     "pickup_min_notice_minutes IN (30, 45, 60, 90, 120)"
                 );
+                table.HasCheckConstraint(
+                    "ck_restaurant_pickup_days_ahead",
+                    "pickup_max_days_ahead IN (1, 7)"
+                );
                 // InputRules.NormalizePhone stores only an optional + and 6-15 digits.
                 table.HasCheckConstraint(
                     "ck_restaurant_public_phone",
@@ -152,6 +156,12 @@ internal sealed class RestaurantConfiguration : IEntityTypeConfiguration<Restaur
         builder
             .Property(restaurant => restaurant.PickupMinNoticeMinutes)
             .HasColumnName("pickup_min_notice_minutes");
+
+        builder
+            .Property(restaurant => restaurant.PickupMaxDaysAhead)
+            .HasColumnName("pickup_max_days_ahead")
+            .HasDefaultValue(1)
+            .ValueGeneratedNever();
 
         builder
             .Property(restaurant => restaurant.Slug)

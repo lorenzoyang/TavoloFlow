@@ -121,7 +121,10 @@ public sealed class OnlineRequestService(
             form.RequestedPickupAt is { } pickup
             && (
                 restaurant.PickupMinNoticeMinutes is not { } notice
-                || !OnlinePickup.Times(hours, zone, now, notice).Contains(pickup)
+                || !OnlinePickup
+                    .Calendar(hours, zone, now, notice, restaurant.PickupMaxDaysAhead)
+                    .Times()
+                    .Contains(pickup)
             )
         )
             throw OnlineErrors.PickupSlotChanged();

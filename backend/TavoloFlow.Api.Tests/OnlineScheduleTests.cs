@@ -101,11 +101,26 @@ public sealed class OnlineScheduleTests
     }
 
     [Fact]
+    public void PickupCalendar_FiltersEmptyDaysAndGroupsAvailableTimesByOnlinePeriod()
+    {
+        OnlineSlot[] hours = [new(6, 1080, 1200), new(6, 720, 840), new(1, 720, 730)];
+        var now = new DateTimeOffset(Utc(2026, 11, 21, 18, 50));
+        var calendar = OnlinePickup.Calendar(hours, Rome, now, 30, 7);
+
+        Assert.Equal(new DateOnly(2026, 11, 21), calendar.Today);
+        var day = Assert.Single(calendar.Days);
+        Assert.Equal(new DateOnly(2026, 11, 28), day.Date);
+        Assert.Equal(2, day.Periods.Length);
+        Assert.Equal(Utc(2026, 11, 28, 11, 15), day.Periods[0][0]);
+        Assert.Equal(Utc(2026, 11, 28, 17, 15), day.Periods[1][0]);
+    }
+
+    [Fact]
     public void PickupTimes_SpringGap_SkipsMissingTimesAndRequiresPreparationInTheSlot()
     {
         OnlineSlot[] hours = [new(7, 120, 240)];
         var now = new DateTimeOffset(Utc(2026, 3, 28, 22));
-        var slots = OnlinePickup.Times(hours, Rome, now, 60);
+        var slots = OnlinePickup.Calendar(hours, Rome, now, 60, 1).Times().ToArray();
 
         Assert.Equal(
             new[] { Utc(2026, 3, 29, 1, 15), Utc(2026, 3, 29, 1, 30), Utc(2026, 3, 29, 1, 45) },
@@ -119,7 +134,7 @@ public sealed class OnlineScheduleTests
     {
         OnlineSlot[] hours = [new(7, 120, 240)];
         var now = new DateTimeOffset(Utc(2026, 10, 24, 20));
-        var slots = OnlinePickup.Times(hours, Rome, now, 60);
+        var slots = OnlinePickup.Calendar(hours, Rome, now, 60, 1).Times().ToArray();
 
         Assert.Contains(Utc(2026, 10, 25, 0, 30), slots);
         Assert.DoesNotContain(Utc(2026, 10, 25, 1, 30), slots);

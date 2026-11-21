@@ -1280,6 +1280,11 @@ namespace TavoloFlow.Api.Data.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("owner_contact");
 
+                    b.Property<int>("PickupMaxDaysAhead")
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("pickup_max_days_ahead");
+
                     b.Property<int?>("PickupMinNoticeMinutes")
                         .HasColumnType("integer")
                         .HasColumnName("pickup_min_notice_minutes");
@@ -1343,6 +1348,8 @@ namespace TavoloFlow.Api.Data.Migrations
                             t.HasCheckConstraint("ck_restaurant_google_maps_url", "google_maps_url IS NULL OR google_maps_url LIKE 'https://%'");
 
                             t.HasCheckConstraint("ck_restaurant_online_slug", "NOT online_enabled OR slug IS NOT NULL");
+
+                            t.HasCheckConstraint("ck_restaurant_pickup_days_ahead", "pickup_max_days_ahead IN (1, 7)");
 
                             t.HasCheckConstraint("ck_restaurant_pickup_notice", "pickup_min_notice_minutes IN (30, 45, 60, 90, 120)");
 

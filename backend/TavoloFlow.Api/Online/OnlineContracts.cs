@@ -16,7 +16,10 @@ public sealed record OnlineHourInput(
 public sealed record OnlineHoursInput([Required] OnlineHourInput?[]? Slots);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record OnlinePickupInput([property: JsonRequired] int? MinNoticeMinutes);
+public sealed record OnlinePickupInput(
+    [property: JsonRequired] int? MinNoticeMinutes,
+    int? MaxDaysAhead = null
+);
 
 // Blank clears the phone, which stops online orders.
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -106,7 +109,8 @@ public sealed record OnlineSettingsResponse(
     DeliveryTierResponse[] DeliveryTiers,
     bool DeliveryAutoQuote,
     OnlineCouponResponse[] Coupons,
-    int? PickupMinNoticeMinutes
+    int? PickupMinNoticeMinutes,
+    int PickupMaxDaysAhead
 );
 
 public static class OnlineErrors

@@ -29,14 +29,15 @@ render a "service not offered" state.
 | `DELETE /api/staff/online/pause` | STAFF, OWNER | → settings (resumes)                                             |
 | `PUT /api/owner/online/hours`    | OWNER        | `{ slots: [{ weekday, opensMinute, closesMinute }] }` → settings |
 | `PATCH /api/owner/online/phone`  | OWNER        | `{ publicPhone }`, blank clears → settings                       |
-| `PUT /api/owner/online/pickup`   | OWNER        | `{ minNoticeMinutes }` → settings |
+| `PUT /api/owner/online/pickup`   | OWNER        | `{ minNoticeMinutes, maxDaysAhead? }` → settings |
 | `PUT /api/owner/online/delivery` | OWNER        | `{ enabled, noteZh, noteIt, noteEn, minOrderCents, originLat, originLng, tiers: [{ maxMeters, feeCents, freeDeliveryMinCents? }] }` → settings |
 | `POST /api/owner/online/coupons` | OWNER        | `{ code, percentOff, validUntil }` → settings                    |
 | `DELETE /api/owner/online/coupons/{id}` | OWNER | → settings (also when already gone)                              |
 
 Settings are `{ slug, publicPhone, hours, pausedUntil, status, nextOpensAt, currentSlotEndsAt,
 deliveryEnabled, deliveryNoteZh, deliveryNoteIt, deliveryNoteEn, deliveryMinOrderCents,
-deliveryOriginLat, deliveryOriginLng, deliveryTiers, deliveryAutoQuote, coupons, pickupMinNoticeMinutes }`.
+deliveryOriginLat, deliveryOriginLng, deliveryTiers, deliveryAutoQuote, coupons, pickupMinNoticeMinutes,
+pickupMaxDaysAhead }`.
 Each band is `{ maxMeters, feeCents, freeDeliveryMinCents }`, nearest first, and each coupon is
 `{ id, code, percentOff, validUntil, expired }`, ordered by code.
 `hours` are ordered by weekday and opening time. `pausedUntil` is null once the pause has lapsed.
@@ -75,18 +76,24 @@ and are unit-tested with Europe/Rome DST dates.
 ## Scheduled pickup
 
 An OWNER can enable scheduled pickup under online ordering settings. `PUT /api/owner/online/pickup`
-takes `{ minNoticeMinutes }` and returns the settings, including `pickupMinNoticeMinutes`. Send
-null to switch off new reservations. The editor starts at 60 minutes when first enabled. The
-available values are 30, 45, 60, 90 and 120 minutes.
+takes `{ minNoticeMinutes, maxDaysAhead? }` and returns `pickupMinNoticeMinutes` and
+`pickupMaxDaysAhead` with the settings. Send a null minimum notice to switch off new reservations
+and keep the saved range. The editor starts at 60 minutes when first enabled. The available notice
+values are 30, 45, 60, 90 and 120 minutes. The range can end tomorrow (1, the default) or seven
+days ahead (7), inclusive, with today as day zero in the restaurant's time zone. Omitting the range
+keeps the saved value.
 
-Bootstrap returns `pickupTimes`, a list of available UTC instants. It is null when scheduling is off
-and empty when scheduling is on but ordering is closed or no time qualifies. It covers today and
-tomorrow in the restaurant's time zone, on the local quarter hour, up to each online slot's exclusive end.
-It omits times that violate minimum notice or leave less than 10 minutes for preparation in the
-same slot. It skips nonexistent wall times and offers the first occurrence of a repeated time.
+Bootstrap returns `pickupCalendar { today, days: [{ date, periods }] }`. Dates use the restaurant's
+calendar and each element in `periods` lists the available UTC instants in one online slot. Days
+and periods with no available times are omitted. `pickupTimes` provides the same instants as a
+flat list for earlier pages. Both fields are null when scheduling is off. When scheduling is on but
+ordering is closed or no time qualifies, the lists are empty. Times fall on local quarter hours
+before each slot's exclusive end, meet the minimum notice and allow at least 10 minutes of
+preparation in the same slot. The calendar skips nonexistent wall times and uses the first
+occurrence of repeated times.
 
 A pickup submission can set `requestedPickupAt` to one of these times. The server validates it
-against current hours and notice after checking for a duplicate. A stale or disabled option returns
+against the current range, hours and notice after checking for a duplicate. A stale or disabled option returns
 `ONLINE_PICKUP_SLOT_CHANGED` and leaves the cart editable. If the selected time becomes
 unavailable, the checkout footer offers to return to the time selector. The original time is included in an
 appointment's receipt, recovery and ordering-context response. The ordinary ten-minute decision
@@ -331,7 +338,7 @@ CSRF issuance also initializes the independent browser marker described below.
 
 | Method and path                                                    | Result                                        |
 | ------------------------------------------------------------------ | --------------------------------------------- |
-| `GET /api/public/r/{slug}/bootstrap`                               | Restaurant, status, `nextOpensAt`, menu, `turnstile`, `pickupTimes` |
+| `GET /api/public/r/{slug}/bootstrap`                               | Restaurant, status, `nextOpensAt`, menu, `turnstile`, `pickupCalendar`, `pickupTimes` |
 | `GET /api/public/r/{slug}/ordering-context` | This browser’s waiting submission, or null |
 | `GET /api/public/r/{slug}/coupons/{code}`                          | `{ code, percentOff }`, or 404 `COUPON_INVALID` |
 | `POST /api/public/r/{slug}/delivery-quote`                         | `{ result, town, distanceMeters, feeCents, quote }` (see [automatic delivery quotes](#automatic-delivery-quotes)) |
@@ -471,7 +478,7 @@ The bootstrap reads restaurant, hours, waiting count and `MenuReader` in one Rep
 transaction. It returns `restaurant { id, name, currencyCode, defaultLanguage, theme, publicPhone,
 deliveryEnabled, deliveryNoteZh, deliveryNoteIt, deliveryNoteEn, deliveryMinOrderCents, deliveryTiers,
 deliveryAutoQuote }` (the bands nearest first, never the coordinates), `status`, `nextOpensAt`,
-`turnstile`, `pickupTimes` and the same `menu` as the QR bootstrap. The menu is shown in every status.
+`turnstile`, `pickupCalendar`, `pickupTimes` and the same `menu` as the QR bootstrap. The menu is shown in every status.
 An invalid or unknown slug is `ONLINE_LINK_NOT_FOUND` (404).
 
 The coupon check trims and uppercases the typed code and answers `{ code, percentOff }` when the
@@ -619,12 +626,13 @@ also has the language switch. The page scrolls as an ordinary document with a st
 phone keyboard opens and closes over it without moving a fixed sheet.
 
 The page shows the read-only lines, then the form in dependency order (`checkoutFields`): with
-delivery on, a pickup/delivery choice whose delivery option states the minimum; for scheduled pickup,
-a time selector defaulting to immediate pickup; for delivery the
+delivery on, a pickup/delivery choice whose delivery option states the minimum. When scheduling is
+enabled, pickup defaults to immediate. Choosing to schedule opens the available dates and the
+times for the selected date. A chosen time appears alongside a button to change it and a note that
+the restaurant confirms it after submission. For delivery the form shows the
 address (placeholder "street, number, town"), the optional doorbell/floor notes and the delivery
 details; below a separator, name and phone (validated like the server, with one hint line); a "Have a
-coupon code?" link that opens the coupon field; an immediate preparation or reservation confirmation
-hint; and a one-line privacy
+coupon code?" link that opens the coupon field, an immediate preparation hint where applicable, and a one-line privacy
 notice linking to the privacy page. Enter never places the order: it moves to the next field
 (`nextCheckoutField`), the last field only closes the keyboard, the address asks for the fee while
 automatic quotes still need it (closing the keyboard, so the answer above the button shows), the

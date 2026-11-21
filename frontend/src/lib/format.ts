@@ -55,6 +55,19 @@ export function formatPickupDateTime(value: string, language: Language) {
   });
 }
 
+// A calendar date from the server is already local to the restaurant.
+export function formatPickupDate(date: string, language: Language) {
+  const value = new Date(`${date}T00:00:00Z`);
+  return {
+    weekday: value.toLocaleDateString(locales[language], { timeZone: "UTC", weekday: "short" }),
+    monthDay: value.toLocaleDateString(locales[language], {
+      timeZone: "UTC",
+      month: "numeric",
+      day: "numeric",
+    }),
+  };
+}
+
 // "19:05" in the restaurant's time zone, for compact rows where the date is implied.
 export function formatTime(
   value: string | number,

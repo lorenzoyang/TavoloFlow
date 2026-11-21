@@ -23,6 +23,7 @@ export type OnlineSettings = {
   publicPhone: string | null;
   hours: OnlineHour[];
   pickupMinNoticeMinutes: number | null;
+  pickupMaxDaysAhead: 1 | 7;
   // Null once the pause has lapsed.
   pausedUntil: string | null;
   status: OnlineStatus;
@@ -53,8 +54,17 @@ export const resumeOnline = (signal?: AbortSignal) =>
   write<OnlineSettings>("/api/staff/online/pause", "DELETE", undefined, signal);
 export const saveOnlineHours = (slots: OnlineHour[], signal?: AbortSignal) =>
   write<OnlineSettings>("/api/owner/online/hours", "PUT", { slots }, signal);
-export const savePickup = (minNoticeMinutes: number | null, signal?: AbortSignal) =>
-  write<OnlineSettings>("/api/owner/online/pickup", "PUT", { minNoticeMinutes }, signal);
+export const savePickup = (
+  minNoticeMinutes: number | null,
+  maxDaysAhead: OnlineSettings["pickupMaxDaysAhead"] | undefined,
+  signal?: AbortSignal,
+) =>
+  write<OnlineSettings>(
+    "/api/owner/online/pickup",
+    "PUT",
+    { minNoticeMinutes, maxDaysAhead },
+    signal,
+  );
 export const savePublicPhone = (publicPhone: string | null, signal?: AbortSignal) =>
   write<OnlineSettings>("/api/owner/online/phone", "PATCH", { publicPhone }, signal);
 export const saveDelivery = (input: DeliveryInput, signal?: AbortSignal) =>

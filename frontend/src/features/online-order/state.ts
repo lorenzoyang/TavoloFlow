@@ -6,6 +6,7 @@ import type {
   OnlineMenu,
   OnlineOrder,
   OnlineSubmission,
+  PickupCalendar,
 } from "./api.ts";
 import type { Language } from "../../lib/language.ts";
 import { isUuid } from "../../lib/ids.ts";
@@ -75,6 +76,7 @@ export const MAX_DELIVERY_NOTES_LENGTH = 100;
 // address is still the same (currentQuote).
 export type CheckoutForm = {
   fulfillment: Fulfillment;
+  pickupDate?: string;
   pickupTime?: string;
   name: string;
   phone: string;
@@ -95,6 +97,31 @@ export const emptyCheckoutForm: CheckoutForm = {
   coupon: null,
   quote: null,
 };
+
+export function pickupTimeIssue(
+  form: CheckoutForm,
+  offeredTimes: string[] | null,
+  refusedTime?: string,
+) {
+  if (form.fulfillment !== "PICKUP") return null;
+  if (form.pickupTime)
+    return form.pickupTime === refusedTime || !offeredTimes?.includes(form.pickupTime)
+      ? "unavailable"
+      : null;
+  return form.pickupDate ? "missing" : null;
+}
+
+// A rejected time can still be in the menu snapshot while its replacement is loading.
+export function omitRefusedPickupTime(calendar: PickupCalendar | null, refusedTime?: string) {
+  if (!calendar || !refusedTime) return calendar;
+  const days = calendar.days.flatMap((day) => {
+    const periods = day.periods
+      .map((times) => times.filter((time) => time !== refusedTime))
+      .filter((times) => times.length > 0);
+    return periods.length ? [{ ...day, periods }] : [];
+  });
+  return { ...calendar, days };
+}
 
 // The server's rounding (OnlineCoupons.DiscountCents): the percentage of the dishes, down to the cent.
 export const couponDiscountCents = (itemsCents: number, percentOff: number) =>
@@ -293,6 +320,7 @@ export function createOnlineIntent(
   const deliveryQuote = intentQuote(form, finalDeliveryFeeCents);
   if (!validQuote(deliveryQuote)) throw new CartError("limits");
   const delivery = form.fulfillment === "DELIVERY";
+  if (form.pickupDate && !form.pickupTime) throw new CartError("limits");
   if (form.pickupTime !== undefined && (delivery || !validTime(form.pickupTime)))
     throw new CartError("limits");
   return {

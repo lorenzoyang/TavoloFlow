@@ -15,6 +15,7 @@ import {
   feeRange,
   feeStatus,
   forgetReservations,
+  omitRefusedPickupTime,
   onlineCartAmounts,
   onlineCartKey,
   quotedDeliveryTier,
@@ -23,6 +24,7 @@ import {
   orderProgress,
   orderTokenKey,
   orderView,
+  pickupTimeIssue,
   readOrderToken,
   readReservations,
   rememberOnlineOrder,
@@ -728,6 +730,29 @@ test("scheduled pickup travels with the original frozen submission", () => {
     pending,
   );
   throwsIssue(() => createOnlineIntent(cart, { ...delivery, pickupTime }, requestId), "limits");
+});
+
+test("starting a reservation requires an explicit, currently offered pickup time", () => {
+  const date = "2026-11-28";
+  const time = "2026-11-28T17:00:00Z";
+  const cart = addItem(emptyOnlineCart(restaurant), item, []);
+  const draft = { ...form, pickupDate: date };
+  const selected = { ...draft, pickupTime: time };
+  assert.equal(pickupTimeIssue(form, []), null);
+  assert.equal(pickupTimeIssue(draft, [time]), "missing");
+  assert.throws(() => createOnlineIntent(cart, draft, requestId), CartError);
+  assert.equal(pickupTimeIssue(selected, [time]), null);
+  assert.equal(pickupTimeIssue(selected, []), "unavailable");
+  assert.equal(pickupTimeIssue(selected, [time], time), "unavailable");
+});
+
+test("a rejected time is hidden while its refreshed calendar is loading", () => {
+  const time = "2026-11-22T17:00:00Z";
+  const tomorrow = { date: "2026-11-22", periods: [[time]] };
+  const nextDay = { date: "2026-11-23", periods: [["2026-11-23T17:00:00Z"]] };
+  const calendar = { today: "2026-11-21", days: [tomorrow, nextDay] };
+  assert.deepEqual(omitRefusedPickupTime(calendar, time), { ...calendar, days: [nextDay] });
+  assert.equal(calendar.days.length, 2);
 });
 
 test("a reservation stays findable after an immediate order is placed", () => {
