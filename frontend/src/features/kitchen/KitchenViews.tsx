@@ -7,12 +7,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { pickupMessages } from "@/features/online/pickup-messages";
 import type { OrderLine } from "@/features/orders/api";
 import { formatDateTime, formatMoney, formatTime, shortId } from "@/lib/format";
 import { displayName } from "@/lib/language";
 import { optionSummary } from "@/lib/options";
-import { sessionTitle } from "@/lib/session-label";
+import { sessionDetail, sessionTitle } from "@/lib/session-label";
 import { SessionName } from "@/components/session-name";
 import { staffMessages } from "@/lib/staff-messages";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
@@ -151,13 +150,6 @@ export function DishCard({ group, controls }: { group: DishGroup; controls: Line
                     </span>
                   )}
                 </p>
-                {order.online?.requestedPickupAt && (
-                  <p className="text-sm font-semibold tabular-nums">
-                    {pickupMessages[language].appointment(
-                      formatTime(order.online.requestedPickupAt, language),
-                    )}
-                  </p>
-                )}
                 {line.options.length > 0 && (
                   <p className="font-medium wrap-break-word">
                     {optionSummary(line.options, order.defaultLanguage, language)}
@@ -173,6 +165,11 @@ export function DishCard({ group, controls }: { group: DishGroup; controls: Line
                 />
               </div>
             </div>
+            {order.online?.requestedPickupAt && (
+              <p className="text-sm font-semibold tabular-nums">
+                {sessionDetail(order, language)?.time}
+              </p>
+            )}
             {line.remark && (
               <p className="rounded-lg bg-warning/20 px-2.5 py-1.5 font-medium whitespace-pre-wrap wrap-break-word">
                 {c.remark(line.remark)}
@@ -202,22 +199,8 @@ export function OrderTicket({ order, controls }: { order: KitchenOrder; controls
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-2xl font-bold">
-            {order.online?.requestedPickupAt ? (
-              sessionTitle(order, language)
-            ) : (
-              <SessionName session={order} />
-            )}
+            <SessionName session={order} />
           </h2>
-          {order.online?.requestedPickupAt && (
-            <p className="text-base font-semibold tabular-nums">
-              {pickupMessages[language].appointment(
-                formatTime(order.online.requestedPickupAt, language),
-              )}
-            </p>
-          )}
-          {order.online?.requestedPickupAt && order.online.customerName && (
-            <p className="text-sm truncate">{order.online.customerName}</p>
-          )}
           <p className="text-sm text-muted-foreground">
             {m.orderedAt(formatTime(order.createdAt, language))} · #{shortId(order.id)}
           </p>

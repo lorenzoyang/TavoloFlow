@@ -35,7 +35,7 @@ export function ConfirmDialog({
   description?: ReactNode;
   children?: ReactNode;
   contentClassName?: string;
-  confirmLabel: string;
+  confirmLabel?: string;
   cancelLabel?: string;
   tone?: "default" | "destructive";
   busy?: boolean;
@@ -66,15 +66,17 @@ export function ConfirmDialog({
           <Button variant="outline" disabled={busy} onClick={onCancel}>
             {cancelLabel ?? fallbackCancel}
           </Button>
-          <Button
-            variant={tone === "destructive" ? "destructive" : "default"}
-            disabled={busy || confirmDisabled}
-            aria-busy={busy}
-            onClick={onConfirm}
-          >
-            {busy && <Spinner />}
-            {confirmLabel}
-          </Button>
+          {confirmLabel && (
+            <Button
+              variant={tone === "destructive" ? "destructive" : "default"}
+              disabled={busy || confirmDisabled}
+              aria-busy={busy}
+              onClick={onConfirm}
+            >
+              {busy && <Spinner />}
+              {confirmLabel}
+            </Button>
+          )}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

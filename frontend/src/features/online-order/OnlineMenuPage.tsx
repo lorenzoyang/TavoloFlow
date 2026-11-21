@@ -13,6 +13,7 @@ import { useDocumentTheme } from "@/lib/useDocumentTheme";
 import { useHistorySheet } from "@/lib/useHistorySheet";
 import { useMediaQuery, WIDE_SCREEN } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/utils";
+import { pickupMessages } from "@/features/online/pickup-messages";
 import { orderMessages } from "@/features/orders/messages";
 import { messages as menuMessages } from "@/features/public-menu/messages";
 import {
@@ -202,7 +203,9 @@ function MenuContent({
               // Text only: the header keeps the restaurant's phone right above it.
               <Notice tone="warning">{closed}</Notice>
             ) : (
-              <p className="text-sm leading-6 text-muted-foreground">{m.open}</p>
+              <p className="text-sm leading-6 text-muted-foreground">
+                {data.pickupTimes?.length ? pickupMessages[language].menuHint : m.open}
+              </p>
             )}
             {error && (
               <Notice

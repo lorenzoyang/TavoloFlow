@@ -525,7 +525,7 @@ export const onlineMessages: Record<Language, typeof zh> = {
 // The online orders page and the pending banner on every staff page.
 const ordersZh = {
   title: "线上订单",
-  description: "接单后订单才进入厨房。提交后 10 分钟没人处理，订单就会失效。",
+  description: "请在 10 分钟内处理新订单。预约单到备餐时间才进入厨房。",
   refresh: "刷新线上订单",
   readError: "线上订单暂时无法更新，请检查网络后刷新。",
   stale: "列表正在同步或已过期，暂时不能接单或拒单。",
@@ -595,7 +595,7 @@ export const onlineOrdersMessages: Record<Language, typeof ordersZh> = {
   it: {
     title: "Ordini online",
     description:
-      "Un ordine arriva in cucina solo dopo l’accettazione. Se nessuno risponde entro 10 minuti, scade.",
+      "Rispondi ai nuovi ordini entro 10 minuti. I ritiri programmati arrivano in cucina quando è ora di prepararli.",
     refresh: "Aggiorna ordini online",
     readError: "Impossibile aggiornare gli ordini online: controlla la connessione e aggiorna.",
     stale: "Elenco in aggiornamento o non recente: per ora non puoi accettare né rifiutare.",
@@ -665,7 +665,7 @@ export const onlineOrdersMessages: Record<Language, typeof ordersZh> = {
   en: {
     title: "Online orders",
     description:
-      "An order reaches the kitchen only once accepted. If nobody answers within 10 minutes, it expires.",
+      "Respond to new orders within 10 minutes. Scheduled pickups enter the kitchen when preparation is due.",
     refresh: "Refresh online orders",
     readError: "Can’t update online orders: check the connection and refresh.",
     stale: "The list is syncing or out of date: accepting and rejecting wait for it.",

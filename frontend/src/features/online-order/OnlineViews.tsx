@@ -1,7 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Bike, Phone, ShoppingBag, type LucideIcon } from "lucide-react";
+import { Bike, ChevronDown, Phone, ShoppingBag, type LucideIcon } from "lucide-react";
 import { Notice, type NoticeTone } from "@/components/notice";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -15,7 +15,14 @@ import { onlineOrderQuery, type OnlineMenu } from "./api";
 import { onlineOrderMessages, type OnlineOrderMessage } from "./messages";
 import { pickupMessages } from "@/features/online/pickup-messages";
 import { formatPickupDateTime } from "@/lib/format";
-import { clearOrderToken, orderEnded, readOrderToken, readReservations } from "./state";
+import {
+  clearOrderToken,
+  forgetReservations,
+  orderEnded,
+  orderView,
+  readOrderToken,
+  readReservations,
+} from "./state";
 import type { useOnlineCart } from "./useOnlineCart";
 import { deviceStorage } from "./useRestaurantLanguage";
 import { useVerification } from "./useVerification";
@@ -179,40 +186,113 @@ export function RecentReservations({
   language: Language;
   waitingToken?: string;
 }) {
-  const [saved] = useState(() => {
+  const panelId = useId();
+  const [open, setOpen] = useState(false);
+  const [saved, setSaved] = useState(() => {
     const storage = deviceStorage();
     return storage ? readReservations(restaurantId, storage) : [];
   });
-  const results = useQueries({
-    queries: saved.map((reservation) => ({
-      ...onlineOrderQuery(reservation.statusToken),
-      refetchInterval: false as const,
-    })),
-  });
-  const shown = saved.filter(
-    (reservation, i) => results[i].data !== null && reservation.statusToken !== waitingToken,
+  const reservations = useMemo(
+    () => saved.filter((reservation) => reservation.statusToken !== waitingToken),
+    [saved, waitingToken],
   );
-  if (shown.length === 0) return null;
+  const { orders, loading, failed } = useQueries({
+    queries: reservations.map((reservation) => ({
+      ...onlineOrderQuery(reservation.statusToken),
+      enabled: open,
+      refetchInterval: false as const,
+      retry: false as const,
+    })),
+    combine: (results) => ({
+      orders: results.map((result) => result.data),
+      loading: results.some((result) => result.isLoading),
+      failed: results.some((result) => result.isError || result.fetchStatus === "paused"),
+    }),
+  });
+  useEffect(() => {
+    const gone = reservations.filter((_, i) => orders[i] === null);
+    if (gone.length === 0) return;
+    const storage = deviceStorage();
+    if (storage)
+      forgetReservations(
+        restaurantId,
+        gone.map((entry) => entry.statusToken),
+        storage,
+      );
+  }, [orders, reservations, restaurantId]);
+
+  const shown = reservations.flatMap((reservation, i) =>
+    orders[i] === null ? [] : [{ reservation, order: orders[i] }],
+  );
+  if (!open && shown.length === 0) return null;
   const m = pickupMessages[language];
+
+  function toggle() {
+    if (!open) {
+      const storage = deviceStorage();
+      if (storage) setSaved(readReservations(restaurantId, storage));
+    }
+    setOpen(!open);
+  }
+
   return (
-    <section aria-label={m.recent} className="space-y-2">
-      <h2 className="text-sm font-semibold">{m.recent}</h2>
-      {shown.map((reservation) => (
-        <Notice
-          key={reservation.statusToken}
-          action={
-            <Link
-              to="/o/$token"
-              params={{ token: reservation.statusToken }}
-              className={buttonVariants({ variant: "outline" })}
-            >
-              {m.view}
-            </Link>
-          }
-        >
-          #{reservation.number} · {formatPickupDateTime(reservation.requestedPickupAt, language)}
-        </Notice>
-      ))}
+    <section className="space-y-2">
+      <Button
+        type="button"
+        variant="outline"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={toggle}
+      >
+        {m.recent}
+        <ChevronDown aria-hidden="true" className={cn("size-4", open && "rotate-180")} />
+      </Button>
+      <div id={panelId} hidden={!open} className="space-y-2">
+        {open && (
+          <>
+            {loading && (
+              <p role="status" className="text-sm text-muted-foreground">
+                {m.recentLoading}
+              </p>
+            )}
+            {failed && <Notice tone="warning">{m.recentReadFailed}</Notice>}
+            {shown.length === 0 ? (
+              <p role="status" className="text-sm text-muted-foreground">
+                {m.recentEmpty}
+              </p>
+            ) : (
+              <ul className="divide-y rounded-xl border bg-card">
+                {shown.map(({ reservation, order }) => (
+                  <li key={reservation.statusToken}>
+                    <Link
+                      to="/o/$token"
+                      params={{ token: reservation.statusToken }}
+                      className="flex min-h-11 flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl px-3 py-2 text-sm outline-none hover:bg-accent/50 focus-visible:ring-3 focus-visible:ring-ring/50"
+                    >
+                      <span className="min-w-0">
+                        <span className="block font-medium tabular-nums">
+                          #{reservation.number} ·{" "}
+                          {formatPickupDateTime(reservation.requestedPickupAt, language)}
+                        </span>
+                        {order && (
+                          <span className="block text-muted-foreground">
+                            {
+                              m.recentStatus[
+                                order.closeReason === "VOIDED" ? "allCancelled" : orderView(order)
+                              ]
+                            }
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-primary underline">{m.view}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </div>
     </section>
   );
 }
@@ -233,12 +313,12 @@ export function MessageNotices({
   language: Language;
   callAction: ReactNode;
   // A message the page shows elsewhere, beside the field it is about.
-  except?: OnlineOrderMessage;
+  except?: readonly OnlineOrderMessage[];
 }) {
   const m = onlineOrderMessages[language];
   return (
     <>
-      {model.message && model.message !== "browserPending" && model.message !== except && (
+      {model.message && model.message !== "browserPending" && !except?.includes(model.message) && (
         <Notice
           tone={messageTone(model.message)}
           action={model.cart.pending ? undefined : callAction}

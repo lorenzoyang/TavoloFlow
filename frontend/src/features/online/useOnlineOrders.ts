@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { isSameAccount } from "@/features/accounts/queries";
@@ -31,6 +31,7 @@ export function useOnlineOrders(account: CurrentAccount) {
   const client = useQueryClient();
   const language = useStaffLanguage();
   const m = onlineOrdersMessages[language];
+  const pickup = pickupMessages[language];
   const view = useLiveView();
   const [openedAt] = useState(Date.now);
   const polling = {
@@ -64,15 +65,24 @@ export function useOnlineOrders(account: CurrentAccount) {
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<OrdersNotice | null>(null);
   const ops = useOperations();
+  const cancellingId = useRef<string | null>(null);
 
   useEffect(
     () =>
       onLifecycleChange(() => {
         // Late answers no longer apply; the list read after the change shows what happened.
+        if (cancellingId.current) {
+          setNotice({
+            tone: "warning",
+            text: pickup.cancelUnknown,
+            requestId: cancellingId.current,
+          });
+          cancellingId.current = null;
+        }
         ops.cancelAll();
         setBusy(null);
       }),
-    [ops],
+    [ops, pickup.cancelUnknown],
   );
 
   // A decision changes the pending and active lists, and an acceptance the kitchen, pass and bills.
@@ -91,12 +101,13 @@ export function useOnlineOrders(account: CurrentAccount) {
   async function decide(
     id: string,
     send: (signal: AbortSignal) => Promise<string>,
-    canSend = fresh,
+    { canSend = fresh, inlineCancellation = false } = {},
   ) {
     if (!canSend || busy || !isSameAccount(client, account)) return false;
     const op = ops.start(id);
     if (!op) return false;
     const current = () => op.isCurrent() && isSameAccount(client, account);
+    if (inlineCancellation) cancellingId.current = id;
     setBusy(id);
     setNotice(null);
     let done = false;
@@ -107,7 +118,14 @@ export function useOnlineOrders(account: CurrentAccount) {
       done = true;
     } catch (e) {
       if (!current()) return false;
-      if (e instanceof ApiError && e.code === "ONLINE_REQUEST_CHANGED")
+      if (inlineCancellation) {
+        const known = e instanceof ApiError && e.status < 500;
+        setNotice({
+          tone: known ? "error" : "warning",
+          text: known ? errorMessage(e, undefined, language) : pickup.cancelUnknown,
+          requestId: id,
+        });
+      } else if (e instanceof ApiError && e.code === "ONLINE_REQUEST_CHANGED")
         setNotice({ tone: "warning", text: m.changed });
       else if (
         e instanceof ApiError &&
@@ -122,7 +140,10 @@ export function useOnlineOrders(account: CurrentAccount) {
         setNotice({ tone: "error", text: errorMessage(e, undefined, language) });
       else setNotice({ tone: "warning", text: m.unknown });
     } finally {
-      if (op.finish()) setBusy(null);
+      if (op.finish()) {
+        if (inlineCancellation) cancellingId.current = null;
+        setBusy(null);
+      }
       // Every outcome rereads the lists: success, a lost race and an unknown result alike.
       if (current()) refresh();
     }
@@ -138,6 +159,7 @@ export function useOnlineOrders(account: CurrentAccount) {
     stalled,
     busy,
     notice,
+    clearNotice: () => setNotice(null),
     refresh,
     accept: (
       request: OnlinePendingRequest,
@@ -164,9 +186,17 @@ export function useOnlineOrders(account: CurrentAccount) {
         sessionId,
         async (signal) => {
           await cancelReservation(sessionId, signal);
-          return pickupMessages[language].cancelled;
+          return pickup.cancelled;
         },
-        activeFresh,
+        {
+          canSend:
+            activeFresh &&
+            !active.isFetching &&
+            active.data?.items.some(
+              (order) => order.sessionId === sessionId && order.awaitingPreparation,
+            ) === true,
+          inlineCancellation: true,
+        },
       ),
   };
 }

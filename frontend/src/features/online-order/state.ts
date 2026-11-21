@@ -507,6 +507,24 @@ export function readReservations(
   }
 }
 
+// Only remove links the status endpoint has confirmed are gone. Read the current storage so a
+// reservation saved by another tab since the list was opened is kept.
+export function forgetReservations(
+  restaurantId: string,
+  tokens: readonly string[],
+  storage: Pick<Storage, "getItem" | "setItem">,
+) {
+  if (tokens.length === 0) return;
+  try {
+    const previous = readReservations(restaurantId, storage);
+    const remaining = previous.filter((order) => !tokens.includes(order.statusToken));
+    if (remaining.length !== previous.length)
+      storage.setItem(reservationKey(restaurantId), JSON.stringify(remaining));
+  } catch {
+    // Results from the current read can still hide an invalid link.
+  }
+}
+
 export function rememberOnlineOrder(
   restaurantId: string,
   order: OnlineSubmission,

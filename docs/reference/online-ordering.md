@@ -86,7 +86,8 @@ same slot. It skips nonexistent wall times and offers the first occurrence of a 
 
 A pickup submission can set `requestedPickupAt` to one of these times. The server validates it
 against current hours and notice after checking for a duplicate. A stale or disabled option returns
-`ONLINE_PICKUP_SLOT_CHANGED` and leaves the cart editable. The original time is included in an
+`ONLINE_PICKUP_SLOT_CHANGED` and leaves the cart editable. If the selected time becomes
+unavailable, the checkout footer offers to return to the time selector. The original time is included in an
 appointment's receipt, recovery and ordering-context response. The ordinary ten-minute decision
 window, notification, order number and idempotency rules apply.
 
@@ -98,19 +99,20 @@ It creates the session and order with `estimatedAt` equal to the customer's sele
 the computed kitchen start. Confirmed times are stored independently of later settings changes.
 
 An accepted reservation appears in the staff list and customer status page while it awaits
-preparation. The kitchen polls it into the queue at its stored start. The status page displays the
+preparation. The staff card shows when it will enter the kitchen. The status page displays the
 agreed time, shows when preparation is still underway after that time, and shows ready once the
-remaining dishes are ready. Customers can copy the status link. The menu retains up to five recent
-reservation links on that device, including rejected and expired results while the existing status
-endpoint still answers. The status link remains valid for 24 hours after the order ends.
+remaining dishes are ready. Customers can copy the status link. The menu keeps a collapsed entry
+for up to five recent reservations on that device. Expanding it reads and displays their statuses,
+including rejected and expired results while the link still answers. Only links confirmed as gone
+are removed. The status link remains valid for 24 hours after the order ends.
 
 ![Scheduled pickup at checkout and on the confirmed order status page](../images/scheduled-pickup-en.webp)
 
 Before kitchen release, STAFF or OWNER can cancel an accepted reservation through
 `POST /api/staff/online/sessions/{id}/cancel-reservation`. This confirms cancellation, cancels the
-lines and closes the bill as `VOIDED` at zero under the same session lock and transaction. Repeating a
-successful cancellation is safe. Work already released to the kitchen follows the standard kitchen
-and bill operations.
+lines and closes the bill as `VOIDED` at zero under the same session lock and transaction. If the
+result is uncertain or refused, the confirmation stays open with feedback and the staff list is
+refreshed. Work already released to the kitchen follows the standard kitchen and bill operations.
 
 ## Delivery settings
 

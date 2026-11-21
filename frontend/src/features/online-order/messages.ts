@@ -22,7 +22,7 @@ const zh = {
   retry: "重试",
   call: "致电餐厅",
   callNumber: (phone: string) => `拨打 ${phone}`,
-  open: "订单尽快制作，不能预约时间；餐厅确认后会显示预计时间。",
+  open: "餐厅确认后会显示预计时间。",
   busy: "餐厅现在待处理的订单太多，暂时无法线上下单。请稍后再试，或致电餐厅。",
   paused: "餐厅暂停了线上接单。可以先看菜单，稍后再来，或致电餐厅。",
   closedHours: (when: string) => `现在不在线上接单时间内，${when} 开始接单。可以先看菜单。`,
@@ -91,7 +91,7 @@ const zh = {
   removeCoupon: "移除",
   couponApplied: (code: string, percent: number) => `优惠码 ${code}（−${percent}%）`,
   couponInvalid: "这个优惠码不能使用：可能输错了或已过期。请检查后再试，或不用优惠码下单。",
-  asap: "尽快制作，不能预约时间。",
+  asap: "餐厅会尽快备餐。",
   asapDelivery: "尽快制作和配送，不能预约时间。",
   privacyLine: (restaurant: string) =>
     `你的姓名和电话只交给 ${restaurant} 处理这一单，30 天后删除。`,
@@ -237,7 +237,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     retry: "Riprova",
     call: "Chiama il ristorante",
     callNumber: (phone) => `Chiama ${phone}`,
-    open: "Prepariamo l’ordine appena possibile, senza orari su prenotazione; dopo la conferma vedrai l’orario previsto.",
+    open: "Dopo la conferma del ristorante vedrai l’orario previsto.",
     busy: "Il ristorante ha troppi ordini in attesa: per ora non si può ordinare online. Riprova tra poco o chiama il ristorante.",
     paused:
       "Il ristorante ha messo in pausa gli ordini online. Puoi guardare il menu, tornare più tardi o chiamare.",
@@ -316,7 +316,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     couponApplied: (code, percent) => `Codice ${code} (−${percent}%)`,
     couponInvalid:
       "Questo codice sconto non si può usare: forse è sbagliato o scaduto. Controllalo, oppure ordina senza codice.",
-    asap: "Prepariamo l’ordine appena possibile, senza prenotare l’orario.",
+    asap: "Il ristorante preparerà l’ordine appena possibile.",
     asapDelivery: "Prepariamo e consegniamo appena possibile, senza prenotare l’orario.",
     privacyLine: (restaurant) =>
       `Nome e telefono vanno solo a ${restaurant} per questo ordine e si cancellano dopo 30 giorni.`,
@@ -471,7 +471,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     retry: "Try again",
     call: "Call the restaurant",
     callNumber: (phone) => `Call ${phone}`,
-    open: "Orders are made as soon as possible; you can’t book a time. Once the restaurant confirms, you’ll see the expected time.",
+    open: "You’ll see the expected time once the restaurant confirms.",
     busy: "The restaurant has too many orders waiting, so online ordering is closed for now. Try again shortly or call the restaurant.",
     paused:
       "The restaurant has paused online orders. You can browse the menu, come back later or call.",
@@ -548,7 +548,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     couponApplied: (code, percent) => `Coupon ${code} (−${percent}%)`,
     couponInvalid:
       "This coupon code can’t be used: it may be mistyped or expired. Check it, or order without a code.",
-    asap: "Made as soon as possible; you can’t book a time.",
+    asap: "The restaurant will prepare your order as soon as possible.",
     asapDelivery: "Made and delivered as soon as possible; you can’t book a time.",
     privacyLine: (restaurant) =>
       `Your name and phone go only to ${restaurant} for this order and are deleted after 30 days.`,

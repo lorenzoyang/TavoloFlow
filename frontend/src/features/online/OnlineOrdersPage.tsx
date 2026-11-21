@@ -351,6 +351,11 @@ function ActiveCard({
       ) : (
         <p className="text-sm">{m.estimated(formatTime(order.estimatedAt, language))}</p>
       )}
+      {order.awaitingPreparation && order.kitchenStartsAt && (
+        <p className="text-sm tabular-nums">
+          {pickup.entersKitchen(formatTime(order.kitchenStartsAt, language))}
+        </p>
+      )}
       <p className="flex flex-wrap items-baseline justify-between gap-x-3">
         <span className="font-semibold tabular-nums">
           {m.toCollect(formatMoney(order.totalAmountCents, language))}
@@ -402,6 +407,11 @@ function OnlineOrdersContent({ account }: { account: CurrentAccount }) {
     return Date.parse(a.estimatedAt) - Date.parse(b.estimatedAt);
   });
   const fetching = model.pending.isFetching || model.active.isFetching;
+  const cancelAvailable = active.some(
+    (order) => order.sessionId === cancelling?.sessionId && order.awaitingPreparation,
+  );
+  const cancelNotice =
+    cancelling && model.notice?.requestId === cancelling.sessionId ? model.notice : null;
   // Opening the page, or returning to it, answers the lock-screen notifications on this device.
   useEffect(() => {
     if (model.view.active) void closeOrderNotifications().catch(() => undefined);
@@ -473,7 +483,10 @@ function OnlineOrdersContent({ account }: { account: CurrentAccount }) {
               key={order.sessionId}
               order={order}
               disabled={!model.activeFresh || !!model.busy}
-              onCancel={() => setCancelling(order)}
+              onCancel={() => {
+                model.clearNotice();
+                setCancelling(order);
+              }}
             />
           ))}
         </div>
@@ -482,16 +495,24 @@ function OnlineOrdersContent({ account }: { account: CurrentAccount }) {
         open={!!cancelling}
         tone="destructive"
         title={cancelling ? `${pickup.cancel} #${cancelling.number}` : pickup.cancel}
-        description={pickup.cancelHint}
-        confirmLabel={pickup.cancel}
+        description={cancelAvailable && !cancelNotice ? pickup.cancelHint : undefined}
+        confirmLabel={cancelAvailable ? pickup.cancel : undefined}
+        cancelLabel={cancelNotice || !cancelAvailable ? staffMessages[language].close : undefined}
         busy={!!cancelling && model.busy === cancelling.sessionId}
-        confirmDisabled={!model.activeFresh || !!model.busy}
-        onConfirm={() => {
-          if (cancelling)
-            void model.cancelPickup(cancelling.sessionId).then(() => setCancelling(null));
+        confirmDisabled={!model.activeFresh || model.active.isFetching || !!model.busy}
+        onConfirm={async () => {
+          if (cancelling && (await model.cancelPickup(cancelling.sessionId))) setCancelling(null);
         }}
-        onCancel={() => setCancelling(null)}
-      />
+        onCancel={() => {
+          if (cancelNotice) model.clearNotice();
+          setCancelling(null);
+        }}
+      >
+        {cancelNotice && <Notice tone={cancelNotice.tone}>{cancelNotice.text}</Notice>}
+        {!cancelAvailable && !cancelNotice && (
+          <Notice tone="warning">{pickup.cancelUnavailable}</Notice>
+        )}
+      </ConfirmDialog>
       <ConfirmDialog
         open={!!rejecting}
         tone="destructive"

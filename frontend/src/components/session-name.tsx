@@ -18,12 +18,18 @@ export function SessionName({
   return (
     <span className={cn("block min-w-0", className)}>
       <span className="block wrap-break-word">{title}</span>
-      {detail && (
-        <span className="flex min-w-0 items-baseline gap-2 text-[max(0.6em,0.875rem)]">
-          {detail.name && <span className="min-w-0 truncate">{detail.name}</span>}
-          <span className="shrink-0 tabular-nums">{detail.time}</span>
-        </span>
-      )}
+      {detail &&
+        (session.online?.requestedPickupAt ? (
+          <span className="block min-w-0 text-sm">
+            <span className="block font-semibold tabular-nums">{detail.time}</span>
+            {detail.name && <span className="block truncate font-medium">{detail.name}</span>}
+          </span>
+        ) : (
+          <span className="flex min-w-0 items-baseline gap-2 text-[max(0.6em,0.875rem)]">
+            {detail.name && <span className="min-w-0 truncate">{detail.name}</span>}
+            <span className="shrink-0 tabular-nums">{detail.time}</span>
+          </span>
+        ))}
     </span>
   );
 }

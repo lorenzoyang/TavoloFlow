@@ -66,13 +66,11 @@ Kitchen order fields: `id`, `sessionId`, `channel`, `tableLabel`, `online`, `sta
 [order line DTO](dining-ordering.md#order-apis-and-snapshots). `channel` is `DINE_IN`, `PICKUP` or
 `DELIVERY`; dine-in orders have a `tableLabel` and a null `online`, accepted online orders a null
 `tableLabel` and `online: { number, customerName, estimatedAt, requestedPickupAt }`, never the phone or address. Screens
-name both through `lib/session-label.ts` ("Table 5", "Pickup #12" with the name and the estimated
-time, labelled "Expected 18:25" so it never reads as the time the order came in);
-the dish view keeps a short session title and shows the estimated time beside the existing wait on
-one line, without a customer-name row. Estimated time stays whole and wait text may truncate at
-360px. Order tickets and pass cards retain the name and estimated time through `SessionName`;
-an online order is created when staff accept it. Immediate orders enter then. Scheduled pickup
-orders show their agreed time and enter on the first kitchen poll at or after their stored
+name both through `lib/session-label.ts`. Immediate online orders show an estimated time such as
+"Expected 18:25". In the dish view it stays beside the wait on one line, without a customer-name row.
+For scheduled pickup, kitchen, pass and bill cards show the agreed date and time. The dish view
+puts this on its own line below the controls. Orders are created when staff accept them, and
+immediate orders enter the kitchen then. Scheduled orders enter on the first kitchen poll at or after their stored
 preparation time. Counts, wait time, grouping, pagination and the arrival watermark use the kitchen
 entry time. A reservation cancelled before release is absent from both kitchen views and does not
 advance the watermark. Responses contain no cancellation reason,

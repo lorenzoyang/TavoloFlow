@@ -82,6 +82,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
   // The lines refreshed against the latest menu, shown with the checkout form until sent.
   const [review, setReview] = useState<OnlineCart | null>(null);
   const [form, setForm] = useState<CheckoutForm>(emptyCheckoutForm);
+  const [refusedPickupTime, setRefusedPickupTime] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
   const current = useRef(cart);
@@ -391,10 +392,11 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
       );
       // An understood rejection frees the cart for changes (see submissionFailure); anything else keeps it.
       if (sending && disposition === "editable") {
-        remember({ ...current.current, pending: null });
-        if (e instanceof ApiError && e.code === "ONLINE_PICKUP_SLOT_CHANGED")
+        if (e instanceof ApiError && e.code === "ONLINE_PICKUP_SLOT_CHANGED") {
+          setRefusedPickupTime(current.current.pending?.requestedPickupAt);
           setRequestId(randomUuid());
-        else setReview(null);
+        } else setReview(null);
+        remember({ ...current.current, pending: null });
       }
       if (e instanceof ApiError && e.code === "ONLINE_BROWSER_PENDING") {
         const existing = existingSubmission(e.body.existingSubmission);
@@ -467,6 +469,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
     review,
     blocked,
     form,
+    pickupTimeRefused: !!form.pickupTime && form.pickupTime === refusedPickupTime,
     setForm,
     editPickupTime: (pickupTime?: string, fulfillment?: CheckoutForm["fulfillment"]) => {
       setForm((current) => ({
@@ -474,6 +477,7 @@ export function useOnlineCart(slug: string, data: OnlineMenu) {
         pickupTime,
         fulfillment: fulfillment ?? current.fulfillment,
       }));
+      if (pickupTime !== refusedPickupTime) setRefusedPickupTime(undefined);
       setMessage((current) => (current === "pickupSlotChanged" ? null : current));
     },
     // A dish with option groups comes from the option picker with the customer's choice.

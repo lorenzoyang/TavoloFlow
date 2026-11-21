@@ -201,6 +201,16 @@ test("sessions are named by their table or their online ticket in every language
   assert.equal(sessionTitle(pickup, "it"), "Ritiro #12");
   assert.equal(sessionText(pickup, "en"), "Pickup #12 · Marco · Expected 18:25");
   assert.equal(sessionTitle({ ...pickup, channel: "DELIVERY" }, "it"), "Consegna #12");
+  const scheduled: SessionNaming = {
+    ...pickup,
+    online: { ...pickup.online!, requestedPickupAt: "2026-11-22T11:00:00Z" },
+  };
+  assert.match(
+    sessionDetail(scheduled, "en")?.time ?? "",
+    /^Scheduled pickup · Sun,? 22 Nov,? 12:00$/,
+  );
+  assert.match(sessionDetail(scheduled, "it")?.time ?? "", /^Ritiro programmato · .*12:00$/);
+  assert.match(sessionDetail(scheduled, "zh")?.time ?? "", /^预约取餐 · .*12:00$/);
   // Contact data cleared after 30 days leaves the number and the estimated time.
   const cleared = { ...pickup, online: { ...pickup.online!, customerName: null } };
   assert.equal(sessionText(cleared, "zh"), "自取 #12 · 预计 18:25");

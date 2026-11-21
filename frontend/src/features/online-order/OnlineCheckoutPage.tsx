@@ -91,13 +91,15 @@ function OnlineCheckout({
   const nameRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
   const couponRef = useRef<HTMLInputElement>(null);
+  const pickupTimeRef = useRef<HTMLSelectElement>(null);
   const fields = { address: addressRef, notes: notesRef, name: nameRef, phone: phoneRef };
   const pending = model.cart.pending;
   const lines = model.review?.lines ?? model.cart.lines;
   const form = model.form;
   const delivery = form.fulfillment === "DELIVERY";
   const pickupTimes = data.pickupTimes ?? [];
-  const stalePickup = !!form.pickupTime && !pickupTimes.includes(form.pickupTime);
+  const stalePickup =
+    !!form.pickupTime && (model.pickupTimeRefused || !pickupTimes.includes(form.pickupTime));
   // A choice of delivery stays visible if delivery is turned off meanwhile; the server then refuses it.
   const offersDelivery = data.restaurant.deliveryEnabled || delivery;
   const fee: FeeStatus = delivery ? model.feeStatus : "manual";
@@ -247,7 +249,7 @@ function OnlineCheckout({
             model={model}
             language={language}
             callAction={callAction}
-            except="couponInvalid"
+            except={["couponInvalid"]}
           />
         )}
         {pending && verification.challenge}
@@ -317,10 +319,12 @@ function OnlineCheckout({
                 <Label htmlFor="online-pickup-time">{pickupCopy.pickupTime}</Label>
                 <NativeSelect
                   id="online-pickup-time"
+                  ref={pickupTimeRef}
                   className="w-full"
                   value={form.pickupTime ?? ""}
                   disabled={model.busy}
                   aria-invalid={stalePickup}
+                  aria-describedby={stalePickup ? "online-pickup-problem" : undefined}
                   onChange={(event) => model.editPickupTime(event.target.value || undefined)}
                 >
                   <NativeSelectOption value="">{pickupCopy.asap}</NativeSelectOption>
@@ -329,18 +333,16 @@ function OnlineCheckout({
                       {formatPickupDateTime(form.pickupTime, language)}
                     </NativeSelectOption>
                   )}
-                  {pickupTimes.map((time) => (
-                    <NativeSelectOption key={time} value={time}>
-                      {formatPickupDateTime(time, language)}
-                    </NativeSelectOption>
-                  ))}
+                  {pickupTimes
+                    .filter((time) => !stalePickup || time !== form.pickupTime)
+                    .map((time) => (
+                      <NativeSelectOption key={time} value={time}>
+                        {formatPickupDateTime(time, language)}
+                      </NativeSelectOption>
+                    ))}
                 </NativeSelect>
-                {stalePickup ? (
-                  <Notice tone="error">{pickupCopy.chooseAgain}</Notice>
-                ) : (
-                  pickupTimes.length === 0 && (
-                    <p className="text-sm text-muted-foreground">{pickupCopy.unavailable}</p>
-                  )
+                {!stalePickup && pickupTimes.length === 0 && (
+                  <p className="text-sm text-muted-foreground">{pickupCopy.unavailable}</p>
                 )}
               </div>
             )}
@@ -541,8 +543,20 @@ function OnlineCheckout({
               model={model}
               language={language}
               callAction={callAction}
-              except="couponInvalid"
+              except={["couponInvalid", "pickupSlotChanged"]}
             />
+          )}
+          {!pending && stalePickup && (
+            <Notice
+              tone="error"
+              action={
+                <Button variant="outline" onClick={() => reveal(pickupTimeRef.current)}>
+                  {pickupCopy.reselectTime}
+                </Button>
+              }
+            >
+              <span id="online-pickup-problem">{pickupCopy.chooseAgain}</span>
+            </Notice>
           )}
           <AmountLines model={model} language={language} />
           {!pending && reason}

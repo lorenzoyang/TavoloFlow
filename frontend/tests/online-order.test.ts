@@ -14,6 +14,7 @@ import {
   existingSubmission,
   feeRange,
   feeStatus,
+  forgetReservations,
   onlineCartAmounts,
   onlineCartKey,
   quotedDeliveryTier,
@@ -751,6 +752,14 @@ test("a reservation stays findable after an immediate order is placed", () => {
   assert.deepEqual(readReservations(restaurant, storage), [first]);
   assert.equal(readOrderToken(restaurant, storage), "b".repeat(43));
   assert.deepEqual(readReservations("another restaurant", storage), []);
+
+  const newer = { ...first, statusToken: "c".repeat(43), number: 2 };
+  rememberOnlineOrder(restaurant, newer, storage);
+  rememberOnlineOrder("another restaurant", first, storage);
+  forgetReservations(restaurant, [first.statusToken], storage);
+  assert.deepEqual(readReservations(restaurant, storage), [newer]);
+  assert.deepEqual(readReservations("another restaurant", storage), [first]);
+  assert.equal(readOrderToken(restaurant, storage), "b".repeat(43));
 });
 
 test("a confirmed reservation shows its appointment until the kitchen release", () => {
