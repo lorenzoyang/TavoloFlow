@@ -31,6 +31,7 @@ export function MenuCategoryNav({
   const content = useRef<HTMLDivElement>(null);
   const pendingSelection = useRef<string | null>(null);
   const [overflows, setOverflows] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
   const hasItems = items.length > 0;
   const sheet = useHistorySheet("categories", hasItems);
 
@@ -40,6 +41,9 @@ export function MenuCategoryNav({
     const row = content.current;
     if (!bar || !rail || !row) return;
 
+    const measureScrollEdge = () => {
+      setCanScrollRight(rail.scrollWidth - rail.clientWidth - Math.max(0, rail.scrollLeft) > 1);
+    };
     const measure = () => {
       const available = bar.getBoundingClientRect().width;
       if (!available) return;
@@ -47,20 +51,27 @@ export function MenuCategoryNav({
       setOverflows(row.getBoundingClientRect().width > available);
 
       const chip = selectedChip(rail)?.getBoundingClientRect();
-      if (!chip) return;
-      const bounds = rail.getBoundingClientRect();
-      const left = bounds.left + 4;
-      const right = bounds.right - 4;
-      if (chip.left < left || chip.width > right - left) rail.scrollLeft += chip.left - left;
-      else if (chip.right > right) rail.scrollLeft += chip.right - right;
+      if (chip) {
+        const bounds = rail.getBoundingClientRect();
+        const left = bounds.left + 4;
+        // Keep the selected label clear of the fade when bringing it into view.
+        const right = bounds.right - 12;
+        if (chip.left < left || chip.width > right - left) rail.scrollLeft += chip.left - left;
+        else if (chip.right > right) rail.scrollLeft += chip.right - right;
+      }
+      measureScrollEdge();
     };
 
     measure();
+    rail.addEventListener("scroll", measureScrollEdge, { passive: true });
     const observer = new ResizeObserver(measure);
     observer.observe(bar);
     observer.observe(rail);
     observer.observe(row);
-    return () => observer.disconnect();
+    return () => {
+      rail.removeEventListener("scroll", measureScrollEdge);
+      observer.disconnect();
+    };
   }, [items, value]);
 
   const { open, show, hide } = sheet;
@@ -95,6 +106,11 @@ export function MenuCategoryNav({
             items={items}
             value={value}
             onChange={select}
+            className={
+              canScrollRight
+                ? "mask-[linear-gradient(to_right,black_calc(100%-12px),transparent)] has-focus-visible:mask-none"
+                : undefined
+            }
             singleRow
             viewportRef={viewport}
             contentRef={content}

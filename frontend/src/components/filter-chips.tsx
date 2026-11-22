@@ -11,6 +11,7 @@ export function FilterChips({
   items,
   value,
   onChange,
+  className,
   singleRow = false,
   viewportRef,
   contentRef,
@@ -19,6 +20,7 @@ export function FilterChips({
   items: FilterChip[];
   value: string;
   onChange: (value: string) => void;
+  className?: string;
   singleRow?: boolean;
   viewportRef?: Ref<HTMLElement>;
   contentRef?: Ref<HTMLDivElement>;
@@ -47,6 +49,7 @@ export function FilterChips({
       className={cn(
         "overflow-x-auto py-1 scrollbar-none [&::-webkit-scrollbar]:hidden",
         singleRow ? "min-w-0 flex-1" : "flex gap-2 lg:flex-wrap lg:overflow-visible",
+        className,
       )}
     >
       {singleRow ? (
