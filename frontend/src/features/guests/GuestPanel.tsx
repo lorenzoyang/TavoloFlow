@@ -53,7 +53,7 @@ function JoinCode({ guest, language }: { guest: Guest; language: Language }) {
   const m = guestCopy(language, guest.codeRequired);
   const [copyNotice, setCopyNotice] = useState("");
   return (
-    <div className="space-y-3 rounded-xl bg-card p-4">
+    <div id="guest-join-code-details" className="space-y-3 rounded-xl bg-card p-4">
       <label htmlFor="guest-current-code" className="text-sm font-medium">
         {m.code}
       </label>
@@ -123,23 +123,26 @@ export function GuestPanel({ guest, language }: { guest: Guest; language: Langua
         {m.checking}
       </p>
     );
-  if (guest.verified)
+  if (guest.verified) {
+    const codeShown = Boolean(guest.codeRequired && guest.code && guest.visible && !guest.stale);
     return (
       <section
         aria-labelledby="guest-title"
-        className="relative flex flex-col gap-4 rounded-2xl border border-success/30 bg-success/8 p-4"
+        className="relative flex flex-col gap-3 rounded-2xl border border-success/30 bg-success/8 px-3 py-2"
       >
-        <div className="flex flex-wrap items-center gap-3">
-          <CircleCheck aria-hidden="true" className="size-6 shrink-0 text-success" />
-          <div className="min-w-0 flex-1 basis-48">
-            <h2 id="guest-title" className="font-semibold">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <CircleCheck aria-hidden="true" className="size-5 shrink-0 text-success" />
+            <h2 id="guest-title" className="min-w-0 text-sm font-semibold">
               {m.verified}
             </h2>
-            <p className="text-sm leading-5 text-muted-foreground">{m.stage}</p>
           </div>
           {guest.codeRequired && (
             <Button
               variant="outline"
+              className="px-3"
+              aria-expanded={codeShown}
+              aria-controls={codeShown ? "guest-join-code-details" : undefined}
               disabled={guest.busy || !guest.entranceAllowed || guest.stale}
               onClick={() => {
                 if (guest.code) guest.clearCode();
@@ -150,12 +153,11 @@ export function GuestPanel({ guest, language }: { guest: Guest; language: Langua
             </Button>
           )}
         </div>
-        {guest.codeRequired && guest.code && guest.visible && !guest.stale && (
-          <JoinCode key={guest.code} guest={guest} language={language} />
-        )}
+        {codeShown && <JoinCode key={guest.code} guest={guest} language={language} />}
         <Feedback guest={guest} language={language} />
       </section>
     );
+  }
   // The page joins by itself without join codes; this button covers a failed or expired join.
   if (!guest.codeRequired)
     return (

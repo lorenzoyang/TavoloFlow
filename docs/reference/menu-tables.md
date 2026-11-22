@@ -309,15 +309,17 @@ not browser language. Blocked storage retains the current in-memory choice.
 
 A confirmed `QR_NOT_FOUND` replaces cached menu data and hides the old menu. Network failures retain
 earlier data with a warning. Sold-out dishes remain visible.
-The QR and online menus share a sticky, single-row category filter. When the category buttons
+After guests join a table, a compact status row confirms access and offers the join code when
+required. The code opens inline and can be copied. The QR and online menus share a sticky,
+single-row category filter tinted with the restaurant theme. When the category buttons
 exceed the available width, a fixed Categories button opens a scrollable directory in menu order,
 starting with All. The right edge fades while more categories can be scrolled into view and clears
 at the end or when a category button has visible keyboard focus. Selecting a category filters the
 dishes and brings its heading into view. Closing the directory with the back gesture or dismissing
 it keeps the current filter and scroll position.
-On both the QR and online menus, dish cards list declared allergens, omit the line for a reviewed
-empty list, and show a pending-review message for unreviewed dishes. Both menus show a cross-contact
-notice in the footer.
+On both menus, dish cards place the name and price at the top and show the dish code below the
+name when set. Cards list declared allergens, omit the line for a reviewed empty list, and show a
+pending-review message for unreviewed dishes. Both menus show a cross-contact notice in the footer.
 A dish on sale shows its regular price struck through above the sale price. A dish with option groups
 opens an option picker instead of entering the cart at once; its price reads "from" when an option costs
 extra, and it shows as sold out once a required group has fewer options in

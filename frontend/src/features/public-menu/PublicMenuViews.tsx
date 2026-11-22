@@ -259,12 +259,12 @@ function DishRow({
   return (
     <li className="flex min-w-0 gap-3 rounded-2xl border bg-card p-4 shadow-xs">
       <div className="min-w-0 flex-1 space-y-1.5">
-        {item.itemCode && (
-          <p className="text-xs text-muted-foreground wrap-break-word">{item.itemCode}</p>
-        )}
         <h3 lang={name.language} className="text-base leading-snug font-semibold wrap-break-word">
           {name.text}
         </h3>
+        {item.itemCode && (
+          <p className="text-xs text-muted-foreground wrap-break-word">{item.itemCode}</p>
+        )}
         {soldOut && <Badge variant="secondary">{m.soldOut}</Badge>}
         {description && (
           <p
@@ -281,7 +281,7 @@ function DishRow({
       <div className="flex shrink-0 flex-col items-end justify-between gap-3">
         <DishPrice
           stacked
-          className="font-semibold text-primary"
+          className="text-base leading-snug font-semibold text-primary"
           regular={item.salePriceCents === null ? null : formatMoney(item.priceCents, language)}
           regularLabel={orderMessages[language].regularPrice}
         >

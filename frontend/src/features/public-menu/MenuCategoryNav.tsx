@@ -85,7 +85,7 @@ export function MenuCategoryNav({
   return (
     <div
       ref={barRef}
-      className="sticky top-0 z-20 -mx-4 bg-background/95 px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 backdrop-blur after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-3 after:bg-linear-to-b after:from-background/95 after:to-transparent"
+      className="sticky top-0 z-20 -mx-4 bg-(--menu-category-surface) px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 [--menu-category-surface:color-mix(in_oklch,var(--background)_65%,var(--accent))] after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-3 after:bg-linear-to-b after:from-(--menu-category-surface) after:to-transparent"
     >
       <Sheet
         open={open}
