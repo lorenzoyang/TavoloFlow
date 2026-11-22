@@ -308,7 +308,10 @@ always select zh/it/en: explicit choices persist per restaurant; otherwise use t
 not browser language. Blocked storage retains the current in-memory choice.
 
 A confirmed `QR_NOT_FOUND` replaces cached menu data and hides the old menu. Network failures retain
-earlier data with a warning. Sold-out dishes remain visible; unreviewed allergens show pending review.
+earlier data with a warning. Sold-out dishes remain visible.
+On both the QR and online menus, dish cards list declared allergens, omit the line for a reviewed
+empty list, and show a pending-review message for unreviewed dishes. Both menus show a cross-contact
+notice in the footer.
 A dish on sale shows its regular price struck through above the sale price. A dish with option groups
 opens an option picker instead of entering the cart at once; its price reads "from" when an option costs
 extra, and it shows as sold out once a required group has fewer options in

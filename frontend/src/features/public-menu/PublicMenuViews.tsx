@@ -193,14 +193,11 @@ export function MenuSkeleton({ language }: { language: Language }) {
   );
 }
 
-// Allergens are information every dish carries, not a warning: plain text keeps the warning colour
-// for what it means everywhere else (waiting, new, due soon).
 function Allergens({ item, language }: { item: MenuItem; language: Language }) {
   const m = messages[language];
   if (!item.allergenReviewed)
     return <p className="text-xs text-muted-foreground">{m.unreviewed}</p>;
-  if (item.allergenCodes.length === 0)
-    return <p className="text-xs text-muted-foreground">{m.reviewedEmpty}</p>;
+  if (item.allergenCodes.length === 0) return null;
   return (
     <p className="text-xs leading-5 text-muted-foreground">
       <span className="font-medium text-foreground">{m.allergens}: </span>

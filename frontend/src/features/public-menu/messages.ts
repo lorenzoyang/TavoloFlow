@@ -20,7 +20,6 @@ type Messages = {
   unopened: string;
   allergens: string;
   unreviewed: string;
-  reviewedEmpty: string;
   allergyHint: string;
   scanToOrder: string;
 };
@@ -51,7 +50,6 @@ export const messages: Record<Language, Messages> = {
     unopened: "此桌尚未开桌，可先编辑购物车，请联系服务员开桌。",
     allergens: "过敏原",
     unreviewed: "过敏原信息待餐厅确认，请咨询服务员。",
-    reviewedEmpty: "餐厅已审核，未识别出需声明的过敏原。",
     allergyHint: "如有食物过敏，请告知餐厅。过敏原信息不代表不存在交叉接触风险。",
     scanToOrder: "扫码点餐",
   },
@@ -78,8 +76,6 @@ export const messages: Record<Language, Messages> = {
       "Il tavolo non è ancora aperto. Puoi preparare il carrello e chiedere al personale di aprirlo.",
     allergens: "Allergeni",
     unreviewed: "Informazioni sugli allergeni in attesa di conferma. Chiedi al personale.",
-    reviewedEmpty:
-      "Il ristorante ha verificato il piatto e non ha identificato allergeni da dichiarare.",
     allergyHint:
       "In caso di allergie alimentari, informa il personale. Le informazioni sugli allergeni non escludono il rischio di contaminazione crociata.",
     scanToOrder: "Scansiona per ordinare",
@@ -106,7 +102,6 @@ export const messages: Record<Language, Messages> = {
     unopened: "This table is not open yet. You can prepare your cart and ask staff to open it.",
     allergens: "Allergens",
     unreviewed: "Allergen information is awaiting confirmation. Please ask the staff.",
-    reviewedEmpty: "Reviewed by the restaurant; no declarable allergens identified.",
     allergyHint:
       "Tell the staff about any food allergies. Allergen information does not exclude the risk of cross-contact.",
     scanToOrder: "Scan to order",
