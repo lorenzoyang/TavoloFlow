@@ -5,6 +5,7 @@ type Messages = {
   table: string;
   languages: string;
   all: string;
+  categories: string;
   soldOut: string;
   loading: string;
   empty: string;
@@ -35,6 +36,7 @@ export const messages: Record<Language, Messages> = {
     table: "桌号",
     languages: "选择语言",
     all: "全部",
+    categories: "分类",
     soldOut: "已售罄",
     loading: "正在读取菜单…",
     empty: "餐厅暂未提供菜品，请咨询服务员。",
@@ -58,6 +60,7 @@ export const messages: Record<Language, Messages> = {
     table: "Tavolo",
     languages: "Scegli la lingua",
     all: "Tutto",
+    categories: "Categorie",
     soldOut: "Esaurito",
     loading: "Caricamento del menu…",
     empty: "Nessun piatto disponibile nel menu. Rivolgiti al personale.",
@@ -85,6 +88,7 @@ export const messages: Record<Language, Messages> = {
     table: "Table",
     languages: "Choose language",
     all: "All",
+    categories: "Categories",
     soldOut: "Sold out",
     loading: "Loading menu…",
     empty: "No dishes have been added yet. Please ask the staff.",

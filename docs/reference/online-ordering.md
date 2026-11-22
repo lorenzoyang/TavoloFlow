@@ -594,7 +594,9 @@ antiforgery cookie. The language follows the QR menu's rule and storage key
 online pages; the status response carries the restaurant `id` for this. Loaded pages apply the
 restaurant theme.
 
-The menu reuses the QR page's `MenuList`, option picker, `CartBar` and the cart's line list
+The menu reuses the QR page's `MenuList` and its
+[category directory](menu-tables.md#anonymous-bootstrap-and-guest-browsing), the option picker,
+`CartBar` and the cart's line list
 (`CartLines`); their props take any cart with `{ lines, pending }`, and the pure line rules in
 `orders/state.ts` (`addItem`, `editLine`, `refreshCart`, `validateCart`) are generic over it. As on the
 QR page, the phone cart sheet and the option picker are history steps (`lib/useHistorySheet.ts`), so

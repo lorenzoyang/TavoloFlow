@@ -1,8 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronUp, Plus, RefreshCw, ShoppingBag, UtensilsCrossed } from "lucide-react";
 import { DishPrice } from "@/components/dish-price";
 import { EmptyState } from "@/components/empty-state";
-import { FilterChips } from "@/components/filter-chips";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -23,6 +22,7 @@ import {
 } from "@/features/orders/options";
 import { totalCents, type CartLine } from "@/features/orders/state";
 import type { PublicMenu } from "./api";
+import { MenuCategoryNav } from "./MenuCategoryNav";
 import { allergenNames, languageLabels, messages } from "./messages";
 
 const shortLabels: Record<Language, string> = { zh: "中文", it: "IT", en: "EN" };
@@ -336,30 +336,56 @@ export function MenuList({
   });
   // A removed category falls back to the full menu.
   const selected = data.menu.categories.find((category) => category.id === categoryId);
-  const categories = selected ? [selected] : data.menu.categories;
-  const counts = new Map<string, number>();
-  for (const line of cart.cart.lines)
-    counts.set(line.item.id, (counts.get(line.item.id) ?? 0) + line.quantity);
-  const disabled = cart.busy || !!cart.cart.pending || !!cart.review;
-  if (data.menu.items.length === 0) return <EmptyState icon={UtensilsCrossed} title={m.empty} />;
-  return (
-    <div className="space-y-6">
-      {/* The fade below the bar lets cards slide under it instead of being cut off. */}
-      <div className="sticky top-0 z-20 -mx-4 bg-background/95 px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 backdrop-blur after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-3 after:bg-linear-to-b after:from-background/95 after:to-transparent">
-        <FilterChips
-          label={m.menu}
-          value={selected?.id ?? ""}
-          onChange={selectCategory}
-          items={[
+  useEffect(() => {
+    if (categoryId && !selected) selectCategory("");
+  }, [categoryId, selected, selectCategory]);
+
+  const empty = data.menu.items.length === 0;
+  const categories = empty ? [] : selected ? [selected] : data.menu.categories;
+  const chips = useMemo(
+    () =>
+      empty
+        ? []
+        : [
             { value: "", label: m.all },
             ...data.menu.categories.map((category) => {
               const name = displayName(category, data.restaurant.defaultLanguage, language);
               return { value: category.id, label: name.text, lang: name.language };
             }),
-          ]}
-        />
-      </div>
-      {categories.map((category) => {
+          ],
+    [data.menu.categories, data.restaurant.defaultLanguage, empty, language, m.all],
+  );
+  const bar = useRef<HTMLDivElement>(null);
+  const firstHeading = useRef<HTMLHeadingElement>(null);
+  const [reveal, setReveal] = useState<{ focusHeading: boolean } | null>(null);
+  function chooseCategory(id: string, focusHeading = false) {
+    selectCategory(data.menu.categories.some((category) => category.id === id) ? id : "");
+    setReveal({ focusHeading });
+  }
+  useLayoutEffect(() => {
+    const heading = firstHeading.current;
+    if (!reveal || !heading || !bar.current) return;
+    if (reveal.focusHeading) heading.focus({ preventScroll: true });
+    const top =
+      window.scrollY + heading.getBoundingClientRect().top - bar.current.offsetHeight - 12;
+    window.scrollTo({ top, behavior: "instant" });
+  }, [reveal]);
+
+  const counts = new Map<string, number>();
+  for (const line of cart.cart.lines)
+    counts.set(line.item.id, (counts.get(line.item.id) ?? 0) + line.quantity);
+  const disabled = cart.busy || !!cart.cart.pending || !!cart.review;
+  return (
+    <div className="space-y-6">
+      <MenuCategoryNav
+        barRef={bar}
+        language={language}
+        items={chips}
+        value={selected?.id ?? ""}
+        select={chooseCategory}
+      />
+      {empty && <EmptyState icon={UtensilsCrossed} title={m.empty} />}
+      {categories.map((category, index) => {
         const name = displayName(category, data.restaurant.defaultLanguage, language);
         const items = data.menu.items.filter((item) => item.categoryId === category.id);
         return (
@@ -369,7 +395,9 @@ export function MenuList({
             aria-labelledby={`category-${category.id}`}
           >
             <h2
+              ref={index === 0 ? firstHeading : undefined}
               id={`category-${category.id}`}
+              tabIndex={-1}
               lang={name.language}
               className="flex items-start gap-2.5 font-display text-xl font-semibold"
             >

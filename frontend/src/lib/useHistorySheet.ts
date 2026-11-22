@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useRouter } from "@tanstack/react-router";
 
-export type HistorySheet = "cart" | "options" | "staff-order-options";
+export type HistorySheet = "cart" | "options" | "categories" | "staff-order-options";
 
 declare module "@tanstack/react-router" {
   interface HistoryState {
