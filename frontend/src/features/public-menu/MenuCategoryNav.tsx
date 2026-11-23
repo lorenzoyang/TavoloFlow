@@ -116,9 +116,11 @@ export function MenuCategoryNav({
             contentRef={content}
           />
           {(overflows || open) && (
-            <SheetTrigger render={<Button variant="outline" className="px-3 whitespace-nowrap" />}>
-              <List aria-hidden="true" />
-              {m.categories}
+            <SheetTrigger
+              aria-label={m.categories}
+              render={<Button variant="outline" size="icon" />}
+            >
+              <List aria-hidden="true" className="size-5" />
             </SheetTrigger>
           )}
         </div>

@@ -312,11 +312,11 @@ earlier data with a warning. Sold-out dishes remain visible.
 After guests join a table, a compact status row confirms access and offers the join code when
 required. The code opens inline and can be copied. The QR and online menus share a sticky,
 single-row category filter tinted with the restaurant theme. When the category buttons
-exceed the available width, a fixed Categories button opens a scrollable directory in menu order,
-starting with All. The right edge fades while more categories can be scrolled into view and clears
-at the end or when a category button has visible keyboard focus. Selecting a category filters the
-dishes and brings its heading into view. Closing the directory with the back gesture or dismissing
-it keeps the current filter and scroll position.
+exceed the available width, a fixed list icon button labelled Categories opens a scrollable
+directory in menu order, starting with All. The right edge fades while more categories can be
+scrolled into view and clears at the end or when a category button has visible keyboard focus.
+Selecting a category filters the dishes and brings its heading into view. Closing the directory
+with the back gesture or dismissing it keeps the current filter and scroll position.
 On both menus, dish cards place the name and price at the top and show the dish code below the
 name when set. Cards list declared allergens, omit the line for a reviewed empty list, and show a
 pending-review message for unreviewed dishes. Both menus show a cross-contact notice in the footer.
