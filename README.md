@@ -122,6 +122,7 @@ reset it and change its data.
 ```mermaid
 flowchart LR
   G["Guest<br>/q/{token}"] --> C
+  O["Online customer<br>/r/{slug}, /o/{token}"] --> C
   S["Staff and owner<br>/staff/*"] --> C
   P["Administrator<br>/platform/*"] --> C
   C["Caddy<br>HTTPS and SPA files"] -->|"/api/*"| A["ASP.NET Core API"]
@@ -131,8 +132,10 @@ flowchart LR
 
 A React single-page app and an ASP.NET Core API share one HTTPS origin behind Caddy, so there is no
 CORS and cookies never cross domains. One API process serves three kinds of users, and the request
-path decides which cookie identity applies: `/api/public` for guests, `/api/platform` for
-administrators, everything else for restaurant staff.
+path decides which cookie identity applies: `/api/public` for guests and online customers,
+`/api/platform` for administrators, everything else for restaurant staff. The API also sends
+lock-screen notifications through the browsers' push services and, where configured, prices
+deliveries with Geoapify and checks online orders with Cloudflare Turnstile.
 
 Most design choices answer two questions: what happens when two people act at the same moment, and
 what happens when the network drops halfway through a write? The
@@ -218,7 +221,9 @@ PUBLIC_ORIGIN=https://app.example.com bash deploy/build-release.sh
 ```
 
 The [self-hosting guide](docs/en/self-hosting.md) walks through a first installation on an Ubuntu
-VPS, DNS and HTTPS, explicit migrations, nightly backups, restores and rollbacks.
+VPS, DNS and HTTPS, explicit migrations, nightly backups, restores and rollbacks. The
+[releasing guide](docs/en/releasing.md) covers everyday releases with two scripts: one uploads the
+package from your computer, the other installs it on the server.
 
 ## Tests
 
@@ -236,8 +241,8 @@ Each backend test class starts its own throwaway PostgreSQL with the real migrat
 
 ## Documentation
 
-- **Guides**, written in Italian and translated: development notes, local development and
-  self-hosting, in [English](docs/en/), [Italian](docs/it/) and [Chinese](docs/zh-CN/).
+- **Guides**, written in Italian and translated: development notes, local development,
+  self-hosting and releasing, in [English](docs/en/), [Italian](docs/it/) and [Chinese](docs/zh-CN/).
 - **Reference**, in English: [product requirements](docs/reference/product-requirements.md), the
   [database schema](docs/reference/er-diagram.png) and the feature contracts listed in the
   [documentation index](docs/README.md).

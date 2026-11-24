@@ -762,7 +762,7 @@ Se scegli esplicitamente di non usare la verifica esterna, nello stesso file imp
 
 **Dopo la prima attivazione di Turnstile, prova anche l’ordine del cliente.** Ricarica `/r/{slug}` sul dominio reale dell’applicazione: non continuare con una pagina rimasta aperta da prima dell’aggiornamento, perché non invierà la nuova prova di verifica. In un ristorante chiaramente indicato come test, aggiungi piatti, vai alla conferma, completa la verifica e invia un ordine. Accettalo come staff e controlla stato, cucina e conto. Il widget di solito completa i controlli automaticamente e potrebbe non richiedere un clic. Controlla anche la pagina di stato dell’ordine esistente, le notifiche e lo squillo dello staff, che devono funzionare come prima. Gestisci gli ordini di prova con il flusso normale, senza cancellarli con SQL.
 
-Una verifica incompleta, scaduta o che non si carica non deve creare un nuovo ordine. Il carrello deve restare conservato; se il caricamento fallisce devono esserci un pulsante per riprovare e il telefono del ristorante. Se la rete cade o il risultato è sconosciuto, usa prima il controllo dell’esito nella pagina per ritrovare l’ordine originale. «Riprova lo stesso ordine» fa prima una GET e usa una nuova verifica per ritentare la stessa richiesta solo se non l’ha ancora trovata. Non svuotare il carrello per fare un altro ordine al posto del controllo. Quando il verificatore non è disponibile, i nuovi invii sono bloccati ma gli ordini esistenti restano consultabili e recuperabili.
+Una verifica incompleta, scaduta o che non si carica non deve creare un nuovo ordine. Il carrello deve restare conservato; se il caricamento fallisce devono esserci un pulsante per riprovare e il telefono del ristorante. Se la rete cade o il risultato è sconosciuto, usa prima il controllo dell’esito nella pagina per ritrovare l’ordine originale. «Invia di nuovo» fa prima una GET e usa una nuova verifica per ritentare la stessa richiesta solo se non l’ha ancora trovata. Non svuotare il carrello per fare un altro ordine al posto del controllo. Quando il verificatore non è disponibile, i nuovi invii sono bloccati ma gli ordini esistenti restano consultabili e recuperabili.
 
 #### Primo aggiornamento alla versione con il costo di consegna per distanza
 
@@ -775,11 +775,19 @@ Riguarda chi aggiorna da una versione in cui chi accettava un ordine a domicilio
 
 #### Primo aggiornamento con ritiro programmato e consegna gratuita
 
-Il riepilogo di `upgrade.sh` mostra le migrazioni `DeliveryFreeMinimum` e `ScheduledPickup`. Le fasce esistenti mantengono il costo base e partono senza soglia di gratuità. Il ritiro programmato parte disattivato. Le migrazioni usano la configurazione già installata e lasciano attivi i servizi esistenti.
+Il riepilogo di `upgrade.sh` mostra le migrazioni `StaffPlacedOrders`, `DeliveryFreeMinimum`, `ScheduledPickup`, `PickupReservationRange` e `ReservationCancellationReason`. `StaffPlacedOrders` segna gli ordini presi dallo staff in Sala: quelli già salvati risultano dei clienti. Le fasce esistenti mantengono il costo base e partono senza soglia di gratuità. Il ritiro programmato parte disattivato. Le migrazioni usano la configurazione già installata e lasciano attivi i servizi esistenti.
 
 Dopo l'aggiornamento ricarica le pagine dello staff prima di cambiare la consegna. Il titolare può poi impostare le soglie per fascia e attivare il ritiro programmato in **Impostazioni ordini online**. Per la verifica usa una nuova pagina cliente e segui le prove della [guida allo sviluppo locale](local-development.md#provare-il-ritiro-programmato-e-la-consegna-gratuita).
 
 Prima di tornare a una versione precedente con `--schema-compatible`, sospendi i nuovi ordini online e gestisci tutte le richieste in attesa. Il rollback conserva ordini e migrazioni. Se la versione precedente non supporta il ritiro programmato, completa o annulla prima tutti i ritiri già accettati la cui preparazione deve ancora iniziare. Il vecchio codice li mostrerebbe subito in Cucina. Se non puoi gestirli prima del rollback, correggi e rilascia una versione che supporti le prenotazioni. Una versione senza soglie di gratuità usa le tariffe base per i nuovi preventivi e può cancellare le soglie quando risalva le fasce. I costi già registrati nei conti aperti restano salvati.
+
+#### Primo aggiornamento con gli abbonamenti mensili
+
+Il riepilogo di `upgrade.sh` mostra la migrazione `MonthlyRestaurantSubscriptions`. Il canone passa da annuale a mensile, e la migrazione **cancella tutti i periodi di abbonamento registrati, con i loro pagamenti, e il canone annuale predefinito di ogni ristorante**: prima del lancio erano solo dati di prova. Se sul tuo server ci sono periodi veri, annotali e scarica un backup prima di installare; dopo l'aggiornamento li registri di nuovo, come periodi mensili, nella sezione abbonamento della pagina del ristorante. Per riavere i dati vecchi bisogna ripristinare quel backup.
+
+Non servono variabili nuove: gli avvisi di rinnovo a schermo bloccato dell'area amministratore usano la stessa chiave VAPID delle notifiche dello staff. Ogni amministratore li attiva sul proprio dispositivo dall'area amministratore installata come PWA.
+
+Non tornare a una versione precedente con `--schema-compatible`: la migrazione rinomina alcune colonne, e il codice vecchio non le trova più. Se serve tornare indietro, ripristina il backup a ristorante chiuso, oppure correggi e rilascia una versione nuova.
 
 #### Procedura manuale
 
@@ -903,7 +911,7 @@ Poi ripeti la prova d’ordine reale descritta sopra. Questa procedura vale quan
 
 #### Tornare alla versione precedente
 
-Per un ripristino che attraversa queste migrazioni, segui le verifiche per [ritiro programmato e consegna gratuita](#primo-aggiornamento-con-ritiro-programmato-e-consegna-gratuita).
+Per un ripristino che attraversa queste migrazioni, segui le verifiche per [ritiro programmato e consegna gratuita](#primo-aggiornamento-con-ritiro-programmato-e-consegna-gratuita). La migrazione degli [abbonamenti mensili](#primo-aggiornamento-con-gli-abbonamenti-mensili) non permette di tornare a una versione precedente.
 
 ```bash
 sudo cat /opt/tavoloflow/state/current

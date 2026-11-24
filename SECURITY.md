@@ -24,7 +24,8 @@ A useful report includes:
 - the steps to reproduce it, ideally on the local demo (`docker compose -f demo/compose.yaml up -d`);
 - the version or commit you tested.
 
-Never include real passwords, join codes, cookies, connection strings or Data Protection keys.
+Never include real passwords, join codes, cookies, connection strings, Data Protection keys or API
+keys (VAPID, Geoapify, Turnstile).
 
 TavoloFlow is maintained by one person, so replies are best effort. You will get an answer once the
 report has been read, and a fix in a release when the issue is confirmed. If you want to be credited

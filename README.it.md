@@ -126,6 +126,7 @@ azzerarla e modificarne i dati.
 ```mermaid
 flowchart LR
   G["Cliente<br>/q/{token}"] --> C
+  O["Cliente online<br>/r/{slug}, /o/{token}"] --> C
   S["Staff e titolare<br>/staff/*"] --> C
   P["Amministratore<br>/platform/*"] --> C
   C["Caddy<br>HTTPS e file della SPA"] -->|"/api/*"| A["API ASP.NET Core"]
@@ -135,8 +136,11 @@ flowchart LR
 
 Una single-page app React e un'API ASP.NET Core condividono un'unica origine HTTPS dietro Caddy:
 niente CORS, e i cookie non passano mai da un dominio all'altro. Un solo processo API serve tre tipi
-di utenti, e il percorso della richiesta decide quale cookie usare: `/api/public` per i clienti,
-`/api/platform` per gli amministratori, tutto il resto per lo staff del ristorante.
+di utenti, e il percorso della richiesta decide quale cookie usare: `/api/public` per i clienti al
+tavolo e online, `/api/platform` per gli amministratori, tutto il resto per lo staff del ristorante.
+L'API invia anche le notifiche a schermo bloccato attraverso i servizi push dei browser e, se
+configurati, calcola il costo di consegna con Geoapify e verifica gli ordini online con Cloudflare
+Turnstile.
 
 Quasi tutte le scelte di progettazione rispondono a due domande: cosa succede quando due persone fanno
 qualcosa nello stesso momento, e cosa succede quando la rete cade a metà di una scrittura? Le
@@ -226,7 +230,9 @@ PUBLIC_ORIGIN=https://app.esempio.it bash deploy/build-release.sh
 ```
 
 La [guida al self-hosting](docs/it/self-hosting.md) accompagna nella prima installazione su una VPS
-Ubuntu: DNS e HTTPS, migrazioni esplicite, backup notturni, ripristini e rollback.
+Ubuntu: DNS e HTTPS, migrazioni esplicite, backup notturni, ripristini e rollback. La
+[guida ai rilasci](docs/it/releasing.md) spiega i rilasci di tutti i giorni con due script: uno
+carica il pacchetto dal tuo computer, l'altro lo installa sul server.
 
 ## Test
 
@@ -244,8 +250,8 @@ Ogni classe di test del backend avvia un suo PostgreSQL usa e getta, con le migr
 
 ## Documentazione
 
-- **Guide**, scritte in italiano e tradotte: note di sviluppo, esecuzione in locale e self-hosting, in
-  [italiano](docs/it/), [inglese](docs/en/) e [cinese](docs/zh-CN/).
+- **Guide**, scritte in italiano e tradotte: note di sviluppo, esecuzione in locale, self-hosting e
+  rilasci, in [italiano](docs/it/), [inglese](docs/en/) e [cinese](docs/zh-CN/).
 - **Riferimento**, in inglese: [requisiti del prodotto](docs/reference/product-requirements.md),
   [schema del database](docs/reference/er-diagram.png) e i contratti delle funzionalità elencati
   nell'[indice della documentazione](docs/README.md).

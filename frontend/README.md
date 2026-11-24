@@ -29,8 +29,8 @@ uses automatic route code splitting.
 - `src/features/`: feature APIs/query keys/types, pure `state.ts`, lifecycle hooks and page/view components.
 - `src/components/`: shared page composites; `ui/` holds generated/adapted shadcn controls.
 - `src/lib/`: scoped HTTP/CSRF, formatting, languages, query lifecycle and device preferences.
-- `public/`: favicon, app icons, staff manifest and the service worker (navigation fallback, online order
-  push notifications).
+- `public/`: favicon, app icons, the staff and platform manifests and their service workers (staff:
+  navigation fallback and online order notifications; platform: renewal reminders).
 
 Store, Guest, Platform and anonymous requests use separate helpers in `lib/api.ts`. Anonymous menu
 reads omit credentials. Protected query keys isolate identities and restaurant/account/visit data;
@@ -68,16 +68,16 @@ shared staff components read the device preference, while guest callers pass gue
 Server error codes map to localized client text. Dish names follow the selected interface language
 before the shared name-fallback chain; descriptions follow the resolved language.
 
-Restaurant themes apply through `<html data-theme>` to signed-in staff and loaded guest menus,
-including portals. Sign-in, first password change and platform pages use the default theme. Brand
+Restaurant themes apply through `<html data-theme>` to signed-in staff, loaded guest menus and the
+loaded online customer pages, including portals. Sign-in, first password change and platform pages use the default theme. Brand
 palettes never redefine state colors. The staff PWA's offline HTML follows the same saved-choice,
 browser-language and English fallback rule without loading app assets; see
 [PWA behavior](../docs/reference/pwa.md#service-worker-behavior).
 
 ## Deployment and QR origin
 
-A deployment uses one public origin, for example `https://app.example.com`. Guest `/q/*`, store
-`/staff/*`, platform `/platform/*` and `/api` all use it, and `/` redirects to `/staff`. Other sites on
+A deployment uses one public origin, for example `https://app.example.com`. Guest `/q/*`, online
+customer `/r/*` and `/o/*`, store `/staff/*`, platform `/platform/*` and `/api` all use it, and `/` redirects to `/staff`. Other sites on
 the parent domain stay separate: no shared parent-domain cookies or CORS bridge is needed.
 
 For a standalone frontend production build:

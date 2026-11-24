@@ -99,6 +99,7 @@ Docker 会下载最新版本预先构建好的镜像；下载不到时会用你�
 ```mermaid
 flowchart LR
   G["顾客<br>/q/{token}"] --> C
+  O["线上顾客<br>/r/{slug}, /o/{token}"] --> C
   S["员工与店主<br>/staff/*"] --> C
   P["管理员<br>/platform/*"] --> C
   C["Caddy<br>HTTPS 与 SPA 文件"] -->|"/api/*"| A["ASP.NET Core API"]
@@ -107,8 +108,9 @@ flowchart LR
 ```
 
 React 单页应用和 ASP.NET Core API 在 Caddy 后面共用同一个 HTTPS 源：没有 CORS，cookie 也从不跨域。
-一个 API 进程服务三类用户，由请求路径决定使用哪个 cookie 身份：`/api/public` 是顾客，`/api/platform`
-是管理员，其余都是餐厅员工。
+一个 API 进程服务三类用户，由请求路径决定使用哪个 cookie 身份：`/api/public` 是堂食顾客和线上顾客，
+`/api/platform` 是管理员，其余都是餐厅员工。API 还会通过浏览器的推送服务发送锁屏通知；配置之后，也会用
+Geoapify 计算配送费，用 Cloudflare Turnstile 验证线上订单。
 
 大多数设计选择都在回答两个问题：两个人在同一时刻操作会怎样？写操作进行到一半网络断了会怎样？
 [开发笔记](docs/zh-CN/development-notes.md)逐一解释了它们；简单来说：
@@ -187,7 +189,8 @@ PUBLIC_ORIGIN=https://app.example.com bash deploy/build-release.sh
 ```
 
 [自托管指南](docs/zh-CN/self-hosting.md)一步步介绍在 Ubuntu VPS 上的首次安装：DNS 和 HTTPS、显式迁移、
-每晚备份、恢复和回滚。
+每晚备份、恢复和回滚。日常发布见[发布指南](docs/zh-CN/releasing.md)：两个脚本，一个在你的电脑上上传发布包，
+另一个在服务器上安装。
 
 ## 测试
 
@@ -205,7 +208,7 @@ npm run lint
 
 ## 文档
 
-- **指南**，用意大利语写成并翻译：开发笔记、本地运行和自托管，有[中文](docs/zh-CN/)、
+- **指南**，用意大利语写成并翻译：开发笔记、本地运行、自托管和发布，有[中文](docs/zh-CN/)、
   [意大利语](docs/it/)和[英语](docs/en/)版本。
 - **参考文档**，英文：[产品需求](docs/reference/product-requirements.md)、
   [数据库结构](docs/reference/er-diagram.png)，以及[文档索引](docs/README.md)里列出的各功能约定。

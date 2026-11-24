@@ -762,7 +762,7 @@ If you explicitly choose not to use external verification, set `TURNSTILE_ENABLE
 
 **After first enabling Turnstile, also test customer ordering.** Reload `/r/{slug}` on the real application domain rather than continuing with a page left open before the upgrade: the old page will not send the new verification proof. In a clearly marked test restaurant, add dishes, go to confirmation, complete verification and submit an order. Accept it as staff and check the status, kitchen and bill. The widget usually completes its checks automatically and may not require a click. Also check that the existing order’s status page works, and that staff notifications and ringing behave as before. Process test orders through the normal flow; do not delete them with SQL.
 
-An incomplete, expired or failed-to-load verification must not create a new order. The cart must remain saved; a loading failure must offer retry and the restaurant’s phone. If the network fails or the result is unknown, use the page’s lookup action to recover the original order first. “Retry the same order” first sends a GET and only uses a fresh verification to retry the same request if it has not been found yet. Do not clear the cart and create another order instead of checking. When the verifier is unavailable, new submissions are blocked but existing orders remain queryable and recoverable.
+An incomplete, expired or failed-to-load verification must not create a new order. The cart must remain saved; a loading failure must offer retry and the restaurant’s phone. If the network fails or the result is unknown, use the page’s lookup action to recover the original order first. “Send again” first sends a GET and only uses a fresh verification to retry the same request if it has not been found yet. Do not clear the cart and create another order instead of checking. When the verifier is unavailable, new submissions are blocked but existing orders remain queryable and recoverable.
 
 #### First upgrade to the version with distance-based delivery fees
 
@@ -775,11 +775,19 @@ For upgrades from a version where whoever accepted a delivery order typed the fe
 
 #### First upgrade with scheduled pickup and free delivery
 
-The `upgrade.sh` summary shows the `DeliveryFreeMinimum` and `ScheduledPickup` migrations. Existing bands retain their base fee and start without a free-delivery threshold. Scheduled pickup starts disabled. The migrations use the existing configuration and leave the current services enabled.
+The `upgrade.sh` summary shows the `StaffPlacedOrders`, `DeliveryFreeMinimum`, `ScheduledPickup`, `PickupReservationRange` and `ReservationCancellationReason` migrations. `StaffPlacedOrders` marks the orders staff take on the Floor: orders already saved count as the guests' own. Existing bands retain their base fee and start without a free-delivery threshold. Scheduled pickup starts disabled. The migrations use the existing configuration and leave the current services enabled.
 
 After upgrading, reload staff pages before changing delivery settings. The owner can then set thresholds for individual bands and enable scheduled pickup under **Online ordering settings**. Verify using a fresh customer page and the scenarios in the [local development guide](local-development.md#trying-scheduled-pickup-and-free-delivery).
 
 Before rolling back with `--schema-compatible`, pause new online orders and decide all waiting requests. Rollback preserves orders and applied migrations. If the target version predates scheduled pickup, complete or cancel any accepted reservations whose preparation is still in the future. The old code would show those orders in Kitchen immediately. If you cannot handle them before rolling back, release a fix that supports reservations. A version without free-delivery thresholds uses base fees for new quotes and can clear thresholds when it saves the bands. Fees already recorded on open bills remain stored.
+
+#### First upgrade with monthly subscriptions
+
+The `upgrade.sh` summary shows the `MonthlyRestaurantSubscriptions` migration. The fee changes from annual to monthly, and the migration **deletes every registered subscription period, with its payments, and every restaurant's default annual fee**: before launch these were only test data. If your server holds real periods, write them down and download a backup before installing; after the upgrade, register them again as monthly periods in the subscription section of the restaurant's page. Getting the old data back requires restoring that backup.
+
+No new variables are needed: the administrator area's lock-screen renewal reminders use the same VAPID key as the staff notifications. Each administrator turns them on for their own device from the administrator area installed as a PWA.
+
+Do not roll back to an earlier version with `--schema-compatible`: the migration renames some columns, and the old code can no longer find them. If you need to go back, restore the backup while the restaurant is closed, or fix and release a new version.
 
 #### Manual procedure
 
@@ -903,7 +911,7 @@ Then repeat the real order test above. This procedure is for installations alrea
 
 #### Rolling back to the previous version
 
-For a rollback across these migrations, follow the checks for [scheduled pickup and free delivery](#first-upgrade-with-scheduled-pickup-and-free-delivery).
+For a rollback across these migrations, follow the checks for [scheduled pickup and free delivery](#first-upgrade-with-scheduled-pickup-and-free-delivery). The [monthly subscriptions](#first-upgrade-with-monthly-subscriptions) migration does not allow going back to an earlier version.
 
 ```bash
 sudo cat /opt/tavoloflow/state/current
