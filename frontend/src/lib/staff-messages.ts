@@ -69,7 +69,7 @@ export const staffMessages: Record<Language, typeof zh> = {
     soundUnsupported: "This browser can’t play sounds; the page still updates.",
     wakeLock: "Screen on",
     wakeLockFailed:
-      "Couldn’t keep the screen on (blocked by the browser or power saving). Tap «Screen on» to retry.",
+      "Couldn’t keep the screen on (blocked by the browser or power saving). Tap “Screen on” to retry.",
     synced: (time) => `Updated ${time}`,
     lastSync: (time) => `Last update: ${time}`,
     estimated: (time) => `Expected ${time}`,

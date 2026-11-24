@@ -414,7 +414,7 @@ export const onlineMessages: Record<Language, typeof zh> = {
     copyDay: "Copy to other days",
     copyTitle: (day) => `Copy ${day} slots`,
     copyHint:
-      "Pick the days that should have the same slots: their current slots are replaced. They apply once you tap «Save hours».",
+      "Pick the days that should have the same slots: their current slots are replaced. They apply once you tap “Save hours”.",
     copyConfirm: "Copy",
     weekProblem: (day, problem) =>
       `${day}: ${

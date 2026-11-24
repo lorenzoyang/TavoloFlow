@@ -55,7 +55,7 @@ export const passMessages: Record<Language, typeof zh> = {
   en: {
     title: "Pass",
     description:
-      "Ready dishes show up here, oldest at the top. When you take a dish to the table, tap «Served».",
+      "Ready dishes show up here, oldest at the top. When you take a dish to the table, tap “Served”.",
     refresh: "Refresh dishes",
     toServe: (count) => `To serve: ${count}`,
     justReady: "Now",
@@ -65,7 +65,7 @@ export const passMessages: Record<Language, typeof zh> = {
     totalToServe: (count) => `Dishes to serve: ${count}`,
     syncing: "Updating dishes.",
     maybeStale: "Dishes may be out of date.",
-    writesPaused: "«Served» is paused until the next successful update.",
+    writesPaused: "“Served” is paused until the next successful update.",
     readError: "Can’t update the dishes. Check the connection and refresh.",
     loading: "Loading dishes to serve…",
     empty: "No dishes to serve.",
@@ -75,6 +75,6 @@ export const passMessages: Record<Language, typeof zh> = {
     settled: (label) =>
       `${label}: already handled on another device or the table is closed; list updated.`,
     unknown: (label) =>
-      `${label}: result not confirmed. After the update, if the dish is still listed, tap «Served» again.`,
+      `${label}: result not confirmed. After the update, if the dish is still listed, tap “Served” again.`,
   },
 };

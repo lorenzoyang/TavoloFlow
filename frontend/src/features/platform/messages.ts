@@ -418,7 +418,7 @@ export const platformMessages: Record<Language, typeof zh> = {
     billingLegend: "Subscription and contacts",
     initialPeriodTitle: "Register the first period",
     created: (name) =>
-      `«${name}» was created with its OWNER and STAFF accounts. It starts suspended: activate the service from its details when it’s ready.`,
+      `“${name}” was created with its OWNER and STAFF accounts. It starts suspended: activate the service from its details when it’s ready.`,
     openRestaurant: "Open the restaurant",
     createAnother: "Create another",
     verify: "Check the result",
@@ -446,7 +446,7 @@ export const platformMessages: Record<Language, typeof zh> = {
     next: "Next",
     page: (page, total) => `Page ${page} · ${total} ${total === 1 ? "restaurant" : "restaurants"}`,
     backToList: "Back to restaurants",
-    deleted: (name) => `«${name}» and all its data were permanently deleted.`,
+    deleted: (name) => `“${name}” and all its data were permanently deleted.`,
     detailTitle: "Restaurant details",
     refreshRestaurant: "Refresh restaurant data",
     loading: "Loading…",
@@ -518,7 +518,7 @@ export const platformMessages: Record<Language, typeof zh> = {
       "Signed-in restaurant devices sign out on their next request; guests scanning a QR code see it as invalid.",
       "It can’t be undone: the data remains only in the daily backups of the next 7 days, and restoring a backup rolls back the whole system, not just this restaurant.",
     ],
-    typeName: (name) => `Type the restaurant name «${name}» to confirm`,
+    typeName: (name) => `Type the restaurant name “${name}” to confirm`,
     suspendHint:
       "Suspending the service stops customer orders and turns QR ordering off; existing orders and bills stay manageable.",
     activateHint: "After activation, the restaurant must turn QR ordering back on by hand.",

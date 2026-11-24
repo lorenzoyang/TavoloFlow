@@ -555,7 +555,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     privacyLineDelivery: (restaurant) =>
       `Your name, phone and address go to ${restaurant} for this order and are deleted after 30 days.`,
     unknown:
-      "We can’t confirm yet whether the order was sent, so the cart can’t be changed for now. Tap «Check the result»; if it wasn’t sent, «Send again» won’t send it twice.",
+      "We can’t confirm yet whether the order was sent, so the cart can’t be changed for now. Tap “Check the result”; if it wasn’t sent, “Send again” won’t send it twice.",
     lookup: "Check the result",
     retryOriginal: "Send again",
     changed: "The menu has changed. Check the latest prices and availability, then send again.",
@@ -581,7 +581,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     verifying: "Security check in progress; you can submit once it’s done.",
     offlineNow: "You’re offline; you can submit once you’re back online.",
     notFound:
-      "No result found yet. That doesn’t mean the order failed: check again later or tap «Send again».",
+      "No result found yet. That doesn’t mean the order failed: check again later or tap “Send again”.",
     offline:
       "The connection or result couldn’t be confirmed. Reconnect and check the original order.",
     generic: "That didn’t work. Check your connection or call the restaurant.",
@@ -660,7 +660,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
     privacySections: (restaurant, phone) => [
       {
         heading: "Who handles your data",
-        body: `The controller is ${restaurant}${phone ? ` (phone ${phone})` : ""}. TavoloFlow provides the restaurant’s ordering software and, as processor, handles the data only on the restaurant’s instructions. The data is stored on the servers of the hosting provider TavoloFlow uses; the other recipients are listed under «Security verification» and «Map services».`,
+        body: `The controller is ${restaurant}${phone ? ` (phone ${phone})` : ""}. TavoloFlow provides the restaurant’s ordering software and, as processor, handles the data only on the restaurant’s instructions. The data is stored on the servers of the hosting provider TavoloFlow uses; the other recipients are listed under “Security verification” and “Map services”.`,
       },
       {
         heading: "What we collect",
@@ -668,7 +668,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       },
       {
         heading: "Purpose and legal basis",
-        body: "Only to handle your order: confirm it, prepare it and tell you about pickup or delivery. The legal basis is performing the order you place (GDPR Article 6(1)(b)), so no separate consent is needed. The measures against automated orders and abusive waiting orders (see «Browser storage» and «Security verification») rely on the legitimate interest in preventing abuse (GDPR Article 6(1)(f)).",
+        body: "Only to handle your order: confirm it, prepare it and tell you about pickup or delivery. The legal basis is performing the order you place (GDPR Article 6(1)(b)), so no separate consent is needed. The measures against automated orders and abusive waiting orders (see “Browser storage” and “Security verification”) rely on the legitimate interest in preventing abuse (GDPR Article 6(1)(f)).",
       },
       {
         heading: "How long",
@@ -688,7 +688,7 @@ export const onlineOrderMessages: Record<Language, typeof zh> = {
       },
       {
         heading: "Map services",
-        body: "If the restaurant calculates delivery fees automatically, when you tap «Calculate delivery fee» (or press Enter in the address field) the delivery address you entered is sent to Geoapify (an EU mapping service that processes the request within the EU) only to work out the road distance from the restaurant; names, phones and dishes are not sent. Geoapify normally keeps request logs for at most 24 hours; in exceptional cases, such as suspicious or fraudulent activity, it may keep details of individual requests for up to 2 months. The order keeps the distance and the fee, not the point found; the address is deleted as described above. To deliver, restaurant staff may open your address in Google Maps to see the location and route: Google then receives the address, possibly outside the EU, on the basis of the EU-U.S. Data Privacy Framework or the EU standard contractual clauses, under Google’s privacy policy.",
+        body: "If the restaurant calculates delivery fees automatically, when you tap “Calculate delivery fee” (or press Enter in the address field) the delivery address you entered is sent to Geoapify (an EU mapping service that processes the request within the EU) only to work out the road distance from the restaurant; names, phones and dishes are not sent. Geoapify normally keeps request logs for at most 24 hours; in exceptional cases, such as suspicious or fraudulent activity, it may keep details of individual requests for up to 2 months. The order keeps the distance and the fee, not the point found; the address is deleted as described above. To deliver, restaurant staff may open your address in Google Maps to see the location and route: Google then receives the address, possibly outside the EU, on the basis of the EU-U.S. Data Privacy Framework or the EU standard contractual clauses, under Google’s privacy policy.",
       },
     ],
   },

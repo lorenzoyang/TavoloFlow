@@ -148,7 +148,7 @@ export const tableMessages: Record<Language, typeof zh> = {
     save: "Save table",
     renameTitle: "Rename table",
     labelHint: "1–50 characters, unique in the restaurant; renaming doesn’t change the QR code.",
-    removeTitle: (table) => `Delete table «${table}»?`,
+    removeTitle: (table) => `Delete table “${table}”?`,
     removeHint:
       "The QR code stops working at once. Bill history stays; a new table with the same name needs a new QR code.",
     confirmRemove: "Delete",

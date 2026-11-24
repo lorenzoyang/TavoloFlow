@@ -149,7 +149,7 @@ export const diningMessages: Record<Language, typeof zh> = {
     visit: "Visit",
     loading: "Loading tables…",
     noTables: "No tables",
-    noTablesHint: "First add tables in «Tables & QR».",
+    noTablesHint: "First add tables in “Tables & QR”.",
     tablesLink: "Tables & QR",
     dining: (count) => `Occupied ${count}`,
     free: (count) => `Free ${count}`,

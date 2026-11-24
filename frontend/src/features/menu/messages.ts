@@ -355,7 +355,7 @@ export const menuMessages: Record<Language, typeof zh> = {
     remove: "Delete",
     editOf: (name) => `Edit: ${name}`,
     removeOf: (name) => `Delete: ${name}`,
-    removeTitle: (name) => `Delete «${name}»`,
+    removeTitle: (name) => `Delete “${name}”`,
     confirmDelete: "Delete",
     deleteHint:
       "Deleting is permanent. Past orders stay unchanged; empty a category before deleting it.",

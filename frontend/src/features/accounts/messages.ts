@@ -234,8 +234,8 @@ export const accountMessages: Record<Language, typeof zh> = {
     install: "Install app",
     installed: "Installed. From now on, open it from its icon on the home screen or desktop.",
     installIos:
-      "iPhone / iPad: in Safari tap «Share» (in recent versions it’s in the «⋯» menu) and choose «Add to Home Screen». The first time you open it from the icon you’ll need to sign in again.",
-    installAndroid: "Android: in the Chrome menu choose «Add to Home screen» or «Install app».",
+      "iPhone / iPad: in Safari tap “Share” (in recent versions it’s in the “⋯” menu) and choose “Add to Home Screen”. The first time you open it from the icon you’ll need to sign in again.",
+    installAndroid: "Android: in the Chrome menu choose “Add to Home screen” or “Install app”.",
     installDesktop:
       "Computer: in Chrome or Edge tap the install icon in the address bar, or choose Install from the menu.",
     installKitchenSound:

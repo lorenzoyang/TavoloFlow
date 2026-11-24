@@ -25,11 +25,11 @@ const en = {
     "This table was opened after you started browsing. Confirm that this cart belongs to the visit shown here.",
   busy: "Working…",
   unknown:
-    "We can’t confirm yet whether the order went through, so the cart can’t be changed for now. Tap «Check order result»; if it didn’t, «Send again» won’t order twice.",
+    "We can’t confirm yet whether the order went through, so the cart can’t be changed for now. Tap “Check order result”; if it didn’t, “Send again” won’t order twice.",
   lookup: "Check order result",
   retry: "Send again",
   notFound:
-    "No result found yet. That doesn’t mean the order failed: check again later or tap «Send again».",
+    "No result found yet. That doesn’t mean the order failed: check again later or tap “Send again”.",
   success: "Order received",
   unverified: "Join this visit before reviewing and placing your order.",
   changed: "The menu has changed. Review the latest prices and availability, then confirm again.",

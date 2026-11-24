@@ -223,9 +223,9 @@ export const kitchenMessages: Record<Language, typeof zh> = {
     loadMore: "Load more orders",
     cancelTitle: (table) => `Cancel dish · ${table}`,
     cancelHint: (dish, amount) =>
-      `If you cancel «${dish}», ${amount} leaves the bill. First check with the kitchen that it won’t be made.`,
+      `If you cancel “${dish}”, ${amount} leaves the bill. First check with the kitchen that it won’t be made.`,
     confirmCancel: "Cancel dish",
-    changed: (status) => `The dish is now «${status}»: this confirmation no longer applies.`,
+    changed: (status) => `The dish is now “${status}”: this confirmation no longer applies.`,
     unknownStatus: "unknown",
     recovered: (table, outcome) =>
       `${table}: ${
