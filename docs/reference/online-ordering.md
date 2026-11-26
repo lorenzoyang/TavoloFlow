@@ -3,7 +3,7 @@
 Online ordering lets customers order from a restaurant's own link, `/r/{slug}`, and collect in store
 or, where the restaurant delivers, have it delivered.
 It was built in steps on `feature/online-ordering`; the design and the steps are in
-[the design document](../online-ordering.md) (Chinese). This reference describes what exists today:
+[the design document](../zh-CN/online-ordering-design.md) (Chinese). This reference describes what exists today:
 the per-restaurant services and link, the restaurant's online settings, the data model of online
 requests, the customer APIs (menu, submission, recovery and status), the customer pages, and the staff
 side: the pending banner and ringing, the online orders page, acceptance and rejection, and how

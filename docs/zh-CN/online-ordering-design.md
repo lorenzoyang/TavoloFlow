@@ -1,6 +1,6 @@
 # 线上点单：设计方案
 
-> 本文记录当前设计，接口细节见[英文功能契约](reference/online-ordering.md)。第 12 节保留实现历史。
+> 本文记录当前设计，接口细节见[英文功能契约](../reference/online-ordering.md)。第 12 节保留实现历史。
 > 2026-11-13：初版设计定稿，在 `feature/online-ordering` 上分阶段实现。
 > 2026-11-14：完成自取、配送和锁屏推送。
 > 2026-11-15：合并到 `main`；同日加上菜品折后价和线上优惠码。
@@ -19,7 +19,7 @@
 ## 如何使用本文档
 
 - 当前流程和取舍以正文为准。第 12 节按日期记录实现过程，保留当时的做法和决定。
-- 接口字段、错误码和数据约束以[英文功能契约](reference/online-ordering.md)及[数据库结构](reference/er-diagram.dbml)为准，共用规则见根目录的 `AGENTS.md` 和 `CLAUDE.md`。
+- 接口字段、错误码和数据约束以[英文功能契约](../reference/online-ordering.md)及[数据库结构](../reference/er-diagram.dbml)为准，共用规则见根目录的 `AGENTS.md` 和 `CLAUDE.md`。
 - 行为改变时同步本文的现行章节、英文参考文档和相关指南，并在实现历史里记下原因。
 
 ## 术语

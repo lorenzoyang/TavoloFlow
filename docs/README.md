@@ -4,7 +4,7 @@ Start with the [project README](../README.md) to run the local demo. The documen
 
 - **Guides** tell the story of the project: why it exists, how it is built, how to run and deploy it.
   The development and operations guides use the Italian originals as their reference. The full-stack
-  learning course uses the Chinese edition as its source for future translations.
+  learning course uses the Chinese edition as its source for the English and Italian translations.
 - **Reference** documents describe the product's intended behavior and the implementation contracts.
   They stay in English only, so that there is a single version to keep in sync with the code.
 
@@ -16,11 +16,11 @@ Start with the [project README](../README.md) to run the local demo. The documen
 | Local development | Docker demo, native development, tests and testing from a phone       | [English](en/local-development.md) · [Italiano](it/local-development.md) · [中文](zh-CN/local-development.md) |
 | Self-hosting      | First deployment, releases, explicit migrations, backups and recovery | [English](en/self-hosting.md) · [Italiano](it/self-hosting.md) · [中文](zh-CN/self-hosting.md)                |
 | Releasing         | Everyday releases with two scripts: build and upload, then install    | [English](en/releasing.md) · [Italiano](it/releasing.md) · [中文](zh-CN/releasing.md)                         |
-| Full-stack learning course | Eight chapters with code walkthroughs, exercises and Italian interview practice | [中文](zh-CN/learning-notes.md) (original) |
-| Earlier learning notes | The maintainer's personal notes on authentication, proxies and Docker | [Italiano](it/learning-notes.md) |
+| Full-stack learning course | Eight chapters with code walkthroughs, exercises and Italian interview practice | [English](en/learning-notes.md) · [Italiano](it/learning-notes.md) · [中文](zh-CN/learning-notes.md) (original) |
+| Earlier learning notes | The maintainer's personal notes on authentication, proxies and Docker | [Italiano](it/learning-notes-personal.md) |
 
 The [frontend README](../frontend/README.md) gives English frontend commands and configuration notes.
-The [online ordering design notes](online-ordering.md) describe the design and its implementation
+The [online ordering design notes](zh-CN/online-ordering-design.md) describe the design and its implementation
 history in Chinese.
 Use the self-hosting guide for production operations; the demo and development Compose projects are
 separate from production.

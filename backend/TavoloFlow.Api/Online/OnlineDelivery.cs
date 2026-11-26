@@ -18,7 +18,7 @@ public static class OnlineDelivery
 
     // Automatic quotes: only a house number or a named place is precise enough to price, and only when
     // the street matched with this confidence (a typo can otherwise land on another street). Both rules
-    // come from the Prato spike in docs/online-ordering.md §12 step 11; adjust them with real orders.
+    // come from the Prato spike in docs/zh-CN/online-ordering-design.md §12 step 11; adjust them with real orders.
     public static readonly string[] QuotableMatches = ["building", "amenity"];
     public const double MinStreetConfidence = 0.9;
 

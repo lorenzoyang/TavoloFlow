@@ -1,5 +1,7 @@
 # 跟着一张订单学全栈
 
+[English](../en/learning-notes.md) · [Italiano](../it/learning-notes.md)
+
 假设你能解释进程、网络请求和关系表，但第一次接手一个完整的 Web 项目。顾客在手机上按下「提交」，店员稍后才在厨房看到菜品。两者中间发生了什么？用一张纸画出浏览器、HTTP API 和 PostgreSQL 三栏。每读完一章，给图加上一条消息、一次状态变化，或一种失败后的处理方式。
 
 本课程以中文为原稿。代码对应 TavoloFlow 的 ASP.NET Core 10、EF Core 10、PostgreSQL 18、React 19、TanStack Query v5 和 Router v1。版本以仓库的依赖声明及锁文件为准。首次运行请按[本地开发指南](local-development.md)启动 Demo Ramen。做线上下单练习前，先按该指南「试用线上点单」开启店铺并设置覆盖当前时间的营业时段。也可以仅打开源码与测试，完成每章的纸面推演。

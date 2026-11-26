@@ -2,7 +2,7 @@
 
 Working notes preserved during the documentation consolidation. This is not a standalone specification
 or an operations guide. The maintainer may incorporate these topics into
-[learning notes](it/learning-notes.md) later. Check the linked code before reusing an example.
+[learning notes](it/learning-notes-personal.md) later. Check the linked code before reusing an example.
 
 ## EF Core mapping and defaults
 
