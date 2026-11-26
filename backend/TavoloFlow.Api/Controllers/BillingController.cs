@@ -7,14 +7,17 @@ namespace TavoloFlow.Api.Controllers;
 
 [ApiController]
 [Authorize(Policy = StoreAuthentication.StaffPolicy)]
-public sealed class BillingController(BillingService billing, CurrentAccount current)
-    : ControllerBase
+public sealed class BillingController(
+    BillQueries queries,
+    BillingService billing,
+    CurrentAccount current
+) : ControllerBase
 {
     private Guid RestaurantId => current.RequireUser().RestaurantId;
 
     [HttpGet("api/staff/sessions/active")]
     public async Task<IActionResult> Active(CancellationToken ct) =>
-        Ok(await billing.ActiveAsync(RestaurantId, ct));
+        Ok(await queries.ActiveAsync(RestaurantId, ct));
 
     [HttpGet("api/staff/sessions/{id:guid}/bill")]
     public async Task<IActionResult> Bill(
@@ -22,7 +25,7 @@ public sealed class BillingController(BillingService billing, CurrentAccount cur
         CancellationToken ct,
         [FromQuery] string? cursor = null,
         [FromQuery] int limit = 50
-    ) => Ok(await billing.ReadAsync(RestaurantId, id, false, cursor, limit, ct));
+    ) => Ok(await queries.ReadAsync(RestaurantId, id, false, cursor, limit, ct));
 
     [Authorize(Policy = StoreAuthentication.OwnerPolicy)]
     [HttpPost("api/owner/sessions/{id:guid}/checkout")]
@@ -71,7 +74,7 @@ public sealed class BillingController(BillingService billing, CurrentAccount cur
         [FromQuery] int limit = 50
     ) =>
         Ok(
-            await billing.HistoryAsync(
+            await queries.HistoryAsync(
                 RestaurantId,
                 fromDate,
                 toDate,
@@ -90,5 +93,5 @@ public sealed class BillingController(BillingService billing, CurrentAccount cur
         CancellationToken ct,
         [FromQuery] string? cursor = null,
         [FromQuery] int limit = 50
-    ) => Ok(await billing.ReadAsync(RestaurantId, id, true, cursor, limit, ct));
+    ) => Ok(await queries.ReadAsync(RestaurantId, id, true, cursor, limit, ct));
 }

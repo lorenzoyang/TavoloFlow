@@ -419,7 +419,9 @@ export function AmountLines({
         <span>
           {deliveryFeeCents === null && model.review && delivery ? m.itemsTotal : m.total}
         </span>
-        <span className="text-xl tabular-nums">{formatMoney(payableCents, language)}</span>
+        <span className="text-xl tabular-nums">
+          {payableCents === null ? "—" : formatMoney(payableCents, language)}
+        </span>
       </p>
     </div>
   );

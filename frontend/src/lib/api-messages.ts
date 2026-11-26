@@ -59,6 +59,7 @@ const zhErrors = {
   ONLINE_RESERVATION_CHANGED: "这笔预约已无法在备餐前取消，请查看订单。",
   KITCHEN_ORDER_NOT_RELEASED: "这笔预约还未到备餐时间。",
   ONLINE_REQUEST_CHANGED: "这个线上订单已被处理或已超时，请刷新列表。",
+  DELIVERY_TOTAL_TOO_LARGE: "菜品与配送费合计超过支持的金额上限。",
   DELIVERY_FEE_CHANGED: "配送设置有变化，请刷新后重新选择档位。",
   ONLINE_REQUEST_NOT_FOUND: "线上订单不存在。",
   ONLINE_VERIFICATION_FAILED: "安全验证已失效或未通过，请重新验证。",
@@ -144,6 +145,7 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
       "Non puoi più annullare il ritiro prima della preparazione. Controlla l’ordine.",
     KITCHEN_ORDER_NOT_RELEASED: "La preparazione di questo ritiro non è ancora prevista.",
     ONLINE_REQUEST_CHANGED: "L’ordine online è già stato gestito o è scaduto: aggiorna l’elenco.",
+    DELIVERY_TOTAL_TOO_LARGE: "Il totale dei piatti e della consegna supera il limite consentito.",
     DELIVERY_FEE_CHANGED: "La consegna è cambiata. Aggiorna l’elenco e scegli di nuovo la fascia.",
     ONLINE_REQUEST_NOT_FOUND: "Ordine online non trovato.",
     ONLINE_VERIFICATION_FAILED: "Verifica scaduta o non riuscita: ripetila.",
@@ -234,6 +236,7 @@ export const errorTranslations: Record<Language, Record<keyof typeof zhErrors, s
     KITCHEN_ORDER_NOT_RELEASED: "This reservation is not due for preparation yet.",
     ONLINE_REQUEST_CHANGED:
       "This online order was already handled or has expired: refresh the list.",
+    DELIVERY_TOTAL_TOO_LARGE: "The dishes and delivery fee exceed the supported amount.",
     DELIVERY_FEE_CHANGED: "Delivery settings changed. Refresh the list and choose the band again.",
     ONLINE_REQUEST_NOT_FOUND: "Online order not found.",
     ONLINE_VERIFICATION_FAILED: "Verification expired or failed. Complete it again.",

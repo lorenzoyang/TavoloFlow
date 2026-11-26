@@ -129,7 +129,11 @@ export function useOnlineOrders(account: CurrentAccount) {
         setNotice({ tone: "warning", text: m.changed });
       else if (
         e instanceof ApiError &&
-        (e.code === "DELIVERY_FEE_CHANGED" || e.code === "ONLINE_PICKUP_PREP_TIME_UNAVAILABLE")
+        [
+          "DELIVERY_FEE_CHANGED",
+          "DELIVERY_TOTAL_TOO_LARGE",
+          "ONLINE_PICKUP_PREP_TIME_UNAVAILABLE",
+        ].includes(e.code)
       )
         setNotice({
           tone: "warning",

@@ -184,6 +184,13 @@ public static class OnlineErrors
             "The delivery quote has expired or no longer matches the address or delivery area."
         );
 
+    public static ApiException DeliveryTotalTooLarge() =>
+        new(
+            409,
+            "DELIVERY_TOTAL_TOO_LARGE",
+            "The dishes and delivery fee exceed the supported amount."
+        );
+
     public static ApiException DeliveryFeeChanged() =>
         new(409, "DELIVERY_FEE_CHANGED", "The delivery fee or selected delivery band has changed.");
 

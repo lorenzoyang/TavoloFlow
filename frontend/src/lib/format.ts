@@ -22,6 +22,8 @@ export function formatCents(cents: number): string {
 
 // "€ 12.50"; Italian uses a decimal comma.
 export function formatMoney(cents: number, language: Language = "zh"): string {
+  // Older quoted deliveries can carry a total that JSON numbers cannot represent to the cent.
+  if (!Number.isSafeInteger(cents)) return "—";
   const amount = formatCents(cents);
   return `€ ${language === "it" ? amount.replace(".", ",") : amount}`;
 }

@@ -146,10 +146,12 @@ test("the checkout button says the first reason it cannot go", () => {
     contextReady: true,
     fee: "manual" as const,
     shortfallCents: 0,
+    amountTooLarge: false,
     settling: false,
     verifying: false,
   };
   assert.equal(checkoutBlock(ready), null);
+  assert.equal(checkoutBlock({ ...ready, amountTooLarge: true }), "amount");
   assert.equal(checkoutBlock({ ...ready, live: false, contextReady: false }), "offline");
   assert.equal(checkoutBlock({ ...ready, contextReady: false, fee: "OUT_OF_RANGE" }), "context");
   assert.equal(checkoutBlock({ ...ready, fee: "OUT_OF_RANGE", shortfallCents: 400 }), "outOfRange");
@@ -718,6 +720,32 @@ test("checkout reprices the matching band after a coupon and freezes the fee act
   const restored = restoreOnlineCart(JSON.stringify({ ...cart, pending }), restaurant);
   assert.equal(onlineCartAmounts(restored, cart, withCoupon, tiers[2]).deliveryFeeCents, 0);
   assert.equal(submissionFailure(409, "DELIVERY_FEE_CHANGED", true), "editable");
+});
+
+test("a quoted delivery must fit before discounts, including during unknown-result recovery", () => {
+  const cart = filled();
+  const form = { ...delivery, quote: quoted, coupon: { code: "EAT10", percentOff: 10 } };
+  const feeAtLimit = Number.MAX_SAFE_INTEGER - 2400;
+  const band = { maxMeters: 3000, feeCents: feeAtLimit, freeDeliveryMinCents: null };
+  const good = createOnlineIntent(cart, form, requestId, feeAtLimit);
+  assert.equal(
+    onlineCartAmounts(cart, cart, form, band).payableCents,
+    Number.MAX_SAFE_INTEGER - 240,
+  );
+  const tooHigh = { ...band, feeCents: feeAtLimit + 1 };
+  assert.equal(onlineCartAmounts(cart, cart, form, tooHigh).payableCents, null);
+  throwsIssue(() => createOnlineIntent(cart, form, requestId, tooHigh.feeCents), "amount");
+  assert.equal(
+    onlineCartAmounts(cart, cart, form, { ...tooHigh, freeDeliveryMinCents: 2160 }).payableCents,
+    2160,
+  );
+  assert.equal(createOnlineIntent(cart, form, requestId, 0).deliveryQuote?.feeCents, 0);
+
+  const legacy = { ...good, deliveryQuote: { quote: quoted.quote!, feeCents: tooHigh.feeCents } };
+  const restored = restoreOnlineCart(JSON.stringify({ ...cart, pending: legacy }), restaurant);
+  assert.deepEqual(restored.pending, legacy);
+  assert.equal(onlineCartAmounts(restored, null, form).payableCents, null);
+  assert.equal(submissionFailure(409, "DELIVERY_TOTAL_TOO_LARGE", true), "editable");
 });
 
 test("scheduled pickup travels with the original frozen submission", () => {

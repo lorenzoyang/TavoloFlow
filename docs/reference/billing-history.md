@@ -199,7 +199,8 @@ suspended restaurant is a separate explicitly destructive operation.
 ## Verification entry points
 
 Sources: [BillingController](../../backend/TavoloFlow.Api/Controllers/BillingController.cs),
-[BillingService](../../backend/TavoloFlow.Api/Billing/BillingService.cs),
+[bill and history reads](../../backend/TavoloFlow.Api/Billing/BillQueries.cs),
+[bill changes and closures](../../backend/TavoloFlow.Api/Billing/BillingService.cs),
 [summary projection](../../backend/TavoloFlow.Api/Dining/SessionSummaries.cs),
 [bill hook](../../frontend/src/features/billing/useBill.ts),
 [closure hook](../../frontend/src/features/billing/useClosure.ts),

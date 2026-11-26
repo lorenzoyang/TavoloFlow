@@ -59,6 +59,8 @@ test("amounts that may be waived admit zero but keep every other price rule", ()
 test("cents format without floating-point rounding; Italian uses a decimal comma", () => {
   assert.equal(formatCents(1250), "12.50");
   assert.equal(formatCents(Number.MAX_SAFE_INTEGER), "90071992547409.91");
+  assert.equal(formatMoney(Number.MAX_SAFE_INTEGER), "€ 90071992547409.91");
+  assert.equal(formatMoney(Number.MAX_SAFE_INTEGER + 1), "—");
   assert.equal(formatMoney(705), "€ 7.05");
   assert.equal(formatMoney(705, "it"), "€ 7,05");
   assert.equal(formatMoney(705, "en"), "€ 7.05");

@@ -743,6 +743,7 @@ export const onlineOrderError = (code: string): OnlineOrderMessage =>
       ONLINE_PICKUP_SLOT_CHANGED: "pickupSlotChanged",
       DELIVERY_QUOTE_INVALID: "quoteChanged",
       DELIVERY_FEE_CHANGED: "feeChanged",
+      DELIVERY_TOTAL_TOO_LARGE: "amount",
       SERVICE_SUSPENDED: "suspended",
       ONLINE_LINK_NOT_FOUND: "linkGone",
       VALIDATION_FAILED: "invalid",

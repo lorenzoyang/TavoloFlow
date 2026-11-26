@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChefHat, ListFilter, RefreshCw, Sun, Volume2, VolumeX } from "lucide-react";
+import { ChefHat, ListFilter } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { LoadingState } from "@/components/loading-state";
@@ -11,13 +11,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import type { OrderLine } from "@/features/orders/api";
-import { formatDateTime, formatMoney, formatTime, shortId } from "@/lib/format";
+import { formatMoney, shortId } from "@/lib/format";
 import { displayName } from "@/lib/language";
 import { sessionText } from "@/lib/session-label";
 import { staffMessages } from "@/lib/staff-messages";
 import { onLifecycleChange } from "@/lib/useLiveView";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
-import { cn } from "@/lib/utils";
 import { useWakeLock } from "@/lib/useWakeLock";
 import type { KitchenOrder } from "./api";
 import { CategoryDialog } from "./CategoryDialog";
@@ -25,11 +24,9 @@ import { DishCard, OrderTicket, type LineControls } from "./KitchenViews";
 import { kitchenMessages } from "./messages";
 import { canCancel, type KitchenView } from "./state";
 import { useKitchen } from "./useKitchen";
+import { QueueDeviceNotices, QueueScreenActions, QueueSyncStatus } from "@/components/queue-screen";
 
 type ItemConfirmation = { order: KitchenOrder; item: OrderLine };
-
-const toggleStyle =
-  "aria-pressed:border-primary/40 aria-pressed:bg-accent aria-pressed:text-accent-foreground";
 
 function KitchenContent({ account }: { account: CurrentAccount }) {
   const language = useStaffLanguage();
@@ -80,88 +77,30 @@ function KitchenContent({ account }: { account: CurrentAccount }) {
         title={m.title}
         description={m.description}
         actions={
-          <>
-            <Button
-              variant="outline"
-              className={toggleStyle}
-              aria-pressed={model.sound}
-              aria-label={c.sound}
-              onClick={model.toggleSound}
-            >
-              {model.sound ? <Volume2 /> : <VolumeX />}
-              <span className="hidden sm:inline">{c.sound}</span>
-            </Button>
-            {wakeLock.supported && (
-              <Button
-                variant="outline"
-                className={toggleStyle}
-                aria-pressed={wakeLock.enabled}
-                aria-label={c.wakeLock}
-                onClick={wakeLock.toggle}
-              >
-                <Sun />
-                <span className="hidden sm:inline">{c.wakeLock}</span>
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label={m.refresh}
-              disabled={!model.active || model.query.isFetching}
-              onClick={() => void model.refresh()}
-            >
-              <RefreshCw className={cn(model.query.isFetching && "animate-spin")} />
-            </Button>
-          </>
+          <QueueScreenActions
+            audio={model}
+            wakeLock={wakeLock}
+            active={model.active}
+            fetching={model.query.isFetching}
+            refresh={model.refresh}
+            refreshLabel={m.refresh}
+          />
         }
       />
       <div className="mb-5 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-2xl border bg-card px-4 py-3 shadow-xs">
-          <p className="font-semibold">{m.pendingTotal(model.summary?.pendingCount ?? "—")}</p>
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span
-              className={cn(
-                "size-2.5 rounded-full",
-                model.stalled
-                  ? "bg-destructive"
-                  : model.summary
-                    ? "bg-success"
-                    : "bg-muted-foreground/40",
-              )}
-            />
-            {/* The green dot says it is fresh; the full date matters only once updates stop. */}
-            {model.summary
-              ? model.stalled
-                ? c.lastSync(formatDateTime(model.summary.receivedAt, language))
-                : c.synced(formatTime(model.summary.receivedAt, language))
-              : c.notSynced}
-          </p>
-        </div>
-        {model.stalled && (
-          <Notice tone="error">
-            {!model.active ? c.disconnected : model.query.isPending ? m.syncing : m.maybeStale}{" "}
-            {m.writesPaused}
-          </Notice>
-        )}
+        <QueueSyncStatus
+          total={m.pendingTotal(model.summary?.pendingCount ?? "—")}
+          receivedAt={model.summary?.receivedAt}
+          stalled={model.stalled}
+          active={model.active}
+          pending={model.query.isPending}
+          messages={m}
+        />
         {model.notice && <Notice>{model.notice}</Notice>}
         {(model.error || model.query.isError) && (
           <Notice tone="error">{model.error || m.readError}</Notice>
         )}
-        {model.soundBlocked && (
-          <Notice
-            tone="warning"
-            action={
-              <Button variant="outline" onClick={model.unlockSound}>
-                <Volume2 />
-                {c.soundOn}
-              </Button>
-            }
-          >
-            {c.soundBlocked}
-          </Notice>
-        )}
-        {model.soundUnsupported && <Notice tone="warning">{c.soundUnsupported}</Notice>}
-        {wakeLock.failed && <Notice tone="warning">{c.wakeLockFailed}</Notice>}
+        <QueueDeviceNotices audio={model} wakeLock={wakeLock} />
         {model.storageWarning && <Notice tone="warning">{m.storageWarning}</Notice>}
         {model.pending.length > 0 && (
           <section aria-label={m.pendingSection} className="space-y-3">

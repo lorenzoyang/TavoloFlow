@@ -376,11 +376,17 @@ export const rejectReasons = (fulfillment: "PICKUP" | "DELIVERY"): RejectReason[
     ? ["SOLD_OUT", "BUSY", "CLOSING", "OUT_OF_RANGE"]
     : ["SOLD_OUT", "BUSY", "CLOSING"];
 
+// The bill must also fit before a coupon is deducted, as on the server.
+export const deliveryFeeFits = (itemsCents: number, feeCents: number) =>
+  Number.isSafeInteger(feeCents) &&
+  feeCents >= 0 &&
+  feeCents <= Number.MAX_SAFE_INTEGER - itemsCents;
+
 // The delivery fee the OWNER types when correcting a bill, in cents: a decimal amount, 0 when free,
 // and with the items still a safe integer like every bill. Null while it is not a valid fee.
 export function typedDeliveryFee(value: string, itemsTotalCents: number): number | null {
   const fee = parsePrice(value, true);
-  return fee !== null && fee <= Number.MAX_SAFE_INTEGER - itemsTotalCents ? fee : null;
+  return fee !== null && deliveryFeeFits(itemsTotalCents, fee) ? fee : null;
 }
 
 // A plain Google Maps search link for a delivery address; nothing is sent until someone opens it.

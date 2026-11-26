@@ -1,4 +1,4 @@
-import { Check, HandPlatter, RefreshCw, Sun, Volume2, VolumeX } from "lucide-react";
+import { Check, HandPlatter } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { SessionName } from "@/components/session-name";
 import { LoadingState } from "@/components/loading-state";
@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { staffNavItems } from "@/features/accounts/navigation";
-import { formatDateTime, formatTime } from "@/lib/format";
 import { displayName } from "@/lib/language";
 import { optionSummary } from "@/lib/options";
 import { sessionTitle } from "@/lib/session-label";
@@ -19,9 +18,8 @@ import { cn } from "@/lib/utils";
 import { passMessages } from "./messages";
 import { passWaitLevel, type PassTable } from "./state";
 import { usePass } from "./usePass";
+import { QueueDeviceNotices, QueueScreenActions, QueueSyncStatus } from "@/components/queue-screen";
 
-const toggleStyle =
-  "aria-pressed:border-primary/40 aria-pressed:bg-accent aria-pressed:text-accent-foreground";
 const waitStyles = {
   normal: "bg-secondary text-secondary-foreground",
   late: "bg-warning text-warning-foreground",
@@ -111,88 +109,30 @@ function PassContent({ account }: { account: CurrentAccount }) {
         description={m.description}
         back={isTab ? undefined : { to: "/staff", label: c.home }}
         actions={
-          <>
-            <Button
-              variant="outline"
-              className={toggleStyle}
-              aria-pressed={model.sound}
-              aria-label={c.sound}
-              onClick={model.toggleSound}
-            >
-              {model.sound ? <Volume2 /> : <VolumeX />}
-              <span className="hidden sm:inline">{c.sound}</span>
-            </Button>
-            {wakeLock.supported && (
-              <Button
-                variant="outline"
-                className={toggleStyle}
-                aria-pressed={wakeLock.enabled}
-                aria-label={c.wakeLock}
-                onClick={wakeLock.toggle}
-              >
-                <Sun />
-                <span className="hidden sm:inline">{c.wakeLock}</span>
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label={m.refresh}
-              disabled={!model.view.active || model.query.isFetching}
-              onClick={() => void model.refresh()}
-            >
-              <RefreshCw className={cn(model.query.isFetching && "animate-spin")} />
-            </Button>
-          </>
+          <QueueScreenActions
+            audio={model}
+            wakeLock={wakeLock}
+            active={model.view.active}
+            fetching={model.query.isFetching}
+            refresh={model.refresh}
+            refreshLabel={m.refresh}
+          />
         }
       />
       <div className="mb-5 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-2xl border bg-card px-4 py-3 shadow-xs">
-          <p className="font-semibold">{m.totalToServe(model.head?.totalCount ?? "—")}</p>
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span
-              className={cn(
-                "size-2.5 rounded-full",
-                model.stalled
-                  ? "bg-destructive"
-                  : model.head
-                    ? "bg-success"
-                    : "bg-muted-foreground/40",
-              )}
-            />
-            {/* The green dot says it is fresh; the full date matters only once updates stop. */}
-            {model.head
-              ? model.stalled
-                ? c.lastSync(formatDateTime(model.head.receivedAt, language))
-                : c.synced(formatTime(model.head.receivedAt, language))
-              : c.notSynced}
-          </p>
-        </div>
-        {model.stalled && (
-          <Notice tone="error">
-            {!model.view.active ? c.disconnected : model.query.isPending ? m.syncing : m.maybeStale}{" "}
-            {m.writesPaused}
-          </Notice>
-        )}
+        <QueueSyncStatus
+          total={m.totalToServe(model.head?.totalCount ?? "—")}
+          receivedAt={model.head?.receivedAt}
+          stalled={model.stalled}
+          active={model.view.active}
+          pending={model.query.isPending}
+          messages={m}
+        />
         {model.notice && <Notice>{model.notice}</Notice>}
         {(model.error || model.query.isError) && (
           <Notice tone="error">{model.error || m.readError}</Notice>
         )}
-        {model.soundBlocked && (
-          <Notice
-            tone="warning"
-            action={
-              <Button variant="outline" onClick={model.unlockSound}>
-                <Volume2 />
-                {c.soundOn}
-              </Button>
-            }
-          >
-            {c.soundBlocked}
-          </Notice>
-        )}
-        {model.soundUnsupported && <Notice tone="warning">{c.soundUnsupported}</Notice>}
-        {wakeLock.failed && <Notice tone="warning">{c.wakeLockFailed}</Notice>}
+        <QueueDeviceNotices audio={model} wakeLock={wakeLock} />
       </div>
       <div className="space-y-4">
         {model.query.isPending && <LoadingState label={m.loading} />}

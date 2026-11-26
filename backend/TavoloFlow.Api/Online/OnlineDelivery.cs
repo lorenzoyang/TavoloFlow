@@ -70,6 +70,9 @@ public static class OnlineDelivery
         itemsCents
         - (couponPercentOff is { } percent ? OnlineCoupons.DiscountCents(itemsCents, percent) : 0);
 
+    public static bool FeeFits(long itemsCents, long feeCents) =>
+        feeCents >= 0 && feeCents <= InputRules.MaxSafeCents - itemsCents;
+
     public static long FeeForTier(DeliveryTierResponse tier, long discountedItemsCents) =>
         tier.FreeDeliveryMinCents is { } minimum && discountedItemsCents >= minimum
             ? 0

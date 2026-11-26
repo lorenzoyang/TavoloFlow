@@ -14,6 +14,7 @@ import { AuthBoundary } from "@/features/accounts/AuthBoundary";
 import type { CurrentAccount } from "@/features/accounts/api";
 import { ServiceNotOffered } from "@/features/accounts/ServiceNotOffered";
 import { closeOrderNotifications } from "@/features/push/device";
+import { errorTranslations } from "@/lib/api-messages";
 import { formatKm, formatMoney, formatPickupDateTime, formatTime } from "@/lib/format";
 import { displayName, type Language } from "@/lib/language";
 import { optionSummary } from "@/lib/options";
@@ -28,6 +29,7 @@ import { onlineOrdersMessages } from "./messages";
 import {
   activeProgress,
   deliveryFeeForTier,
+  deliveryFeeFits,
   DELIVERY_MINUTES,
   formatCountdown,
   PICKUP_MINUTES,
@@ -95,6 +97,7 @@ function PendingCard({
   const discount = request.coupon?.discountCents ?? 0;
   const due = request.itemsTotalCents - discount;
   const fee = quoted ?? (tier ? deliveryFeeForTier(tier, due) : null);
+  const amountTooLarge = fee !== null && !deliveryFeeFits(request.itemsTotalCents, fee);
   const tierLabelId = `delivery-tier-${request.id}`;
   return (
     <article className="space-y-3 rounded-2xl border bg-card p-4 shadow-xs">
@@ -235,7 +238,10 @@ function PendingCard({
                 })}
               </RadioGroup>
             )}
-            {fee !== null && (
+            {amountTooLarge && (
+              <Notice tone="error">{errorTranslations[language].DELIVERY_TOTAL_TOO_LARGE}</Notice>
+            )}
+            {fee !== null && !amountTooLarge && (
               <p className="rounded-xl bg-secondary px-3 py-2 text-sm font-semibold tabular-nums">
                 {request.coupon
                   ? m.deliveryTotalWithCoupon(
@@ -274,7 +280,9 @@ function PendingCard({
             <Button
               key={minutes}
               size="lg"
-              disabled={disabled || !minutesFit(minutes) || (delivery && fee === null)}
+              disabled={
+                disabled || !minutesFit(minutes) || amountTooLarge || (delivery && fee === null)
+              }
               aria-label={
                 delivery
                   ? m.acceptDeliveryLabel(request.number, minutes)

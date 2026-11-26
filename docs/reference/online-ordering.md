@@ -534,13 +534,13 @@ for this address and the final fee the customer saw, including any waiver. The s
    coupon, are below the restaurant's minimum is `DELIVERY_MIN_ORDER` (409); pickup has no minimum.
    For a verified distance, the server computes the applicable fee from the same discounted subtotal
    and the current band. A different fee from the one submitted returns `DELIVERY_FEE_CHANGED` (409)
-   after the duplicate check.
+   after the duplicate check. The undiscounted dishes plus the final fee must fit in a JavaScript
+   safe integer. An excess returns `DELIVERY_TOTAL_TOO_LARGE` (409) and the transaction rolls back.
 7. Inserts the request with a random 32-byte Base64URL status token, `expires_at` ten minutes after
    submission, the coupon's code and percentage and a quote's fee and distance (`delivery_fee_cents`,
    `delivery_distance_meters`, both or neither, delivery only: `ck_online_request_delivery_quote`), and
    returns `{ statusToken, number, expiresAt, requestedPickupAt? }`, omitting the time for immediate
-   orders. Acceptance never checks the coupon or the quote again:
-   the customer was promised that total.
+   orders. Acceptance uses the stored coupon and quoted fee.
 8. In the same transaction, clears the name, phone, address, notes and source digests of the restaurant's requests
    submitted more than 30 days before this one (`OnlineRequestService.ContactRetention`), reading only
    uncleared rows through `ix_online_requests_contact`. The lines stay. There is no background job: a
@@ -707,7 +707,9 @@ data go to the restaurant, without "only", since the address may also reach Geoa
 saved and read back with the rest; a `DELIVERY_QUOTE_INVALID` refusal frees the intent, drops the
 quote so checkout asks again, and rereads the menu. `DELIVERY_FEE_CHANGED` likewise returns the
 customer to the cart for another review, keeping any available distance and refreshing the fee
-settings. If "Checkout" finds delivery turned
+settings. Checkout blocks a new order when the dishes plus the final delivery fee exceed the
+supported amount. A saved intent from an earlier client still permits lookup by its original ID.
+If "Checkout" finds delivery turned
 off since the customer chose it, the form goes back to pickup and says so; a `DELIVERY_NOT_OFFERED`
 refusal says the restaurant isn't delivering and pickup is possible. Placing the order builds the
 intent (request ID from `randomUuid`, fulfillment, trimmed name, normalized phone, trimmed address and
@@ -726,7 +728,7 @@ cannot order twice) and the phone, in plain words: it cannot confirm yet whether
 and the cart cannot change until then. After an unknown result, a retry frees the intent only when it is rejected with a code
 the server returns after its duplicate check (`SERVICE_SUSPENDED`, `ONLINE_NOT_OFFERED`,
 `ONLINE_PAUSED`, `ONLINE_CLOSED`, `ONLINE_BUSY`, `DELIVERY_NOT_OFFERED`, `COUPON_INVALID`,
-`DELIVERY_MIN_ORDER`, `DELIVERY_QUOTE_INVALID`, `DELIVERY_FEE_CHANGED`, `ONLINE_PICKUP_SLOT_CHANGED`,
+`DELIVERY_MIN_ORDER`, `DELIVERY_QUOTE_INVALID`, `DELIVERY_FEE_CHANGED`, `DELIVERY_TOTAL_TOO_LARGE`, `ONLINE_PICKUP_SLOT_CHANGED`,
 `ONLINE_BROWSER_PENDING`, `ONLINE_IP_WAITING_LIMIT`,
 `MENU_CHANGED`): that check
 runs inside the transaction holding the restaurant's cross-day submission lock and the day's counter
@@ -821,7 +823,9 @@ final `deliveryFeeCents` shown in the card. The server recomputes the fee under 
 lock from the current band and the request's submitted subtotal and coupon. A changed fee or missing
 band returns `DELIVERY_FEE_CHANGED` (409) so staff can review the refreshed choices. Older clients may
 omit the selected band only for restaurants without thresholds. The fee is a non-negative
-whole-cent amount within the safe range for items plus fee. Inside the same transaction it checks
+whole-cent amount within the safe range for the undiscounted items plus the final fee. Acceptance
+returns `409 DELIVERY_TOTAL_TOO_LARGE` for an oversized quote stored by an older release. Staff can
+still reject that request. When accepting, the server checks inside the same transaction
 which dishes still exist (menu writers and dish deletion hold restaurant UPDATE, so this cannot
 interleave), creates the ACTIVE `PICKUP` or `DELIVERY` session (the request's
 fulfillment, opened now, bill version 1, with the delivery fee on delivery), its single order (`created_at` now, the request's client request ID, total and

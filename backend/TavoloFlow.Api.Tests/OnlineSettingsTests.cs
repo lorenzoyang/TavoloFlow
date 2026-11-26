@@ -346,6 +346,7 @@ public sealed class OnlineSettingsTests(PostgreSqlFixture database)
                 }
             )
         );
+        Assert.Equivalent(on, await ReadAsync(ownerClient), strict: true);
         Assert.True(on.DeliveryEnabled);
         Assert.Equal(1500, on.DeliveryMinOrderCents);
         Assert.Null(on.DeliveryNoteZh);

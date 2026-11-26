@@ -12,6 +12,7 @@ import type { Language } from "../../lib/language.ts";
 import { isUuid } from "../../lib/ids.ts";
 import {
   deliveryFeeForTier,
+  deliveryFeeFits,
   normalizeCouponCode,
   normalizePhone,
   validCouponPercent,
@@ -178,7 +179,9 @@ export function onlineCartAmounts(
     discountCents,
     totalCents: total,
     deliveryFeeCents,
-    payableCents: total + (deliveryFeeCents ?? 0),
+    payableCents: deliveryFeeFits(itemsCents, deliveryFeeCents ?? 0)
+      ? total + (deliveryFeeCents ?? 0)
+      : null,
   };
 }
 
@@ -263,12 +266,13 @@ export function feeRange(tiers: readonly { maxMeters: number; feeCents: number }
 // for it, so nothing else blocks. A fee that has just appeared holds the button for a moment, so a
 // repeated tap cannot place the order before the customer has seen it; then the security check.
 export type CheckoutBlock =
-  "offline" | "context" | "outOfRange" | "minOrder" | "settling" | "verifying";
+  "offline" | "context" | "outOfRange" | "minOrder" | "amount" | "settling" | "verifying";
 export function checkoutBlock(state: {
   live: boolean;
   contextReady: boolean;
   fee: FeeStatus;
   shortfallCents: number;
+  amountTooLarge: boolean;
   settling: boolean;
   verifying: boolean;
 }): CheckoutBlock | null {
@@ -276,6 +280,7 @@ export function checkoutBlock(state: {
   if (!state.contextReady) return "context";
   if (state.fee === "OUT_OF_RANGE") return "outOfRange";
   if (state.shortfallCents > 0) return "minOrder";
+  if (state.amountTooLarge) return "amount";
   if (state.fee === "lookup") return null;
   if (state.settling) return "settling";
   if (state.verifying) return "verifying";
@@ -305,6 +310,23 @@ export function deliveryNote(
 }
 
 export function createOnlineIntent(
+  cart: OnlineCart,
+  form: CheckoutForm,
+  requestId: string,
+  finalDeliveryFeeCents?: number,
+): OnlineIntent {
+  const intent = checkoutIntent(cart, form, requestId, finalDeliveryFeeCents);
+  if (
+    intent.deliveryQuote &&
+    !deliveryFeeFits(totalCents(cart.lines), intent.deliveryQuote.feeCents)
+  )
+    throw new CartError("amount");
+  return intent;
+}
+
+// Older tabs can already have submitted a quote above the limit. Restore its original ID and
+// body for lookup, even though a new checkout with these amounts is refused.
+function checkoutIntent(
   cart: OnlineCart,
   form: CheckoutForm,
   requestId: string,
@@ -356,7 +378,7 @@ export function restoreOnlineCart(raw: string | null, restaurantId: string): Onl
     if (value.pending !== null) {
       const p = value.pending;
       if (!p || !isUuid(p.clientRequestId)) throw new Error();
-      const expected = createOnlineIntent(
+      const expected = checkoutIntent(
         cart,
         {
           fulfillment: p.fulfillment,
@@ -430,6 +452,7 @@ const rejectedAfterDuplicateCheck = [
   "DELIVERY_MIN_ORDER",
   "DELIVERY_QUOTE_INVALID",
   "DELIVERY_FEE_CHANGED",
+  "DELIVERY_TOTAL_TOO_LARGE",
   "ONLINE_BROWSER_PENDING",
   "ONLINE_IP_WAITING_LIMIT",
 ];

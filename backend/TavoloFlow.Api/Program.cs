@@ -76,6 +76,7 @@ builder.Services.AddSingleton<JoinCodes>();
 builder.Services.AddScoped<DiningService>();
 builder.Services.AddScoped<OrderService>();
 builder.Services.AddScoped<KitchenService>();
+builder.Services.AddScoped<BillQueries>();
 builder.Services.AddScoped<BillingService>();
 builder.Services.AddScoped<RestaurantAdministration>();
 builder.Services.AddScoped<SubscriptionService>();

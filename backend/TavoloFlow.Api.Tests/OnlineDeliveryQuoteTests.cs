@@ -19,11 +19,16 @@ public sealed class OnlineDeliveryQuoteTests(PostgreSqlFixture database)
 
     private static readonly FakeGeoapifyService.Place Near = new("building", 1, "Prato", 2500);
 
-    private AccountTestHost Host(Action<GeoapifyOptions>? geoapify = null, bool lowLimits = false)
+    private AccountTestHost Host(
+        Action<GeoapifyOptions>? geoapify = null,
+        bool lowLimits = false,
+        bool push = false
+    )
     {
         var host = new AccountTestHost(
             database,
             lowLimits: lowLimits,
+            push: push,
             geoapify: options =>
             {
                 options.ApiKey = Key;
@@ -428,6 +433,119 @@ public sealed class OnlineDeliveryQuoteTests(PostgreSqlFixture database)
         Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
         var active = (await accepted.Content.ReadFromJsonAsync<OnlineActiveOrderResponse>())!;
         Assert.Equal((0L, 2400L), (active.DeliveryFeeCents, active.TotalAmountCents));
+    }
+
+    [Fact]
+    public async Task Submit_QuotedFeeAtTheLimit_ChecksBeforeDiscountAndOnlyNotifiesOnCommit()
+    {
+        using var host = Host(push: true);
+        var shop = await SeedAsync();
+        using var customer = host.Browser();
+        using var staff = await OnlineTestData.LoginAsync(host, shop.Staff);
+        using var device = new TestDevice();
+        var registered = await PushSubscriptionTests.SendAsync(
+            staff,
+            HttpMethod.Put,
+            "/api/staff/push/subscription",
+            device.Body()
+        );
+        Assert.Equal(HttpStatusCode.NoContent, registered.StatusCode);
+        const long feeAtLimit = InputRules.MaxSafeCents - 2400;
+        await SetTiersAsync(shop, (3000, feeAtLimit + 1));
+        await using var db = database.CreateContext();
+        db.OnlineCoupons.Add(
+            new()
+            {
+                Id = Guid.NewGuid(),
+                RestaurantId = shop.RestaurantId,
+                Code = "EAT10",
+                PercentOff = 10,
+            }
+        );
+        await db.SaveChangesAsync();
+        var quote = await QuoteAsync(customer, shop, "Via Vicina 1");
+        var coupon = new { code = "EAT10", percentOff = 10 };
+        var id = Guid.NewGuid();
+        await AssertErrorAsync(
+            await SubmitAsync(
+                customer,
+                shop,
+                Body(id, shop, "Via Vicina 1", Quoted(quote), coupon)
+            ),
+            HttpStatusCode.Conflict,
+            "DELIVERY_TOTAL_TOO_LARGE"
+        );
+        Assert.False(await db.OnlineRequests.AnyAsync(r => r.RestaurantId == shop.RestaurantId));
+
+        await SetTiersAsync(shop, (3000, feeAtLimit));
+        var valid = Body(
+            id,
+            shop,
+            "Via Vicina 1",
+            new { quote = quote.Quote, feeCents = feeAtLimit },
+            coupon
+        );
+        var created = await SubmitAsync(customer, shop, valid);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var saved = (await created.Content.ReadFromJsonAsync<OnlineSubmissionResponse>())!;
+        Assert.Equal(1, saved.Number);
+        var request = await db.OnlineRequests.SingleAsync(r => r.ClientRequestId == id);
+        var path = $"/api/staff/online/requests/{request.Id}/accept";
+        var accepted = await PostAsync(staff, path, new { estimatedMinutes = 30 });
+        Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+        Assert.Equal(
+            InputRules.MaxSafeCents - 240,
+            (
+                await accepted.Content.ReadFromJsonAsync<OnlineActiveOrderResponse>()
+            )!.TotalAmountCents
+        );
+
+        await SetTiersAsync(shop, (3000, feeAtLimit + 1));
+        var replay = await SubmitAsync(customer, shop, valid);
+        Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+        Assert.Equal(saved, await replay.Content.ReadFromJsonAsync<OnlineSubmissionResponse>());
+        // A second successful submission marks the end of the sequential push queue.
+        var second = await SubmitAsync(customer, shop, Body(Guid.NewGuid(), shop, null, null));
+        Assert.Equal(HttpStatusCode.Created, second.StatusCode);
+        var sent = await host.PushService.WaitForAsync(2);
+        Assert.Equal(
+            new[] { 1, 2 },
+            sent.Select(p => device.Read(p).GetProperty("number").GetInt32())
+        );
+    }
+
+    [Fact]
+    public async Task Accept_OlderOversizedQuote_LeavesRequestAvailableForRejection()
+    {
+        using var host = Host();
+        var shop = await SeedAsync();
+        await using var db = database.CreateContext();
+        var request = OnlineTestData.Request(
+            shop.RestaurantId,
+            MondayNoon.UtcDateTime,
+            1,
+            shop.Dish.Id
+        );
+        request.Fulfillment = OnlineFulfillment.Delivery;
+        request.DeliveryAddress = "Via Vicina 1";
+        request.DeliveryDistanceMeters = 2500;
+        request.DeliveryFeeCents = InputRules.MaxSafeCents;
+        db.OnlineRequests.Add(request);
+        await db.SaveChangesAsync();
+        using var staff = await OnlineTestData.LoginAsync(host, shop.Staff);
+        var path = $"/api/staff/online/requests/{request.Id}";
+        await AssertErrorAsync(
+            await PostAsync(staff, path + "/accept", new { estimatedMinutes = 30 }),
+            HttpStatusCode.Conflict,
+            "DELIVERY_TOTAL_TOO_LARGE"
+        );
+        await db.Entry(request).ReloadAsync();
+        Assert.Null(request.SessionId);
+        Assert.Null(request.AcceptedAt);
+        Assert.Equal(
+            HttpStatusCode.NoContent,
+            (await PostAsync(staff, path + "/reject", new { })).StatusCode
+        );
     }
 
     [Fact]

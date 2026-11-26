@@ -195,18 +195,18 @@ public sealed class OnlineStaffService(ApplicationDbContext db, TimeProvider clo
                     "Pickup only."
                 );
         if (request.DeliveryFeeCents is { } quoted)
-            return fee is null && maxMeters is null
-                ? quoted
-                : throw ApiException.Validation(
+        {
+            if (fee is not null || maxMeters is not null)
+                throw ApiException.Validation(
                     "This delivery keeps the fee quoted to the customer.",
                     "deliveryFeeCents",
                     "Already quoted."
                 );
-        if (
-            fee is not { } cents
-            || cents < 0
-            || cents > InputRules.MaxSafeCents - request.ItemsTotalCents
-        )
+            if (!OnlineDelivery.FeeFits(request.ItemsTotalCents, quoted))
+                throw OnlineErrors.DeliveryTotalTooLarge();
+            return quoted;
+        }
+        if (fee is not { } cents || !OnlineDelivery.FeeFits(request.ItemsTotalCents, cents))
             throw ApiException.Validation(
                 "Enter the delivery fee in whole cents, 0 for free delivery.",
                 "deliveryFeeCents",

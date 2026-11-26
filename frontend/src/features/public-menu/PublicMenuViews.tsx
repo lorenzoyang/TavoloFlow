@@ -455,7 +455,7 @@ export function CartBar({
 }: {
   cart: Pick<MenuCart, "cart" | "review">;
   // Online checkout supplies its discounted total; QR carts use the sum of their lines.
-  amountCents?: number;
+  amountCents?: number | null;
   language: Language;
   open: () => void;
   // A short status after the count, such as the restaurant not taking orders right now.
@@ -483,7 +483,9 @@ export function CartBar({
           </span>
         </span>
         <span className="text-lg font-semibold tabular-nums">
-          {formatMoney(amountCents ?? totalCents(cart.cart.lines), language)}
+          {amountCents === null
+            ? "—"
+            : formatMoney(amountCents ?? totalCents(cart.cart.lines), language)}
         </span>
         <ChevronUp aria-hidden="true" className="size-5 shrink-0" />
       </button>

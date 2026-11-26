@@ -23,10 +23,7 @@ public sealed class OnlineSettingsService(
             IsolationLevel.RepeatableRead,
             ct
         );
-        var restaurant =
-            await db.Restaurants.AsNoTracking().SingleOrDefaultAsync(r => r.Id == restaurantId, ct)
-            ?? throw DiningErrors.RestaurantNotFound();
-        var response = await ResponseAsync(restaurant, ct);
+        var response = await ResponseAsync(restaurantId, ct);
         await transaction.CommitAsync(ct);
         return response;
     }
@@ -96,9 +93,7 @@ public sealed class OnlineSettingsService(
                         .SetProperty(r => r.PickupMaxDaysAhead, maxDaysAhead),
                 ct
             );
-        restaurant.PickupMinNoticeMinutes = input.MinNoticeMinutes;
-        restaurant.PickupMaxDaysAhead = maxDaysAhead;
-        var result = await ResponseAsync(restaurant, ct);
+        var result = await ResponseAsync(restaurantId, ct);
         await transaction.CommitAsync(ct);
         return result;
     }
@@ -119,12 +114,11 @@ public sealed class OnlineSettingsService(
                     "Invalid phone."
                 );
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        var restaurant = await LockOfferedAsync(restaurantId, ct);
+        await LockOfferedAsync(restaurantId, ct);
         await db
             .Restaurants.Where(r => r.Id == restaurantId)
             .ExecuteUpdateAsync(u => u.SetProperty(r => r.PublicPhone, value), ct);
-        restaurant.PublicPhone = value;
-        var response = await ResponseAsync(restaurant, ct);
+        var response = await ResponseAsync(restaurantId, ct);
         await transaction.CommitAsync(ct);
         return response;
     }
@@ -170,7 +164,7 @@ public sealed class OnlineSettingsService(
                 "Setup incomplete."
             );
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        var restaurant = await LockOfferedAsync(restaurantId, ct);
+        await LockOfferedAsync(restaurantId, ct);
         await db
             .Restaurants.Where(r => r.Id == restaurantId)
             .ExecuteUpdateAsync(
@@ -195,14 +189,7 @@ public sealed class OnlineSettingsService(
             })
         );
         await db.SaveChangesAsync(ct);
-        restaurant.DeliveryEnabled = enabled;
-        restaurant.DeliveryNoteZh = zh;
-        restaurant.DeliveryNoteIt = it;
-        restaurant.DeliveryNoteEn = en;
-        restaurant.DeliveryMinOrderCents = minOrder;
-        restaurant.DeliveryOriginLat = lat;
-        restaurant.DeliveryOriginLng = lng;
-        var response = await ResponseAsync(restaurant, ct);
+        var response = await ResponseAsync(restaurantId, ct);
         await transaction.CommitAsync(ct);
         return response;
     }
@@ -322,8 +309,7 @@ public sealed class OnlineSettingsService(
         await db
             .Restaurants.Where(r => r.Id == restaurantId)
             .ExecuteUpdateAsync(u => u.SetProperty(r => r.OnlinePausedUntil, pausedUntil), ct);
-        restaurant.OnlinePausedUntil = pausedUntil;
-        var response = await ResponseAsync(restaurant, ct);
+        var response = await ResponseAsync(restaurantId, ct);
         await transaction.CommitAsync(ct);
         return response;
     }
@@ -331,12 +317,11 @@ public sealed class OnlineSettingsService(
     public async Task<OnlineSettingsResponse> ResumeAsync(Guid restaurantId, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        var restaurant = await LockOfferedAsync(restaurantId, ct);
+        await LockOfferedAsync(restaurantId, ct);
         await db
             .Restaurants.Where(r => r.Id == restaurantId)
             .ExecuteUpdateAsync(u => u.SetProperty(r => r.OnlinePausedUntil, (DateTime?)null), ct);
-        restaurant.OnlinePausedUntil = null;
-        var response = await ResponseAsync(restaurant, ct);
+        var response = await ResponseAsync(restaurantId, ct);
         await transaction.CommitAsync(ct);
         return response;
     }
@@ -347,6 +332,18 @@ public sealed class OnlineSettingsService(
             await RowLocks.RestaurantAsync(db, restaurantId, RowLock.Update, ct)
             ?? throw DiningErrors.RestaurantNotFound();
         return restaurant.OnlineEnabled ? restaurant : throw OnlineErrors.NotOffered();
+    }
+
+    // ExecuteUpdate changes the database directly. Read its persisted values in the same transaction.
+    private async Task<OnlineSettingsResponse> ResponseAsync(
+        Guid restaurantId,
+        CancellationToken ct
+    )
+    {
+        var restaurant =
+            await db.Restaurants.AsNoTracking().SingleOrDefaultAsync(r => r.Id == restaurantId, ct)
+            ?? throw DiningErrors.RestaurantNotFound();
+        return await ResponseAsync(restaurant, ct);
     }
 
     // Reads the hours and waiting requests in the caller's transaction, after its write.

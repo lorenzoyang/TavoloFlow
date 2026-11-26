@@ -74,19 +74,7 @@ public sealed class OnlineRequestService(
         var now = clock.GetUtcNow();
         var zone = TimeZoneInfo.FindSystemTimeZoneById(restaurant.TimeZone);
         var businessDate = DateOnly.FromDateTime(OnlineSchedule.Local(zone, now));
-        var number = (
-            await db
-                .Database.SqlQuery<int>(
-                    $"""
-                    INSERT INTO online_counters (restaurant_id, business_date, last_number)
-                    VALUES ({restaurantId}, {businessDate}, 1)
-                    ON CONFLICT (restaurant_id, business_date)
-                    DO UPDATE SET last_number = online_counters.last_number + 1
-                    RETURNING last_number AS "Value"
-                    """
-                )
-                .ToListAsync(ct)
-        ).Single();
+        var number = await NextNumberAsync(restaurantId, businessDate, ct);
 
         // A repeat returns the stored result before any later gate, and rolls back so it uses no number.
         var original = await StoredAsync(
@@ -102,72 +90,10 @@ public sealed class OnlineRequestService(
 
         var browserKey = OnlineSubmissionSource.Key(restaurantId, source.BrowserId);
         var ipKey = OnlineSubmissionSource.Key(restaurantId, source.IpAddress);
-        // The existing waiting index bounds these reads to at most twenty current requests.
-        // Both checks share the cross-day submission lock with the eventual insert.
-        var existing = await PendingAsync(restaurantId, browserKey, now.UtcDateTime, ct);
-        if (existing is not null)
-            throw OnlineErrors.BrowserPending(existing);
-        if (
-            await db
-                .OnlineRequests.Waiting(restaurantId, now.UtcDateTime)
-                .CountAsync(r => r.IpKey == ipKey, ct) >= limits.Value.MaxWaitingPerIp
-        )
-            throw OnlineErrors.IpWaitingLimit();
-
-        var (hours, availability) = await OnlineAvailability.ReadAsync(db, restaurant, now, ct);
-        if (!availability.IsOpen)
-            throw OnlineErrors.NotOpen(availability);
-        if (
-            form.RequestedPickupAt is { } pickup
-            && (
-                restaurant.PickupMinNoticeMinutes is not { } notice
-                || !OnlinePickup
-                    .Calendar(hours, zone, now, notice, restaurant.PickupMaxDaysAhead)
-                    .Times()
-                    .Contains(pickup)
-            )
-        )
-            throw OnlineErrors.PickupSlotChanged();
-        // Delivery is the OWNER's switch; it never closes pickup.
-        if (form.Fulfillment == OnlineFulfillment.Delivery && !restaurant.DeliveryEnabled)
-            throw OnlineErrors.DeliveryNotOffered();
-        // Verify the road distance and find its current band. Settings writes take restaurant UPDATE.
-        int? quotedMeters = null;
-        DeliveryTierResponse? quotedTier = null;
-        if (form.Quote is { } quoted)
-        {
-            quotedMeters = quotes.Distance(
-                restaurantId,
-                form.Address!,
-                restaurant.DeliveryOriginLat,
-                restaurant.DeliveryOriginLng,
-                quoted.Signed,
-                now.UtcDateTime
-            );
-            if (quotedMeters is not { } distance)
-                throw OnlineErrors.DeliveryQuoteInvalid();
-            var tiers = await OnlineDelivery.TiersAsync(db, restaurantId, ct);
-            quotedTier =
-                OnlineDelivery.TierForDistance(tiers, distance)
-                ?? throw OnlineErrors.DeliveryQuoteInvalid();
-        }
-        // Coupon writes take restaurant UPDATE, so this SHARE lock sees the coupon whole or not at all.
-        // Acceptance never checks it again: the customer was promised this total.
-        if (form.Coupon is { } wanted)
-        {
-            var coupon = await db
-                .OnlineCoupons.AsNoTracking()
-                .SingleOrDefaultAsync(
-                    c => c.RestaurantId == restaurantId && c.Code == wanted.Code,
-                    ct
-                );
-            if (
-                coupon is null
-                || !OnlineCoupons.IsValid(coupon, businessDate)
-                || coupon.PercentOff != wanted.PercentOff
-            )
-                throw OnlineErrors.CouponInvalid();
-        }
+        await CheckWaitingLimitsAsync(restaurantId, browserKey, ipKey, now.UtcDateTime, ct);
+        await CheckFulfillmentAsync(restaurant, form, zone, now, ct);
+        var quoted = await ResolveQuoteAsync(restaurant, form, now.UtcDateTime, ct);
+        await VerifyCouponAsync(restaurantId, form.Coupon, businessDate, ct);
         var lines = await OrderLines.SnapshotAsync(db, restaurantId, form.Lines, ct);
         var itemsTotal = OrderLines.Total(lines);
         var discountedItems = OnlineDelivery.DiscountedItemsCents(
@@ -181,11 +107,13 @@ public sealed class OnlineRequestService(
         )
             throw OnlineErrors.DeliveryMinOrder();
         long? deliveryFee = null;
-        if (quotedTier is not null && form.Quote is { } confirmed)
+        if (quoted is not null)
         {
-            deliveryFee = OnlineDelivery.FeeForTier(quotedTier, discountedItems);
-            if (deliveryFee != confirmed.FeeCents)
+            deliveryFee = OnlineDelivery.FeeForTier(quoted.Tier, discountedItems);
+            if (deliveryFee != quoted.ConfirmedFeeCents)
                 throw OnlineErrors.DeliveryFeeChanged();
+            if (!OnlineDelivery.FeeFits(itemsTotal, deliveryFee.Value))
+                throw OnlineErrors.DeliveryTotalTooLarge();
         }
         var submittedAt = now.UtcDateTime;
         var request = new OnlineRequest
@@ -204,7 +132,7 @@ public sealed class OnlineRequestService(
             DeliveryAddress = form.Address,
             DeliveryNotes = form.Notes,
             DeliveryFeeCents = deliveryFee,
-            DeliveryDistanceMeters = quotedMeters,
+            DeliveryDistanceMeters = quoted?.Meters,
             Lines = [.. lines],
             ItemsTotalCents = itemsTotal,
             CouponCode = form.Coupon?.Code,
@@ -216,6 +144,135 @@ public sealed class OnlineRequestService(
         };
         db.OnlineRequests.Add(request);
         await db.SaveChangesAsync(ct);
+        await ClearExpiredContactsAsync(restaurantId, submittedAt, ct);
+        // Read back PostgreSQL's timestamp precision, so a repeat returns exactly the same response.
+        var saved = await StoredAsync(restaurantId, r => r.Id == request.Id, ct);
+        await transaction.CommitAsync(ct);
+        // Only a committed first submission notifies staff devices; repeats and rejections never do.
+        push.Enqueue(new(restaurantId, number, request.ExpiresAt));
+        return new(saved!, true);
+    }
+
+    private async Task<int> NextNumberAsync(
+        Guid restaurantId,
+        DateOnly businessDate,
+        CancellationToken ct
+    )
+    {
+        return (
+            await db
+                .Database.SqlQuery<int>(
+                    $"""
+                    INSERT INTO online_counters (restaurant_id, business_date, last_number)
+                    VALUES ({restaurantId}, {businessDate}, 1)
+                    ON CONFLICT (restaurant_id, business_date)
+                    DO UPDATE SET last_number = online_counters.last_number + 1
+                    RETURNING last_number AS "Value"
+                    """
+                )
+                .ToListAsync(ct)
+        ).Single();
+    }
+
+    private async Task CheckWaitingLimitsAsync(
+        Guid restaurantId,
+        string browserKey,
+        string ipKey,
+        DateTime now,
+        CancellationToken ct
+    )
+    {
+        // The existing waiting index bounds these reads to at most twenty current requests.
+        // Both checks share the cross-day submission lock with the eventual insert.
+        var existing = await PendingAsync(restaurantId, browserKey, now, ct);
+        if (existing is not null)
+            throw OnlineErrors.BrowserPending(existing);
+        if (
+            await db.OnlineRequests.Waiting(restaurantId, now).CountAsync(r => r.IpKey == ipKey, ct)
+            >= limits.Value.MaxWaitingPerIp
+        )
+            throw OnlineErrors.IpWaitingLimit();
+    }
+
+    private async Task CheckFulfillmentAsync(
+        Restaurant restaurant,
+        Form form,
+        TimeZoneInfo zone,
+        DateTimeOffset now,
+        CancellationToken ct
+    )
+    {
+        var (hours, availability) = await OnlineAvailability.ReadAsync(db, restaurant, now, ct);
+        if (!availability.IsOpen)
+            throw OnlineErrors.NotOpen(availability);
+        if (
+            form.RequestedPickupAt is { } pickup
+            && (
+                restaurant.PickupMinNoticeMinutes is not { } notice
+                || !OnlinePickup
+                    .Calendar(hours, zone, now, notice, restaurant.PickupMaxDaysAhead)
+                    .Times()
+                    .Contains(pickup)
+            )
+        )
+            throw OnlineErrors.PickupSlotChanged();
+        // Delivery is the OWNER's switch; it never closes pickup.
+        if (form.Fulfillment == OnlineFulfillment.Delivery && !restaurant.DeliveryEnabled)
+            throw OnlineErrors.DeliveryNotOffered();
+    }
+
+    private async Task<ResolvedQuote?> ResolveQuoteAsync(
+        Restaurant restaurant,
+        Form form,
+        DateTime now,
+        CancellationToken ct
+    )
+    {
+        if (form.Quote is not { } quote)
+            return null;
+        var meters =
+            quotes.Distance(
+                restaurant.Id,
+                form.Address!,
+                restaurant.DeliveryOriginLat,
+                restaurant.DeliveryOriginLng,
+                quote.Signed,
+                now
+            ) ?? throw OnlineErrors.DeliveryQuoteInvalid();
+        var tiers = await OnlineDelivery.TiersAsync(db, restaurant.Id, ct);
+        var tier =
+            OnlineDelivery.TierForDistance(tiers, meters)
+            ?? throw OnlineErrors.DeliveryQuoteInvalid();
+        return new(meters, tier, quote.FeeCents);
+    }
+
+    // Coupon writes take restaurant UPDATE, so this SHARE lock sees a whole coupon.
+    private async Task VerifyCouponAsync(
+        Guid restaurantId,
+        Coupon? wanted,
+        DateOnly businessDate,
+        CancellationToken ct
+    )
+    {
+        if (wanted is null)
+            return;
+        var coupon = await db
+            .OnlineCoupons.AsNoTracking()
+            .SingleOrDefaultAsync(c => c.RestaurantId == restaurantId && c.Code == wanted.Code, ct);
+        if (
+            coupon is null
+            || !OnlineCoupons.IsValid(coupon, businessDate)
+            || coupon.PercentOff != wanted.PercentOff
+        )
+            throw OnlineErrors.CouponInvalid();
+    }
+
+    private async Task ClearExpiredContactsAsync(
+        Guid restaurantId,
+        DateTime submittedAt,
+        CancellationToken ct
+    )
+    {
         // Each new submission clears its restaurant's contact data older than 30 days in the same
         // transaction, so no background job is needed. ix_online_requests_contact holds only uncleared rows.
         var cutoff = submittedAt - ContactRetention;
@@ -233,12 +290,6 @@ public sealed class OnlineRequestService(
                         .SetProperty(r => r.IpKey, (string?)null),
                 ct
             );
-        // Read back PostgreSQL's timestamp precision, so a repeat returns exactly the same response.
-        var saved = await StoredAsync(restaurantId, r => r.Id == request.Id, ct);
-        await transaction.CommitAsync(ct);
-        // Only a committed first submission notifies staff devices; repeats and rejections never do.
-        push.Enqueue(new(restaurantId, number, request.ExpiresAt));
-        return new(saved!, true);
     }
 
     public async Task<OnlineOrderingContextResponse> ContextAsync(
@@ -420,6 +471,12 @@ public sealed class OnlineRequestService(
     private sealed record Coupon(string Code, int PercentOff);
 
     private sealed record Quote(string Signed, long FeeCents);
+
+    private sealed record ResolvedQuote(
+        int Meters,
+        DeliveryTierResponse Tier,
+        long ConfirmedFeeCents
+    );
 
     private sealed record Form(
         Guid ClientRequestId,
