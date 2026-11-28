@@ -6,6 +6,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { formatMoney } from "@/lib/format";
 import { displayName, type Language } from "@/lib/language";
+import { useClosingContent } from "@/lib/useClosingContent";
 import { cn } from "@/lib/utils";
 import type { MenuItem, MenuOption, OptionGroup } from "@/features/menu/api";
 import { allergenNames, messages } from "@/features/public-menu/messages";
@@ -25,6 +26,8 @@ type Props = {
 // The guest chooses a dish's options before it enters the cart. Required groups start empty: nothing is
 // preselected, so every required choice is the guest's own.
 export function OptionPicker(props: Props) {
+  // Adding the dish clears it at once; the sheet keeps showing the choices while it slides down.
+  const item = useClosingContent(props.item !== null, props.item);
   return (
     <Sheet
       open={props.item !== null}
@@ -37,7 +40,7 @@ export function OptionPicker(props: Props) {
         showCloseButton={false}
         className="mx-auto max-h-[90dvh] w-full max-w-xl gap-0 rounded-t-3xl"
       >
-        {props.item && <Choices key={props.item.id} {...props} item={props.item} />}
+        {item && <Choices key={item.id} {...props} item={item} />}
       </SheetContent>
     </Sheet>
   );

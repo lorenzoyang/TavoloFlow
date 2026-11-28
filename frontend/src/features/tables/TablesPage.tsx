@@ -26,6 +26,7 @@ import { ServiceNotOffered } from "@/features/accounts/ServiceNotOffered";
 import { isSameAccount, refreshAfterWrite } from "@/features/accounts/queries";
 import { ApiError, errorMessage, fieldErrors } from "@/lib/api";
 import { staffMessages } from "@/lib/staff-messages";
+import { useClosingContent } from "@/lib/useClosingContent";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import {
@@ -144,6 +145,10 @@ function TablesContent({ account }: { account: CurrentAccount }) {
   const tables = query.data;
   const qrTable = tables?.find((table) => table.id === qrId);
   const busy = mutation.isPending;
+  // Both dialogs keep what they showed while they fade out after their state is cleared.
+  const formOpen = editor?.kind === "create" || editor?.kind === "rename";
+  const formEditor = useClosingContent(formOpen, formOpen ? editor : null);
+  const shownQr = useClosingContent(!!qrTable, qrTable);
   return (
     <div>
       <PageHeader
@@ -270,7 +275,7 @@ function TablesContent({ account }: { account: CurrentAccount }) {
         </div>
       </div>
       <Dialog
-        open={editor?.kind === "create" || editor?.kind === "rename"}
+        open={formOpen}
         onOpenChange={(next) => {
           if (!next && !busy) cancel();
         }}
@@ -278,14 +283,14 @@ function TablesContent({ account }: { account: CurrentAccount }) {
         <DialogContent initialFocus={labelInput}>
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold">
-              {editor?.kind === "create" ? m.add : m.renameTitle}
+              {formEditor?.kind === "create" ? m.add : m.renameTitle}
             </DialogTitle>
             <DialogDescription>{m.labelHint}</DialogDescription>
           </DialogHeader>
-          {(editor?.kind === "create" || editor?.kind === "rename") && (
+          {formEditor && (
             <TableLabelForm
-              key={editor.kind === "create" ? "create" : `rename-${editor.table.id}`}
-              editor={editor}
+              key={formEditor.kind === "create" ? "create" : `rename-${formEditor.table.id}`}
+              editor={formEditor}
               busy={busy}
               error={mutation.error}
               submit={(send) => mutation.mutate(send)}
@@ -322,15 +327,15 @@ function TablesContent({ account }: { account: CurrentAccount }) {
           }}
         >
           <DialogContent>
-            {qrTable && (
+            {shownQr && (
               <>
                 <DialogHeader>
                   <DialogTitle className="text-lg font-semibold wrap-break-word">
-                    {m.qrTitle(qrTable.tableLabel)}
+                    {m.qrTitle(shownQr.tableLabel)}
                   </DialogTitle>
                   <DialogDescription>{account.restaurantName}</DialogDescription>
                 </DialogHeader>
-                <TableQr key={qrTable.id} table={qrTable} restaurantName={account.restaurantName} />
+                <TableQr key={shownQr.id} table={shownQr} restaurantName={account.restaurantName} />
               </>
             )}
           </DialogContent>

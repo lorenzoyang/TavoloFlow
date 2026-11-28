@@ -2,6 +2,7 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FieldDescription } from "@/components/ui/field";
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useClosingContent } from "@/lib/useClosingContent";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import {
   reorderItems,
@@ -73,12 +74,17 @@ export function MenuEditorSheet({
   save: (request: () => Promise<unknown>) => void;
   error: unknown;
   feedback: ReactNode;
-  photo: ReactNode;
+  // The photo section of an existing dish; it follows the live menu, unlike the form fields.
+  photo: (itemId: string) => ReactNode;
 }) {
   const m = menuMessages[useStaffLanguage()];
+  const sheetOpen = editor !== null && editor.kind !== "delete";
+  // The page clears its editor as soon as a save succeeds; the sheet keeps showing that editor while
+  // it slides out instead of emptying first.
+  const current = useClosingContent(sheetOpen, editor);
   return (
     <Sheet
-      open={editor !== null && editor.kind !== "delete"}
+      open={sheetOpen}
       onOpenChange={(next) => {
         if (!next && !busy) cancel();
       }}
@@ -89,7 +95,7 @@ export function MenuEditorSheet({
         className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-xl"
       >
         <SheetHeader className="flex-row items-center justify-between gap-3 border-b pt-[max(1rem,env(safe-area-inset-top))]">
-          <SheetTitle className="text-lg font-semibold">{editorTitle(editor, m)}</SheetTitle>
+          <SheetTitle className="text-lg font-semibold">{editorTitle(current, m)}</SheetTitle>
           <SheetClose
             disabled={busy}
             render={<Button variant="ghost" size="icon" aria-label={m.cancel} className="-mr-2" />}
@@ -98,61 +104,61 @@ export function MenuEditorSheet({
           </SheetClose>
         </SheetHeader>
         <div className="flex-1 overflow-y-auto px-4 pt-4">
-          {editor?.kind === "item-order" && (
+          {current?.kind === "item-order" && (
             <ItemOrderForm
-              initial={editor.snapshot}
+              initial={current.snapshot}
               busy={busy}
-              save={(ids) => save(() => reorderItems(editor.snapshot.category.id, ids))}
+              save={(ids) => save(() => reorderItems(current.snapshot.category.id, ids))}
               cancel={cancel}
               feedback={feedback}
             />
           )}
-          {menu && editor?.kind === "category" && (
+          {menu && current?.kind === "category" && (
             <CategoryForm
-              key={`category-${editor.value?.id ?? "new"}`}
-              initial={editor.value}
+              key={`category-${current.value?.id ?? "new"}`}
+              initial={current.value}
               busy={busy}
               error={error}
               cancel={cancel}
-              save={(body) => save(() => saveCategory(editor.value?.id, body))}
+              save={(body) => save(() => saveCategory(current.value?.id, body))}
               feedback={feedback}
             />
           )}
-          {menu && editor?.kind === "templates" && (
+          {menu && current?.kind === "templates" && (
             <TemplatePicker
               menu={menu}
               choose={(template) => open({ kind: "group", template })}
               copy={(group) => open({ kind: "group", copyOf: group })}
             />
           )}
-          {menu && editor?.kind === "group" && (
+          {menu && current?.kind === "group" && (
             <OptionGroupForm
-              key={`group-${editor.value?.id ?? editor.template?.key ?? (editor.copyOf ? `copy-${editor.copyOf.id}` : "new")}`}
-              initial={editor.value}
-              copyOf={editor.copyOf}
-              template={editor.template}
+              key={`group-${current.value?.id ?? current.template?.key ?? (current.copyOf ? `copy-${current.copyOf.id}` : "new")}`}
+              initial={current.value}
+              copyOf={current.copyOf}
+              template={current.template}
               menu={menu}
               busy={busy}
               error={error}
               cancel={cancel}
-              save={(body) => save(() => saveOptionGroup(editor.value?.id, body))}
+              save={(body) => save(() => saveOptionGroup(current.value?.id, body))}
               feedback={feedback}
             />
           )}
-          {photo}
-          {menu && editor?.kind === "item" && !editor.value && (
+          {current?.kind === "item" && current.value && photo(current.value.id)}
+          {menu && current?.kind === "item" && !current.value && (
             <FieldDescription className="mb-5">{m.photoAfterCreate}</FieldDescription>
           )}
-          {menu && editor?.kind === "item" && (
+          {menu && current?.kind === "item" && (
             <ItemForm
-              key={`item-${editor.value?.id ?? "new"}`}
-              initial={editor.value}
+              key={`item-${current.value?.id ?? "new"}`}
+              initial={current.value}
               menu={menu}
-              categoryId={editor.categoryId}
+              categoryId={current.categoryId}
               busy={busy}
               error={error}
               cancel={cancel}
-              save={(body) => save(() => saveItem(editor.value?.id, body))}
+              save={(body) => save(() => saveItem(current.value?.id, body))}
               feedback={feedback}
             />
           )}

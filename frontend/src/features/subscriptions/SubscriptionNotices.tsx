@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import type { AccountScope } from "@/features/accounts/api";
 import { errorMessage } from "@/lib/api";
 import { formatCalendarDate } from "@/lib/format";
+import { useClosingContent } from "@/lib/useClosingContent";
 import { useOperations } from "@/lib/useOperations";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import {
@@ -61,6 +62,8 @@ function SubscriptionNotices({
   const ops = useOperations();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Confirming empties the list, which closes the dialog: it keeps the notices while it fades out.
+  const shown = useClosingContent(!!data?.length, data);
 
   async function confirm() {
     if (!data?.length) return;
@@ -101,7 +104,7 @@ function SubscriptionNotices({
           <AlertDialogTitle>{m.title}</AlertDialogTitle>
         </AlertDialogHeader>
         <ul aria-label={m.title} className="min-w-0 space-y-3 overflow-y-auto overscroll-contain">
-          {data?.map((notice) => (
+          {shown?.map((notice) => (
             <li key={notice.id} className="min-w-0 space-y-2 rounded-xl border p-3 wrap-break-word">
               <p className="font-semibold">{notice.restaurantName}</p>
               <p className="text-sm font-medium">

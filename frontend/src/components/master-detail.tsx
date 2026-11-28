@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { staffMessages } from "@/lib/staff-messages";
+import { useClosingContent } from "@/lib/useClosingContent";
 import { useStaffLanguage } from "@/lib/useStaffLanguage";
 import { cn } from "@/lib/utils";
 import { useMediaQuery, WIDE_SCREEN } from "@/lib/useMediaQuery";
@@ -30,6 +31,9 @@ export function MasterDetail({
   const closeText = closeLabel ?? fallbackClose;
   // Opening the sheet focuses its close button rather than the first field inside the detail.
   const close = useRef<HTMLButtonElement>(null);
+  // The sheet slides out after the selection is cleared: it keeps the record it showed until then.
+  const shownTitle = useClosingContent(open, title);
+  const shownDetail = useClosingContent(open, detail);
   if (wide)
     return (
       <div
@@ -79,7 +83,7 @@ export function MasterDetail({
         >
           <SheetHeader className="flex-row items-start justify-between gap-3 border-b pt-[max(1rem,env(safe-area-inset-top))]">
             <SheetTitle className="min-w-0 text-lg font-semibold wrap-break-word">
-              {title}
+              {shownTitle}
             </SheetTitle>
             <SheetClose
               ref={close}
@@ -96,7 +100,7 @@ export function MasterDetail({
             </SheetClose>
           </SheetHeader>
           <div data-slot="detail-scroll" className="pb-safe flex-1 overflow-y-auto p-4">
-            {detail}
+            {shownDetail}
           </div>
         </SheetContent>
       </Sheet>

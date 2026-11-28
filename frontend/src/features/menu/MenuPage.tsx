@@ -149,10 +149,27 @@ function MenuContent({ account }: { account: CurrentAccount }) {
     writeInline("categories", () => reorderCategories(ids));
   }
   // The photo section follows the live menu, unlike the form fields, which keep their snapshot.
-  const liveItem =
-    editor?.kind === "item" && editor.value
-      ? menu?.items.find((item) => item.id === editor.value?.id)
-      : undefined;
+  function photo(itemId: string) {
+    const item = menu?.items.find((value) => value.id === itemId);
+    return (
+      item && (
+        <ItemImageSection
+          item={item}
+          busy={busy}
+          error={photoError}
+          notice={photoNotice && <Notice tone={photoNotice.tone}>{photoNotice.text}</Notice>}
+          upload={(file) => imageMutation.mutate(() => uploadItemImage(item.id, file))}
+          clear={() => {
+            imageMutation.reset();
+            setPhotoNotice(undefined);
+          }}
+          remove={(done) =>
+            imageMutation.mutate(() => deleteItemImage(item.id), { onSuccess: done })
+          }
+        />
+      )
+    );
+  }
   return (
     <div>
       <PageHeader
@@ -362,24 +379,7 @@ function MenuContent({ account }: { account: CurrentAccount }) {
         save={mutation.mutate}
         error={mutation.error}
         feedback={feedback}
-        photo={
-          liveItem && (
-            <ItemImageSection
-              item={liveItem}
-              busy={busy}
-              error={photoError}
-              notice={photoNotice && <Notice tone={photoNotice.tone}>{photoNotice.text}</Notice>}
-              upload={(file) => imageMutation.mutate(() => uploadItemImage(liveItem.id, file))}
-              clear={() => {
-                imageMutation.reset();
-                setPhotoNotice(undefined);
-              }}
-              remove={(done) =>
-                imageMutation.mutate(() => deleteItemImage(liveItem.id), { onSuccess: done })
-              }
-            />
-          )
-        }
+        photo={photo}
       />
       <ConfirmDialog
         open={editor?.kind === "delete"}
